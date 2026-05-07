@@ -1,0 +1,253 @@
+%% Panoptix — Entity-Relationship Diagram
+%% PE-FIX: Created from §14.1 table definitions in the main plan
+%% Control-plane database schema (Neon Postgres)
+
+erDiagram
+
+    %% ── Identity & Access ──
+
+    users {
+        uuid id PK
+        varchar email UK
+        varchar idp_subject
+        varchar role_default "default: none"
+        timestamp disabled_at
+        timestamp created_at
+    }
+
+    roles {
+        int id PK
+        varchar name UK
+    }
+
+    permissions {
+        int id PK
+        varchar action
+        varchar resource
+    }
+
+    role_permissions {
+        int role_id FK
+        int permission_id FK
+        string composite_pk "role_id + permission_id"
+    }
+
+    user_roles {
+        uuid user_id FK
+        int role_id FK
+        string composite_pk "user_id + role_id"
+    }
+
+    sessions {
+        uuid id PK
+        uuid user_id FK
+        varchar cf_jti
+        varchar ua_fp
+        inet ip
+        timestamp created_at
+        timestamp last_seen_at
+        timestamp revoked_at
+    }
+
+    %% ── Camera & Gateway ──
+
+    sites {
+        uuid id PK
+        varchar name
+        varchar address
+        timestamp bystander_signage_attested_at
+    }
+
+    cameras {
+        uuid id PK
+        varchar name
+        camera_source_type source_type "rtsp | nvr_rtsp | onvif_profile_s | onvif_profile_t | synthetic_rtsp_test_source"
+        uuid room_uuid
+        varchar livekit_room_name UK "camera_<short_uuid_8>"
+        uuid gateway_id FK
+        uuid site_id FK
+        timestamp created_at
+        timestamp retired_at
+    }
+
+    camera_acl {
+        uuid user_id FK
+        uuid camera_id FK
+        uuid granted_by FK
+        timestamp granted_at
+        timestamp revoked_at
+        string composite_pk "user_id + camera_id + granted_at"
+        string unique_active "user_id + camera_id where revoked_at is null"
+    }
+
+    edge_gateways {
+        uuid id PK
+        varchar name
+        gateway_status status "enabled | disabled | retired"
+        varchar service_token_hash "nullable (MVP)"
+        varchar mtls_fingerprint "nullable (pilot+)"
+        timestamp cert_expires_at
+        timestamp last_seen_at
+        timestamp created_at
+        timestamp disabled_at
+    }
+
+    gateway_camera_assignments {
+        uuid gateway_id FK
+        uuid camera_id FK
+        uuid granted_by FK
+        timestamp granted_at
+        timestamp revoked_at
+        string composite_pk "gateway_id + camera_id + granted_at"
+        string unique_active "gateway_id + camera_id where revoked_at is null"
+    }
+
+    camera_events {
+        uuid id PK
+        uuid camera_id FK
+        uuid gateway_id FK
+        camera_event_kind kind "online | offline | degraded | reconnecting | retired"
+        timestamp at
+        event_source source "heartbeat | livekit_webhook | mediamtx_callback | admin_action"
+    }
+
+    %% ── Streaming ──
+
+    stream_grants {
+        uuid id PK
+        uuid user_id FK "nullable"
+        uuid gateway_id FK "nullable"
+        uuid session_id FK "nullable"
+        uuid camera_id FK
+        varchar jti
+        stream_kind kind "viewer_subscribe | gateway_publish"
+        timestamp issued_at
+        timestamp expires_at
+        varchar denied_reason "nullable"
+    }
+
+    %% ── Audit & Security ──
+
+    audit_log {
+        bigint id PK
+        timestamp ts
+        uuid actor_id
+        actor_type actor_type "user | gateway | system | break_glass | service_token_monitor"
+        varchar action
+        varchar resource
+        inet ip
+        varchar ua
+        varchar prev_hash
+        varchar hash
+        int hmac_key_version FK
+        jsonb payload
+    }
+
+    audit_hmac_keys {
+        int version PK
+        bytea key_enc "encrypted at rest"
+        timestamp created_at
+        timestamp retired_at
+    }
+
+    break_glass_usage {
+        uuid id PK
+        timestamp opened_at
+        varchar opened_by_reason
+        timestamp closed_at
+        varchar closed_reason
+        timestamp auto_disable_at "opened_at + 90 min"
+        timestamp rotation_completed_at
+    }
+
+    %% ── Privacy & Compliance ──
+
+    privacy_notice_acceptances {
+        uuid user_id FK
+        varchar notice_version
+        timestamp accepted_at
+        string composite_pk "user_id + notice_version"
+    }
+
+    dpa_artifacts {
+        uuid id PK
+        dpa_kind kind "ropa | processor_dpa | pia | breach_log | retention_policy | bystander_signage_attestation | cross_border_transfer_basis"
+        varchar path_to_r2
+        varchar signed_hash
+        timestamp effective_at
+        timestamp superseded_at
+    }
+
+    dsr_requests {
+        uuid id PK
+        varchar requester_contact
+        subject_type subject_type "user | bystander | site_contact"
+        request_type request_type "access | correction | deletion | objection | restriction | other"
+        uuid site_id FK "nullable"
+        text camera_scope_note
+        timestamp received_at
+        timestamp due_at
+        timestamp verified_at
+        varchar status
+        text outcome
+        uuid artefact_id FK "nullable"
+    }
+
+    %% ── System & Operations ──
+
+    system_config {
+        varchar key PK
+        varchar value
+        uuid updated_by FK
+        timestamp updated_at
+    }
+
+    backup_runs {
+        uuid id PK
+        timestamp started_at
+        timestamp finished_at
+        bigint size_bytes
+        varchar sha256
+        bool restore_format_ok
+        bool restore_schema_ok "nullable"
+        bigint row_count_estimate "nullable"
+        upload_status upload_status "pending | uploaded | failed"
+        text notes
+    }
+
+    webhook_replay_cache {
+        varchar provider
+        varchar signature
+        timestamp ts
+        timestamp expires_at
+        string composite_pk "provider + signature"
+    }
+
+    %% ── Relationships ──
+
+    users ||--o{ user_roles : "has"
+    roles ||--o{ user_roles : "assigned to"
+    roles ||--o{ role_permissions : "has"
+    permissions ||--o{ role_permissions : "granted via"
+
+    users ||--o{ sessions : "has"
+    users ||--o{ camera_acl : "granted"
+    users ||--o{ privacy_notice_acceptances : "accepts"
+    users ||--o{ dsr_requests : "may submit"
+
+    sites ||--o{ cameras : "contains"
+    sites ||--o{ dsr_requests : "scopes"
+    cameras ||--o{ camera_acl : "governed by"
+    cameras ||--o{ camera_events : "emits"
+    cameras ||--o{ stream_grants : "subject of"
+    cameras ||--o{ gateway_camera_assignments : "assigned via"
+
+    edge_gateways ||--o{ cameras : "publishes for"
+    edge_gateways ||--o{ gateway_camera_assignments : "authorized for"
+    edge_gateways ||--o{ camera_events : "reports"
+    edge_gateways ||--o{ stream_grants : "receives"
+
+    sessions ||--o{ stream_grants : "associated with"
+
+    audit_hmac_keys ||--o{ audit_log : "signs"
+    dpa_artifacts ||--o{ dsr_requests : "evidences"
