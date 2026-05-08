@@ -1,8 +1,3 @@
-from fastapi import FastAPI
+from cctv_api.app import create_app
 
-app = FastAPI(title="Panoptix API", version="0.1.0")
-
-
-@app.get("/healthz")
-def healthz() -> dict[str, str]:
-    return {"status": "ok"}
+app = create_app()
