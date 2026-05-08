@@ -30,3 +30,7 @@ Thumbs.db
 coverage/
 .tmp/
 tmp/
+
+# Local AI/process instructions
+CLAUDE.md
+execute.md
