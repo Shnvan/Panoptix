@@ -52,14 +52,20 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] GitHub Actions CI workflow (`.github/workflows/ci.yml`) — lint, mypy, pytest, Docker build, secret scan
 - [x] Dependabot config (`.github/dependabot.yml`) — pip + GitHub Actions weekly updates
 
+### Security Foundation
+- [x] Request principal model (`apps/api/src/cctv_api/security/identity.py`)
+- [x] Cloudflare Access verifier interface with fail-closed behavior
+- [x] Development auth path restricted to `APP_ENV=development` and `ALLOW_DEV_AUTH=true`
+- [x] Authentication dependencies for browser users and gateways
+- [x] Deny-by-default RBAC helper placeholders
+- [x] `/api/v1/me` and `/api/v1/cameras` protected by auth dependency
+- [x] Tests for unauthenticated access, disabled dev-auth, allowed dev-auth, forbidden non-dev dev-auth, and RBAC helpers
+
 ---
 
 ## Next Steps (In Order)
 
-### 1. Security Foundation
-Add Cloudflare Access JWT verification interfaces, RBAC module placeholders, and security error handling.
-
-### 2. Gateway Foundation
+### 1. Gateway Foundation
 Add backend-to-gateway command channel interfaces, heartbeat structure, and WebSocket entry point.
 
 ---
