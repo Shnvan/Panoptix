@@ -61,12 +61,24 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] `/api/v1/me` and `/api/v1/cameras` protected by auth dependency
 - [x] Tests for unauthenticated access, disabled dev-auth, allowed dev-auth, forbidden non-dev dev-auth, and RBAC helpers
 
+### Gateway Foundation
+- [x] Gateway Pydantic models for heartbeat, camera status, ingest-token request, and command envelopes
+- [x] Gateway heartbeat endpoint placeholder (`POST /api/v1/gateways/{gateway_id}/heartbeat`)
+- [x] Gateway ingest-token endpoint fail-closed placeholder (`POST /api/v1/gateways/{gateway_id}/ingest-token`)
+- [x] Gateway camera status endpoint placeholder (`POST /api/v1/gateways/{gateway_id}/cameras/{camera_id}/status`)
+- [x] Gateway control channel placeholder (`GET /api/v1/gateway-control/ws`)
+- [x] Gateway ID path matching enforced against authenticated gateway principal
+- [x] Tests for gateway auth requirement, dev gateway identity, ID mismatch, fail-closed token minting, status acceptance, and control-channel placeholder
+
 ---
 
 ## Next Steps (In Order)
 
-### 1. Gateway Foundation
-Add backend-to-gateway command channel interfaces, heartbeat structure, and WebSocket entry point.
+### 1. Real Cloudflare Access JWT Verification
+Add production JWKS fetching/cache, issuer/audience validation, clock-skew enforcement, and fail-closed tests.
+
+### 2. Backend Session Foundation
+Coordinate with the database coworker on session table contracts, then add backend session interfaces without owning schema/migrations.
 
 ---
 
