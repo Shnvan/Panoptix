@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, WebSocket
+from starlette.websockets import WebSocketDisconnect
 from sqlalchemy.orm import Session as DbSession
 
 from cctv_api.api.errors import ProblemDetail
@@ -18,7 +19,7 @@ from cctv_api.gateway.models import (
 )
 from cctv_api.models.enums import ActorType, StreamKind
 from cctv_api.security.audit import AuditLogError, record_audit_event
-from cctv_api.security.dependencies import require_gateway_identity
+from cctv_api.security.dependencies import require_gateway_identity, verify_gateway_identity_ws
 from cctv_api.security.identity import Principal
 from cctv_api.security.livekit_tokens import LiveKitTokenConfigError, mint_gateway_publish_token
 from cctv_api.security.stream_access import (
@@ -196,23 +197,23 @@ def gateway_camera_status(
     return GatewayAcceptedResponse()
 
 
-@router.get("/gateway-control/ws")
-def gateway_control_ws(
-    principal: Principal = Depends(require_gateway_identity),
+@router.websocket("/gateway-control/ws")
+async def gateway_control_ws(
+    websocket: WebSocket,
+    principal: Principal | None = Depends(verify_gateway_identity_ws),
 ) -> None:
-    if principal.gateway_id is None:
-        raise ProblemDetail(
-            status=403,
-            title="Forbidden",
-            detail="gateway-id-required",
-            type_uri="https://panoptix.local/problems/forbidden",
-        )
-    raise ProblemDetail(
-        status=501,
-        title="Not Implemented",
-        detail="gateway-control-websocket-not-implemented",
-        type_uri="https://panoptix.local/problems/not-implemented",
-    )
+    if principal is None or principal.gateway_id is None:
+        await websocket.close(code=1008, reason="gateway-identity-required")
+        return
+
+    await websocket.accept()
+    await websocket.send_json({"type": "connected", "gateway_id": principal.gateway_id})
+
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
 
 
 def _parse_uuid(value: str, detail: str) -> uuid.UUID:

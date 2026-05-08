@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import Request
+from fastapi import Request, WebSocket
 from jwt import InvalidTokenError, PyJWKClient, PyJWKClientError, decode
 
 from cctv_api.core.config import Settings
@@ -37,6 +37,20 @@ class CloudflareAccessVerifier:
         dev_principal = self._dev_gateway_principal(request)
         if dev_principal is not None:
             return dev_principal
+
+        raise AccessVerificationError("gateway-identity-required")
+
+    def verify_gateway_websocket(self, websocket: WebSocket) -> Principal:
+        gateway_id = websocket.headers.get("x-panoptix-dev-gateway-id")
+        if gateway_id is not None:
+            self._assert_dev_auth_allowed()
+            return Principal(
+                kind=PrincipalKind.GATEWAY,
+                subject=f"gateway:{gateway_id}",
+                gateway_id=gateway_id,
+                roles=frozenset({"gateway"}),
+                is_dev=True,
+            )
 
         raise AccessVerificationError("gateway-identity-required")
 

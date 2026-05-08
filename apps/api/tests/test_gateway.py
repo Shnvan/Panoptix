@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from cctv_api.core.config import Settings
 from cctv_api.main import create_app
@@ -79,17 +81,35 @@ def test_gateway_camera_status_accepts_valid_dev_gateway_event() -> None:
     assert response.json() == {"accepted": True}
 
 
-def test_gateway_control_ws_requires_gateway_identity(client: TestClient) -> None:
-    response = client.get("/api/v1/gateway-control/ws")
-
-    assert response.status_code == 401
-    assert response.json()["detail"] == "gateway-identity-required"
-
-
-def test_gateway_control_ws_placeholder_fails_closed_for_valid_gateway() -> None:
+def test_gateway_control_ws_rejects_unauthenticated() -> None:
     client = _dev_gateway_client()
 
-    response = client.get("/api/v1/gateway-control/ws", headers=_gateway_headers())
+    with pytest.raises(WebSocketDisconnect) as exc_info:
+        with client.websocket_connect("/api/v1/gateway-control/ws"):
+            pass
 
-    assert response.status_code == 501
-    assert response.json()["detail"] == "gateway-control-websocket-not-implemented"
+    assert exc_info.value.code == 1008
+
+
+def test_gateway_control_ws_rejects_browser_dev_auth() -> None:
+    client = _dev_gateway_client()
+
+    with pytest.raises(WebSocketDisconnect) as exc_info:
+        with client.websocket_connect(
+            "/api/v1/gateway-control/ws",
+            headers={"x-panoptix-dev-auth": "1"},
+        ):
+            pass
+
+    assert exc_info.value.code == 1008
+
+
+def test_gateway_control_ws_accepts_valid_gateway_and_sends_hello() -> None:
+    client = _dev_gateway_client()
+
+    with client.websocket_connect(
+        "/api/v1/gateway-control/ws",
+        headers=_gateway_headers("gateway-1"),
+    ) as ws:
+        hello = ws.receive_json()
+        assert hello == {"type": "connected", "gateway_id": "gateway-1"}

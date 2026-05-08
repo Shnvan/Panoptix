@@ -105,12 +105,19 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] One-shot and continuous heartbeat runner added
 - [x] Agent tests added for config, client, and runner behavior
 
+### Gateway Control Channel Foundation
+- [x] Backend WebSocket skeleton added at `/api/v1/gateway-control/ws`
+- [x] Gateway-only WebSocket identity checks added
+- [x] Valid gateways receive a connected hello message
+- [x] Missing or browser/user identities are rejected with WebSocket close code `1008`
+- [x] Command signing, queues, and dispatch remain deferred
+
 ---
 
 ## Next Steps (In Order)
 
-### 1. Gateway Control Channel Foundation
-Implement the outbound gateway control channel and signed command handling after the heartbeat agent foundation is stable.
+### 1. Gateway Command Signing Foundation
+Implement canonical command envelopes, signing, verification, expiry checks, and gateway-target validation before adding real command dispatch.
 
 ---
 

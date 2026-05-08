@@ -873,7 +873,7 @@ For local development, `PANOPTIX_DEV_GATEWAY_IDENTITY=true` sends the backend de
 
 ### Important limitation
 
-This milestone does not implement gateway control WebSocket handling, signed command validation, mediamtx process management, or LiveKit publishing orchestration.
+This milestone does not implement signed command validation, gateway-side WebSocket reconnect handling, mediamtx process management, or LiveKit publishing orchestration.
 
 ### Why it matters
 
@@ -881,7 +881,50 @@ Panoptix now has a real edge-agent foundation that can prove gateway liveness to
 
 ---
 
-## 27. Current Verification Status
+## 27. Gateway Control Channel Backend Skeleton
+
+### What was implemented
+
+The backend now exposes a real gateway-only WebSocket skeleton at:
+
+```text
+/api/v1/gateway-control/ws
+```
+
+It includes:
+
+- WebSocket-compatible gateway identity verification
+- rejection of unauthenticated or browser/user-authenticated callers
+- accepted connections for valid gateway identities
+- a connected hello message containing the gateway ID
+- clean handling when the gateway disconnects
+
+### How it works
+
+Gateway callers connect outbound to the backend WebSocket endpoint with gateway identity. In development mode, this is the same `x-panoptix-dev-gateway-id` header used by other gateway endpoints.
+
+On success, the backend sends:
+
+```json
+{
+  "type": "connected",
+  "gateway_id": "gateway-id"
+}
+```
+
+Missing or invalid gateway identity is rejected with WebSocket close code `1008`.
+
+### Important limitation
+
+This is only the channel skeleton. It does not implement command signing, queues, command dispatch, gateway-side WebSocket reconnect handling, mediamtx control, or LiveKit publishing orchestration.
+
+### Why it matters
+
+The backend now has a real authenticated outbound control-channel endpoint for gateways, while still preserving fail-closed identity handling before any command execution is added.
+
+---
+
+## 28. Current Verification Status
 
 ### What passed
 
@@ -892,7 +935,7 @@ edge agent pytest: 10 passed
 edge agent mypy: no issues found
 edge agent ruff: all checks passed
 edge agent compileall: passed
-pytest: 49 passed
+pytest: 50 passed
 mypy: no issues found
 ruff: all checks passed
 compileall: passed
@@ -941,7 +984,7 @@ This confirms the current backend and edge-agent code is working, typed correctl
 The following are intentionally not done yet:
 
 - frontend UI
-- real WebSocket command stream
+- signed WebSocket command stream
 - mediamtx runtime configuration
 - audit HMAC chain implementation
 - admin audit list/export/verify endpoints
@@ -952,9 +995,9 @@ The following are intentionally not done yet:
 
 ## Next Recommended Implementation Order
 
-### 1. Gateway Control Channel Foundation
+### 1. Gateway Command Signing Foundation
 
-Implement the outbound gateway control channel and signed command handling after the heartbeat agent foundation is stable.
+Implement canonical command envelopes, signing, verification, expiry checks, and gateway-target validation before adding real command dispatch.
 
 ### 2. Audit HMAC Chain Foundation
 

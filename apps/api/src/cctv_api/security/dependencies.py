@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import Depends, Request, Response
+from fastapi import Depends, Request, Response, WebSocket
 from sqlalchemy.orm import Session as DbSession
 
 from cctv_api.api.errors import ProblemDetail
@@ -80,3 +80,14 @@ def require_gateway_identity(
         return verifier.verify_gateway_request(request)
     except AccessVerificationError as exc:
         raise _auth_problem(exc.detail) from exc
+
+
+def verify_gateway_identity_ws(
+    websocket: WebSocket,
+    settings: Settings = Depends(get_settings),
+) -> Principal | None:
+    verifier = CloudflareAccessVerifier(settings)
+    try:
+        return verifier.verify_gateway_websocket(websocket)
+    except AccessVerificationError:
+        return None

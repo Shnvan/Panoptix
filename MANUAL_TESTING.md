@@ -380,7 +380,7 @@ Audit notes:
 - Denial paths write `gateway.ingest.denied.*`.
 - Raw tokens are not stored in audit payloads.
 
-### Gateway control WebSocket placeholder
+### Gateway control WebSocket
 
 Current endpoint:
 
@@ -388,19 +388,39 @@ Current endpoint:
 GET /api/v1/gateway-control/ws
 ```
 
-Manual HTTP check:
+This is a real WebSocket endpoint. Valid gateway identities are accepted and receive a connected message. Missing gateway identity and browser/user dev auth are rejected with WebSocket close code `1008`.
+
+Manual Python check from `apps/api`:
 
 ```powershell
-curl.exe -s "$BaseUrl/api/v1/gateway-control/ws" -H "x-panoptix-dev-gateway-id: $GatewayId"
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$WsCheck = @'
+import asyncio
+import json
+import websockets
+
+async def main():
+    async with websockets.connect(
+        "ws://127.0.0.1:8000/api/v1/gateway-control/ws",
+        additional_headers={"x-panoptix-dev-gateway-id": "11111111-1111-1111-1111-111111111111"},
+    ) as ws:
+        print(json.dumps(json.loads(await ws.recv()), indent=2))
+
+asyncio.run(main())
+'@
+python -c $WsCheck
 ```
 
-Expected current behavior:
+Expected response:
 
-```text
-501 gateway-control-websocket-not-implemented
+```json
+{
+  "type": "connected",
+  "gateway_id": "11111111-1111-1111-1111-111111111111"
+}
 ```
 
-This is intentionally not a real WebSocket yet.
+This endpoint does not send real commands yet. Command signing, queues, dispatch, and agent WebSocket reconnect behavior remain future work.
 
 ## 8. Minimal Edge Heartbeat Agent
 
