@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
+from cctv_api.api.gateways import router as gateway_router
 from cctv_api.security.dependencies import require_authenticated_user
 from cctv_api.security.identity import Principal
 
 v1_router = APIRouter(prefix="/api/v1")
+v1_router.include_router(gateway_router)
 
 
 @v1_router.get("/me")
