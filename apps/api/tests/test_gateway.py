@@ -53,7 +53,7 @@ def test_gateway_id_mismatch_returns_forbidden() -> None:
     assert response.json()["detail"] == "gateway-id-mismatch"
 
 
-def test_gateway_ingest_token_fails_closed_until_livekit_implementation() -> None:
+def test_gateway_ingest_token_requires_uuid_gateway_id() -> None:
     client = _dev_gateway_client()
 
     response = client.post(
@@ -62,8 +62,8 @@ def test_gateway_ingest_token_fails_closed_until_livekit_implementation() -> Non
         json={"camera_id": "camera-1"},
     )
 
-    assert response.status_code == 501
-    assert response.json()["detail"] == "gateway-ingest-token-not-implemented"
+    assert response.status_code == 400
+    assert response.json()["detail"] == "gateway-id-invalid"
 
 
 def test_gateway_camera_status_accepts_valid_dev_gateway_event() -> None:
