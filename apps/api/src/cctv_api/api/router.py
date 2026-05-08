@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session as DbSession
 
@@ -11,9 +11,10 @@ from cctv_api.api.errors import ProblemDetail
 from cctv_api.api.gateways import router as gateway_router
 from cctv_api.core.config import Settings, get_settings
 from cctv_api.db import db_session
-from cctv_api.models.enums import StreamKind
+from cctv_api.models.enums import ActorType, StreamKind
 from cctv_api.security.dependencies import require_authenticated_user
 from cctv_api.security.identity import Principal
+from cctv_api.security.audit import AuditLogError, record_audit_event
 from cctv_api.security.livekit_tokens import LiveKitTokenConfigError, mint_viewer_subscribe_token
 from cctv_api.security.sessions import list_active_sessions, revoke_session
 from cctv_api.security.stream_access import (
@@ -50,6 +51,7 @@ class ViewerTokenResponse(BaseModel):
 @v1_router.get("/cameras/{camera_id}/view-token")
 def get_camera_view_token(
     camera_id: str,
+    request: Request,
     principal: Principal = Depends(require_authenticated_user),
     db: DbSession = Depends(db_session),
     settings: Settings = Depends(get_settings),
@@ -57,6 +59,14 @@ def get_camera_view_token(
     camera_uuid = _parse_uuid(camera_id, "camera-id-invalid")
     user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
     if user.disabled_at is not None:
+        _record_user_audit_safely(
+            db,
+            request=request,
+            actor_id=user.id,
+            action="viewer.token.denied.user_disabled",
+            resource=f"camera:{camera_uuid}",
+            payload={"camera_id": camera_uuid},
+        )
         raise ProblemDetail(
             status=403,
             title="Forbidden",
@@ -66,6 +76,14 @@ def get_camera_view_token(
 
     camera = get_active_camera(db, camera_uuid)
     if camera is None:
+        _record_user_audit_safely(
+            db,
+            request=request,
+            actor_id=user.id,
+            action="viewer.token.denied.camera_not_found",
+            resource=f"camera:{camera_uuid}",
+            payload={"camera_id": camera_uuid},
+        )
         raise ProblemDetail(
             status=404,
             title="Not Found",
@@ -74,6 +92,14 @@ def get_camera_view_token(
         )
 
     if not user_has_active_camera_acl(db, user.id, camera_uuid):
+        _record_user_audit_safely(
+            db,
+            request=request,
+            actor_id=user.id,
+            action="viewer.token.denied.access",
+            resource=f"camera:{camera_uuid}",
+            payload={"camera_id": camera_uuid},
+        )
         raise ProblemDetail(
             status=403,
             title="Forbidden",
@@ -89,6 +115,14 @@ def get_camera_view_token(
             room=camera.livekit_room_name,
         )
     except LiveKitTokenConfigError as exc:
+        _record_user_audit_safely(
+            db,
+            request=request,
+            actor_id=user.id,
+            action="viewer.token.denied.livekit_config",
+            resource=f"camera:{camera_uuid}",
+            payload={"camera_id": camera_uuid, "room": camera.livekit_room_name},
+        )
         raise ProblemDetail(
             status=503,
             title="Service Unavailable",
@@ -104,6 +138,19 @@ def get_camera_view_token(
         jti=grant.jti,
         issued_at=grant.issued_at,
         expires_at=grant.expires_at,
+    )
+    _record_user_audit_required(
+        db,
+        request=request,
+        actor_id=user.id,
+        action="viewer.token.issued",
+        resource=f"camera:{camera_uuid}",
+        payload={
+            "camera_id": camera_uuid,
+            "room": camera.livekit_room_name,
+            "grant_jti": grant.jti,
+            "expires_at": grant.expires_at,
+        },
     )
     return ViewerTokenResponse(
         camera_id=str(camera.id),
@@ -141,6 +188,7 @@ class RevokeSessionRequest(BaseModel):
 @v1_router.post("/sessions/revoke")
 def revoke_user_session(
     body: RevokeSessionRequest,
+    request: Request,
     principal: Principal = Depends(require_authenticated_user),
     db: DbSession = Depends(db_session),
 ) -> dict[str, object]:
@@ -150,8 +198,16 @@ def revoke_user_session(
 
     if not is_admin:
         own_sessions = list_active_sessions(db, user.id)
-        own_ids = {s.id for s in own_sessions}
-        if body.session_id not in own_ids:
+        own_ids = {str(s.id) for s in own_sessions}
+        if str(body.session_id) not in own_ids:
+            _record_user_audit_safely(
+                db,
+                request=request,
+                actor_id=user.id,
+                action="session.revoke.denied.not_owned",
+                resource=f"session:{body.session_id}",
+                payload={"session_id": body.session_id},
+            )
             raise ProblemDetail(
                 status=403,
                 title="Forbidden",
@@ -160,6 +216,14 @@ def revoke_user_session(
             )
 
     revoked = revoke_session(db, body.session_id)
+    _record_user_audit_required(
+        db,
+        request=request,
+        actor_id=user.id,
+        action="session.revoke.succeeded" if revoked else "session.revoke.not_found",
+        resource=f"session:{body.session_id}",
+        payload={"session_id": body.session_id, "revoked": revoked},
+    )
     return {"revoked": revoked, "session_id": str(body.session_id)}
 
 
@@ -173,3 +237,64 @@ def _parse_uuid(value: str, detail: str) -> uuid.UUID:
             detail=detail,
             type_uri="https://panoptix.local/problems/bad-request",
         ) from exc
+
+
+def _record_user_audit_safely(
+    db: DbSession,
+    *,
+    request: Request,
+    actor_id: uuid.UUID,
+    action: str,
+    resource: str,
+    payload: dict[str, object] | None = None,
+) -> None:
+    try:
+        record_audit_event(
+            db,
+            actor_type=ActorType.user,
+            actor_id=actor_id,
+            action=action,
+            resource=resource,
+            payload=payload,
+            ip=_request_ip(request),
+            ua=_request_ua(request),
+        )
+    except AuditLogError:
+        return
+
+
+def _record_user_audit_required(
+    db: DbSession,
+    *,
+    request: Request,
+    actor_id: uuid.UUID,
+    action: str,
+    resource: str,
+    payload: dict[str, object] | None = None,
+) -> None:
+    try:
+        record_audit_event(
+            db,
+            actor_type=ActorType.user,
+            actor_id=actor_id,
+            action=action,
+            resource=resource,
+            payload=payload,
+            ip=_request_ip(request),
+            ua=_request_ua(request),
+        )
+    except AuditLogError as exc:
+        raise ProblemDetail(
+            status=503,
+            title="Service Unavailable",
+            detail="audit-log-write-failed",
+            type_uri="https://panoptix.local/problems/service-unavailable",
+        ) from exc
+
+
+def _request_ip(request: Request) -> str | None:
+    return request.client.host if request.client is not None else None
+
+
+def _request_ua(request: Request) -> str | None:
+    return request.headers.get("user-agent")

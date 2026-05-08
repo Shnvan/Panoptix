@@ -801,16 +801,58 @@ This is the security boundary between Panoptix API authorization and the media p
 
 ---
 
-## 25. Current Verification Status
+## 25. Audit Foundation
+
+### What was implemented
+
+The backend now has a minimal audit writer:
+
+```text
+apps/api/src/cctv_api/security/audit.py
+```
+
+It writes real rows to the existing append-only `audit_log` table and ensures a placeholder audit key exists in `audit_hmac_keys`.
+
+### How it works
+
+The audit writer records:
+
+- actor type and actor ID
+- action name
+- resource name
+- request IP and user agent when available
+- scrubbed JSON payload
+- placeholder `prev_hash`, `hash`, and `hmac_key_version`
+
+Sensitive payload fields such as tokens, JWTs, secrets, cookies, credentials, passwords, and API keys are redacted before insertion.
+
+The current integrations audit:
+
+- viewer token issued and denied paths
+- gateway ingest-token issued and denied paths
+- session revoke success, not-found, and not-owned denial paths
+
+### Important limitation
+
+The current audit hash is a deterministic placeholder, not a real HMAC chain. Real HMAC-SHA-256 chaining, previous-hash continuity, key rotation, verifier jobs, admin audit endpoints, and export signing remain future work.
+
+### Why it matters
+
+The backend now records security-critical actions without storing raw media tokens or credentials, while preserving the long-term append-only audit architecture.
+
+---
+
+## 26. Current Verification Status
 
 ### What passed
 
 The latest verification passed:
 
 ```text
-pytest: 44 passed
+pytest: 49 passed
 mypy: no issues found
 ruff: all checks passed
+compileall: passed
 ```
 
 ### How to run locally
@@ -826,7 +868,8 @@ Run:
 ```powershell
 $env:PYTHONPATH = "src"; python -m pytest tests/ -v
 python -m mypy src/cctv_api/ --ignore-missing-imports
-python -m ruff check src/ tests/
+python -m ruff check src tests alembic scripts
+python -m compileall src alembic scripts
 ```
 
 ### Why it matters
@@ -844,18 +887,19 @@ The following are intentionally not done yet:
 - real gateway agent
 - mediamtx runtime configuration
 - audit HMAC chain implementation
+- admin audit list/export/verify endpoints
 
 ---
 
 ## Next Recommended Implementation Order
 
-### 1. Audit Foundation
-
-Add backend audit event interfaces while coordinating append-only storage with the database coworker.
-
-### 2. Gateway Agent Foundation
+### 1. Gateway Agent Foundation
 
 Begin the actual gateway agent under `apps/cctv-edge/agent` after backend routes and contracts are stable.
+
+### 2. Audit HMAC Chain Foundation
+
+Replace placeholder audit hashes with real HMAC-SHA-256 chaining, previous-hash continuity, key lifecycle handling, and verification helpers.
 
 ---
 
