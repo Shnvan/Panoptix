@@ -14,6 +14,7 @@ from cctv_api.db import db_session
 from cctv_api.main import create_app
 from cctv_api.models.enums import CameraSourceType, GatewayStatus, StreamKind
 from cctv_api.models.tables import (
+    AuditLog,
     Camera,
     CameraAcl,
     EdgeGateway,
@@ -101,6 +102,10 @@ def _decode_livekit_token(token: str) -> dict[str, Any]:
     return jwt.decode(token, LIVEKIT_SECRET, algorithms=["HS256"], options={"verify_aud": False})
 
 
+def _audit_actions(db: DbSession) -> list[str]:
+    return [row.action for row in db.execute(select(AuditLog).order_by(AuditLog.id)).scalars().all()]
+
+
 def test_viewer_token_succeeds_with_active_camera_acl(test_db_session: DbSession) -> None:
     user = _seed_user(test_db_session)
     camera = _seed_camera(test_db_session)
@@ -127,6 +132,11 @@ def test_viewer_token_succeeds_with_active_camera_acl(test_db_session: DbSession
     grants = test_db_session.execute(select(StreamGrant)).scalars().all()
     assert len(grants) == 1
     assert grants[0].kind == StreamKind.viewer_subscribe
+    audit_rows = test_db_session.execute(select(AuditLog)).scalars().all()
+    assert [row.action for row in audit_rows] == ["viewer.token.issued"]
+    assert audit_rows[0].payload is not None
+    assert audit_rows[0].payload["grant_jti"] == claims["jti"]
+    assert "token" not in audit_rows[0].payload
 
 
 def test_viewer_token_denied_without_camera_acl(test_db_session: DbSession) -> None:
@@ -138,6 +148,7 @@ def test_viewer_token_denied_without_camera_acl(test_db_session: DbSession) -> N
 
     assert response.status_code == 403
     assert response.json()["detail"] == "camera-access-denied"
+    assert _audit_actions(test_db_session) == ["viewer.token.denied.access"]
 
 
 def test_viewer_token_denied_for_retired_camera(test_db_session: DbSession) -> None:
@@ -150,6 +161,7 @@ def test_viewer_token_denied_for_retired_camera(test_db_session: DbSession) -> N
 
     assert response.status_code == 404
     assert response.json()["detail"] == "camera-not-found"
+    assert _audit_actions(test_db_session) == ["viewer.token.denied.camera_not_found"]
 
 
 def test_gateway_ingest_token_succeeds_with_active_assignment(test_db_session: DbSession) -> None:
@@ -181,6 +193,11 @@ def test_gateway_ingest_token_succeeds_with_active_assignment(test_db_session: D
     grants = test_db_session.execute(select(StreamGrant)).scalars().all()
     assert len(grants) == 1
     assert grants[0].kind == StreamKind.gateway_publish
+    audit_rows = test_db_session.execute(select(AuditLog)).scalars().all()
+    assert [row.action for row in audit_rows] == ["gateway.ingest.token.issued"]
+    assert audit_rows[0].payload is not None
+    assert audit_rows[0].payload["grant_jti"] == claims["jti"]
+    assert "token" not in audit_rows[0].payload
 
 
 def test_gateway_ingest_token_denied_without_assignment(test_db_session: DbSession) -> None:
@@ -196,6 +213,7 @@ def test_gateway_ingest_token_denied_without_assignment(test_db_session: DbSessi
 
     assert response.status_code == 403
     assert response.json()["detail"] == "gateway-camera-assignment-denied"
+    assert _audit_actions(test_db_session) == ["gateway.ingest.denied.unassigned"]
 
 
 def test_gateway_ingest_token_denied_for_disabled_gateway(test_db_session: DbSession) -> None:
@@ -212,6 +230,7 @@ def test_gateway_ingest_token_denied_for_disabled_gateway(test_db_session: DbSes
 
     assert response.status_code == 403
     assert response.json()["detail"] == "gateway-disabled-or-not-found"
+    assert _audit_actions(test_db_session) == ["gateway.ingest.denied.disabled"]
 
 
 def test_gateway_ingest_token_denied_for_gateway_id_mismatch(test_db_session: DbSession) -> None:
@@ -229,6 +248,7 @@ def test_gateway_ingest_token_denied_for_gateway_id_mismatch(test_db_session: Db
 
     assert response.status_code == 403
     assert response.json()["detail"] == "gateway-id-mismatch"
+    assert _audit_actions(test_db_session) == ["gateway.ingest.denied.gateway_mismatch"]
 
 
 def test_livekit_config_placeholders_fail_closed_for_viewer(test_db_session: DbSession) -> None:
@@ -247,3 +267,4 @@ def test_livekit_config_placeholders_fail_closed_for_viewer(test_db_session: DbS
 
     assert response.status_code == 503
     assert response.json()["detail"] == "livekit-token-config-invalid"
+    assert _audit_actions(test_db_session) == ["viewer.token.denied.livekit_config"]
