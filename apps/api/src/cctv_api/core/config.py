@@ -56,6 +56,13 @@ class Settings(BaseSettings):
     CSP_REPORT_URI: str = ""
     LIVEKIT_CONNECT_SRC: str = "wss://replace-me.livekit.cloud"
 
+    @property
+    def cf_access_browser_audiences(self) -> list[str]:
+        return [
+            self.CF_ACCESS_AUD_DASHBOARD,
+            self.CF_ACCESS_AUD_ADMIN,
+        ]
+
 
 _settings: Settings | None = None
 

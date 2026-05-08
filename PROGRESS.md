@@ -60,6 +60,7 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Deny-by-default RBAC helper placeholders
 - [x] `/api/v1/me` and `/api/v1/cameras` protected by auth dependency
 - [x] Tests for unauthenticated access, disabled dev-auth, allowed dev-auth, forbidden non-dev dev-auth, and RBAC helpers
+- [x] Production Cloudflare Access browser JWT verification with PyJWT, JWKS key lookup, issuer/audience validation, clock-skew handling, and fail-closed tests
 
 ### Gateway Foundation
 - [x] Gateway Pydantic models for heartbeat, camera status, ingest-token request, and command envelopes
@@ -74,10 +75,7 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 
 ## Next Steps (In Order)
 
-### 1. Real Cloudflare Access JWT Verification
-Add production JWKS fetching/cache, issuer/audience validation, clock-skew enforcement, and fail-closed tests.
-
-### 2. Backend Session Foundation
+### 1. Backend Session Foundation
 Coordinate with the database coworker on session table contracts, then add backend session interfaces without owning schema/migrations.
 
 ---
@@ -89,6 +87,7 @@ Coordinate with the database coworker on session table contracts, then add backe
 | Full system plan | `docs/planning/secure-cctv-monitoring-system-v4.md` |
 | API contract | `docs/implementation/api-reference.md` |
 | Team ownership | `docs/implementation/team-raci-checklist.md` |
+| Database/frontend coordination gates | `docs/implementation/team-raci-checklist.md#coordination-gates` |
 | Environment variables | `.env.example` |
 | Doc navigation | `docs/index.md` |
 | Frontend guardrails | `docs/frontend/frontend-guardrails.md` |

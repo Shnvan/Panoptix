@@ -29,6 +29,7 @@ Install these on your development machine before working on any part of the proj
 | `uvicorn[standard]` | ASGI server |
 | `pydantic` | Data validation |
 | `pydantic-settings` | Environment/config loader |
+| `PyJWT[crypto]` | Cloudflare Access JWT signature and claim verification |
 
 ### Python packages (dev/test)
 
@@ -45,7 +46,6 @@ Install these on your development machine before working on any part of the proj
 |---------|---------|-------------|
 | `sqlalchemy` | Database ORM | Security/gateway phases (DB coworker owns schema) |
 | `alembic` | Database migrations | Security/gateway phases (DB coworker owns migrations) |
-| `python-jose[cryptography]` or `PyJWT` | JWT verification | Security foundation phase |
 | `livekit-api` | LiveKit Server SDK | Viewer flow phase |
 | `websockets` | Gateway WebSocket channel | Gateway foundation phase |
 | `sentry-sdk[fastapi]` | Error monitoring | Pre-pilot |

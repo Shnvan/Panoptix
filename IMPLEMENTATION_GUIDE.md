@@ -488,7 +488,15 @@ apps/api/src/cctv_api/security/cloudflare_access.py
 
 ### How it works
 
-Right now, production JWT verification is not fully implemented yet. The verifier intentionally fails closed unless a valid dev-auth path is used.
+Production browser JWT verification now uses Cloudflare Access JWT assertions, PyJWT signature verification, JWKS key lookup, issuer validation, audience validation, expiration checks, not-before checks, issued-at checks, and clock-skew handling.
+
+The backend reads the JWT from:
+
+```text
+cf-access-jwt-assertion
+```
+
+Valid browser JWTs become non-dev `PrincipalKind.USER` principals. Invalid or missing JWTs fail closed with `401 Unauthorized`.
 
 Dev-auth only works when:
 
