@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session as DbSession
 
 from cctv_api.api.errors import ProblemDetail
@@ -16,7 +16,8 @@ from cctv_api.gateway.models import (
     GatewayIngestTokenRequest,
     GatewayIngestTokenResponse,
 )
-from cctv_api.models.enums import StreamKind
+from cctv_api.models.enums import ActorType, StreamKind
+from cctv_api.security.audit import AuditLogError, record_audit_event
 from cctv_api.security.dependencies import require_gateway_identity
 from cctv_api.security.identity import Principal
 from cctv_api.security.livekit_tokens import LiveKitTokenConfigError, mint_gateway_publish_token
@@ -54,16 +55,34 @@ def gateway_heartbeat(
 def gateway_ingest_token(
     gateway_id: str,
     payload: GatewayIngestTokenRequest,
+    request: Request,
     principal: Principal = Depends(require_gateway_identity),
     db: DbSession = Depends(db_session),
     settings: Settings = Depends(get_settings),
 ) -> GatewayIngestTokenResponse:
+    if principal.gateway_id != gateway_id:
+        _record_gateway_audit_safely(
+            db,
+            request=request,
+            actor_id=_parse_uuid_or_none(principal.gateway_id),
+            action="gateway.ingest.denied.gateway_mismatch",
+            resource=f"gateway:{gateway_id}",
+            payload={"route_gateway_id": gateway_id, "principal_gateway_id": principal.gateway_id},
+        )
     _require_matching_gateway(gateway_id, principal)
 
     gateway_uuid = _parse_uuid(gateway_id, "gateway-id-invalid")
     camera_uuid = _parse_uuid(payload.camera_id, "camera-id-invalid")
 
     if get_enabled_gateway(db, gateway_uuid) is None:
+        _record_gateway_audit_safely(
+            db,
+            request=request,
+            actor_id=gateway_uuid,
+            action="gateway.ingest.denied.disabled",
+            resource=f"camera:{camera_uuid}",
+            payload={"gateway_id": gateway_uuid, "camera_id": camera_uuid},
+        )
         raise ProblemDetail(
             status=403,
             title="Forbidden",
@@ -73,6 +92,14 @@ def gateway_ingest_token(
 
     camera = get_active_camera(db, camera_uuid)
     if camera is None:
+        _record_gateway_audit_safely(
+            db,
+            request=request,
+            actor_id=gateway_uuid,
+            action="gateway.ingest.denied.camera_not_found",
+            resource=f"camera:{camera_uuid}",
+            payload={"gateway_id": gateway_uuid, "camera_id": camera_uuid},
+        )
         raise ProblemDetail(
             status=404,
             title="Not Found",
@@ -81,6 +108,14 @@ def gateway_ingest_token(
         )
 
     if not gateway_has_active_camera_assignment(db, gateway_uuid, camera_uuid):
+        _record_gateway_audit_safely(
+            db,
+            request=request,
+            actor_id=gateway_uuid,
+            action="gateway.ingest.denied.unassigned",
+            resource=f"camera:{camera_uuid}",
+            payload={"gateway_id": gateway_uuid, "camera_id": camera_uuid},
+        )
         raise ProblemDetail(
             status=403,
             title="Forbidden",
@@ -96,6 +131,14 @@ def gateway_ingest_token(
             room=camera.livekit_room_name,
         )
     except LiveKitTokenConfigError as exc:
+        _record_gateway_audit_safely(
+            db,
+            request=request,
+            actor_id=gateway_uuid,
+            action="gateway.ingest.denied.livekit_config",
+            resource=f"camera:{camera_uuid}",
+            payload={"gateway_id": gateway_uuid, "camera_id": camera_uuid, "room": camera.livekit_room_name},
+        )
         raise ProblemDetail(
             status=503,
             title="Service Unavailable",
@@ -111,6 +154,20 @@ def gateway_ingest_token(
         jti=grant.jti,
         issued_at=grant.issued_at,
         expires_at=grant.expires_at,
+    )
+    _record_gateway_audit_required(
+        db,
+        request=request,
+        actor_id=gateway_uuid,
+        action="gateway.ingest.token.issued",
+        resource=f"camera:{camera_uuid}",
+        payload={
+            "gateway_id": gateway_uuid,
+            "camera_id": camera_uuid,
+            "room": camera.livekit_room_name,
+            "grant_jti": grant.jti,
+            "expires_at": grant.expires_at,
+        },
     )
     return GatewayIngestTokenResponse(
         camera_id=str(camera.id),
@@ -168,3 +225,73 @@ def _parse_uuid(value: str, detail: str) -> uuid.UUID:
             detail=detail,
             type_uri="https://panoptix.local/problems/bad-request",
         ) from exc
+
+
+def _parse_uuid_or_none(value: str | None) -> uuid.UUID | None:
+    if value is None:
+        return None
+    try:
+        return uuid.UUID(value)
+    except ValueError:
+        return None
+
+
+def _record_gateway_audit_safely(
+    db: DbSession,
+    *,
+    request: Request,
+    actor_id: uuid.UUID | None,
+    action: str,
+    resource: str,
+    payload: dict[str, object] | None = None,
+) -> None:
+    try:
+        record_audit_event(
+            db,
+            actor_type=ActorType.gateway,
+            actor_id=actor_id,
+            action=action,
+            resource=resource,
+            payload=payload,
+            ip=_request_ip(request),
+            ua=_request_ua(request),
+        )
+    except AuditLogError:
+        return
+
+
+def _record_gateway_audit_required(
+    db: DbSession,
+    *,
+    request: Request,
+    actor_id: uuid.UUID,
+    action: str,
+    resource: str,
+    payload: dict[str, object] | None = None,
+) -> None:
+    try:
+        record_audit_event(
+            db,
+            actor_type=ActorType.gateway,
+            actor_id=actor_id,
+            action=action,
+            resource=resource,
+            payload=payload,
+            ip=_request_ip(request),
+            ua=_request_ua(request),
+        )
+    except AuditLogError as exc:
+        raise ProblemDetail(
+            status=503,
+            title="Service Unavailable",
+            detail="audit-log-write-failed",
+            type_uri="https://panoptix.local/problems/service-unavailable",
+        ) from exc
+
+
+def _request_ip(request: Request) -> str | None:
+    return request.client.host if request.client is not None else None
+
+
+def _request_ua(request: Request) -> str | None:
+    return request.headers.get("user-agent")
