@@ -78,12 +78,20 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Database settings added to existing backend `Settings` class
 - [x] Database validation script integrated with backend config
 
+### Backend Session Foundation
+- [x] Role model simplified to `admin` and `viewer`
+- [x] Alembic seed migration added for `admin` and `viewer` roles
+- [x] Session cookie signing and verification added
+- [x] Database-backed user lookup and session creation added to browser auth flow
+- [x] Active session listing and session revocation endpoints added
+- [x] Test database fixture added for backend tests without requiring local PostgreSQL
+
 ---
 
 ## Next Steps (In Order)
 
-### 1. Backend Session Foundation
-Coordinate with the database coworker on session table contracts, then add backend session interfaces without owning schema/migrations.
+### 1. LiveKit Token Minting Foundation
+Add viewer-subscribe and gateway-publish token minting with strict separation between browser and gateway paths.
 
 ---
 
