@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import AnyHttpUrl, Field
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     # ── Environment ──
     APP_ENV: Literal["development", "staging", "production"] = "development"
-    APP_PUBLIC_BASE_URL: AnyHttpUrl = "https://cctv.example.test"
+    APP_PUBLIC_BASE_URL: str = "https://cctv.example.test"
     CLOCK_SKEW_SECONDS: int = Field(default=30, ge=0, le=120)
     BREAK_GLASS_WINDOW_MINUTES: int = Field(default=90, ge=10)
 
