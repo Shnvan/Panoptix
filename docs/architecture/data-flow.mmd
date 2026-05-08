@@ -1,0 +1,11 @@
+flowchart TB
+    camera[IP CCTV Camera] -->|RTSP on private LAN| gateway[On-site Gateway]
+    gateway -->|Publish media only when authorized| livekit[LiveKit Cloud]
+    browser[Browser Viewer] -->|Subscribe only| livekit
+    browser -->|Same-origin /api/v1 requests| api[cctv-api]
+    api -->|Read/write app state| db[(Postgres)]
+    api -->|Append-only events| audit[(Audit Log)]
+    api -->|Short-lived viewer tokens| browser
+    api -->|Outbound command channel responses| gateway
+    livekit -->|Webhooks| api
+    audit -->|Encrypted backups| r2[(R2 Backup Bucket)]

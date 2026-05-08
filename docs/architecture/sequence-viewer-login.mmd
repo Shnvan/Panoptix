@@ -1,0 +1,18 @@
+sequenceDiagram
+    participant Viewer
+    participant CF as Cloudflare Access
+    participant Web as cctv-web
+    participant API as cctv-api
+    participant DB as Postgres
+    participant LK as LiveKit Cloud
+
+    Viewer->>CF: Request dashboard
+    CF->>Viewer: IdP challenge if unauthenticated
+    Viewer->>CF: Complete login
+    CF->>Web: Forward request with signed identity headers/JWT
+    Web->>API: Request session and camera list
+    API->>API: Verify Access JWT and trusted headers
+    API->>DB: Resolve user, roles, and ACLs
+    API->>LK: Create viewer-only token
+    API-->>Web: Session, cameras, LiveKit token
+    Web-->>Viewer: Dashboard ready

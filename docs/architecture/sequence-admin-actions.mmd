@@ -1,0 +1,22 @@
+sequenceDiagram
+    participant Admin
+    participant CF as Cloudflare Access
+    participant Web as cctv-web
+    participant API as cctv-api
+    participant DB as Postgres
+    participant Gateway
+    participant Audit as Audit Log
+
+    Admin->>CF: Open admin area
+    CF->>Web: Forward authenticated request
+    Web->>API: Submit admin action
+    API->>API: Verify CF Access JWT and RBAC
+    API->>DB: Apply allowed camera, gateway, user, or ACL change
+    API->>Audit: Append admin action event
+    alt Gateway-impacting change
+        API->>Gateway: Send signed command over outbound channel
+        Gateway-->>API: Acknowledge command result
+        API->>Audit: Append gateway command result
+    end
+    API-->>Web: Return action result
+    Web-->>Admin: Show confirmation or error state

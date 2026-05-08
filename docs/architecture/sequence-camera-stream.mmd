@@ -1,0 +1,20 @@
+sequenceDiagram
+    participant Viewer
+    participant Web as cctv-web
+    participant API as cctv-api
+    participant Gateway
+    participant Camera
+    participant LK as LiveKit Cloud
+
+    Viewer->>Web: Open authorized camera tile
+    Web->>API: Request viewer token and stream presence
+    API->>API: Check RBAC and camera ACL
+    API-->>Web: Return short-lived viewer token
+    API->>Gateway: Command start publish over outbound channel
+    Gateway->>Camera: Pull RTSP on site LAN
+    Gateway->>LK: Publish camera media
+    Web->>LK: Subscribe with viewer-only token
+    LK-->>Viewer: Deliver live media
+    Viewer->>Web: Close tile
+    Web->>API: Report viewer left
+    API->>Gateway: Stop publish if no viewers remain
