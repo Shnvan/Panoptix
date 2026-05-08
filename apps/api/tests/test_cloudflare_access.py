@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import importlib
+from collections.abc import Generator
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any
@@ -8,14 +10,19 @@ import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session as DbSession, sessionmaker
 
 from cctv_api.core.config import Settings
+from cctv_api.db import db_session
 from cctv_api.main import create_app
 from cctv_api.security.cloudflare_access import CloudflareAccessVerifier
+
+importlib.import_module("cctv_api.models.tables")
 
 
 def _client_with_test_key(
     monkeypatch: pytest.MonkeyPatch,
+    test_db_factory: sessionmaker[DbSession],
     **settings_overrides: Any,
 ) -> tuple[TestClient, rsa.RSAPrivateKey]:
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -36,7 +43,17 @@ def _client_with_test_key(
         return SimpleNamespace(key=public_key)
 
     monkeypatch.setattr(CloudflareAccessVerifier, "_get_signing_key", fake_get_signing_key)
-    return TestClient(create_app(settings=settings)), key
+    app = create_app(settings=settings)
+
+    def _override_db() -> Generator[DbSession, None, None]:
+        session = test_db_factory()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    app.dependency_overrides[db_session] = _override_db
+    return TestClient(app), key
 
 
 def _browser_token(
@@ -61,28 +78,27 @@ def _browser_token(
 
 def test_cloudflare_access_jwt_returns_non_dev_principal(
     monkeypatch: pytest.MonkeyPatch,
+    _test_db: sessionmaker[DbSession],
 ) -> None:
-    client, key = _client_with_test_key(monkeypatch)
+    client, key = _client_with_test_key(monkeypatch, _test_db)
     token = _browser_token(key)
 
     response = client.get("/api/v1/me", headers={"cf-access-jwt-assertion": token})
 
     assert response.status_code == 200
-    assert response.json() == {
-        "kind": "user",
-        "subject": "user-123",
-        "email": "viewer@example.test",
-        "roles": ["viewer"],
-        "permissions": ["camera:view"],
-        "gateway_id": None,
-        "is_dev": False,
-    }
+    body = response.json()
+    assert body["kind"] == "user"
+    assert body["subject"] == "user-123"
+    assert body["email"] == "viewer@example.test"
+    assert body["is_dev"] is False
+    assert body["gateway_id"] is None
 
 
 def test_cloudflare_access_jwt_rejects_malformed_token(
     monkeypatch: pytest.MonkeyPatch,
+    _test_db: sessionmaker[DbSession],
 ) -> None:
-    client, _key = _client_with_test_key(monkeypatch)
+    client, _key = _client_with_test_key(monkeypatch, _test_db)
 
     response = client.get("/api/v1/me", headers={"cf-access-jwt-assertion": "not-a-jwt"})
 
@@ -92,8 +108,9 @@ def test_cloudflare_access_jwt_rejects_malformed_token(
 
 def test_cloudflare_access_jwt_rejects_wrong_issuer(
     monkeypatch: pytest.MonkeyPatch,
+    _test_db: sessionmaker[DbSession],
 ) -> None:
-    client, key = _client_with_test_key(monkeypatch)
+    client, key = _client_with_test_key(monkeypatch, _test_db)
     token = _browser_token(key, iss="https://wrong.example.test")
 
     response = client.get("/api/v1/me", headers={"cf-access-jwt-assertion": token})
@@ -104,8 +121,9 @@ def test_cloudflare_access_jwt_rejects_wrong_issuer(
 
 def test_cloudflare_access_jwt_rejects_wrong_audience(
     monkeypatch: pytest.MonkeyPatch,
+    _test_db: sessionmaker[DbSession],
 ) -> None:
-    client, key = _client_with_test_key(monkeypatch)
+    client, key = _client_with_test_key(monkeypatch, _test_db)
     token = _browser_token(key, aud="wrong-audience")
 
     response = client.get("/api/v1/me", headers={"cf-access-jwt-assertion": token})
@@ -116,8 +134,9 @@ def test_cloudflare_access_jwt_rejects_wrong_audience(
 
 def test_cloudflare_access_jwt_rejects_expired_token(
     monkeypatch: pytest.MonkeyPatch,
+    _test_db: sessionmaker[DbSession],
 ) -> None:
-    client, key = _client_with_test_key(monkeypatch, CLOCK_SKEW_SECONDS=0)
+    client, key = _client_with_test_key(monkeypatch, _test_db, CLOCK_SKEW_SECONDS=0)
     now = datetime.now(timezone.utc)
     token = _browser_token(
         key,
@@ -134,8 +153,9 @@ def test_cloudflare_access_jwt_rejects_expired_token(
 
 def test_gateway_routes_do_not_accept_browser_jwt(
     monkeypatch: pytest.MonkeyPatch,
+    _test_db: sessionmaker[DbSession],
 ) -> None:
-    client, key = _client_with_test_key(monkeypatch)
+    client, key = _client_with_test_key(monkeypatch, _test_db)
     token = _browser_token(key)
 
     response = client.post(

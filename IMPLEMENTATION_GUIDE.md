@@ -710,14 +710,62 @@ Gateway routes are high-risk because they eventually control camera publishing. 
 
 ---
 
-## 23. Current Verification Status
+## 23. Backend Session Foundation
+
+### What was implemented
+
+The backend now has a session foundation built on the database schema:
+
+```text
+apps/api/src/cctv_api/security/session_cookie.py
+apps/api/src/cctv_api/security/sessions.py
+apps/api/src/cctv_api/security/users.py
+```
+
+The role model was simplified to exactly two human roles:
+
+```text
+admin
+viewer
+```
+
+An Alembic seed migration inserts these roles:
+
+```text
+apps/api/alembic/versions/0005_seed_roles.py
+```
+
+### How it works
+
+Cloudflare Access still verifies the browser JWT first. For production browser requests, the backend then:
+
+- Finds or creates the database user from the verified identity
+- Reads roles from the database
+- Creates or resumes a signed app session cookie
+- Stores the session in the `sessions` table
+- Touches `last_seen_at` for resumed sessions
+
+The API now includes:
+
+```text
+GET  /api/v1/sessions/active
+POST /api/v1/sessions/revoke
+```
+
+### Why it matters
+
+This gives the backend revocable app sessions and moves authorization state toward the database instead of trusting JWT role claims directly.
+
+---
+
+## 24. Current Verification Status
 
 ### What passed
 
 The latest verification passed:
 
 ```text
-pytest: 26 passed
+pytest: 36 passed
 mypy: no issues found
 ruff: all checks passed
 ```
@@ -748,10 +796,6 @@ This confirms the current backend code is working, typed correctly, and lint-cle
 
 The following are intentionally not done yet:
 
-- real Cloudflare Access JWT verification
-- real session store
-- real database integration
-- database schema/migrations
 - frontend UI
 - real LiveKit viewer token minting
 - real gateway publish token minting
@@ -764,23 +808,15 @@ The following are intentionally not done yet:
 
 ## Next Recommended Implementation Order
 
-### 1. Real Cloudflare Access JWT Verification
-
-Add production JWT verification using Cloudflare Access JWKS, issuer, audience, and clock-skew validation.
-
-### 2. Backend Session Foundation
-
-Add session interfaces after coordinating database table contracts with the database coworker.
-
-### 3. LiveKit Token Minting Foundation
+### 1. LiveKit Token Minting Foundation
 
 Add viewer-subscribe token generation and gateway-publish token generation, with strict token kind separation.
 
-### 4. Audit Foundation
+### 2. Audit Foundation
 
 Add backend audit event interfaces while coordinating append-only storage with the database coworker.
 
-### 5. Gateway Agent Foundation
+### 3. Gateway Agent Foundation
 
 Begin the actual gateway agent under `apps/cctv-edge/agent` after backend routes and contracts are stable.
 

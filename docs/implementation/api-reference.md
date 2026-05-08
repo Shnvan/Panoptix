@@ -72,23 +72,23 @@ This document is the working contract between the Next.js frontend, FastAPI back
 
 | Method | Path | AuthZ | Request | Response | Notes |
 |---|---|---|---|---|---|
-| `GET` | `/api/v1/admin/users` | admin/auditor | filters/cursor | user list | Auditor read-only. |
-| `POST` | `/api/v1/admin/users/:id/role` | admin + re-auth | role/permission update | updated user | All changes audited. |
-| `POST` | `/api/v1/admin/users/:id/disable` | admin + re-auth | reason | disabled user | Revokes sessions and removes LiveKit participants ≤10s. |
-| `POST` | `/api/v1/admin/users/:id/mfa/reset` | super-admin permission | verification evidence | recovery window | Admin-mediated only. |
+| `GET` | `/api/v1/admin/users` | admin | filters/cursor | user list | |
+| `POST` | `/api/v1/admin/users/:id/role` | admin | role update | updated user | All changes audited. |
+| `POST` | `/api/v1/admin/users/:id/disable` | admin | reason | disabled user | Revokes sessions and removes LiveKit participants ≤10s. |
+| `POST` | `/api/v1/admin/users/:id/mfa/reset` | admin | verification evidence | recovery window | Admin-mediated only. |
 | `POST` | `/api/v1/admin/cameras` | admin | name, source type, gateway, site | camera summary | Source type must be CCTV-only enum. |
 | `POST` | `/api/v1/admin/cameras/:id/acl` | admin | grant/revoke user camera ACL | ACL result | Enforces one active grant per user/camera. |
 | `POST` | `/api/v1/admin/cameras/:id/disable` | admin | reason | disabled/retired camera | Terminates active viewer sessions ≤10s. |
 | `POST` | `/api/v1/admin/gateways` | admin | gateway metadata | one-time service token or cert bundle | Raw credential shown once. |
 | `POST` | `/api/v1/admin/gateways/:id/disable` | admin | reason | disabled gateway | Publish stopped ≤10s if channel available. |
-| `POST` | `/api/v1/admin/gateways/:id/rotate-credential` | super-admin permission | rotation reason | one-time credential | Old credential revoked after confirmed switchover. |
+| `POST` | `/api/v1/admin/gateways/:id/rotate-credential` | admin | rotation reason | one-time credential | Old credential revoked after confirmed switchover. |
 | `POST` | `/api/v1/admin/gateways/:id/cameras` | admin | add/remove camera assignment | assignment state | Enforces one active assignment per gateway/camera. |
-| `GET` | `/api/v1/admin/audit` | admin/auditor | filters/cursor | audit rows | Payloads scrubbed. |
-| `GET` | `/api/v1/admin/audit/verify` | admin/auditor | range/version | verifier result | Verifies HMAC chain and key versions. |
-| `GET` | `/api/v1/admin/audit/export` | admin/auditor + re-auth | filters | signed JSONL bundle | Synchronous MVP export. |
+| `GET` | `/api/v1/admin/audit` | admin | filters/cursor | audit rows | Payloads scrubbed. |
+| `GET` | `/api/v1/admin/audit/verify` | admin | range/version | verifier result | Verifies HMAC chain and key versions. |
+| `GET` | `/api/v1/admin/audit/export` | admin | filters | signed JSONL bundle | Synchronous MVP export. |
 | `POST` | `/api/v1/admin/dpa/export` | admin | artifact selection | signed DPA bundle | Includes signage attestations. |
 | `POST` | `/api/v1/admin/sites/:id/signage-attest` | admin | attestation metadata | artifact record | Required before real-site pilot. |
-| `POST` | `/api/v1/admin/livekit/fallback` | super-admin permission + re-auth | mode and reason | active media mode | Changes dynamic CSP on next request. |
+| `POST` | `/api/v1/admin/livekit/fallback` | admin | mode and reason | active media mode | Changes dynamic CSP on next request. |
 
 ## Gateway endpoints
 
