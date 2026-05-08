@@ -114,7 +114,7 @@ It ignores local/generated files such as:
 - `.pytest_cache/`
 - `.venv/`
 - `node_modules/`
-- `CLAUDE.md`
+- `COUNCIL.md`
 - `execute.md`
 
 The `.env.example` file is kept safe to commit because it contains placeholder values only.
