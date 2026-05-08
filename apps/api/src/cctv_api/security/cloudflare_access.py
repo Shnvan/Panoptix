@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import Request
+from jwt import InvalidTokenError, PyJWKClient, PyJWKClientError, decode
 
 from cctv_api.core.config import Settings
 from cctv_api.security.identity import Principal, PrincipalKind
@@ -13,6 +16,8 @@ class AccessVerificationError(Exception):
 
 
 class CloudflareAccessVerifier:
+    _jwks_clients: dict[str, PyJWKClient] = {}
+
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
 
@@ -25,7 +30,8 @@ class CloudflareAccessVerifier:
         if not token:
             raise AccessVerificationError("cf-access-token-required")
 
-        raise AccessVerificationError("cf-access-verifier-not-configured")
+        claims = self._decode_browser_token(token)
+        return self._principal_from_browser_claims(claims)
 
     def verify_gateway_request(self, request: Request) -> Principal:
         dev_principal = self._dev_gateway_principal(request)
@@ -70,6 +76,63 @@ class CloudflareAccessVerifier:
             raise AccessVerificationError("dev-auth-forbidden-outside-development")
         if not self.settings.ALLOW_DEV_AUTH:
             raise AccessVerificationError("dev-auth-disabled")
+
+    def _decode_browser_token(self, token: str) -> dict[str, Any]:
+        try:
+            signing_key = self._get_signing_key(token)
+            claims = decode(
+                token,
+                signing_key.key,
+                algorithms=["RS256"],
+                audience=self.settings.cf_access_browser_audiences,
+                issuer=self.settings.CF_ACCESS_ISSUER,
+                leeway=self.settings.CLOCK_SKEW_SECONDS,
+                options={
+                    "require": ["exp", "iat", "nbf", "iss", "aud", "sub"],
+                },
+            )
+        except (InvalidTokenError, PyJWKClientError) as exc:
+            raise AccessVerificationError("cf-access-token-invalid") from exc
+
+        return claims
+
+    def _get_signing_key(self, token: str) -> Any:
+        return self._get_jwks_client().get_signing_key_from_jwt(token)
+
+    def _get_jwks_client(self) -> PyJWKClient:
+        client = self._jwks_clients.get(self.settings.CF_ACCESS_JWKS_URL)
+        if client is None:
+            client = PyJWKClient(self.settings.CF_ACCESS_JWKS_URL)
+            self._jwks_clients[self.settings.CF_ACCESS_JWKS_URL] = client
+        return client
+
+    def _principal_from_browser_claims(self, claims: dict[str, Any]) -> Principal:
+        roles = claims.get("roles", [])
+        permissions = claims.get("permissions", [])
+
+        return Principal(
+            kind=PrincipalKind.USER,
+            subject=str(claims["sub"]),
+            email=self._optional_claim(claims, "email"),
+            roles=frozenset(self._claim_values(roles)),
+            permissions=frozenset(self._claim_values(permissions)),
+            is_dev=False,
+        )
+
+    @staticmethod
+    def _claim_values(value: object) -> set[str]:
+        if isinstance(value, str):
+            return {item.strip() for item in value.split(",") if item.strip()}
+        if isinstance(value, list):
+            return {str(item).strip() for item in value if str(item).strip()}
+        return set()
+
+    @staticmethod
+    def _optional_claim(claims: dict[str, Any], name: str) -> str | None:
+        value = claims.get(name)
+        if value is None:
+            return None
+        return str(value)
 
     @staticmethod
     def _split_header(value: str) -> set[str]:
