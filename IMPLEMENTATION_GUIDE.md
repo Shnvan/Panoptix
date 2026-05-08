@@ -648,7 +648,42 @@ The placeholders are intentional because real LiveKit token minting, command dis
 
 ---
 
-## 21. Gateway Tests
+## 21. Database Foundation
+
+### What was implemented
+
+Database foundation files were safely integrated from the database coworker's `dev-phase` branch without merging the unsafe branch directly.
+
+Important files:
+
+```text
+apps/api/alembic.ini
+apps/api/alembic/
+apps/api/src/cctv_api/models/
+apps/api/src/cctv_api/db.py
+apps/api/scripts/db_validate.py
+```
+
+### How it works
+
+SQLAlchemy models define backend-visible database tables for users, sessions, RBAC, sites, gateways, cameras, camera ACL, gateway assignments, stream grants, audit records, privacy records, and operational records.
+
+Alembic migrations define how the schema is created and changed over time. The backend reads database connection strings from the existing `Settings` class using:
+
+```text
+DATABASE_URL
+MIGRATION_DATABASE_URL
+```
+
+The validation script can inspect a migrated PostgreSQL database and verify expected tables, enums, indexes, foreign keys, and audit triggers.
+
+### Why it matters
+
+This gives the backend a concrete database contract for upcoming session, RBAC, gateway assignment, stream grant, and audit work while preserving the ownership boundary: database schema/migrations remain database-owned, and backend code consumes them through typed contracts.
+
+---
+
+## 22. Gateway Tests
 
 ### What was implemented
 
@@ -675,14 +710,14 @@ Gateway routes are high-risk because they eventually control camera publishing. 
 
 ---
 
-## 22. Current Verification Status
+## 23. Current Verification Status
 
 ### What passed
 
 The latest verification passed:
 
 ```text
-pytest: 20 passed
+pytest: 26 passed
 mypy: no issues found
 ruff: all checks passed
 ```
