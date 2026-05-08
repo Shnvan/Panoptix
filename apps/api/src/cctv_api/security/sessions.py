@@ -31,14 +31,14 @@ def create_session(
 
 
 def get_active_session(db: DbSession, session_id: uuid.UUID) -> Session | None:
-    stmt = select(Session).where(Session.id == session_id, Session.revoked_at.is_(None))
+    stmt = select(Session).where(Session.id == str(session_id), Session.revoked_at.is_(None))
     return db.execute(stmt).scalar_one_or_none()
 
 
 def touch_session(db: DbSession, session_id: uuid.UUID) -> None:
     stmt = (
         update(Session)
-        .where(Session.id == session_id, Session.revoked_at.is_(None))
+        .where(Session.id == str(session_id), Session.revoked_at.is_(None))
         .values(last_seen_at=datetime.now(timezone.utc))
     )
     db.execute(stmt)
@@ -58,7 +58,7 @@ def revoke_session(db: DbSession, session_id: uuid.UUID) -> bool:
 def list_active_sessions(db: DbSession, user_id: uuid.UUID) -> list[Session]:
     stmt = (
         select(Session)
-        .where(Session.user_id == user_id, Session.revoked_at.is_(None))
+        .where(Session.user_id == str(user_id), Session.revoked_at.is_(None))
         .order_by(Session.created_at.desc())
     )
     return list(db.execute(stmt).scalars().all())

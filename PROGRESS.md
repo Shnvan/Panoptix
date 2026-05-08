@@ -92,12 +92,18 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] LiveKit JWT minting added with ≤60s TTL and strict viewer/gateway grant separation
 - [x] Stream grants recorded for successful viewer and gateway token mints
 
+### Audit Foundation
+- [x] Minimal audit writer added for append-only `audit_log` inserts
+- [x] Sensitive audit payload scrubbing added
+- [x] Viewer, gateway ingest-token, and session revoke events audited
+- [x] Placeholder audit hash/key fields added while real HMAC chaining remains deferred
+
 ---
 
 ## Next Steps (In Order)
 
-### 1. Audit Foundation
-Add backend audit event interfaces while coordinating append-only storage with the database coworker.
+### 1. Gateway Agent Foundation
+Begin the actual gateway agent under `apps/cctv-edge/agent` after backend routes and contracts are stable.
 
 ---
 
