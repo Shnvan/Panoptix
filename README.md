@@ -72,6 +72,28 @@ panoptix-main/
   SECURITY.md                # Security policy
   LICENSE                    # Proprietary license
   .env.example               # Environment variable schema
+  apps/
+    api/                                  # FastAPI control-plane service owned by system owner
+      README.md
+      pyproject.toml
+      src/cctv_api/
+        __init__.py
+        main.py
+    cctv-edge/                            # Gateway/edge workspace owned by system owner
+      README.md
+      agent/README.md
+      mediamtx/README.md
+    media-fallback/                       # Optional LiveKit fallback placeholder
+      README.md
+    web/                                  # Frontend placeholder owned by frontend coworker
+      README.md
+  database/                               # Database placeholder owned by database coworker
+    README.md
+  infra/
+    README.md
+    terraform/README.md
+  scripts/
+    README.md
   docs/
     index.md                              # Document navigation map
     planning/                             # Product and architecture planning docs

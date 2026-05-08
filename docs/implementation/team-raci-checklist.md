@@ -4,6 +4,16 @@
 
 This checklist maps the agreed three-person team split into concrete responsibilities.
 
+## Implementation Ownership Boundary
+
+> **Important context for all sessions and contributors:**
+>
+> - **Frontend implementation** (`cctv-web`, Next.js UI, React components, Tailwind styling, LiveKit JS viewer) is owned by the **frontend coworker**. The system owner must not implement frontend code.
+> - **Database implementation** (schema design, Alembic migrations, triggers, indexes, DB roles) is owned by the **database coworker**. The system owner must not implement database code.
+> - **System owner scope** covers: backend/control-plane (`cctv-api`), security/auth/RBAC, Cloudflare Access verification, LiveKit token minting, gateway command/control logic, audit logic, DevOps/Railway/deployment setup, runbooks, CI/CD, integration contracts, and coordination.
+> - Frontend and database documentation may still be updated for coordination purposes, but actual implementation belongs to the assigned teammates.
+> - When in doubt, check the RACI table below.
+
 ## Roles
 
 | Workstream | Responsible | Accountable | Consulted | Informed |
