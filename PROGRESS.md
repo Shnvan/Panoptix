@@ -98,12 +98,19 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Viewer, gateway ingest-token, and session revoke events audited
 - [x] Placeholder audit hash/key fields added while real HMAC chaining remains deferred
 
+### Gateway Agent Foundation
+- [x] Minimal Python gateway agent package added under `apps/cctv-edge/agent`
+- [x] Environment-driven gateway agent configuration added
+- [x] Outbound heartbeat and camera status API client added
+- [x] One-shot and continuous heartbeat runner added
+- [x] Agent tests added for config, client, and runner behavior
+
 ---
 
 ## Next Steps (In Order)
 
-### 1. Gateway Agent Foundation
-Begin the actual gateway agent under `apps/cctv-edge/agent` after backend routes and contracts are stable.
+### 1. Gateway Control Channel Foundation
+Implement the outbound gateway control channel and signed command handling after the heartbeat agent foundation is stable.
 
 ---
 

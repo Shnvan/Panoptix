@@ -842,13 +842,56 @@ The backend now records security-critical actions without storing raw media toke
 
 ---
 
-## 26. Current Verification Status
+## 26. Gateway Agent Foundation
+
+### What was implemented
+
+The first gateway-side agent package now exists at:
+
+```text
+apps/cctv-edge/agent
+```
+
+It includes:
+
+- environment-based configuration loading
+- an outbound HTTP client for backend heartbeat and camera status endpoints
+- a one-shot and continuous heartbeat runner
+- a CLI entrypoint
+- tests for config, client, and runner behavior
+
+### How it works
+
+The agent reads gateway settings from environment variables, then calls:
+
+```text
+POST /api/v1/gateways/{gateway_id}/heartbeat
+POST /api/v1/gateways/{gateway_id}/cameras/{camera_id}/status
+```
+
+For local development, `PANOPTIX_DEV_GATEWAY_IDENTITY=true` sends the backend development gateway identity header. The agent remains outbound-only and does not open a local server socket.
+
+### Important limitation
+
+This milestone does not implement gateway control WebSocket handling, signed command validation, mediamtx process management, or LiveKit publishing orchestration.
+
+### Why it matters
+
+Panoptix now has a real edge-agent foundation that can prove gateway liveness to the backend while preserving the zero-inbound-WAN-port invariant.
+
+---
+
+## 27. Current Verification Status
 
 ### What passed
 
 The latest verification passed:
 
 ```text
+edge agent pytest: 10 passed
+edge agent mypy: no issues found
+edge agent ruff: all checks passed
+edge agent compileall: passed
 pytest: 49 passed
 mypy: no issues found
 ruff: all checks passed
@@ -872,9 +915,24 @@ python -m ruff check src tests alembic scripts
 python -m compileall src alembic scripts
 ```
 
+From:
+
+```powershell
+cd c:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+```
+
+Run:
+
+```powershell
+$env:PYTHONPATH = "src"; python -m pytest tests/ -v
+python -m mypy src/panoptix_edge_agent --ignore-missing-imports
+python -m ruff check src tests
+python -m compileall src tests
+```
+
 ### Why it matters
 
-This confirms the current backend code is working, typed correctly, and lint-clean.
+This confirms the current backend and edge-agent code is working, typed correctly, and lint-clean.
 
 ---
 
@@ -884,18 +942,19 @@ The following are intentionally not done yet:
 
 - frontend UI
 - real WebSocket command stream
-- real gateway agent
 - mediamtx runtime configuration
 - audit HMAC chain implementation
 - admin audit list/export/verify endpoints
+- signed gateway command validation
+- LiveKit publishing orchestration
 
 ---
 
 ## Next Recommended Implementation Order
 
-### 1. Gateway Agent Foundation
+### 1. Gateway Control Channel Foundation
 
-Begin the actual gateway agent under `apps/cctv-edge/agent` after backend routes and contracts are stable.
+Implement the outbound gateway control channel and signed command handling after the heartbeat agent foundation is stable.
 
 ### 2. Audit HMAC Chain Foundation
 
@@ -905,7 +964,7 @@ Replace placeholder audit hashes with real HMAC-SHA-256 chaining, previous-hash 
 
 ## Big Picture Summary
 
-So far, Panoptix has moved from documentation and structure into a real backend control-plane foundation.
+So far, Panoptix has moved from documentation and structure into a real backend control-plane and gateway-agent foundation.
 
 The system now has:
 
@@ -924,7 +983,8 @@ The system now has:
 - RBAC placeholders
 - protected browser API placeholders
 - gateway API placeholders
-- passing backend tests, type checks, and lint checks
+- minimal outbound gateway heartbeat agent
+- passing backend and edge-agent tests, type checks, and lint checks
 
 The most important security idea so far is:
 
