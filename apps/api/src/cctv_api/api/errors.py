@@ -26,7 +26,8 @@ class ProblemDetail(Exception):
         super().__init__(detail)
 
 
-async def problem_detail_handler(_request: Request, exc: ProblemDetail) -> JSONResponse:
+async def problem_detail_handler(_request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, ProblemDetail)
     body: dict[str, Any] = {
         "type": exc.type_uri,
         "title": exc.title,
