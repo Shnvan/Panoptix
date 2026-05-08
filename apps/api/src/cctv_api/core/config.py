@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     SESSION_SIGNING_KEY: str = "replace-me"
     CSRF_SIGNING_KEY: str = "replace-me"
 
+    # ── Database ──
+    DATABASE_URL: str = "postgresql+psycopg://cctv_app_runtime:replace-me@localhost:5432/panoptix"
+    MIGRATION_DATABASE_URL: str = (
+        "postgresql+psycopg://cctv_migrator:replace-me@localhost:5432/panoptix"
+    )
+
     # ── LiveKit ──
     LIVEKIT_MODE: Literal["cloud", "fallback"] = "cloud"
     LIVEKIT_CLOUD_URL: str = "wss://replace-me.livekit.cloud"

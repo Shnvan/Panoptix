@@ -30,6 +30,9 @@ Install these on your development machine before working on any part of the proj
 | `pydantic` | Data validation |
 | `pydantic-settings` | Environment/config loader |
 | `PyJWT[crypto]` | Cloudflare Access JWT signature and claim verification |
+| `sqlalchemy` | Database ORM and typed model definitions |
+| `psycopg[binary]` | PostgreSQL driver |
+| `alembic` | Database migration runner |
 
 ### Python packages (dev/test)
 
@@ -44,8 +47,6 @@ Install these on your development machine before working on any part of the proj
 
 | Package | Purpose | When needed |
 |---------|---------|-------------|
-| `sqlalchemy` | Database ORM | Security/gateway phases (DB coworker owns schema) |
-| `alembic` | Database migrations | Security/gateway phases (DB coworker owns migrations) |
 | `livekit-api` | LiveKit Server SDK | Viewer flow phase |
 | `websockets` | Gateway WebSocket channel | Gateway foundation phase |
 | `sentry-sdk[fastapi]` | Error monitoring | Pre-pilot |

@@ -71,6 +71,13 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Gateway ID path matching enforced against authenticated gateway principal
 - [x] Tests for gateway auth requirement, dev gateway identity, ID mismatch, fail-closed token minting, status acceptance, and control-channel placeholder
 
+### Database Foundation
+- [x] Safely integrated database-owned Alembic setup from `origin/dev-phase` without replacing backend/security/gateway code
+- [x] SQLAlchemy model package added for users, sessions, RBAC, cameras, gateways, stream grants, audit, privacy, and ops tables
+- [x] Alembic migrations added for initial schema, camera display-name alignment, DB roles/grants, constraints, and indexes
+- [x] Database settings added to existing backend `Settings` class
+- [x] Database validation script integrated with backend config
+
 ---
 
 ## Next Steps (In Order)
