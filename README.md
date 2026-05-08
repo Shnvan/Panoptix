@@ -66,7 +66,7 @@ All project documentation is in the [`docs/`](docs/) folder. See [`docs/index.md
 ```
 panoptix-main/
   README.md                  # This file
-  CLAUDE.md                  # AI assistant review instructions
+  COUNCIL.md                 # AI assistant review instructions
   execute.md                 # Principal Engineer execution protocol
   CONTRIBUTING.md            # Contribution rules
   SECURITY.md                # Security policy

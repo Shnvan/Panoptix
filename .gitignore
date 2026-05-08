@@ -33,5 +33,5 @@ coverage/
 tmp/
 
 # Local AI/process instructions
-CLAUDE.md
+COUNCIL.md
 execute.md

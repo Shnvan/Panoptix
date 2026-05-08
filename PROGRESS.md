@@ -25,7 +25,7 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] RACI ownership boundary documented in `docs/implementation/team-raci-checklist.md`
 
 ### Repo Setup
-- [x] `.gitignore` added (ignores `.env`, `__pycache__`, `node_modules`, `CLAUDE.md`, `execute.md`)
+- [x] `.gitignore` added (ignores `.env`, `__pycache__`, `node_modules`, `COUNCIL.md`, `execute.md`)
 - [x] `.env.example` verified — placeholder values only, safe to share
 - [x] Monorepo skeleton created: `apps/`, `database/`, `infra/`, `scripts/`
 - [x] FastAPI backend starter created and validated (`apps/api/`)
