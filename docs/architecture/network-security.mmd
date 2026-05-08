@@ -1,0 +1,30 @@
+flowchart LR
+    subgraph Internet
+        user[Authorized Browser]
+        cf[Cloudflare Access + WAF]
+        livekit[LiveKit Cloud]
+    end
+
+    subgraph Railway Control Plane
+        web[cctv-web]
+        api[cctv-api]
+    end
+
+    subgraph Site LAN
+        gateway[Gateway]
+        camera[IP Cameras]
+    end
+
+    subgraph Data Services
+        db[(Postgres)]
+        r2[(R2 Backups)]
+    end
+
+    user --> cf --> web
+    web --> api
+    api --> db
+    api --> r2
+    gateway -->|Outbound TLS only| api
+    camera -->|Private RTSP only| gateway
+    gateway -->|Outbound media publish| livekit
+    user -->|Viewer subscribe| livekit

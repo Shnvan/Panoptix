@@ -1,0 +1,17 @@
+sequenceDiagram
+    participant User
+    participant CF as Cloudflare Access
+    participant Web as cctv-web
+    participant API as cctv-api
+    participant DB as Postgres
+    participant LK as LiveKit Cloud
+
+    User->>CF: Open dashboard
+    CF->>CF: Authenticate with IdP
+    CF->>Web: Forward request with Access JWT
+    Web->>API: Same-origin API request
+    API->>API: Verify CF Access JWT
+    API->>DB: Load user, role, camera ACL
+    API->>LK: Mint viewer-only token
+    API-->>Web: Return authorized camera metadata and token
+    Web-->>User: Render dashboard and subscribe to media

@@ -1,0 +1,11 @@
+flowchart LR
+    user[Authorized User] --> cf[Cloudflare Access]
+    admin[Admin User] --> cf
+    cf --> web[cctv-web\nNext.js Frontend]
+    web --> api[cctv-api\nFastAPI Control Plane]
+    api --> db[(Neon Postgres)]
+    api --> audit[(Append-only Audit Log)]
+    api --> livekit[LiveKit Cloud\nMedia Plane]
+    gateway[On-site Gateway] --> api
+    gateway --> livekit
+    camera[IP CCTV Cameras] --> gateway
