@@ -758,14 +758,57 @@ This gives the backend revocable app sessions and moves authorization state towa
 
 ---
 
-## 24. Current Verification Status
+## 24. LiveKit Token Minting Foundation
+
+### What was implemented
+
+The backend now mints short-lived LiveKit tokens from:
+
+```text
+apps/api/src/cctv_api/security/livekit_tokens.py
+apps/api/src/cctv_api/security/stream_access.py
+```
+
+The API includes:
+
+```text
+GET  /api/v1/cameras/{camera_id}/view-token
+POST /api/v1/gateways/{gateway_id}/ingest-token
+```
+
+### How it works
+
+Viewer tokens require:
+
+- authenticated browser user
+- active database user
+- active camera row
+- active `camera_acl` row for the user and camera
+
+Gateway publish tokens require:
+
+- authenticated gateway identity
+- route gateway ID matching the authenticated gateway ID
+- enabled gateway row
+- active camera row
+- active `gateway_camera_assignments` row for the gateway and camera
+
+Both token types are LiveKit-compatible HS256 JWTs with TTL capped at 60 seconds. Viewer tokens are subscribe-only, and gateway tokens are publish-only. Successful token mints are recorded in `stream_grants`.
+
+### Why it matters
+
+This is the security boundary between Panoptix API authorization and the media plane: the backend now decides who can watch or publish each camera before LiveKit receives a token.
+
+---
+
+## 25. Current Verification Status
 
 ### What passed
 
 The latest verification passed:
 
 ```text
-pytest: 36 passed
+pytest: 44 passed
 mypy: no issues found
 ruff: all checks passed
 ```
@@ -797,8 +840,6 @@ This confirms the current backend code is working, typed correctly, and lint-cle
 The following are intentionally not done yet:
 
 - frontend UI
-- real LiveKit viewer token minting
-- real gateway publish token minting
 - real WebSocket command stream
 - real gateway agent
 - mediamtx runtime configuration
@@ -808,15 +849,11 @@ The following are intentionally not done yet:
 
 ## Next Recommended Implementation Order
 
-### 1. LiveKit Token Minting Foundation
-
-Add viewer-subscribe token generation and gateway-publish token generation, with strict token kind separation.
-
-### 2. Audit Foundation
+### 1. Audit Foundation
 
 Add backend audit event interfaces while coordinating append-only storage with the database coworker.
 
-### 3. Gateway Agent Foundation
+### 2. Gateway Agent Foundation
 
 Begin the actual gateway agent under `apps/cctv-edge/agent` after backend routes and contracts are stable.
 

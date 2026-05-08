@@ -38,6 +38,14 @@ class GatewayIngestTokenRequest(BaseModel):
     camera_id: str
 
 
+class GatewayIngestTokenResponse(BaseModel):
+    camera_id: str
+    room: str
+    livekit_url: str
+    token: str
+    expires_at: datetime
+
+
 class GatewayCameraStatusRequest(BaseModel):
     status: Literal["online", "offline", "degraded"]
     detail: str | None = None
