@@ -86,12 +86,18 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Active session listing and session revocation endpoints added
 - [x] Test database fixture added for backend tests without requiring local PostgreSQL
 
+### LiveKit Token Minting Foundation
+- [x] Viewer subscribe-token endpoint added with active camera ACL checks
+- [x] Gateway publish-token endpoint added with active gateway-camera assignment checks
+- [x] LiveKit JWT minting added with ≤60s TTL and strict viewer/gateway grant separation
+- [x] Stream grants recorded for successful viewer and gateway token mints
+
 ---
 
 ## Next Steps (In Order)
 
-### 1. LiveKit Token Minting Foundation
-Add viewer-subscribe and gateway-publish token minting with strict separation between browser and gateway paths.
+### 1. Audit Foundation
+Add backend audit event interfaces while coordinating append-only storage with the database coworker.
 
 ---
 
