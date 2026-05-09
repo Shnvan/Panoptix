@@ -26,13 +26,13 @@ AUDIT_HMAC_KEY_VERSION = 1
 AUDIT_HMAC_KEY = "test-audit-hmac-key-with-enough-entropy"
 
 
-def _client_with_db(test_db_session: DbSession) -> TestClient:
+def _client_with_db(test_db_session: DbSession, *, audit_hmac_key: str = AUDIT_HMAC_KEY) -> TestClient:
     app = create_app(
         settings=Settings(
             APP_ENV="development",
             ALLOW_DEV_AUTH=True,
             AUDIT_HMAC_KEY_VERSION=AUDIT_HMAC_KEY_VERSION,
-            AUDIT_HMAC_KEY=AUDIT_HMAC_KEY,
+            AUDIT_HMAC_KEY=audit_hmac_key,
         )
     )
 
@@ -50,6 +50,137 @@ def _auth_headers(email: str = "viewer@example.test", roles: str = "viewer") -> 
         "x-panoptix-dev-subject": email,
         "x-panoptix-dev-roles": roles,
     }
+
+
+def test_admin_audit_verify_requires_authentication(test_db_session: DbSession) -> None:
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit/verify")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "cf-access-token-required"
+
+
+def test_admin_audit_verify_requires_admin_role(test_db_session: DbSession) -> None:
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit/verify", headers=_auth_headers())
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "role-required"
+
+
+def test_admin_audit_verify_accepts_empty_chain(test_db_session: DbSession) -> None:
+    client = _client_with_db(test_db_session)
+
+    response = client.get(
+        "/api/v1/admin/audit/verify",
+        headers=_auth_headers(email="admin@example.test", roles="admin"),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"valid": True, "checked": 0, "error": None}
+
+
+def test_admin_audit_verify_accepts_valid_chain(test_db_session: DbSession) -> None:
+    record_audit_event(
+        test_db_session,
+        actor_type=ActorType.user,
+        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
+        audit_hmac_key=AUDIT_HMAC_KEY,
+        action="test.audit.first",
+        resource="camera:first",
+    )
+    record_audit_event(
+        test_db_session,
+        actor_type=ActorType.user,
+        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
+        audit_hmac_key=AUDIT_HMAC_KEY,
+        action="test.audit.second",
+        resource="camera:second",
+    )
+    client = _client_with_db(test_db_session)
+
+    response = client.get(
+        "/api/v1/admin/audit/verify",
+        headers=_auth_headers(email="admin@example.test", roles="admin"),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"valid": True, "checked": 2, "error": None}
+    audit_rows = test_db_session.execute(select(AuditLog).order_by(AuditLog.id)).scalars().all()
+    assert [row.action for row in audit_rows] == ["test.audit.first", "test.audit.second"]
+
+
+def test_admin_audit_verify_reports_hash_mismatch(test_db_session: DbSession) -> None:
+    audit_log = record_audit_event(
+        test_db_session,
+        actor_type=ActorType.user,
+        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
+        audit_hmac_key=AUDIT_HMAC_KEY,
+        action="test.audit.created",
+        resource="camera:test",
+        payload={"camera_id": "camera-1"},
+    )
+    audit_log.payload = {"camera_id": "camera-2"}
+    client = _client_with_db(test_db_session)
+
+    response = client.get(
+        "/api/v1/admin/audit/verify",
+        headers=_auth_headers(email="admin@example.test", roles="admin"),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "valid": False,
+        "checked": 1,
+        "error": "audit-chain-hash-mismatch",
+    }
+
+
+def test_admin_audit_verify_reports_prev_hash_mismatch(test_db_session: DbSession) -> None:
+    record_audit_event(
+        test_db_session,
+        actor_type=ActorType.user,
+        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
+        audit_hmac_key=AUDIT_HMAC_KEY,
+        action="test.audit.first",
+        resource="camera:first",
+    )
+    second = record_audit_event(
+        test_db_session,
+        actor_type=ActorType.user,
+        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
+        audit_hmac_key=AUDIT_HMAC_KEY,
+        action="test.audit.second",
+        resource="camera:second",
+    )
+    second.prev_hash = "tampered-previous-hash"
+    client = _client_with_db(test_db_session)
+
+    response = client.get(
+        "/api/v1/admin/audit/verify",
+        headers=_auth_headers(email="admin@example.test", roles="admin"),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "valid": False,
+        "checked": 2,
+        "error": "audit-chain-prev-hash-mismatch",
+    }
+
+
+def test_admin_audit_verify_fails_closed_with_placeholder_key(test_db_session: DbSession) -> None:
+    client = _client_with_db(test_db_session, audit_hmac_key="replace-me")
+
+    response = client.get(
+        "/api/v1/admin/audit/verify",
+        headers=_auth_headers(email="admin@example.test", roles="admin"),
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "audit-hmac-key-invalid"
 
 
 def test_record_audit_event_inserts_first_row_and_hmac_key(test_db_session: DbSession) -> None:

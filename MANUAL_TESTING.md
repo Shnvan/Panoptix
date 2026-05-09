@@ -610,7 +610,13 @@ Do not commit real LiveKit secrets.
 
 ## 10. Audit Log Manual Checks
 
-Audit admin endpoints are not implemented yet. Until then, inspect audit rows through local DB tooling.
+The first audit admin endpoint is implemented:
+
+```text
+GET /api/v1/admin/audit/verify
+```
+
+It verifies the full audit HMAC chain and does not list rows, export data, rotate keys, or write a new audit event.
 
 Local audit HMAC settings:
 
@@ -620,6 +626,29 @@ $env:AUDIT_HMAC_KEY = "local-dev-audit-hmac-key-change-me"
 ```
 
 Do not use the placeholder `replace-me` for local audit-producing success paths. The audit writer fails closed if the key is blank or left as the placeholder.
+
+Manual verification call:
+
+```powershell
+Invoke-RestMethod -Method GET -Uri "$BaseUrl/api/v1/admin/audit/verify" -Headers $AdminHeaders
+```
+
+Expected response shape:
+
+```json
+{
+  "valid": true,
+  "checked": 0,
+  "error": null
+}
+```
+
+Notes:
+
+- `checked` is the number of audit rows verified in ID order.
+- Tampering returns `200` with `valid: false` and an error such as `audit-chain-hash-mismatch`.
+- Missing or placeholder `AUDIT_HMAC_KEY` returns `503 audit-hmac-key-invalid`.
+- Non-admin users receive `403 role-required`.
 
 Audit-producing paths implemented so far:
 

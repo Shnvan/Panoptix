@@ -5,6 +5,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
 from cctv_api.api.errors import ProblemDetail
@@ -12,10 +13,12 @@ from cctv_api.api.gateways import router as gateway_router
 from cctv_api.core.config import Settings, get_settings
 from cctv_api.db import db_session
 from cctv_api.models.enums import ActorType, StreamKind
+from cctv_api.models.tables import AuditLog
+from cctv_api.security.audit import AuditLogError, record_audit_event, verify_audit_chain
 from cctv_api.security.dependencies import require_authenticated_user
 from cctv_api.security.identity import Principal
-from cctv_api.security.audit import AuditLogError, record_audit_event
 from cctv_api.security.livekit_tokens import LiveKitTokenConfigError, mint_viewer_subscribe_token
+from cctv_api.security.policy import require_role
 from cctv_api.security.sessions import list_active_sessions, revoke_session
 from cctv_api.security.stream_access import (
     get_active_camera,
@@ -46,6 +49,12 @@ class ViewerTokenResponse(BaseModel):
     livekit_url: str
     token: str
     expires_at: datetime
+
+
+class AuditVerificationResponse(BaseModel):
+    valid: bool
+    checked: int
+    error: str | None = None
 
 
 @v1_router.get("/cameras/{camera_id}/view-token")
@@ -164,6 +173,32 @@ def get_camera_view_token(
         token=grant.token,
         expires_at=grant.expires_at,
     )
+
+
+@v1_router.get("/admin/audit/verify")
+def verify_admin_audit_chain(
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> AuditVerificationResponse:
+    require_role(principal, "admin")
+    if not settings.AUDIT_HMAC_KEY.strip() or settings.AUDIT_HMAC_KEY.strip() == "replace-me":
+        raise ProblemDetail(
+            status=503,
+            title="Service Unavailable",
+            detail="audit-hmac-key-invalid",
+            type_uri="https://panoptix.local/problems/service-unavailable",
+        )
+    rows = db.execute(select(AuditLog).order_by(AuditLog.id)).scalars().all()
+    result = verify_audit_chain(rows, audit_hmac_key=settings.AUDIT_HMAC_KEY)
+    if result.error == "audit-hmac-key-invalid":
+        raise ProblemDetail(
+            status=503,
+            title="Service Unavailable",
+            detail=result.error,
+            type_uri="https://panoptix.local/problems/service-unavailable",
+        )
+    return AuditVerificationResponse(valid=result.valid, checked=result.checked, error=result.error)
 
 
 @v1_router.get("/sessions/active")

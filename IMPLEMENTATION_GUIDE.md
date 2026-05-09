@@ -1156,7 +1156,50 @@ Audit rows are now tamper-evident for new writes. Changing the payload, action, 
 
 ---
 
-## 34. Current Verification Status
+## 34. Admin Audit Verification Endpoint Skeleton
+
+### What was implemented
+
+The backend now exposes a read-only admin verifier endpoint:
+
+```text
+GET /api/v1/admin/audit/verify
+```
+
+It includes:
+
+- admin-role enforcement through existing user auth and policy helpers
+- full-chain audit verification in `audit_log.id` order
+- structured `valid`, `checked`, and `error` response fields
+- fail-closed `503` behavior when `AUDIT_HMAC_KEY` is blank or left as `replace-me`
+
+### How it works
+
+The endpoint loads all audit rows ordered by ID and calls the existing `verify_audit_chain()` helper with the configured `AUDIT_HMAC_KEY`.
+
+Successful verification returns:
+
+```json
+{
+  "valid": true,
+  "checked": 2,
+  "error": null
+}
+```
+
+Tampering returns `200` with `valid: false` and an error such as `audit-chain-hash-mismatch` or `audit-chain-prev-hash-mismatch`.
+
+### Important limitation
+
+This skeleton verifies the full chain only. It does not list audit rows, export audit data, support ranges or key-version filters, rotate keys, or write an audit event for the verification call itself.
+
+### Why it matters
+
+Operators now have a first local/admin verification surface for the tamper-evident audit chain without exposing raw audit payload browsing or export workflows.
+
+---
+
+## 35. Current Verification Status
 
 ### What passed
 
@@ -1167,7 +1210,7 @@ edge agent pytest: 43 passed
 edge agent mypy: no issues found
 edge agent ruff: all checks passed
 edge agent compileall: passed
-pytest: 69 passed
+pytest: 76 passed
 mypy: no issues found
 ruff: all checks passed
 compileall: passed
@@ -1219,7 +1262,8 @@ The following are intentionally not done yet:
 - persistent backend command queue
 - production gateway control reconnect policy/supervision
 - mediamtx runtime configuration
-- admin audit list/export/verify endpoints
+- admin audit list/export endpoints
+- audit verification ranges and key-version support
 - gateway command queue persistence and ACK persistence
 - LiveKit publishing orchestration
 
@@ -1227,9 +1271,9 @@ The following are intentionally not done yet:
 
 ## Next Recommended Implementation Order
 
-### 1. Admin Audit Verification Endpoint Skeleton
+### 1. Audit Verification Range/Key-Version Support
 
-Expose a local/admin-only audit chain verification path backed by the verifier helpers, without adding export signing, key rotation UI, or broad audit browsing.
+Extend the admin audit verifier carefully with bounded range support and key-version handling, without adding audit row browsing, export signing, key rotation UI, or database migrations.
 
 ---
 

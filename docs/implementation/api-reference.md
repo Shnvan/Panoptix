@@ -55,6 +55,16 @@ This document is the working contract between the Next.js frontend, FastAPI back
 }
 ```
 
+### Audit verification response
+
+```json
+{
+  "valid": true,
+  "checked": 2,
+  "error": null
+}
+```
+
 ## Browser/session endpoints
 
 | Method | Path | AuthZ | Request | Response | Notes |
@@ -84,7 +94,7 @@ This document is the working contract between the Next.js frontend, FastAPI back
 | `POST` | `/api/v1/admin/gateways/:id/rotate-credential` | admin | rotation reason | one-time credential | Old credential revoked after confirmed switchover. |
 | `POST` | `/api/v1/admin/gateways/:id/cameras` | admin | add/remove camera assignment | assignment state | Enforces one active assignment per gateway/camera. |
 | `GET` | `/api/v1/admin/audit` | admin | filters/cursor | audit rows | Payloads scrubbed. |
-| `GET` | `/api/v1/admin/audit/verify` | admin | range/version | verifier result | Verifies HMAC chain and key versions. |
+| `GET` | `/api/v1/admin/audit/verify` | admin | none | audit verification response | Current skeleton verifies the full HMAC chain only and is read-only. |
 | `GET` | `/api/v1/admin/audit/export` | admin | filters | signed JSONL bundle | Synchronous MVP export. |
 | `POST` | `/api/v1/admin/dpa/export` | admin | artifact selection | signed DPA bundle | Includes signage attestations. |
 | `POST` | `/api/v1/admin/sites/:id/signage-attest` | admin | attestation metadata | artifact record | Required before real-site pilot. |

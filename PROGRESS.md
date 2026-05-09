@@ -99,6 +99,7 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Real HMAC-SHA-256 audit hash chain added for newly written audit rows
 - [x] Previous-hash continuity, active key row handling, and verifier helpers added
 - [x] Placeholder audit keys now fail closed for audit writes
+- [x] Admin audit verification endpoint skeleton added for full-chain read-only verification
 
 ### Gateway Agent Foundation
 - [x] Minimal Python gateway agent package added under `apps/cctv-edge/agent`
@@ -126,8 +127,8 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 
 ## Next Steps (In Order)
 
-### 1. Admin Audit Verification Endpoint Skeleton
-Expose a local/admin-only audit chain verification path backed by the new verifier helpers, without adding export signing, key rotation UI, or unrelated audit browsing features.
+### 1. Audit Verification Range/Key-Version Support
+Extend the admin audit verifier carefully with bounded range support and key-version handling, without adding audit row browsing, export signing, key rotation UI, or database migrations.
 
 ---
 
