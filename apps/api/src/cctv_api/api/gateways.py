@@ -86,6 +86,7 @@ def gateway_ingest_token(
     if principal.gateway_id != gateway_id:
         _record_gateway_audit_safely(
             db,
+            settings=settings,
             request=request,
             actor_id=_parse_uuid_or_none(principal.gateway_id),
             action="gateway.ingest.denied.gateway_mismatch",
@@ -100,6 +101,7 @@ def gateway_ingest_token(
     if get_enabled_gateway(db, gateway_uuid) is None:
         _record_gateway_audit_safely(
             db,
+            settings=settings,
             request=request,
             actor_id=gateway_uuid,
             action="gateway.ingest.denied.disabled",
@@ -117,6 +119,7 @@ def gateway_ingest_token(
     if camera is None:
         _record_gateway_audit_safely(
             db,
+            settings=settings,
             request=request,
             actor_id=gateway_uuid,
             action="gateway.ingest.denied.camera_not_found",
@@ -133,6 +136,7 @@ def gateway_ingest_token(
     if not gateway_has_active_camera_assignment(db, gateway_uuid, camera_uuid):
         _record_gateway_audit_safely(
             db,
+            settings=settings,
             request=request,
             actor_id=gateway_uuid,
             action="gateway.ingest.denied.unassigned",
@@ -156,6 +160,7 @@ def gateway_ingest_token(
     except LiveKitTokenConfigError as exc:
         _record_gateway_audit_safely(
             db,
+            settings=settings,
             request=request,
             actor_id=gateway_uuid,
             action="gateway.ingest.denied.livekit_config",
@@ -180,6 +185,7 @@ def gateway_ingest_token(
     )
     _record_gateway_audit_required(
         db,
+        settings=settings,
         request=request,
         actor_id=gateway_uuid,
         action="gateway.ingest.token.issued",
@@ -326,6 +332,7 @@ def _parse_uuid_or_none(value: str | None) -> uuid.UUID | None:
 def _record_gateway_audit_safely(
     db: DbSession,
     *,
+    settings: Settings,
     request: Request,
     actor_id: uuid.UUID | None,
     action: str,
@@ -336,6 +343,8 @@ def _record_gateway_audit_safely(
         record_audit_event(
             db,
             actor_type=ActorType.gateway,
+            audit_hmac_key_version=settings.AUDIT_HMAC_KEY_VERSION,
+            audit_hmac_key=settings.AUDIT_HMAC_KEY,
             actor_id=actor_id,
             action=action,
             resource=resource,
@@ -350,6 +359,7 @@ def _record_gateway_audit_safely(
 def _record_gateway_audit_required(
     db: DbSession,
     *,
+    settings: Settings,
     request: Request,
     actor_id: uuid.UUID,
     action: str,
@@ -360,6 +370,8 @@ def _record_gateway_audit_required(
         record_audit_event(
             db,
             actor_type=ActorType.gateway,
+            audit_hmac_key_version=settings.AUDIT_HMAC_KEY_VERSION,
+            audit_hmac_key=settings.AUDIT_HMAC_KEY,
             actor_id=actor_id,
             action=action,
             resource=resource,

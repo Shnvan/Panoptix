@@ -24,6 +24,7 @@ from cctv_api.models.tables import (
 )
 
 LIVEKIT_SECRET = "test-livekit-secret-with-at-least-32-bytes"
+AUDIT_HMAC_KEY = "test-audit-hmac-key-with-enough-entropy"
 
 
 def _settings() -> Settings:
@@ -33,6 +34,7 @@ def _settings() -> Settings:
         LIVEKIT_CLOUD_URL="wss://livekit.example.test",
         LIVEKIT_CLOUD_API_KEY="test-livekit-key",
         LIVEKIT_CLOUD_API_SECRET=LIVEKIT_SECRET,
+        AUDIT_HMAC_KEY=AUDIT_HMAC_KEY,
     )
 
 
@@ -255,7 +257,13 @@ def test_livekit_config_placeholders_fail_closed_for_viewer(test_db_session: DbS
     user = _seed_user(test_db_session)
     camera = _seed_camera(test_db_session)
     _grant_camera_acl(test_db_session, user_id=user.id, camera_id=camera.id)
-    app = create_app(settings=Settings(APP_ENV="development", ALLOW_DEV_AUTH=True))
+    app = create_app(
+        settings=Settings(
+            APP_ENV="development",
+            ALLOW_DEV_AUTH=True,
+            AUDIT_HMAC_KEY=AUDIT_HMAC_KEY,
+        )
+    )
 
     def _override_db() -> DbSession:
         return test_db_session

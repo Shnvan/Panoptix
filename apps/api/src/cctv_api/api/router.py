@@ -61,6 +61,7 @@ def get_camera_view_token(
     if user.disabled_at is not None:
         _record_user_audit_safely(
             db,
+            settings=settings,
             request=request,
             actor_id=user.id,
             action="viewer.token.denied.user_disabled",
@@ -78,6 +79,7 @@ def get_camera_view_token(
     if camera is None:
         _record_user_audit_safely(
             db,
+            settings=settings,
             request=request,
             actor_id=user.id,
             action="viewer.token.denied.camera_not_found",
@@ -94,6 +96,7 @@ def get_camera_view_token(
     if not user_has_active_camera_acl(db, user.id, camera_uuid):
         _record_user_audit_safely(
             db,
+            settings=settings,
             request=request,
             actor_id=user.id,
             action="viewer.token.denied.access",
@@ -117,6 +120,7 @@ def get_camera_view_token(
     except LiveKitTokenConfigError as exc:
         _record_user_audit_safely(
             db,
+            settings=settings,
             request=request,
             actor_id=user.id,
             action="viewer.token.denied.livekit_config",
@@ -141,6 +145,7 @@ def get_camera_view_token(
     )
     _record_user_audit_required(
         db,
+        settings=settings,
         request=request,
         actor_id=user.id,
         action="viewer.token.issued",
@@ -191,6 +196,7 @@ def revoke_user_session(
     request: Request,
     principal: Principal = Depends(require_authenticated_user),
     db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
 ) -> dict[str, object]:
     user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
 
@@ -202,6 +208,7 @@ def revoke_user_session(
         if str(body.session_id) not in own_ids:
             _record_user_audit_safely(
                 db,
+                settings=settings,
                 request=request,
                 actor_id=user.id,
                 action="session.revoke.denied.not_owned",
@@ -218,6 +225,7 @@ def revoke_user_session(
     revoked = revoke_session(db, body.session_id)
     _record_user_audit_required(
         db,
+        settings=settings,
         request=request,
         actor_id=user.id,
         action="session.revoke.succeeded" if revoked else "session.revoke.not_found",
@@ -242,6 +250,7 @@ def _parse_uuid(value: str, detail: str) -> uuid.UUID:
 def _record_user_audit_safely(
     db: DbSession,
     *,
+    settings: Settings,
     request: Request,
     actor_id: uuid.UUID,
     action: str,
@@ -252,6 +261,8 @@ def _record_user_audit_safely(
         record_audit_event(
             db,
             actor_type=ActorType.user,
+            audit_hmac_key_version=settings.AUDIT_HMAC_KEY_VERSION,
+            audit_hmac_key=settings.AUDIT_HMAC_KEY,
             actor_id=actor_id,
             action=action,
             resource=resource,
@@ -266,6 +277,7 @@ def _record_user_audit_safely(
 def _record_user_audit_required(
     db: DbSession,
     *,
+    settings: Settings,
     request: Request,
     actor_id: uuid.UUID,
     action: str,
@@ -276,6 +288,8 @@ def _record_user_audit_required(
         record_audit_event(
             db,
             actor_type=ActorType.user,
+            audit_hmac_key_version=settings.AUDIT_HMAC_KEY_VERSION,
+            audit_hmac_key=settings.AUDIT_HMAC_KEY,
             actor_id=actor_id,
             action=action,
             resource=resource,

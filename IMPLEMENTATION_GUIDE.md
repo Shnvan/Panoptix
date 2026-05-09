@@ -805,13 +805,13 @@ This is the security boundary between Panoptix API authorization and the media p
 
 ### What was implemented
 
-The backend now has a minimal audit writer:
+The backend has an audit writer:
 
 ```text
 apps/api/src/cctv_api/security/audit.py
 ```
 
-It writes real rows to the existing append-only `audit_log` table and ensures a placeholder audit key exists in `audit_hmac_keys`.
+It writes real rows to the existing append-only `audit_log` table, redacts sensitive payload fields, and records security-critical browser and gateway actions.
 
 ### How it works
 
@@ -822,7 +822,7 @@ The audit writer records:
 - resource name
 - request IP and user agent when available
 - scrubbed JSON payload
-- placeholder `prev_hash`, `hash`, and `hmac_key_version`
+- `prev_hash`, `hash`, and `hmac_key_version`
 
 Sensitive payload fields such as tokens, JWTs, secrets, cookies, credentials, passwords, and API keys are redacted before insertion.
 
@@ -832,13 +832,9 @@ The current integrations audit:
 - gateway ingest-token issued and denied paths
 - session revoke success, not-found, and not-owned denial paths
 
-### Important limitation
-
-The current audit hash is a deterministic placeholder, not a real HMAC chain. Real HMAC-SHA-256 chaining, previous-hash continuity, key rotation, verifier jobs, admin audit endpoints, and export signing remain future work.
-
 ### Why it matters
 
-The backend now records security-critical actions without storing raw media tokens or credentials, while preserving the long-term append-only audit architecture.
+The backend records security-critical actions without storing raw media tokens or credentials, while preserving the long-term append-only audit architecture.
 
 ---
 
@@ -1122,7 +1118,45 @@ The edge control channel now has a first resilience layer while preserving the z
 
 ---
 
-## 33. Current Verification Status
+## 33. Audit HMAC Chain Foundation
+
+### What was implemented
+
+New audit rows now use a real HMAC-SHA-256 hash chain.
+
+It includes:
+
+- `AUDIT_HMAC_KEY_VERSION`, defaulting to `1`
+- `AUDIT_HMAC_KEY`, defaulting to `replace-me`
+- fail-closed audit writes when the HMAC key is blank or left as the placeholder
+- `audit_hmac_keys` active-version row handling
+- `prev_hash` continuity from the latest previous `audit_log.hash`
+- canonical HMAC material built from scrubbed audit fields
+- verifier helpers for a single row and an ID-ordered sequence of rows
+
+### How it works
+
+The audit writer scrubs payloads first, ensures the active HMAC key row exists, reads the latest prior audit hash, and stores:
+
+```text
+audit_log.prev_hash = previous audit_log.hash, or null for the first row
+audit_log.hash = HMAC-SHA-256(canonical scrubbed audit material)
+audit_log.hmac_key_version = AUDIT_HMAC_KEY_VERSION
+```
+
+The configured key bytes are stored in `audit_hmac_keys.key_enc` as a local foundation placeholder. Production KMS/envelope encryption and key rotation workflow remain deferred.
+
+### Important limitation
+
+This milestone does not add admin audit list, export, or verification endpoints. Verification is available as backend helper code and tests only.
+
+### Why it matters
+
+Audit rows are now tamper-evident for new writes. Changing the payload, action, resource, or previous-hash linkage causes verifier failure.
+
+---
+
+## 34. Current Verification Status
 
 ### What passed
 
@@ -1133,7 +1167,7 @@ edge agent pytest: 43 passed
 edge agent mypy: no issues found
 edge agent ruff: all checks passed
 edge agent compileall: passed
-pytest: 63 passed
+pytest: 69 passed
 mypy: no issues found
 ruff: all checks passed
 compileall: passed
@@ -1185,18 +1219,17 @@ The following are intentionally not done yet:
 - persistent backend command queue
 - production gateway control reconnect policy/supervision
 - mediamtx runtime configuration
-- audit HMAC chain implementation
 - admin audit list/export/verify endpoints
-- gateway command queue/dispatch/ACK
+- gateway command queue persistence and ACK persistence
 - LiveKit publishing orchestration
 
 ---
 
 ## Next Recommended Implementation Order
 
-### 1. Audit HMAC Chain Foundation
+### 1. Admin Audit Verification Endpoint Skeleton
 
-Replace placeholder audit hashes with real HMAC-SHA-256 chaining, previous-hash continuity, key lifecycle handling, and verification helpers.
+Expose a local/admin-only audit chain verification path backed by the verifier helpers, without adding export signing, key rotation UI, or broad audit browsing.
 
 ---
 

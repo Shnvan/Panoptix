@@ -96,7 +96,9 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Minimal audit writer added for append-only `audit_log` inserts
 - [x] Sensitive audit payload scrubbing added
 - [x] Viewer, gateway ingest-token, and session revoke events audited
-- [x] Placeholder audit hash/key fields added while real HMAC chaining remains deferred
+- [x] Real HMAC-SHA-256 audit hash chain added for newly written audit rows
+- [x] Previous-hash continuity, active key row handling, and verifier helpers added
+- [x] Placeholder audit keys now fail closed for audit writes
 
 ### Gateway Agent Foundation
 - [x] Minimal Python gateway agent package added under `apps/cctv-edge/agent`
@@ -124,8 +126,8 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 
 ## Next Steps (In Order)
 
-### 1. Audit HMAC Chain Foundation
-Replace placeholder audit hashes with real HMAC-SHA-256 chaining, previous-hash continuity, key lifecycle handling, and verification helpers.
+### 1. Admin Audit Verification Endpoint Skeleton
+Expose a local/admin-only audit chain verification path backed by the new verifier helpers, without adding export signing, key rotation UI, or unrelated audit browsing features.
 
 ---
 

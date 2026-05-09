@@ -62,6 +62,7 @@ FastAPI backend currently implements:
 - gateway command signing helpers
 - in-memory/test-scaffolded WebSocket command dispatch + ACK handling
 - in-memory/test-scaffolded heartbeat command fallback
+- HMAC-SHA-256 audit hash chain writer and verifier helpers
 
 ### Edge / Camera Plane
 
@@ -118,9 +119,35 @@ Current state:
 
 ## Recently Completed Milestones
 
-### Edge Gateway Control Reconnect/Backoff Skeleton
+### Audit HMAC Chain Foundation
 
 Completed in this milestone.
+
+Implemented:
+
+- `AUDIT_HMAC_KEY_VERSION`
+- `AUDIT_HMAC_KEY`
+- fail-closed audit writes when the HMAC key is blank or left as `replace-me`
+- HMAC-SHA-256 audit hashes over canonical scrubbed audit material
+- `prev_hash` continuity for newly written audit rows
+- active audit HMAC key row handling using `audit_hmac_keys.key_enc` as local placeholder storage
+- single-row and sequence verifier helpers for future admin verification surfaces
+
+Not included:
+
+- admin audit list/export/verify endpoints
+- export signing
+- KMS/envelope encryption
+- key rotation UI/workflow
+- database migrations
+
+### Edge Gateway Control Reconnect/Backoff Skeleton
+
+Completed and pushed in commit:
+
+```text
+b4a4262 Add gateway control reconnect backoff
+```
 
 Implemented:
 
@@ -243,7 +270,7 @@ $env:PYTHONPATH = "src"; python -m compileall src alembic scripts
 Latest result:
 
 ```text
-pytest: 63 passed
+pytest: 69 passed
 ruff: all checks passed
 mypy: no issues found in 28 source files
 compileall: passed
@@ -272,23 +299,20 @@ compileall: passed
 Recommended next task:
 
 ```text
-Audit HMAC Chain Foundation
+Admin Audit Verification Endpoint Skeleton
 ```
 
 Recommended scope:
 
-- replace placeholder audit hashes with real HMAC-SHA-256 chaining
-- preserve previous-hash continuity
-- add key lifecycle handling and verification helpers
-- keep current audit payload scrubbing behavior
-- do not add admin audit export endpoints yet unless needed for helper tests
+- expose a local/admin-only audit chain verification path backed by the new verifier helpers
+- keep export signing, key rotation UI/workflows, and broad audit browsing deferred
+- preserve audit payload scrubbing and HMAC-chain fail-closed behavior
 
 Why this is the best next step:
 
-- local command delivery, heartbeat fallback, and bounded reconnect behavior are now proven
-- audit already writes rows but still uses deterministic placeholder hashes
-- it is still small enough to keep safe
-- it strengthens the backend security foundation before command persistence or real camera actions
+- audit rows are now tamper-evident for new writes
+- verification helpers exist but are not exposed through any operator workflow yet
+- it stays backend-local and small before command persistence or real camera actions
 
 ## Not Implemented Yet
 
@@ -304,7 +328,6 @@ Why this is the best next step:
 - Google Workspace setup
 - Railway deployment
 - Neon production database setup
-- audit HMAC chain implementation
 - admin audit export/verify endpoints
 
 ## External Accounts Status
@@ -390,7 +413,7 @@ Use local/dev placeholders and fail-closed behavior. Do not ask the user to set 
 - `apps/api/src/cctv_api/security/session_cookie.py`: signed session cookie helpers
 - `apps/api/src/cctv_api/security/sessions.py`: session management
 - `apps/api/src/cctv_api/security/stream_access.py`: stream access checks
-- `apps/api/src/cctv_api/security/audit.py`: audit placeholder/foundation
+- `apps/api/src/cctv_api/security/audit.py`: audit writer, scrubbing, HMAC chain, and verifier helpers
 
 ### Backend Tests
 
@@ -634,7 +657,7 @@ Important local checks currently include:
 ## Suggested Prompt For The New IDE/LLM
 
 ```text
-Read HANDOFF.md and follow its instructions. Then read PROGRESS.md, IMPLEMENTATION_GUIDE.md, MANUAL_TESTING.md, README.md, CLAUDE.md, and the source files related to the next milestone. Confirm the current state and development rules before making changes. The next recommended milestone is Audit HMAC Chain Foundation.
+Read HANDOFF.md and follow its instructions. Then read PROGRESS.md, IMPLEMENTATION_GUIDE.md, MANUAL_TESTING.md, README.md, CLAUDE.md, and the source files related to the next milestone. Confirm the current state and development rules before making changes. The next recommended milestone is Admin Audit Verification Endpoint Skeleton.
 ```
 
 ## Final Notes

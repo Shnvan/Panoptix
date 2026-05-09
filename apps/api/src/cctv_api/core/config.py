@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     SESSION_SIGNING_KEY: str = "replace-me"
     CSRF_SIGNING_KEY: str = "replace-me"
 
+    # ── Audit HMAC chain ──
+    AUDIT_HMAC_KEY_VERSION: int = Field(default=1, ge=1)
+    AUDIT_HMAC_KEY: str = "replace-me"
+
     # ── Database ──
     DATABASE_URL: str = "postgresql+psycopg://cctv_app_runtime:replace-me@localhost:5432/panoptix"
     MIGRATION_DATABASE_URL: str = (

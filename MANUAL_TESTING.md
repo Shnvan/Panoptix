@@ -22,10 +22,13 @@ http://127.0.0.1:8000
 ```powershell
 $env:APP_ENV = "development"
 $env:ALLOW_DEV_AUTH = "true"
+$env:AUDIT_HMAC_KEY_VERSION = "1"
+$env:AUDIT_HMAC_KEY = "local-dev-audit-hmac-key-change-me"
 ```
 
 - Token success paths need real or test database rows for users, cameras, ACLs, gateways, and assignments.
 - LiveKit token success paths need non-placeholder LiveKit settings.
+- Audit-producing success paths need a non-placeholder `AUDIT_HMAC_KEY`; audit writes fail closed when it is missing or left as `replace-me`.
 
 ## 2. Start The API Locally
 
@@ -36,6 +39,8 @@ Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
 $env:PYTHONPATH = "src"
 $env:APP_ENV = "development"
 $env:ALLOW_DEV_AUTH = "true"
+$env:AUDIT_HMAC_KEY_VERSION = "1"
+$env:AUDIT_HMAC_KEY = "local-dev-audit-hmac-key-change-me"
 python -m uvicorn cctv_api.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
@@ -607,6 +612,15 @@ Do not commit real LiveKit secrets.
 
 Audit admin endpoints are not implemented yet. Until then, inspect audit rows through local DB tooling.
 
+Local audit HMAC settings:
+
+```powershell
+$env:AUDIT_HMAC_KEY_VERSION = "1"
+$env:AUDIT_HMAC_KEY = "local-dev-audit-hmac-key-change-me"
+```
+
+Do not use the placeholder `replace-me` for local audit-producing success paths. The audit writer fails closed if the key is blank or left as the placeholder.
+
 Audit-producing paths implemented so far:
 
 ```text
@@ -628,10 +642,19 @@ session.revoke.denied.not_owned
 
 Sensitive payload values such as tokens, JWTs, secrets, cookies, credentials, passwords, API keys, and encrypted keys should be redacted before insertion.
 
-Current limitation:
+Current hash-chain behavior:
 
 ```text
-Audit hash fields are deterministic placeholders, not the final HMAC chain.
+New audit rows store prev_hash continuity and an HMAC-SHA-256 hash over canonical scrubbed audit material.
+The configured key version is stored in audit_log.hmac_key_version and audit_hmac_keys.key_enc stores the local configured key bytes as a foundation placeholder.
+```
+
+Backend audit HMAC chain tests:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_audit.py -v
 ```
 
 ## 11. Gateway Command Signing Local Check
