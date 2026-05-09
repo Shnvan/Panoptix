@@ -1,7 +1,7 @@
 # Environment files
 .env
 .env.*
-.env.example
+!.env.example
 
 # Python
 __pycache__/
@@ -35,4 +35,3 @@ tmp/
 # Local AI/process instructions
 COUNCIL.md
 execute.md
-CLAUDE.md
