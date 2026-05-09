@@ -15,6 +15,8 @@ Operate and troubleshoot the gateway-initiated outbound control channel used for
 5. Gateway ACKs success/failure.
 6. `cctv-api` audits dispatch, ACK, retry, and rejection.
 
+Current implementation note: the local foundation supports signed in-memory WebSocket dispatch and ACK/reject receipt through test-scaffolded hooks. Persistent queues, audit integration for command dispatch/ACK, retry policy, heartbeat fallback, and real camera/media actions are not implemented yet.
+
 ## Fallback behavior
 
 If the WebSocket is unavailable:

@@ -21,6 +21,9 @@ class WebSocketConnection(Protocol):
     async def recv(self) -> str | bytes:
         raise NotImplementedError
 
+    async def send(self, message: str | bytes) -> None:
+        raise NotImplementedError
+
 
 class WebSocketConnector(Protocol):
     def connect(
@@ -55,7 +58,21 @@ class WebSocketsConnector:
 class ControlMessageResult:
     kind: str
     accepted: bool
+    command_id: str | None = None
     error: str | None = None
+
+    def ack_payload(self, gateway_id: str) -> dict[str, object] | None:
+        if self.kind != "command":
+            return None
+        payload: dict[str, object] = {
+            "type": "command_ack",
+            "command_id": self.command_id,
+            "gateway_id": gateway_id,
+            "status": "accepted" if self.accepted else "rejected",
+        }
+        if self.error is not None:
+            payload["error"] = self.error
+        return payload
 
 
 @dataclass(frozen=True)
@@ -110,6 +127,9 @@ class GatewayControlClient:
                         accepted_commands += 1
                     elif result.kind == "command":
                         rejected_commands += 1
+                    ack_payload = result.ack_payload(self.config.gateway_id)
+                    if ack_payload is not None:
+                        await websocket.send(json.dumps(ack_payload))
                     if result.error is not None:
                         errors.append(result.error)
         except ControlClientError:
@@ -141,6 +161,7 @@ class GatewayControlClient:
         return ControlMessageResult(kind="hello", accepted=True)
 
     def _handle_command(self, data: dict[str, Any]) -> ControlMessageResult:
+        command_id = str(data["command_id"]) if "command_id" in data else None
         try:
             command = GatewayCommand.from_dict(data)
             verify_gateway_command(
@@ -149,8 +170,13 @@ class GatewayControlClient:
                 expected_gateway_id=self.config.gateway_id,
             )
         except (KeyError, CommandVerificationError) as exc:
-            return ControlMessageResult(kind="command", accepted=False, error=str(exc))
-        return ControlMessageResult(kind="command", accepted=True)
+            return ControlMessageResult(
+                kind="command",
+                accepted=False,
+                command_id=command_id,
+                error=str(exc),
+            )
+        return ControlMessageResult(kind="command", accepted=True, command_id=command.command_id)
 
     def _headers(self) -> dict[str, str]:
         headers = {"Accept": "application/json"}

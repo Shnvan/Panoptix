@@ -119,6 +119,20 @@ This document is the working contract between the Next.js frontend, FastAPI back
 
 The signature covers the canonical JSON form of the envelope excluding `signature`: UTF-8 JSON, sorted keys, compact separators, and UTC datetimes normalized to `Z`. The current implementation uses HMAC-SHA-256 and base64url signatures. Gateway validates signature, target gateway, command expiry, active assignment, idempotency, and token scope before acting.
 
+## Gateway control ACK envelope
+
+```json
+{
+  "type": "command_ack",
+  "command_id": "uuid",
+  "gateway_id": "uuid",
+  "status": "accepted",
+  "error": null
+}
+```
+
+For rejected commands, `status` is `rejected` and `error` contains the fail-closed reason, such as `gateway-command-signature-invalid`, `gateway-command-expired`, or `gateway-command-target-mismatch`. The current implementation receives ACKs through an in-memory/test-scaffolded backend hook only; ACK persistence and retry policy are deferred.
+
 ## Webhook and health endpoints
 
 | Method | Path | AuthZ | Request | Response | Notes |

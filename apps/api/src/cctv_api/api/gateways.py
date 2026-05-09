@@ -1,17 +1,24 @@
 from __future__ import annotations
 
+import json
 import uuid
+from collections.abc import Callable, Iterable
+from typing import Any
 
 from fastapi import APIRouter, Depends, Request, WebSocket
+from pydantic import ValidationError
 from starlette.websockets import WebSocketDisconnect
 from sqlalchemy.orm import Session as DbSession
 
 from cctv_api.api.errors import ProblemDetail
 from cctv_api.core.config import Settings, get_settings
 from cctv_api.db import db_session
+from cctv_api.gateway.command_signing import CommandSigningError, sign_command_envelope
 from cctv_api.gateway.models import (
     GatewayAcceptedResponse,
     GatewayCameraStatusRequest,
+    GatewayCommandAck,
+    GatewayCommandEnvelope,
     GatewayHeartbeatRequest,
     GatewayHeartbeatResponse,
     GatewayIngestTokenRequest,
@@ -201,6 +208,7 @@ def gateway_camera_status(
 async def gateway_control_ws(
     websocket: WebSocket,
     principal: Principal | None = Depends(verify_gateway_identity_ws),
+    settings: Settings = Depends(get_settings),
 ) -> None:
     if principal is None or principal.gateway_id is None:
         await websocket.close(code=1008, reason="gateway-identity-required")
@@ -210,10 +218,59 @@ async def gateway_control_ws(
     await websocket.send_json({"type": "connected", "gateway_id": principal.gateway_id})
 
     try:
+        for command in _gateway_control_commands(websocket, principal.gateway_id):
+            signed_command = sign_command_envelope(command, settings.GATEWAY_COMMAND_SIGNING_KEY)
+            await websocket.send_json(signed_command.model_dump(mode="json"))
+    except CommandSigningError:
+        await websocket.close(code=1011, reason="gateway-command-signing-failed")
+        return
+
+    try:
         while True:
-            await websocket.receive_text()
+            raw_message = await websocket.receive_text()
+            ack = _parse_gateway_command_ack(raw_message)
+            if ack is None or ack.gateway_id != principal.gateway_id:
+                await websocket.close(code=1008, reason="gateway-command-ack-invalid")
+                return
+            _record_gateway_command_ack(websocket, principal.gateway_id, ack)
     except WebSocketDisconnect:
         pass
+
+
+def _gateway_control_commands(websocket: WebSocket, gateway_id: str) -> Iterable[GatewayCommandEnvelope]:
+    provider = getattr(websocket.app.state, "gateway_control_command_provider", None)
+    if not callable(provider):
+        return ()
+    commands = provider(gateway_id)
+    if commands is None:
+        return ()
+    return commands
+
+
+def _parse_gateway_command_ack(raw_message: str) -> GatewayCommandAck | None:
+    try:
+        decoded = json.loads(raw_message)
+    except json.JSONDecodeError:
+        return None
+    try:
+        return GatewayCommandAck.model_validate(decoded)
+    except ValidationError:
+        return None
+
+
+def _record_gateway_command_ack(
+    websocket: WebSocket,
+    gateway_id: str,
+    ack: GatewayCommandAck,
+) -> None:
+    sink: Callable[[str, GatewayCommandAck], Any] | None = getattr(
+        websocket.app.state,
+        "gateway_control_ack_sink",
+        None,
+    )
+    if not callable(sink):
+        return
+    sink(gateway_id, ack)
 
 
 def _parse_uuid(value: str, detail: str) -> uuid.UUID:

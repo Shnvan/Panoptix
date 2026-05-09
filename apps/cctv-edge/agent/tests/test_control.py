@@ -16,9 +16,13 @@ VALID_SIGNATURE = "l-71KAAPUCsG-WaaroJwgexPNKsOB-9l37K232jAgOA"
 class FakeWebSocket:
     def __init__(self, messages: list[str]) -> None:
         self.messages = messages
+        self.sent_messages: list[str | bytes] = []
 
     async def recv(self) -> str:
         return self.messages.pop(0)
+
+    async def send(self, message: str | bytes) -> None:
+        self.sent_messages.append(message)
 
 
 class FakeWebSocketContext:
@@ -36,6 +40,7 @@ class RecordingConnector:
     def __init__(self, messages: list[str]) -> None:
         self.messages = messages
         self.calls: list[tuple[str, dict[str, str], float]] = []
+        self.websockets: list[FakeWebSocket] = []
 
     def connect(
         self,
@@ -44,7 +49,9 @@ class RecordingConnector:
         timeout_seconds: float,
     ) -> FakeWebSocketContext:
         self.calls.append((url, headers, timeout_seconds))
-        return FakeWebSocketContext(FakeWebSocket(self.messages.copy()))
+        websocket = FakeWebSocket(self.messages.copy())
+        self.websockets.append(websocket)
+        return FakeWebSocketContext(websocket)
 
 
 def _config(**overrides: Any) -> AgentConfig:
@@ -139,6 +146,7 @@ def test_handle_message_accepts_valid_command() -> None:
 
     assert result.kind == "command"
     assert result.accepted is True
+    assert result.command_id == "11111111-1111-1111-1111-111111111111"
     assert result.error is None
 
 
@@ -167,3 +175,79 @@ def test_handle_message_rejects_invalid_json() -> None:
 
     with pytest.raises(ControlClientError, match="not valid JSON"):
         client.handle_message("not-json")
+
+
+def test_run_once_sends_accepted_ack_for_valid_command() -> None:
+    connector = RecordingConnector([_command()])
+    client = GatewayControlClient(_config(), connector=connector)
+
+    result = asyncio.run(client.run_once())
+
+    assert result.accepted_commands == 1
+    assert result.rejected_commands == 0
+    assert [json.loads(message) for message in connector.websockets[0].sent_messages] == [
+        {
+            "type": "command_ack",
+            "command_id": "11111111-1111-1111-1111-111111111111",
+            "gateway_id": "gateway-1",
+            "status": "accepted",
+        }
+    ]
+
+
+def test_run_once_handles_hello_then_command() -> None:
+    connector = RecordingConnector([_hello(), _command()])
+    client = GatewayControlClient(_config(), connector=connector)
+
+    result = asyncio.run(client.run_once(max_messages=2))
+
+    assert result.hello_received is True
+    assert result.accepted_commands == 1
+    assert [json.loads(message) for message in connector.websockets[0].sent_messages] == [
+        {
+            "type": "command_ack",
+            "command_id": "11111111-1111-1111-1111-111111111111",
+            "gateway_id": "gateway-1",
+            "status": "accepted",
+        }
+    ]
+
+
+def test_run_once_sends_rejected_ack_for_tampered_command() -> None:
+    connector = RecordingConnector([_command("invalid-signature")])
+    client = GatewayControlClient(_config(), connector=connector)
+
+    result = asyncio.run(client.run_once())
+
+    assert result.accepted_commands == 0
+    assert result.rejected_commands == 1
+    assert [json.loads(message) for message in connector.websockets[0].sent_messages] == [
+        {
+            "type": "command_ack",
+            "command_id": "11111111-1111-1111-1111-111111111111",
+            "gateway_id": "gateway-1",
+            "status": "rejected",
+            "error": "gateway-command-signature-invalid",
+        }
+    ]
+
+
+def test_run_once_sends_rejected_ack_for_wrong_gateway_command() -> None:
+    command = json.loads(_command())
+    command["gateway_id"] = "gateway-2"
+    connector = RecordingConnector([json.dumps(command)])
+    client = GatewayControlClient(_config(), connector=connector)
+
+    result = asyncio.run(client.run_once())
+
+    assert result.accepted_commands == 0
+    assert result.rejected_commands == 1
+    assert [json.loads(message) for message in connector.websockets[0].sent_messages] == [
+        {
+            "type": "command_ack",
+            "command_id": "11111111-1111-1111-1111-111111111111",
+            "gateway_id": "gateway-1",
+            "status": "rejected",
+            "error": "gateway-command-target-mismatch",
+        }
+    ]

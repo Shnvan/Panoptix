@@ -991,18 +991,74 @@ This proves the edge agent can initiate the outbound control channel and fail cl
 
 ---
 
-## 30. Current Verification Status
+## 30. Backend WebSocket Command Dispatch + ACK Skeleton
+
+### What was implemented
+
+The first local-only command loop now exists over:
+
+```text
+/api/v1/gateway-control/ws
+```
+
+It includes:
+
+- backend app-state command provider hook for in-memory/test-scaffolded commands
+- backend signing of every outbound WebSocket command envelope
+- fail-closed close behavior when command signing is not configured
+- edge-agent ACK for valid verified commands
+- edge-agent reject ACK for invalid, unsigned, tampered, expired, or wrong-gateway commands
+- backend app-state ACK sink hook for tests/local scaffolding
+
+### How it works
+
+After a valid gateway connects, the backend still sends the connected hello message first. If a local test or scaffold attaches:
+
+```text
+app.state.gateway_control_command_provider
+```
+
+the backend reads command envelopes from that provider, signs them with `GATEWAY_COMMAND_SIGNING_KEY`, and sends them over the existing WebSocket. If signing fails, the backend closes the connection instead of sending an unsigned command.
+
+The edge agent verifies each command envelope and sends:
+
+```json
+{
+  "type": "command_ack",
+  "command_id": "11111111-1111-1111-1111-111111111111",
+  "gateway_id": "gateway-1",
+  "status": "accepted"
+}
+```
+
+or a rejected ACK with an `error` value. The backend can receive ACKs through:
+
+```text
+app.state.gateway_control_ack_sink
+```
+
+### Important limitation
+
+This is intentionally not a command queue. ACKs are not persisted, there is no public enqueue API, and the agent still does not execute camera, mediamtx, or LiveKit actions.
+
+### Why it matters
+
+Panoptix now has a tested end-to-end local protocol loop: backend signs a command, edge verifies it, edge ACKs or rejects it, and backend receives the result without adding unsafe real camera actions.
+
+---
+
+## 31. Current Verification Status
 
 ### What passed
 
 The latest verification passed:
 
 ```text
-edge agent pytest: 28 passed
+edge agent pytest: 32 passed
 edge agent mypy: no issues found
 edge agent ruff: all checks passed
 edge agent compileall: passed
-pytest: 57 passed
+pytest: 61 passed
 mypy: no issues found
 ruff: all checks passed
 compileall: passed
@@ -1051,7 +1107,8 @@ This confirms the current backend and edge-agent code is working, typed correctl
 The following are intentionally not done yet:
 
 - frontend UI
-- backend WebSocket command dispatch stream
+- persistent backend command queue
+- gateway heartbeat fallback command delivery
 - mediamtx runtime configuration
 - audit HMAC chain implementation
 - admin audit list/export/verify endpoints
@@ -1062,9 +1119,9 @@ The following are intentionally not done yet:
 
 ## Next Recommended Implementation Order
 
-### 1. Backend WebSocket Command Dispatch Skeleton
+### 1. Gateway Heartbeat Command Fallback Skeleton
 
-Add backend-side command dispatch scaffolding over the existing gateway WebSocket, then add ACK handling before any real mediamtx or LiveKit command execution.
+Add in-memory/test-scaffolded heartbeat fallback delivery for pending commands before any persistent DB command queue, mediamtx control, or LiveKit publishing orchestration.
 
 ### 2. Audit HMAC Chain Foundation
 

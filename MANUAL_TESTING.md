@@ -420,7 +420,8 @@ Expected response:
 }
 ```
 
-This endpoint does not send real commands yet. Command queues, dispatch, ACKs, and full reconnect behavior remain future work.
+This endpoint does not send real camera/media commands yet. Persistent command queues, heartbeat fallback, and full reconnect behavior remain future work.
+By default, a manually started backend still sends only this hello message unless local test code attaches an in-memory command provider hook.
 
 Edge-agent one-shot gateway control check from `apps/cctv-edge/agent`:
 
@@ -446,7 +447,45 @@ Current behavior:
 - the backend sends the connected hello message
 - the agent verifies that the hello message targets its configured gateway ID
 - command envelope parsing and signature verification exist in the agent
-- no real commands are sent or executed yet
+- if the backend sends a test-scaffolded signed command, the agent sends a `command_ack` with `status: accepted`
+- if the backend sends an invalid, unsigned, tampered, expired, or wrong-gateway command, the agent sends a `command_ack` with `status: rejected` and an error code
+- no public command enqueue API exists yet
+- no real commands are executed yet
+
+The dispatch and ACK loop is intentionally in-memory/test-scaffolded. Use the automated tests to exercise it locally:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_gateway.py -v
+
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_control.py -v
+```
+
+Expected ACK shape:
+
+```json
+{
+  "type": "command_ack",
+  "command_id": "11111111-1111-1111-1111-111111111111",
+  "gateway_id": "11111111-1111-1111-1111-111111111111",
+  "status": "accepted"
+}
+```
+
+Rejected ACKs use:
+
+```json
+{
+  "type": "command_ack",
+  "command_id": "11111111-1111-1111-1111-111111111111",
+  "gateway_id": "11111111-1111-1111-1111-111111111111",
+  "status": "rejected",
+  "error": "gateway-command-signature-invalid"
+}
+```
 
 ## 8. Minimal Edge Heartbeat Agent
 
@@ -590,7 +629,8 @@ Notes:
 - The backend signs canonical JSON excluding the `signature` field.
 - The edge agent verifies HMAC-SHA-256 signatures before future command execution.
 - Tampered, expired, wrong-gateway, or unsigned commands fail closed.
-- The WebSocket does not send real commands yet.
+- The WebSocket can send local test-scaffolded signed commands and receive ACK/reject responses.
+- There is no persistent command queue and no real camera/media command execution yet.
 - Do not use real production signing keys in local shell history.
 
 ## 12. Database Validation

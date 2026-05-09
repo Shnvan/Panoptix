@@ -113,14 +113,16 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Backend command signing helpers added
 - [x] Edge-agent command verifier added
 - [x] Edge-agent one-shot gateway control WebSocket client added
-- [x] Command queues, dispatch, ACKs, and full reconnect loop remain deferred
+- [x] Backend WebSocket command dispatch scaffold added with signed in-memory commands
+- [x] Edge-agent WebSocket command ACK/reject scaffold added
+- [x] Command queues, heartbeat fallback, persistence, and full reconnect loop remain deferred
 
 ---
 
 ## Next Steps (In Order)
 
-### 1. Backend WebSocket Command Dispatch Skeleton
-Add backend-side command dispatch scaffolding over the existing gateway WebSocket, then add ACK handling before any real mediamtx or LiveKit command execution.
+### 1. Gateway Heartbeat Command Fallback Skeleton
+Add in-memory/test-scaffolded heartbeat fallback delivery for pending commands before any persistent DB command queue, mediamtx control, or LiveKit publishing orchestration.
 
 ---
 

@@ -29,6 +29,14 @@ class GatewayCommandEnvelope(BaseModel):
     signature: str
 
 
+class GatewayCommandAck(BaseModel):
+    type: Literal["command_ack"] = "command_ack"
+    command_id: str | None = None
+    gateway_id: str
+    status: Literal["accepted", "rejected"]
+    error: str | None = None
+
+
 class GatewayHeartbeatResponse(BaseModel):
     server_time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     pending_commands: list[GatewayCommandEnvelope] = Field(default_factory=list)
