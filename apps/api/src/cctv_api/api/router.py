@@ -3,20 +3,31 @@ from __future__ import annotations
 import json
 import uuid
 from collections.abc import Generator, Sequence
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 from starlette.responses import StreamingResponse
 
 from cctv_api.api.errors import ProblemDetail
 from cctv_api.api.gateways import router as gateway_router
+from cctv_api.api.livekit_webhooks import router as livekit_webhook_router
 from cctv_api.core.config import Settings, get_settings
 from cctv_api.db import db_session
-from cctv_api.models.enums import ActorType, StreamKind
-from cctv_api.models.tables import AuditHmacKey, AuditLog
+from cctv_api.gateway.command_queue import enqueue_command, expire_stale_commands
+from cctv_api.models.enums import ActorType, CameraSourceType, CommandStatus, GatewayStatus, StreamKind
+from cctv_api.models.tables import (
+    AuditHmacKey,
+    AuditLog,
+    Camera,
+    CameraAcl,
+    CameraEvent,
+    EdgeGateway,
+    GatewayCameraAssignment,
+    GatewayCommandQueue,
+)
 from cctv_api.security.audit import (
     AuditLogError,
     record_audit_event,
@@ -36,6 +47,7 @@ from cctv_api.security.users import get_or_create_user
 
 v1_router = APIRouter(prefix="/api/v1")
 v1_router.include_router(gateway_router)
+v1_router.include_router(livekit_webhook_router)
 
 
 @v1_router.get("/me")
@@ -45,9 +57,72 @@ def get_me(principal: Principal = Depends(require_authenticated_user)) -> dict[s
 
 @v1_router.get("/cameras")
 def list_cameras(
-    _principal: Principal = Depends(require_authenticated_user),
+    cursor: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
 ) -> dict[str, object]:
-    return {"items": [], "next_cursor": None}
+    user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+
+    query = (
+        select(Camera)
+        .join(CameraAcl, CameraAcl.camera_id == Camera.id)
+        .where(Camera.retired_at.is_(None))
+        .where(CameraAcl.user_id == str(user.id))
+        .where(CameraAcl.revoked_at.is_(None))
+        .order_by(Camera.created_at.desc())
+    )
+
+    if cursor:
+        cursor_uuid = _parse_uuid(cursor, "invalid cursor")
+        cursor_row = db.execute(select(Camera).where(Camera.id == str(cursor_uuid))).scalar_one_or_none()
+        if cursor_row:
+            query = query.where(Camera.created_at < cursor_row.created_at)
+
+    rows = db.execute(query.limit(limit + 1)).scalars().all()
+    has_more = len(rows) > limit
+    rows = rows[:limit]
+
+    items = [
+        {
+            "camera_id": str(row.id),
+            "display_name": row.display_name,
+            "source_type": row.source_type.value if row.source_type else None,
+            "livekit_room_name": row.livekit_room_name,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        }
+        for row in rows
+    ]
+
+    next_cursor = str(rows[-1].id) if has_more and rows else None
+    return {"items": items, "next_cursor": next_cursor}
+
+
+@v1_router.get("/cameras/events")
+def stream_camera_events(
+    since: str | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=500),
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+) -> StreamingResponse:
+    user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    since_at = _parse_datetime(since, "since-invalid") if since is not None else None
+
+    query = (
+        select(CameraEvent)
+        .join(Camera, Camera.id == CameraEvent.camera_id)
+        .join(CameraAcl, CameraAcl.camera_id == Camera.id)
+        .where(Camera.retired_at.is_(None))
+        .where(CameraAcl.user_id == str(user.id))
+        .where(CameraAcl.revoked_at.is_(None))
+        .order_by(CameraEvent.at.asc(), CameraEvent.id.asc())
+        .limit(limit)
+    )
+    if since_at is not None:
+        query = query.where(CameraEvent.at > since_at)
+
+    rows = db.execute(query).scalars().all()
+    return StreamingResponse(_iter_camera_event_sse(rows), media_type="text/event-stream")
 
 
 class ViewerTokenResponse(BaseModel):
@@ -401,6 +476,35 @@ def _iter_audit_jsonl(rows: Sequence[AuditLog]) -> Generator[str, None, None]:
         yield line + "\n"
 
 
+def _iter_camera_event_sse(rows: Sequence[CameraEvent]) -> Generator[str, None, None]:
+    for row in rows:
+        line = json.dumps(
+            {
+                "event_id": str(row.id),
+                "camera_id": str(row.camera_id),
+                "gateway_id": str(row.gateway_id) if row.gateway_id else None,
+                "kind": row.kind.value if hasattr(row.kind, "value") else row.kind,
+                "source": row.source.value if hasattr(row.source, "value") else row.source,
+                "at": row.at.isoformat(),
+            },
+            separators=(",", ":"),
+            ensure_ascii=True,
+        )
+        yield f"event: camera_event\ndata: {line}\n\n"
+
+
+def _parse_datetime(value: str, detail: str) -> datetime:
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ProblemDetail(
+            status=400,
+            title="Bad Request",
+            detail=detail,
+            type_uri="https://panoptix.local/problems/bad-request",
+        ) from exc
+
+
 def _parse_uuid(value: str, detail: str) -> uuid.UUID:
     try:
         return uuid.UUID(value)
@@ -478,3 +582,631 @@ def _request_ip(request: Request) -> str | None:
 
 def _request_ua(request: Request) -> str | None:
     return request.headers.get("user-agent")
+
+
+class EnqueueCommandRequest(BaseModel):
+    kind: str = Field(max_length=128)
+    payload: dict[str, object] = Field(default_factory=dict)
+    expires_in_seconds: int = Field(default=300, ge=10, le=3600)
+
+
+class EnqueueCommandResponse(BaseModel):
+    command_id: str
+    gateway_id: str
+    kind: str
+    status: str
+    expires_at: str
+
+
+@v1_router.post("/admin/gateways/{gateway_id}/commands", status_code=201)
+def enqueue_gateway_command(
+    gateway_id: str,
+    body: EnqueueCommandRequest,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> EnqueueCommandResponse:
+    require_role(principal, "admin")
+    gw_uuid = _parse_uuid(gateway_id, "gateway-id-invalid")
+    gw_row = db.execute(
+        select(EdgeGateway).where(EdgeGateway.id == str(gw_uuid))
+    ).scalar_one_or_none()
+    if gw_row is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="gateway-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=body.expires_in_seconds)
+    row = enqueue_command(db, gateway_id=gw_uuid, kind=body.kind, payload=body.payload, expires_at=expires_at)
+    user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=user.id,
+        action="command.enqueue",
+        resource=f"gateway:{gw_uuid}",
+        payload={"command_id": str(row.id), "gateway_id": str(gw_uuid), "kind": body.kind},
+    )
+    db.commit()
+    return EnqueueCommandResponse(
+        command_id=str(row.id),
+        gateway_id=str(row.gateway_id),
+        kind=row.kind,
+        status=row.status.value,
+        expires_at=row.expires_at.isoformat(),
+    )
+
+
+@v1_router.get("/admin/gateways/{gateway_id}/commands")
+def list_gateway_commands(
+    gateway_id: str,
+    cursor: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    status: str | None = Query(default=None),
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    gw_uuid = _parse_uuid(gateway_id, "gateway-id-invalid")
+
+    gw_row = db.execute(
+        select(EdgeGateway).where(EdgeGateway.id == str(gw_uuid))
+    ).scalar_one_or_none()
+    if gw_row is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="gateway-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+
+    query = select(GatewayCommandQueue).where(
+        GatewayCommandQueue.gateway_id == str(gw_uuid)
+    )
+
+    if status is not None:
+        if status not in ("pending", "accepted", "rejected", "expired", "cancelled"):
+            raise ProblemDetail(
+                status=400,
+                title="Bad Request",
+                detail="status-invalid",
+                type_uri="https://panoptix.local/problems/bad-request",
+            )
+        query = query.where(GatewayCommandQueue.status == status)
+
+    if cursor is not None:
+        cursor_uuid = _parse_uuid(cursor, "cursor-invalid")
+        cursor_row = db.execute(
+            select(GatewayCommandQueue).where(GatewayCommandQueue.id == str(cursor_uuid))
+        ).scalar_one_or_none()
+        if cursor_row is not None:
+            query = query.where(GatewayCommandQueue.issued_at < cursor_row.issued_at)
+
+    query = query.order_by(GatewayCommandQueue.issued_at.desc()).limit(limit + 1)
+    rows = list(db.execute(query).scalars().all())
+
+    has_more = len(rows) > limit
+    if has_more:
+        rows = rows[:limit]
+    next_cursor: str | None = str(rows[-1].id) if has_more and rows else None
+
+    items = [
+        {
+            "command_id": str(row.id),
+            "gateway_id": str(row.gateway_id),
+            "kind": row.kind,
+            "payload": row.payload,
+            "status": row.status.value if hasattr(row.status, "value") else row.status,
+            "issued_at": row.issued_at.isoformat() if row.issued_at else None,
+            "expires_at": row.expires_at.isoformat() if row.expires_at else None,
+            "acked_at": row.acked_at.isoformat() if row.acked_at else None,
+            "error": row.error,
+        }
+        for row in rows
+    ]
+    return {"items": items, "next_cursor": next_cursor}
+
+
+class CancelCommandResponse(BaseModel):
+    command_id: str
+    gateway_id: str
+    kind: str
+    status: str
+    cancelled_at: str
+
+
+@v1_router.post("/admin/gateways/{gateway_id}/commands/{command_id}/cancel")
+def cancel_gateway_command(
+    gateway_id: str,
+    command_id: str,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> CancelCommandResponse:
+    require_role(principal, "admin")
+    gw_uuid = _parse_uuid(gateway_id, "gateway-id-invalid")
+    cmd_uuid = _parse_uuid(command_id, "command-id-invalid")
+
+    gw_row = db.execute(
+        select(EdgeGateway).where(EdgeGateway.id == str(gw_uuid))
+    ).scalar_one_or_none()
+    if gw_row is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="gateway-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+
+    cmd_row = db.execute(
+        select(GatewayCommandQueue)
+        .where(GatewayCommandQueue.id == str(cmd_uuid))
+        .where(GatewayCommandQueue.gateway_id == str(gw_uuid))
+    ).scalar_one_or_none()
+    if cmd_row is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="command-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+
+    if cmd_row.status != CommandStatus.pending:
+        raise ProblemDetail(
+            status=409,
+            title="Conflict",
+            detail="command-not-pending",
+            type_uri="https://panoptix.local/problems/conflict",
+        )
+
+    now = datetime.now(timezone.utc)
+    cmd_row.status = CommandStatus.cancelled
+    cmd_row.acked_at = now
+    user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=user.id,
+        action="command.cancel",
+        resource=f"command:{cmd_uuid}",
+        payload={"command_id": str(cmd_uuid), "gateway_id": str(gw_uuid), "kind": cmd_row.kind},
+    )
+    db.commit()
+
+    return CancelCommandResponse(
+        command_id=str(cmd_row.id),
+        gateway_id=str(cmd_row.gateway_id),
+        kind=cmd_row.kind,
+        status="cancelled",
+        cancelled_at=now.isoformat(),
+    )
+
+
+class ExpireCommandsResponse(BaseModel):
+    expired_count: int
+
+
+@v1_router.post("/admin/commands/cleanup")
+def expire_pending_commands(
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> ExpireCommandsResponse:
+    require_role(principal, "admin")
+    count = expire_stale_commands(db)
+    user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=user.id,
+        action="commands.cleanup",
+        resource="commands",
+        payload={"expired_count": count},
+    )
+    db.commit()
+    return ExpireCommandsResponse(expired_count=count)
+
+
+# ── Admin Camera CRUD ──
+
+
+class CreateGatewayRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    mtls_fingerprint: str | None = Field(default=None, max_length=255)
+    cert_expires_at: datetime | None = None
+
+
+class DisableGatewayRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class GatewayCameraAssignmentRequest(BaseModel):
+    action: str
+    camera_id: str
+
+
+@v1_router.post("/admin/gateways", status_code=201)
+def create_gateway(
+    body: CreateGatewayRequest,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    now = datetime.now(timezone.utc)
+    gateway = EdgeGateway(
+        id=uuid.uuid4(),
+        name=body.name,
+        status=GatewayStatus.enabled,
+        mtls_fingerprint=body.mtls_fingerprint,
+        cert_expires_at=body.cert_expires_at,
+        created_at=now,
+    )
+    db.add(gateway)
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=actor.id,
+        action="gateway.create",
+        resource=f"gateway:{gateway.id}",
+        payload={"gateway_id": str(gateway.id), "name": body.name},
+    )
+    db.commit()
+    return {
+        "gateway_id": str(gateway.id),
+        "name": gateway.name,
+        "status": gateway.status.value,
+        "created_at": gateway.created_at.isoformat(),
+    }
+
+
+@v1_router.post("/admin/gateways/{gateway_id}/disable")
+def disable_gateway(
+    gateway_id: str,
+    body: DisableGatewayRequest,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    gateway_uuid = _parse_uuid(gateway_id, "gateway-id-invalid")
+    gateway = db.execute(select(EdgeGateway).where(EdgeGateway.id == str(gateway_uuid))).scalar_one_or_none()
+    if gateway is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="gateway-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+    if gateway.status == GatewayStatus.disabled or gateway.disabled_at is not None:
+        raise ProblemDetail(
+            status=409,
+            title="Conflict",
+            detail="gateway-already-disabled",
+            type_uri="https://panoptix.local/problems/conflict",
+        )
+
+    now = datetime.now(timezone.utc)
+    gateway.status = GatewayStatus.disabled
+    gateway.disabled_at = now
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=actor.id,
+        action="gateway.disable",
+        resource=f"gateway:{gateway_uuid}",
+        payload={"gateway_id": str(gateway_uuid), "reason": body.reason},
+    )
+    db.commit()
+    return {
+        "gateway_id": str(gateway_uuid),
+        "name": gateway.name,
+        "status": gateway.status.value,
+        "disabled_at": gateway.disabled_at.isoformat(),
+    }
+
+
+@v1_router.post("/admin/gateways/{gateway_id}/cameras")
+def manage_gateway_camera_assignment(
+    gateway_id: str,
+    body: GatewayCameraAssignmentRequest,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    gateway_uuid = _parse_uuid(gateway_id, "gateway-id-invalid")
+    camera_uuid = _parse_uuid(body.camera_id, "camera-id-invalid")
+
+    gateway = db.execute(select(EdgeGateway).where(EdgeGateway.id == str(gateway_uuid))).scalar_one_or_none()
+    if gateway is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="gateway-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+
+    camera = get_active_camera(db, camera_uuid)
+    if camera is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="camera-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+
+    if body.action not in ("grant", "revoke"):
+        raise ProblemDetail(
+            status=400,
+            title="Bad Request",
+            detail="action-invalid",
+            type_uri="https://panoptix.local/problems/bad-request",
+        )
+
+    active_assignment = db.execute(
+        select(GatewayCameraAssignment).where(
+            GatewayCameraAssignment.gateway_id == str(gateway_uuid),
+            GatewayCameraAssignment.camera_id == str(camera_uuid),
+            GatewayCameraAssignment.revoked_at.is_(None),
+        )
+    ).scalar_one_or_none()
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+
+    if body.action == "grant":
+        if active_assignment is not None:
+            raise ProblemDetail(
+                status=409,
+                title="Conflict",
+                detail="gateway-camera-assignment-already-active",
+                type_uri="https://panoptix.local/problems/conflict",
+            )
+        assignment = GatewayCameraAssignment(
+            gateway_id=gateway_uuid,
+            camera_id=camera_uuid,
+            granted_by=actor.id,
+            granted_at=datetime.now(timezone.utc),
+        )
+        db.add(assignment)
+    else:
+        if active_assignment is None:
+            raise ProblemDetail(
+                status=404,
+                title="Not Found",
+                detail="gateway-camera-assignment-not-found",
+                type_uri="https://panoptix.local/problems/not-found",
+            )
+        active_assignment.revoked_at = datetime.now(timezone.utc)
+
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=actor.id,
+        action=f"gateway.camera.{body.action}",
+        resource=f"gateway:{gateway_uuid}",
+        payload={"gateway_id": str(gateway_uuid), "camera_id": str(camera_uuid), "action": body.action},
+    )
+    db.commit()
+    return {
+        "gateway_id": str(gateway_uuid),
+        "camera_id": str(camera_uuid),
+        "action": body.action,
+        "status": "applied",
+    }
+
+
+class CreateCameraRequest(BaseModel):
+    display_name: str = Field(min_length=1, max_length=255)
+    source_type: str
+    livekit_room_name: str = Field(min_length=1, max_length=64)
+
+
+class CameraAclRequest(BaseModel):
+    action: str
+    user_email: str = Field(min_length=1, max_length=320)
+
+
+class DisableCameraRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=500)
+
+
+@v1_router.post("/admin/cameras", status_code=201)
+def create_camera(
+    body: CreateCameraRequest,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+
+    if body.source_type not in [e.value for e in CameraSourceType]:
+        raise ProblemDetail(
+            status=400,
+            title="Bad Request",
+            detail="source-type-invalid",
+            type_uri="https://panoptix.local/problems/bad-request",
+        )
+
+    existing = db.execute(
+        select(Camera).where(Camera.livekit_room_name == body.livekit_room_name)
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise ProblemDetail(
+            status=409,
+            title="Conflict",
+            detail="room-name-taken",
+            type_uri="https://panoptix.local/problems/conflict",
+        )
+
+    camera = Camera(
+        id=uuid.uuid4(),
+        display_name=body.display_name,
+        source_type=CameraSourceType(body.source_type),
+        livekit_room_name=body.livekit_room_name,
+    )
+    db.add(camera)
+
+    user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=user.id,
+        action="camera.create",
+        resource=f"camera:{camera.id}",
+        payload={"camera_id": str(camera.id), "display_name": body.display_name, "source_type": body.source_type},
+    )
+    db.commit()
+
+    return {
+        "camera_id": str(camera.id),
+        "display_name": camera.display_name,
+        "source_type": camera.source_type.value,
+        "livekit_room_name": camera.livekit_room_name,
+    }
+
+
+@v1_router.post("/admin/cameras/{camera_id}/acl")
+def manage_camera_acl(
+    camera_id: str,
+    body: CameraAclRequest,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    cam_uuid = _parse_uuid(camera_id, "camera-id-invalid")
+
+    camera = db.execute(select(Camera).where(Camera.id == str(cam_uuid))).scalar_one_or_none()
+    if camera is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="camera-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+
+    if body.action not in ("grant", "revoke"):
+        raise ProblemDetail(
+            status=400,
+            title="Bad Request",
+            detail="action-invalid",
+            type_uri="https://panoptix.local/problems/bad-request",
+        )
+
+    target_user = get_or_create_user(db, email=body.user_email, idp_subject=None)
+
+    if body.action == "grant":
+        existing_acl = db.execute(
+            select(CameraAcl).where(
+                CameraAcl.user_id == str(target_user.id),
+                CameraAcl.camera_id == str(cam_uuid),
+                CameraAcl.revoked_at.is_(None),
+            )
+        ).scalar_one_or_none()
+        if existing_acl is not None:
+            raise ProblemDetail(
+                status=409,
+                title="Conflict",
+                detail="acl-already-active",
+                type_uri="https://panoptix.local/problems/conflict",
+            )
+        acl = CameraAcl(user_id=target_user.id, camera_id=cam_uuid, granted_at=datetime.now(timezone.utc))
+        db.add(acl)
+    else:
+        existing_acl = db.execute(
+            select(CameraAcl).where(
+                CameraAcl.user_id == str(target_user.id),
+                CameraAcl.camera_id == str(cam_uuid),
+                CameraAcl.revoked_at.is_(None),
+            )
+        ).scalar_one_or_none()
+        if existing_acl is None:
+            raise ProblemDetail(
+                status=404,
+                title="Not Found",
+                detail="acl-not-found",
+                type_uri="https://panoptix.local/problems/not-found",
+            )
+        existing_acl.revoked_at = datetime.now(timezone.utc)
+
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=actor.id,
+        action=f"camera.acl.{body.action}",
+        resource=f"camera:{cam_uuid}",
+        payload={"camera_id": str(cam_uuid), "user_email": body.user_email, "action": body.action},
+    )
+    db.commit()
+
+    return {"camera_id": str(cam_uuid), "user_email": body.user_email, "action": body.action, "status": "applied"}
+
+
+@v1_router.post("/admin/cameras/{camera_id}/disable")
+def disable_camera(
+    camera_id: str,
+    body: DisableCameraRequest,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    cam_uuid = _parse_uuid(camera_id, "camera-id-invalid")
+
+    camera = db.execute(select(Camera).where(Camera.id == str(cam_uuid))).scalar_one_or_none()
+    if camera is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="camera-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+    if camera.retired_at is not None:
+        raise ProblemDetail(
+            status=409,
+            title="Conflict",
+            detail="camera-already-retired",
+            type_uri="https://panoptix.local/problems/conflict",
+        )
+
+    camera.retired_at = datetime.now(timezone.utc)
+
+    user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=user.id,
+        action="camera.disable",
+        resource=f"camera:{cam_uuid}",
+        payload={"camera_id": str(cam_uuid), "reason": body.reason},
+    )
+    db.commit()
+
+    return {
+        "camera_id": str(cam_uuid),
+        "display_name": camera.display_name,
+        "retired_at": camera.retired_at.isoformat(),
+    }

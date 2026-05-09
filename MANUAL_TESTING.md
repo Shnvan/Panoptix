@@ -608,6 +608,173 @@ $env:LIVEKIT_CLOUD_API_SECRET = "your-api-secret-with-enough-entropy"
 
 Do not commit real LiveKit secrets.
 
+## 24. LiveKit Webhook Receiver
+
+The `POST /api/v1/webhooks/livekit` endpoint accepts signed LiveKit webhook events, stores a replay-cache entry, writes an audit row, and creates `camera_events` rows for status-relevant room events.
+
+### Local signed webhook example
+
+Set non-placeholder LiveKit and audit settings before starting the API:
+
+```powershell
+$env:LIVEKIT_CLOUD_URL = "wss://livekit.example.test"
+$env:LIVEKIT_CLOUD_API_KEY = "local-livekit-key"
+$env:LIVEKIT_CLOUD_API_SECRET = "local-livekit-secret-with-at-least-32-bytes"
+$env:AUDIT_HMAC_KEY_VERSION = "1"
+$env:AUDIT_HMAC_KEY = "local-dev-audit-hmac-key-change-me"
+```
+
+Generate a signed body and Authorization JWT from `apps/api`:
+
+```powershell
+$Webhook = @'
+import base64
+import hashlib
+import json
+import jwt
+from datetime import datetime, timedelta, timezone
+
+body = json.dumps({
+    "id": "11111111-1111-1111-1111-111111111111",
+    "event": "track_published",
+    "createdAt": int(datetime.now(timezone.utc).timestamp()),
+    "room": {"name": "room-front-gate"},
+    "participant": {"identity": "gateway:local"},
+    "track": {"sid": "TR_local"},
+}, separators=(",", ":"), sort_keys=True)
+
+now = datetime.now(timezone.utc)
+token = jwt.encode({
+    "iss": "local-livekit-key",
+    "nbf": int(now.timestamp()) - 1,
+    "iat": int(now.timestamp()),
+    "exp": int((now + timedelta(minutes=5)).timestamp()),
+    "sha256": base64.b64encode(hashlib.sha256(body.encode()).digest()).decode("ascii"),
+}, "local-livekit-secret-with-at-least-32-bytes", algorithm="HS256")
+
+print(token)
+print(body)
+'@
+$Signed = python -c $Webhook
+$LiveKitAuth = $Signed[0]
+$LiveKitBody = $Signed[1]
+curl.exe -s -X POST "$BaseUrl/api/v1/webhooks/livekit" `
+  -H "Content-Type: application/webhook+json" `
+  -H "Authorization: Bearer $LiveKitAuth" `
+  -d $LiveKitBody
+```
+
+Expected response:
+
+```json
+{"accepted":true,"event_id":"11111111-1111-1111-1111-111111111111"}
+```
+
+### Notes
+
+- LiveKit webhook auth uses the current LiveKit Authorization JWT format: HS256 JWT signed by the active LiveKit API secret, issuer equal to the active API key, and a `sha256` claim over the raw body.
+- The webhook `createdAt` UNIX timestamp must be within 60 seconds of server time.
+- Duplicate webhook JWT signatures are rejected via `webhook_replay_cache`.
+- `track_published` creates an `online` event, `track_unpublished` and `room_finished` create `offline`, and `participant_connection_aborted` creates `degraded`.
+- Room events are mapped by `room.name == cameras.livekit_room_name`; unknown rooms are accepted but do not create camera events.
+- Created events use `source = livekit_webhook` and are visible through `GET /api/v1/cameras/events` for viewers with active camera ACLs.
+- Browser preflight is not enabled; this endpoint is server-to-server only.
+
+### Room-presence publish command checks
+
+`participant_joined` for a known camera room with an enabled gateway assignment queues a `gateway.command.start_publish` command. The command payload includes `camera_id`, `room`, `livekit_url`, `gateway_publish_token`, and `token_expires_at`.
+
+Use the same signing helper above, changing the body to:
+
+```json
+{
+  "id": "11111111-1111-1111-1111-111111111111",
+  "event": "participant_joined",
+  "createdAt": 1760000000,
+  "room": {"name": "room-front-gate"},
+  "participant": {"identity": "viewer:test"}
+}
+```
+
+After posting the webhook, confirm a pending start command exists:
+
+```powershell
+Invoke-RestMethod -Method GET `
+  -Uri "$BaseUrl/api/v1/admin/gateways/$GatewayId/commands?status=pending" `
+  -Headers $AdminHeaders
+```
+
+Expected command item:
+
+```json
+{
+  "kind": "gateway.command.start_publish",
+  "payload": {
+    "camera_id": "22222222-2222-2222-2222-222222222222",
+    "room": "room-front-gate",
+    "livekit_url": "wss://livekit.example.test",
+    "gateway_publish_token": "...",
+    "token_expires_at": "..."
+  }
+}
+```
+
+`participant_left` with `participant_count: 0` schedules a stop after the 10-second grace window instead of immediately queueing `gateway.command.stop_publish`:
+
+```json
+{
+  "event": "participant_left",
+  "createdAt": 1760000000,
+  "participant_count": 0,
+  "room": {"name": "room-front-gate"}
+}
+```
+
+Expected behavior:
+
+- No new stop command appears immediately.
+- A `camera_publish_states` row is set to `status = stop_pending`.
+- `stop_due_at` is approximately 10 seconds after the webhook event time.
+- Audit contains `livekit.publish.stop_scheduled`.
+
+If another `participant_joined` arrives before `stop_due_at`, the pending stop is cancelled:
+
+- No duplicate start command is enqueued.
+- Publish state returns to `publishing`.
+- Audit contains `livekit.publish.stop_cancelled`.
+
+When a deterministic scheduler/cron calls `enqueue_due_publish_stops()` after `stop_due_at`, the backend enqueues `gateway.command.stop_publish` and resets the publish state to `idle`. Production scheduler wiring is still a separate milestone.
+
+`room_finished` still queues `gateway.command.stop_publish` immediately and resets publish state to `idle`.
+
+The gateway heartbeat fallback returns pending commands as signed envelopes:
+
+```powershell
+$HeartbeatBody = @{ status = "online"; agent_version = "manual-test"; cameras = @() } | ConvertTo-Json
+Invoke-RestMethod -Method POST `
+  -Uri "$BaseUrl/api/v1/gateways/$GatewayId/heartbeat" `
+  -Headers $GatewayHeaders `
+  -ContentType "application/json" `
+  -Body $HeartbeatBody
+```
+
+Notes:
+
+- `participant_left` with `participant_count > 0` does not schedule or enqueue a stop command.
+- Missing/non-numeric `participant_count` on `participant_left` is treated as "do not stop".
+- Unknown rooms are accepted/audited but do not enqueue commands.
+- Known rooms without an enabled active gateway assignment are accepted and audit `livekit.publish.command_skipped`.
+- Backend stop grace is deterministic and tested, but production scheduler/cron wiring remains deferred.
+- Edge-agent mediamtx execution remains deferred.
+
+### Run LiveKit webhook tests
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_livekit_webhooks.py -v
+```
+
 ## 10. Audit Log Manual Checks
 
 The first audit admin endpoint is implemented:
@@ -678,6 +845,14 @@ gateway.ingest.denied.livekit_config
 session.revoke.succeeded
 session.revoke.not_found
 session.revoke.denied.not_owned
+command.enqueue
+command.cancel
+commands.cleanup
+livekit.webhook.received
+livekit.webhook.replay_rejected
+livekit.publish.start_enqueued
+livekit.publish.stop_enqueued
+livekit.publish.command_skipped
 ```
 
 Sensitive payload values such as tokens, JWTs, secrets, cookies, credentials, passwords, API keys, and encrypted keys should be redacted before insertion.
@@ -970,7 +1145,763 @@ python -m pytest tests/test_runner.py -v
 
 Expected behavior:
 
-- valid signed pending commands are counted as accepted by the edge heartbeat runner
+- valid signed pending commands are executed through the edge command executor and counted as accepted by the heartbeat runner
 - tampered, expired, unsigned, or wrong-gateway pending commands are counted as rejected
 - rejected commands include local error codes such as `gateway-command-signature-invalid`
-- commands are verified only and are not executed
+- execution uses a stub media controller only; no real mediamtx or LiveKit process is started
+
+---
+
+## 18. Edge Command Executor Tests
+
+The edge command executor dispatches verified `gateway.command.start_publish` and `gateway.command.stop_publish` commands to a safe stub media controller.
+
+### Run executor tests
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_executor.py -v
+```
+
+Expected behavior:
+
+- valid `start_publish` calls the media controller and records in-memory publish state
+- duplicate `start_publish` for the same camera is accepted without a duplicate media-controller call
+- valid `stop_publish` calls the media controller and clears publish state
+- `stop_publish` for a camera that is not publishing is accepted
+- incomplete payloads are rejected with `command-payload-incomplete`
+- unsupported command kinds are rejected with `command-kind-unsupported`
+- media controller failures reject the command without corrupting state
+- the stub controller records calls only; it does not start real media processes
+
+### Run updated control and runner tests
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_control.py tests/test_runner.py -v
+```
+
+Expected behavior:
+
+- WebSocket commands are verified, executed, and ACKed as accepted or rejected
+- heartbeat pending commands are verified, executed, and counted as accepted or rejected
+- tampered, expired, unsigned, and wrong-gateway commands remain fail-closed
+
+---
+
+## 19. Gateway Command Queue Persistence Tests
+
+The gateway command queue module adds persistent command storage with DB-backed provider and ACK sink implementations.
+
+### Run command queue tests
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_gateway_command_queue.py -v
+```
+
+Expected behavior:
+
+- `enqueue_command` creates a pending row with correct kind, payload, and gateway_id
+- `db_command_provider` returns only pending, unexpired commands for the requested gateway in FIFO order
+- `db_command_provider` excludes commands that are already accepted, rejected, or expired
+- `db_ack_sink` marks a command as accepted and records `acked_at` timestamp
+- `db_ack_sink` marks a command as rejected with an error message
+- `db_ack_sink` silently ignores unknown command IDs and `None` command IDs (idempotent)
+- `create_command_provider` opens its own session, queries commands, and closes the session
+- `create_ack_sink` opens its own session, records the ACK, commits, and closes the session
+
+### App factory wiring
+
+When `DATABASE_URL` is configured (does not contain `replace-me`), the app factory automatically wires:
+
+- `app.state.gateway_control_command_provider` → persistent command provider
+- `app.state.gateway_control_ack_sink` → persistent ACK sink
+
+Tests using the default placeholder URL do not activate the wiring. Tests that need specific command behavior override `app.state.*` directly after app creation.
+
+---
+
+## 20. Command Enqueue API Endpoint
+
+Admin-only endpoint to enqueue commands for a specific gateway.
+
+### Enqueue a command
+
+```powershell
+$headers = @{
+    "x-panoptix-dev-auth" = "1"
+    "x-panoptix-dev-email" = "admin@example.test"
+    "x-panoptix-dev-subject" = "admin@example.test"
+    "x-panoptix-dev-roles" = "admin"
+}
+$body = @{
+    kind = "reload_config"
+    payload = @{ key = "value" }
+    expires_in_seconds = 300
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method POST `
+    -Uri "http://127.0.0.1:8000/api/v1/admin/gateways/<GATEWAY_UUID>/commands" `
+    -Headers $headers `
+    -ContentType "application/json" `
+    -Body $body
+```
+
+Expected response (201 Created):
+
+```json
+{
+    "command_id": "<uuid>",
+    "gateway_id": "<gateway-uuid>",
+    "kind": "reload_config",
+    "status": "pending",
+    "expires_at": "2026-05-09T12:05:00+00:00"
+}
+```
+
+### Error cases
+
+- No auth headers → 401
+- Viewer role → 403 `role-required`
+- Invalid gateway UUID → 400 `gateway-id-invalid`
+- Valid UUID but no gateway row → 404 `gateway-not-found`
+
+### Run endpoint tests
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_gateway_command_queue.py -k "endpoint" -v
+```
+
+---
+
+## 21. Expired-Command Cleanup
+
+The `expire_stale_commands(db)` function marks pending commands that have passed their `expires_at` as `expired`.
+
+### Run cleanup tests
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_gateway_command_queue.py -k "expire_stale" -v
+```
+
+Expected behavior:
+
+- pending commands past `expires_at` are marked `expired`
+- unexpired pending commands remain `pending`
+- already accepted/rejected commands are not touched
+- returns the count of rows that were expired
+
+---
+
+## 22. Command Listing Admin Endpoint
+
+Admin-only endpoint to list commands for a specific gateway with cursor pagination and optional status filter.
+
+### List commands for a gateway
+
+```powershell
+$headers = @{
+    "x-panoptix-dev-auth" = "1"
+    "x-panoptix-dev-email" = "admin@example.test"
+    "x-panoptix-dev-subject" = "admin@example.test"
+    "x-panoptix-dev-roles" = "admin"
+}
+
+Invoke-RestMethod -Method GET `
+    -Uri "http://127.0.0.1:8000/api/v1/admin/gateways/<GATEWAY_UUID>/commands" `
+    -Headers $headers
+```
+
+curl:
+
+```powershell
+curl.exe -s "http://127.0.0.1:8000/api/v1/admin/gateways/<GATEWAY_UUID>/commands" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-subject: admin@example.test" `
+  -H "x-panoptix-dev-email: admin@example.test" `
+  -H "x-panoptix-dev-roles: admin"
+```
+
+With pagination and status filter:
+
+```powershell
+curl.exe -s "http://127.0.0.1:8000/api/v1/admin/gateways/<GATEWAY_UUID>/commands?limit=10&status=pending" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-subject: admin@example.test" `
+  -H "x-panoptix-dev-email: admin@example.test" `
+  -H "x-panoptix-dev-roles: admin"
+```
+
+Next page using cursor:
+
+```powershell
+curl.exe -s "http://127.0.0.1:8000/api/v1/admin/gateways/<GATEWAY_UUID>/commands?cursor=<LAST_COMMAND_UUID>" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-subject: admin@example.test" `
+  -H "x-panoptix-dev-email: admin@example.test" `
+  -H "x-panoptix-dev-roles: admin"
+```
+
+Expected response (200):
+
+```json
+{
+    "items": [
+        {
+            "command_id": "<uuid>",
+            "gateway_id": "<gateway-uuid>",
+            "kind": "reload_config",
+            "payload": {"key": "value"},
+            "status": "pending",
+            "issued_at": "2026-05-09T12:00:00+00:00",
+            "expires_at": "2026-05-09T12:05:00+00:00",
+            "acked_at": null,
+            "error": null
+        }
+    ],
+    "next_cursor": "<uuid>" | null
+}
+```
+
+### Error cases
+
+- No auth headers → 401
+- Viewer role → 403 `role-required`
+- Invalid gateway UUID → 400 `gateway-id-invalid`
+- Valid UUID but no gateway row → 404 `gateway-not-found`
+- Invalid status value → 400 `status-invalid`
+- Invalid cursor UUID → 400 `cursor-invalid`
+
+### Notes
+
+- Requires admin role; non-admin users receive `403 role-required`.
+- `cursor` is the command UUID of the last item seen; the next page returns items older than that cursor.
+- `limit` defaults to 50, max 200.
+- `status` is an optional filter: `pending`, `accepted`, `rejected`, or `expired`.
+- Results are sorted newest first (descending by `issued_at`).
+- `next_cursor` is `null` when there are no more pages.
+
+### Run listing tests
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_gateway_command_queue.py -k "list_commands" -v
+```
+
+---
+
+## 23. Command Cancellation Admin Endpoint
+
+Admin-only endpoint to cancel a pending command for a specific gateway.
+
+### Cancel a command
+
+```powershell
+$headers = @{
+    "x-panoptix-dev-auth" = "1"
+    "x-panoptix-dev-email" = "admin@example.test"
+    "x-panoptix-dev-subject" = "admin@example.test"
+    "x-panoptix-dev-roles" = "admin"
+}
+
+Invoke-RestMethod -Method POST `
+    -Uri "http://127.0.0.1:8000/api/v1/admin/gateways/<GATEWAY_UUID>/commands/<COMMAND_UUID>/cancel" `
+    -Headers $headers
+```
+
+curl:
+
+```powershell
+curl.exe -s -X POST "http://127.0.0.1:8000/api/v1/admin/gateways/<GATEWAY_UUID>/commands/<COMMAND_UUID>/cancel" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-subject: admin@example.test" `
+  -H "x-panoptix-dev-email: admin@example.test" `
+  -H "x-panoptix-dev-roles: admin"
+```
+
+Expected response (200):
+
+```json
+{
+    "command_id": "<uuid>",
+    "gateway_id": "<gateway-uuid>",
+    "kind": "reload_config",
+    "status": "cancelled",
+    "cancelled_at": "2026-05-09T12:01:00+00:00"
+}
+```
+
+### Error cases
+
+- No auth headers → 401
+- Viewer role → 403 `role-required`
+- Invalid gateway UUID → 400 `gateway-id-invalid`
+- Invalid command UUID → 400 `command-id-invalid`
+- Valid gateway UUID but no gateway row → 404 `gateway-not-found`
+- Valid UUIDs but no command row on that gateway → 404 `command-not-found`
+- Command is not pending (already accepted/rejected/expired/cancelled) → 409 `command-not-pending`
+
+### Notes
+
+- Only `pending` commands can be cancelled.
+- Cancelled commands are marked with status `cancelled` and `acked_at` set to the cancellation time.
+- Cancelled commands will not be delivered to the gateway (provider only returns `pending` commands).
+- Cancelled commands will not be expired by the cleanup utility (only touches `pending` rows).
+- The `status` filter in the listing endpoint accepts `cancelled` as a valid value.
+
+### Run cancellation tests
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_gateway_command_queue.py -k "cancel_command" -v
+```
+
+---
+
+## 24. Expired-Command Cleanup Admin Endpoint
+
+Admin-only endpoint to trigger cleanup of stale pending commands across all gateways.
+
+### Trigger cleanup
+
+```powershell
+$headers = @{
+    "x-panoptix-dev-auth" = "1"
+    "x-panoptix-dev-email" = "admin@example.test"
+    "x-panoptix-dev-subject" = "admin@example.test"
+    "x-panoptix-dev-roles" = "admin"
+}
+
+Invoke-RestMethod -Method POST `
+    -Uri "http://127.0.0.1:8000/api/v1/admin/commands/cleanup" `
+    -Headers $headers
+```
+
+curl:
+
+```powershell
+curl.exe -s -X POST "http://127.0.0.1:8000/api/v1/admin/commands/cleanup" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-subject: admin@example.test" `
+  -H "x-panoptix-dev-email: admin@example.test" `
+  -H "x-panoptix-dev-roles: admin"
+```
+
+Expected response (200):
+
+```json
+{
+    "expired_count": 3
+}
+```
+
+### Error cases
+
+- No auth headers → 401
+- Viewer role → 403 `role-required`
+
+### Notes
+
+- Expires pending commands past their `expires_at` across ALL gateways in a single bulk update.
+- Idempotent — calling it twice with no new expirations returns `expired_count: 0`.
+- Does not touch accepted, rejected, or cancelled commands.
+- No request body needed.
+
+### Run cleanup endpoint tests
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_gateway_command_queue.py -k "expire_cleanup" -v
+```
+
+---
+
+## 25. Gateway Command Audit Logging
+
+All gateway command mutation endpoints now write audit trail entries on success.
+
+### Audited actions
+
+| Endpoint | Audit Action |
+|----------|-------------|
+| `POST /admin/gateways/{id}/commands` | `command.enqueue` |
+| `POST /admin/gateways/{id}/commands/{id}/cancel` | `command.cancel` |
+| `POST /admin/commands/cleanup` | `commands.cleanup` |
+
+### Notes
+
+- Audit entries are written using the existing `_record_user_audit_required` pattern (fail-closed: returns 503 if audit write fails).
+- Actor is the authenticated admin user (looked up via `get_or_create_user`).
+- Payload includes relevant identifiers: `command_id`, `gateway_id`, `kind`, or `expired_count`.
+- Requires a valid `AUDIT_HMAC_KEY` (not placeholder). In local dev, set:
+
+```powershell
+$env:AUDIT_HMAC_KEY_VERSION = "1"
+$env:AUDIT_HMAC_KEY = "local-dev-audit-hmac-key-change-me"
+```
+
+### Run audit tests
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_gateway_command_queue.py -k "audit" -v
+```
+
+---
+
+## 18. Deep Health Check
+
+The `/api/v1/admin/health/deep` endpoint performs a real database connectivity check using `SELECT 1`.
+
+### Test deep health (DB connected)
+
+When the backend can reach the database:
+
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:8000/api/v1/admin/health/deep -Method GET
+```
+
+Expected response:
+
+```json
+{"status": "ok", "db": "connected", "livekit": "not_connected", "gateway": "not_connected"}
+```
+
+### Test deep health (DB unreachable)
+
+If the backend cannot reach the database (e.g., wrong `DATABASE_URL`), the response will be:
+
+```json
+{"status": "degraded", "db": "error", "livekit": "not_connected", "gateway": "not_connected"}
+```
+
+### Run deep health tests
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_health.py -v
+```
+
+---
+
+## 19. Camera List Endpoint
+
+The `GET /api/v1/cameras` endpoint returns cameras the authenticated user has active ACL access to.
+
+### List cameras (authenticated viewer)
+
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:8000/api/v1/cameras -Method GET -Headers @{
+    "x-panoptix-dev-auth" = "1"
+    "x-panoptix-dev-email" = "viewer@example.test"
+    "x-panoptix-dev-subject" = "viewer@example.test"
+    "x-panoptix-dev-roles" = "viewer"
+}
+```
+
+Expected response (when user has ACL grants):
+
+```json
+{
+  "items": [
+    {
+      "camera_id": "<uuid>",
+      "display_name": "Front Door",
+      "source_type": "rtsp",
+      "livekit_room_name": "room-front-door",
+      "created_at": "2026-05-09T12:00:00+00:00"
+    }
+  ],
+  "next_cursor": null
+}
+```
+
+### Notes
+
+- Returns only cameras where the user has a non-revoked ACL entry
+- Excludes retired cameras
+- Supports cursor pagination via `?cursor=<uuid>&limit=<n>` (default limit 50, max 200)
+- Requires authentication; returns 401 without auth headers
+- Returns empty list when user has no camera ACL grants
+
+### Run camera list tests
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_cameras.py -v
+```
+
+---
+
+## 22. Gateway Camera Status Persistence
+
+The `POST /api/v1/gateways/{gateway_id}/cameras/{camera_id}/status` endpoint records gateway-reported camera status into `camera_events`.
+
+### Post camera status from a gateway
+
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:8000/api/v1/gateways/<gateway-uuid>/cameras/<camera-uuid>/status -Method POST -Headers @{
+    "x-panoptix-dev-gateway-id" = "<gateway-uuid>"
+    "Content-Type" = "application/json"
+} -Body '{"status": "online", "detail": "synthetic camera healthy"}'
+```
+
+Expected response (200):
+
+```json
+{"accepted": true}
+```
+
+### Post status with gateway-observed time
+
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:8000/api/v1/gateways/<gateway-uuid>/cameras/<camera-uuid>/status -Method POST -Headers @{
+    "x-panoptix-dev-gateway-id" = "<gateway-uuid>"
+    "Content-Type" = "application/json"
+} -Body '{"status": "offline", "observed_at": "2026-05-09T12:00:00+00:00"}'
+```
+
+### Notes
+
+- Gateway identity must match the route `gateway_id`
+- Gateway and camera IDs must be UUIDs
+- Gateway must be enabled and assigned to the camera
+- Camera must be active, not retired
+- Accepted statuses: `online`, `offline`, `degraded`
+- Successful status posts create `CameraEvent` rows with `source = heartbeat`
+- The persisted events are visible through `GET /api/v1/cameras/events` for viewers with camera ACL
+
+### Run gateway status tests
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_gateway.py -k "gateway_camera_status" -v
+```
+
+---
+
+## 23. Admin Gateway Registry And Assignments
+
+Admin-only endpoints register gateways, disable gateways, and grant/revoke gateway-camera assignments.
+
+### Create a gateway
+
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:8000/api/v1/admin/gateways -Method POST -Headers @{
+    "x-panoptix-dev-auth" = "1"
+    "x-panoptix-dev-email" = "admin@example.test"
+    "x-panoptix-dev-subject" = "admin@example.test"
+    "x-panoptix-dev-roles" = "admin"
+    "Content-Type" = "application/json"
+} -Body '{"name": "East Wing Gateway", "mtls_fingerprint": "sha256:test"}'
+```
+
+Expected response (201):
+
+```json
+{"gateway_id": "<uuid>", "name": "East Wing Gateway", "status": "enabled", "created_at": "2026-05-09T12:00:00+00:00"}
+```
+
+### Grant a camera assignment
+
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:8000/api/v1/admin/gateways/<gateway-uuid>/cameras -Method POST -Headers @{
+    "x-panoptix-dev-auth" = "1"
+    "x-panoptix-dev-email" = "admin@example.test"
+    "x-panoptix-dev-subject" = "admin@example.test"
+    "x-panoptix-dev-roles" = "admin"
+    "Content-Type" = "application/json"
+} -Body '{"action": "grant", "camera_id": "<camera-uuid>"}'
+```
+
+Expected response (200):
+
+```json
+{"gateway_id": "<uuid>", "camera_id": "<uuid>", "action": "grant", "status": "applied"}
+```
+
+### Revoke a camera assignment
+
+Use the same endpoint with `"action": "revoke"`.
+
+### Disable a gateway
+
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:8000/api/v1/admin/gateways/<gateway-uuid>/disable -Method POST -Headers @{
+    "x-panoptix-dev-auth" = "1"
+    "x-panoptix-dev-email" = "admin@example.test"
+    "x-panoptix-dev-subject" = "admin@example.test"
+    "x-panoptix-dev-roles" = "admin"
+    "Content-Type" = "application/json"
+} -Body '{"reason": "Compromised gateway token"}'
+```
+
+Expected response (200):
+
+```json
+{"gateway_id": "<uuid>", "name": "East Wing Gateway", "status": "disabled", "disabled_at": "2026-05-09T12:00:00+00:00"}
+```
+
+### Notes
+
+- All endpoints require admin role
+- All successful mutations write audit entries
+- Duplicate active assignments return 409 `gateway-camera-assignment-already-active`
+- Revoking a missing active assignment returns 404 `gateway-camera-assignment-not-found`
+- Gateway registration creates the registry row only; real credential bootstrap remains deferred
+
+### Run admin gateway tests
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_admin_gateways.py -v
+```
+
+---
+
+## 20. Admin Camera CRUD
+
+Three admin-only endpoints for camera management: create, ACL grant/revoke, and disable/retire.
+
+### Create a camera
+
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:8000/api/v1/admin/cameras -Method POST -Headers @{
+    "x-panoptix-dev-auth" = "1"
+    "x-panoptix-dev-email" = "admin@example.test"
+    "x-panoptix-dev-subject" = "admin@example.test"
+    "x-panoptix-dev-roles" = "admin"
+    "Content-Type" = "application/json"
+} -Body '{"display_name": "Front Gate", "source_type": "rtsp", "livekit_room_name": "room-front-gate"}'
+```
+
+Expected response (201):
+
+```json
+{"camera_id": "<uuid>", "display_name": "Front Gate", "source_type": "rtsp", "livekit_room_name": "room-front-gate"}
+```
+
+Valid source types: `rtsp`, `nvr_rtsp`, `onvif_profile_s`, `onvif_profile_t`, `synthetic_rtsp_test_source`
+
+### Grant camera ACL to a user
+
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:8000/api/v1/admin/cameras/<camera-uuid>/acl -Method POST -Headers @{
+    "x-panoptix-dev-auth" = "1"
+    "x-panoptix-dev-email" = "admin@example.test"
+    "x-panoptix-dev-subject" = "admin@example.test"
+    "x-panoptix-dev-roles" = "admin"
+    "Content-Type" = "application/json"
+} -Body '{"action": "grant", "user_email": "viewer@example.test"}'
+```
+
+Expected response (200):
+
+```json
+{"camera_id": "<uuid>", "user_email": "viewer@example.test", "action": "grant", "status": "applied"}
+```
+
+### Revoke camera ACL from a user
+
+Same endpoint with `"action": "revoke"`.
+
+### Disable (retire) a camera
+
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:8000/api/v1/admin/cameras/<camera-uuid>/disable -Method POST -Headers @{
+    "x-panoptix-dev-auth" = "1"
+    "x-panoptix-dev-email" = "admin@example.test"
+    "x-panoptix-dev-subject" = "admin@example.test"
+    "x-panoptix-dev-roles" = "admin"
+    "Content-Type" = "application/json"
+} -Body '{"reason": "Decommissioned"}'
+```
+
+Expected response (200):
+
+```json
+{"camera_id": "<uuid>", "display_name": "Front Gate", "retired_at": "2026-05-09T12:00:00+00:00"}
+```
+
+### Notes
+
+- All three endpoints require admin role (403 for non-admins)
+- All three write audit trail entries via `_record_user_audit_required` (fail-closed)
+- Duplicate room names return 409 `room-name-taken`
+- Duplicate ACL grants return 409 `acl-already-active`
+- Disabling an already-retired camera returns 409 `camera-already-retired`
+
+### Run admin camera tests
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_cameras.py -v
+```
+
+---
+
+## 21. Camera Events SSE Endpoint
+
+The `GET /api/v1/cameras/events` endpoint returns a finite Server-Sent Events catch-up stream for persisted camera events the authenticated user can access.
+
+### Stream camera events
+
+```powershell
+Invoke-WebRequest -Uri "http://127.0.0.1:8000/api/v1/cameras/events?limit=100" -Method GET -Headers @{
+    "x-panoptix-dev-auth" = "1"
+    "x-panoptix-dev-email" = "viewer@example.test"
+    "x-panoptix-dev-subject" = "viewer@example.test"
+    "x-panoptix-dev-roles" = "viewer"
+}
+```
+
+Expected SSE frame shape when accessible events exist:
+
+```text
+event: camera_event
+data: {"event_id":"<uuid>","camera_id":"<uuid>","gateway_id":null,"kind":"online","source":"heartbeat","at":"2026-05-09T12:00:00+00:00"}
+```
+
+### Catch up since a timestamp
+
+```powershell
+Invoke-WebRequest -Uri "http://127.0.0.1:8000/api/v1/cameras/events?since=2026-05-09T12%3A00%3A00%2B00%3A00&limit=50" -Method GET -Headers @{
+    "x-panoptix-dev-auth" = "1"
+    "x-panoptix-dev-email" = "viewer@example.test"
+    "x-panoptix-dev-subject" = "viewer@example.test"
+    "x-panoptix-dev-roles" = "viewer"
+}
+```
+
+### Notes
+
+- Returns only events for cameras where the user has a non-revoked ACL entry
+- Excludes retired cameras and revoked ACL grants
+- `since` is exclusive (`CameraEvent.at > since`)
+- Invalid `since` returns 400 `since-invalid`
+- This is a finite catch-up stream over persisted rows, not a long-running live event loop
+
+### Run camera event tests
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_cameras.py -v
+```

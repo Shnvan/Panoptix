@@ -143,12 +143,183 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Internal chain fields excluded from response
 - [x] Broad filters, export signing, key rotation UI, and migrations remain deferred
 
+### Backend Command Queue Persistence
+- [x] `CommandStatus` enum added (pending, accepted, rejected, expired)
+- [x] `GatewayCommandQueue` SQLAlchemy model added with FK to `edge_gateways`
+- [x] `enqueue_command` helper creates pending command rows
+- [x] `db_command_provider` returns pending/unexpired commands in FIFO order matching hook protocol
+- [x] `db_ack_sink` marks commands accepted/rejected with error and timestamp, matching hook protocol
+- [x] 9 tests passing for enqueue, provider filtering, ack acceptance/rejection, idempotency, and FIFO ordering
+- [x] Alembic migration, cleanup job, and real actions remain deferred (DB coworker / future milestone)
+
+### Command Queue App Factory Wiring
+- [x] Session-per-call `create_command_provider()` and `create_ack_sink()` wrappers added
+- [x] `create_app()` wires hooks automatically when `DATABASE_URL` is configured (not placeholder)
+- [x] Tests remain isolated — placeholder URL skips wiring; test overrides take precedence
+- [x] 2 integration tests verifying session-per-call provider and sink behavior
+- [x] Background cleanup job and real actions remain deferred
+
+### Command Enqueue API Endpoint
+- [x] `POST /api/v1/admin/gateways/{gateway_id}/commands` admin-only endpoint added
+- [x] Request body: `kind` (required), `payload` (optional dict), `expires_in_seconds` (default 300, 10–3600)
+- [x] Gateway existence check with friendly 404
+- [x] Returns 201 with command_id, gateway_id, kind, status, expires_at
+- [x] 7 tests covering auth (401/403), validation (400/404), and success cases (201 with correct expiry)
+- [x] Command listing, cancellation, and real actions remain deferred
+
+### Background Expired-Command Cleanup
+- [x] `expire_stale_commands(db)` bulk-updates pending commands past their `expires_at` to `expired`
+- [x] Returns count of rows updated
+- [x] Idempotent — only touches `pending` rows, skips accepted/rejected/already-expired
+- [x] 4 tests covering expired marking, skip unexpired, skip accepted, return count
+- [x] Scheduler/cron integration, admin trigger endpoint, and real actions remain deferred
+
+### Command Listing Admin Endpoint
+- [x] Admin-only `GET /api/v1/admin/gateways/{gateway_id}/commands` endpoint added
+- [x] Cursor pagination using command `issued_at` (newest first, descending)
+- [x] Optional `status` filter (pending, accepted, rejected, expired)
+- [x] Gateway existence check with 404 `gateway-not-found`
+- [x] Returns command details: command_id, gateway_id, kind, payload, status, issued_at, expires_at, acked_at, error
+- [x] Response shape: `{"items": [...], "next_cursor": "<uuid>" | null}`
+- [x] 7 tests covering auth (401/403), validation (400/404), empty list, ordering, and status filter
+- [x] Command cancellation, scheduler/cron, and real actions remain deferred
+
+### Command Cancellation Admin Endpoint
+- [x] `cancelled` value added to `CommandStatus` enum
+- [x] Admin-only `POST /api/v1/admin/gateways/{gateway_id}/commands/{command_id}/cancel` endpoint added
+- [x] Only `pending` commands can be cancelled; non-pending returns 409 `command-not-pending`
+- [x] Gateway existence check with 404 `gateway-not-found`
+- [x] Command existence check (scoped to gateway) with 404 `command-not-found`
+- [x] Returns cancelled command: command_id, gateway_id, kind, status, cancelled_at
+- [x] Listing endpoint status filter updated to accept `cancelled`
+- [x] 8 tests covering auth (401/403), validation (400/404), conflict (409), and success (200)
+- [x] Scheduler/cron, audit logging of cancel, and real actions remain deferred
+
+### Expired-Command Cleanup Admin Endpoint
+- [x] Admin-only `POST /api/v1/admin/commands/cleanup` endpoint added
+- [x] Calls `expire_stale_commands(db)` to bulk-expire stale pending commands across all gateways
+- [x] Returns `expired_count` with the number of commands expired
+- [x] Idempotent — returns 0 when nothing to expire
+- [x] 4 tests covering auth (401/403), zero-count, and successful expiry
+- [x] Periodic background scheduler/cron and audit logging remain deferred
+
+### Gateway Command Audit Logging
+- [x] `command.enqueue` audit action added to enqueue endpoint
+- [x] `command.cancel` audit action added to cancel endpoint
+- [x] `commands.cleanup` audit action added to cleanup endpoint
+- [x] All three endpoints use `_record_user_audit_required` (fail-closed)
+- [x] Actor resolved via `get_or_create_user` for UUID actor_id
+- [x] `request: Request` and `settings: Settings` added to endpoint signatures
+- [x] 3 tests verifying audit rows are written on success
+- [x] Denial path audit logging remains deferred
+
+### Deep Health Check Implementation
+- [x] `/api/v1/admin/health/deep` wired to real `SELECT 1` database connectivity probe
+- [x] Returns `"connected"` when DB is reachable, `"error"` on failure
+- [x] Overall status `"ok"` when DB connected, `"degraded"` otherwise
+- [x] `livekit` and `gateway` remain `"not_connected"` (deferred)
+- [x] 2 tests: connected state and error state
+
+### Real Camera List Endpoint
+- [x] `GET /api/v1/cameras` wired to real DB query with Camera + CameraAcl join
+- [x] Returns only cameras where the authenticated user has a non-revoked ACL entry
+- [x] Excludes retired cameras (`retired_at IS NOT NULL`)
+- [x] Cursor pagination using `created_at` (newest first, limit+1 pattern)
+- [x] Response includes `camera_id`, `display_name`, `source_type`, `livekit_room_name`, `created_at`
+- [x] 7 tests: auth, empty, accessible, retired, revoked, pagination, isolation
+
+### Admin Camera CRUD Endpoints
+- [x] `POST /api/v1/admin/cameras` creates camera with display_name, source_type, livekit_room_name
+- [x] Source type validated against `CameraSourceType` enum (CCTV-only)
+- [x] Room name uniqueness enforced (409 `room-name-taken`)
+- [x] `POST /api/v1/admin/cameras/{id}/acl` grants or revokes user camera ACL
+- [x] One active grant per user/camera enforced (409 `acl-already-active`)
+- [x] `POST /api/v1/admin/cameras/{id}/disable` soft-deletes camera via `retired_at`
+- [x] Already-retired cameras return 409 `camera-already-retired`
+- [x] All three endpoints audit-logged via `_record_user_audit_required` (fail-closed)
+- [x] 15 tests: auth, validation, conflict, success for all three endpoints
+
+### Camera Events SSE Endpoint
+- [x] `GET /api/v1/cameras/events` returns persisted camera events as `text/event-stream`
+- [x] Uses Camera + CameraAcl joins so users only receive events for active ACL cameras
+- [x] Excludes retired cameras and revoked ACL grants
+- [x] Supports exclusive `since` ISO timestamp filtering and `limit` (default 100, max 500)
+- [x] Emits `event: camera_event` frames with event_id, camera_id, gateway_id, kind, source, and at
+- [x] Invalid `since` returns 400 `since-invalid`
+- [x] 7 tests: auth, empty, accessible event, user isolation, revoked/retired exclusions, since filter, invalid since
+
+### Gateway Camera Status Persistence
+- [x] `POST /api/v1/gateways/{gateway_id}/cameras/{camera_id}/status` writes `CameraEvent` rows
+- [x] Gateway identity must match route gateway ID
+- [x] Gateway and camera IDs validated as UUIDs
+- [x] Requires enabled gateway, active camera, and active gateway-camera assignment
+- [x] Maps status `online`, `offline`, `degraded` to `CameraEventKind`
+- [x] Uses `observed_at` when supplied, otherwise server time
+- [x] Events use `EventSource.heartbeat` and are visible through the camera events SSE endpoint
+- [x] 13 tests: auth, validation, authorization, success persistence, observed_at, SSE visibility
+
+### Admin Gateway Registry And Assignment Endpoints
+- [x] `POST /api/v1/admin/gateways` creates enabled gateway registry rows
+- [x] `POST /api/v1/admin/gateways/{gateway_id}/disable` disables gateways with `disabled_at`
+- [x] `POST /api/v1/admin/gateways/{gateway_id}/cameras` grants/revokes gateway-camera assignments
+- [x] Duplicate active assignments return 409 `gateway-camera-assignment-already-active`
+- [x] Missing active assignment revoke returns 404 `gateway-camera-assignment-not-found`
+- [x] All successful mutations audit-logged: `gateway.create`, `gateway.disable`, `gateway.camera.grant`, `gateway.camera.revoke`
+- [x] Assignment grants enable gateway ingest-token and camera status authorization
+- [x] 20 tests covering auth, validation, conflicts, audit, disable, assignment, and downstream authorization
+
+### LiveKit Webhook Receiver Foundation
+- [x] `POST /api/v1/webhooks/livekit` accepts signed LiveKit webhook events
+- [x] Verifies Authorization JWT with active LiveKit API key/secret and raw-body SHA-256 claim
+- [x] Enforces a 60-second `createdAt` timestamp window
+- [x] Rejects duplicate webhook JWT signatures through `webhook_replay_cache`
+- [x] Maps `track_published`, `track_unpublished`, `room_finished`, and `participant_connection_aborted` to persisted `CameraEvent` rows
+- [x] Webhook-created events use `EventSource.livekit_webhook` and are visible through camera events SSE for ACL viewers
+- [x] Writes system audit rows for accepted webhooks and stale/duplicate replay rejections
+- [x] 9 tests covering authorization, signature/hash validation, replay, audit, event persistence, SSE visibility, unknown room handling, and preflight rejection
+
+### Room-Presence-Driven Gateway Publish Commands
+- [x] LiveKit `participant_joined` webhooks enqueue `gateway.command.start_publish` for known camera rooms with enabled gateway assignments
+- [x] Start commands mint short-lived gateway publish tokens and record `StreamGrant` rows
+- [x] LiveKit `participant_left` with `participant_count == 0` and `room_finished` enqueue `gateway.command.stop_publish`
+- [x] Unknown rooms, nonzero participant counts, disabled gateways, and revoked/missing assignments do not enqueue commands
+- [x] Publish command audit actions added: `livekit.publish.start_enqueued`, `livekit.publish.stop_enqueued`, `livekit.publish.command_skipped`
+- [x] Enqueued commands flow through the existing signed heartbeat/WebSocket command provider path
+- [x] 10 new tests covering start/stop enqueue, stream grants, skip paths, signed heartbeat fallback, and fail-closed token minting
+
+### Edge Command Executor
+- [x] `CommandExecutor` added to dispatch verified commands by kind (`start_publish`, `stop_publish`)
+- [x] `MediaController` protocol defined with async `start_publish` / `stop_publish` methods
+- [x] `StubMediaController` added for testing (logs calls, returns success, no real process management)
+- [x] `FailingMediaController` added for testing error paths
+- [x] `PublishState` tracker added for in-memory camera publish session tracking (start, stop, idempotency)
+- [x] `GatewayControlClient` wired to execute commands after verification via async `handle_message`
+- [x] `HeartbeatRunner` wired to execute commands after verification via `asyncio.run()`
+- [x] Executor rejects unknown command kinds, incomplete payloads, and media controller failures
+- [x] Idempotent: duplicate `start_publish` accepted without re-calling controller; `stop_publish` for non-publishing camera accepted silently
+- [x] 14 new tests in `test_executor.py` covering start/stop, idempotency, validation, unknown kinds, and controller failures
+- [x] Existing control and runner tests updated with full command payloads and async `handle_message`
+- [x] All 57 edge-agent tests passing; mypy, ruff, and compileall clean
+
+### Backend Publish State And Stop Grace Timers
+- [x] `CameraPublishStatus` enum added (`idle`, `starting`, `publishing`, `stop_pending`)
+- [x] `CameraPublishState` SQLAlchemy model added for per-camera publish lifecycle tracking
+- [x] `gateway.publish_state` helper module added for start, schedule-stop, cancel-stop, immediate-stop, and due-stop processing
+- [x] `participant_joined` now cancels pending stops or enqueues `start_publish` only when not already starting/publishing
+- [x] Duplicate `participant_joined` events no longer enqueue duplicate start commands
+- [x] `participant_left` with zero viewers now schedules a delayed stop instead of immediately enqueueing `stop_publish`
+- [x] `room_finished` still enqueues immediate `stop_publish` and resets publish state
+- [x] Deterministic `enqueue_due_publish_stops()` helper added for scheduler/cron integration later
+- [x] Audit actions added for `livekit.publish.stop_scheduled` and `livekit.publish.stop_cancelled`
+- [x] LiveKit webhook tests expanded to 23 cases covering start idempotency, stop scheduling, stop cancellation, due-stop processing, and immediate room-finished stop
+- [x] Backend verification clean: 232 tests passing; mypy, ruff, and compileall clean
+
 ---
 
 ## Next Steps (In Order)
 
-### 1. Backend Command Queue Table
-Add persistent command dispatch/queue scaffolding to move the gateway command loop beyond in-memory test hooks, without adding real camera actions, mediamtx control, or LiveKit publishing.
+### 1. TBD — Next milestone to be determined
+Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
 
 ---
 

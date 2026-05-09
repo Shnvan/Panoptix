@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -13,6 +14,8 @@ from panoptix_edge_agent.commands import (
     verify_gateway_command,
 )
 from panoptix_edge_agent.config import AgentConfig
+from panoptix_edge_agent.executor import CommandExecutor
+from panoptix_edge_agent.media import StubMediaController
 
 
 @dataclass(frozen=True)
@@ -31,10 +34,12 @@ class HeartbeatRunner:
         config: AgentConfig,
         client: GatewayApiClient | None = None,
         sleep: Callable[[float], None] = time.sleep,
+        executor: CommandExecutor | None = None,
     ) -> None:
         self.config = config
         self.client = GatewayApiClient(config) if client is None else client
         self.sleep = sleep
+        self.executor = executor if executor is not None else CommandExecutor(StubMediaController())
 
     def run_once(self) -> HeartbeatResult:
         cameras = tuple(
@@ -86,6 +91,11 @@ class HeartbeatRunner:
             except (KeyError, CommandVerificationError) as exc:
                 rejected_commands += 1
                 errors.append(str(exc))
+                continue
+            exec_result = asyncio.run(self.executor.execute(command))
+            if not exec_result.accepted:
+                rejected_commands += 1
+                errors.append(exec_result.error or "command-execution-failed")
                 continue
             accepted_commands += 1
         return (accepted_commands, rejected_commands, tuple(errors))

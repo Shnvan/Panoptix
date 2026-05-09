@@ -13,6 +13,8 @@ from panoptix_edge_agent.commands import (
     verify_gateway_command,
 )
 from panoptix_edge_agent.config import AgentConfig
+from panoptix_edge_agent.executor import CommandExecutor
+from panoptix_edge_agent.media import StubMediaController
 
 
 class ControlClientError(RuntimeError):
@@ -105,10 +107,12 @@ class GatewayControlClient:
         config: AgentConfig,
         connector: WebSocketConnector | None = None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        executor: CommandExecutor | None = None,
     ) -> None:
         self.config = config
         self.connector = WebSocketsConnector() if connector is None else connector
         self.sleep = sleep
+        self.executor = executor if executor is not None else CommandExecutor(StubMediaController())
 
     @property
     def websocket_url(self) -> str:
@@ -166,7 +170,7 @@ class GatewayControlClient:
                 self.config.request_timeout_seconds,
             ) as websocket:
                 for _ in range(max_messages):
-                    result = self.handle_message(await websocket.recv())
+                    result = await self.handle_message(await websocket.recv())
                     if result.kind == "hello" and result.accepted:
                         hello_received = True
                     elif result.kind == "command" and result.accepted:
@@ -191,11 +195,11 @@ class GatewayControlClient:
             errors=tuple(errors),
         )
 
-    def handle_message(self, raw_message: str | bytes) -> ControlMessageResult:
+    async def handle_message(self, raw_message: str | bytes) -> ControlMessageResult:
         data = _decode_message(raw_message)
         if data.get("type") == "connected":
             return self._handle_hello(data)
-        return self._handle_command(data)
+        return await self._handle_command(data)
 
     def _handle_hello(self, data: dict[str, Any]) -> ControlMessageResult:
         if data.get("gateway_id") != self.config.gateway_id:
@@ -206,7 +210,7 @@ class GatewayControlClient:
             )
         return ControlMessageResult(kind="hello", accepted=True)
 
-    def _handle_command(self, data: dict[str, Any]) -> ControlMessageResult:
+    async def _handle_command(self, data: dict[str, Any]) -> ControlMessageResult:
         command_id = str(data["command_id"]) if "command_id" in data else None
         try:
             command = GatewayCommand.from_dict(data)
@@ -221,6 +225,14 @@ class GatewayControlClient:
                 accepted=False,
                 command_id=command_id,
                 error=str(exc),
+            )
+        exec_result = await self.executor.execute(command)
+        if not exec_result.accepted:
+            return ControlMessageResult(
+                kind="command",
+                accepted=False,
+                command_id=command.command_id,
+                error=exec_result.error,
             )
         return ControlMessageResult(kind="command", accepted=True, command_id=command.command_id)
 

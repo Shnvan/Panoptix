@@ -7,7 +7,7 @@ from panoptix_edge_agent.config import AgentConfig
 from panoptix_edge_agent.runner import HeartbeatRunner
 
 SIGNING_KEY = "test-command-signing-key-with-enough-entropy"
-VALID_SIGNATURE = "l-71KAAPUCsG-WaaroJwgexPNKsOB-9l37K232jAgOA"
+VALID_SIGNATURE = "XtEyJPLXf5z6QvlLFhVRqIhVpwbH0R7H_F_1W4dFzxw"
 
 
 class FakeClient:
@@ -45,7 +45,13 @@ def _command(**overrides: object) -> dict[str, object]:
         "gateway_id": "gateway-1",
         "issued_at": "2026-05-07T12:00:00Z",
         "expires_at": "2999-05-07T12:00:30Z",
-        "payload": {"camera_id": "camera-1", "room": "camera_ab12cd34"},
+        "payload": {
+            "camera_id": "camera-1",
+            "room": "camera_ab12cd34",
+            "livekit_url": "wss://livekit.example.test",
+            "gateway_publish_token": "test-publish-token",
+            "token_expires_at": "2026-05-07T12:01:00Z",
+        },
         "signature": VALID_SIGNATURE,
     }
     command.update(overrides)
@@ -128,7 +134,7 @@ def test_run_once_rejects_expired_pending_heartbeat_command() -> None:
                 "pending_commands": [
                     _command(
                         expires_at="2026-05-07T12:00:30Z",
-                        signature="JzWX_J0pZjFozy8jD0NUHXqnuWXPZvwbpfiSmK-XQg0",
+                        signature="AKRZ_FFmAklMBAkUAWwaxFbZNinYpPjX8LFkz3DKEOk",
                     )
                 ]
             }

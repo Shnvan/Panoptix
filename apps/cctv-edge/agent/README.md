@@ -2,7 +2,7 @@
 
 Minimal outbound gateway agent for Panoptix edge deployments.
 
-The agent currently reports heartbeat and camera status to `cctv-api`. It does not open inbound listeners and preserves the zero-inbound-WAN-port invariant.
+The agent currently reports heartbeat and camera status to `cctv-api`, verifies signed gateway commands, and dispatches verified `start_publish` / `stop_publish` commands to a safe stub media controller. It does not open inbound listeners and preserves the zero-inbound-WAN-port invariant.
 
 ## Configuration
 
@@ -59,6 +59,5 @@ python -m compileall src tests
 
 ## Not included yet
 
-- gateway command dispatch/ACK loop
 - mediamtx process management
 - LiveKit publishing orchestration

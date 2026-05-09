@@ -6,6 +6,7 @@ from cctv_api.api.errors import ProblemDetail, problem_detail_handler
 from cctv_api.api.health import router as health_router
 from cctv_api.api.router import v1_router
 from cctv_api.core.config import Settings, get_settings
+from cctv_api.gateway.command_queue import create_ack_sink, create_command_provider
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -28,6 +29,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     application.include_router(health_router)
     application.include_router(v1_router)
+
+    if "replace-me" not in resolved_settings.DATABASE_URL:
+        application.state.gateway_control_command_provider = create_command_provider()
+        application.state.gateway_control_ack_sink = create_ack_sink()
 
     return application
 

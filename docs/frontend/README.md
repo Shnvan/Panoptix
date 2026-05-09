@@ -6,6 +6,7 @@ This folder contains docs owned by or primarily used by the frontend coworker.
 
 | File | Purpose |
 |---|---|
+| [Backend Status](BACKEND_STATUS.md) | Every implemented backend API, what frontend can build now, dev-auth setup, and conventions. |
 | [Frontend Guardrails](frontend-guardrails.md) | Things frontend must not do because they break security, API, media, or operations. |
 | [UX/Product Spec](ux-product-spec.md) | Frontend screens, states, personas, layout, accessibility, and error-copy requirements. |
 

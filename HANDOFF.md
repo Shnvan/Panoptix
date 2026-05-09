@@ -62,10 +62,18 @@ FastAPI backend currently implements:
 - gateway command signing helpers
 - in-memory/test-scaffolded WebSocket command dispatch + ACK handling
 - in-memory/test-scaffolded heartbeat command fallback
+- persistent gateway command queue model with DB-backed provider and ACK sink
+- command queue wired into app factory (auto-activates when DATABASE_URL is configured)
+- admin command enqueue endpoint (`POST /admin/gateways/{gateway_id}/commands`)
+- admin command listing endpoint (`GET /admin/gateways/{gateway_id}/commands`)
+- admin command cancellation endpoint (`POST /admin/gateways/{gateway_id}/commands/{command_id}/cancel`)
+- admin expired-command cleanup endpoint (`POST /admin/commands/cleanup`)
 - HMAC-SHA-256 audit hash chain writer and verifier helpers
 - read-only admin audit verification endpoint with optional ID ranges and key-version handling
 - admin audit export endpoint returning scrubbed JSONL rows
 - admin audit row listing endpoint with cursor pagination
+- LiveKit webhook receiver with Authorization JWT validation, replay cache, audit, and camera event persistence
+- room-presence-driven gateway publish command enqueue from LiveKit webhooks
 
 ### Edge / Camera Plane
 
@@ -79,6 +87,9 @@ Current implemented code is in `apps/cctv-edge/agent/`:
 - command envelope verifier
 - gateway control WebSocket client skeleton
 - heartbeat pending-command verifier
+- command execution dispatcher for verified `start_publish` / `stop_publish`
+- in-memory edge publish-state tracker
+- stub media controller for safe local execution tests
 - `--once` CLI for heartbeat
 - `--control-once` CLI for one-shot WebSocket control check
 - `--control-loop-once` CLI for bounded reconnect/backoff control check
@@ -117,10 +128,359 @@ Current state:
 
 - Alembic migrations exist
 - SQLAlchemy models exist
-- command queue persistence has not been implemented yet
+- command queue model exists (`GatewayCommandQueue`) but Alembic migration is DB coworker responsibility
 - DB coworker ownership is documented, but backend tests use database helpers where needed
 
 ## Recently Completed Milestones
+
+### Backend Publish State And Stop Grace Timers
+
+Completed in this milestone.
+
+Implemented:
+
+- `CameraPublishStatus` enum and `CameraPublishState` SQLAlchemy model
+- `cctv_api.gateway.publish_state` helper module for start, schedule-stop, cancel-stop, immediate-stop, and due-stop transitions
+- `participant_joined` cancels pending stops or enqueues a start command only if not already starting/publishing
+- duplicate `participant_joined` does not enqueue duplicate start commands
+- `participant_left` with `participant_count == 0` schedules a delayed stop with a 10-second grace window
+- `room_finished` immediately enqueues `gateway.command.stop_publish` and resets publish state
+- deterministic `enqueue_due_publish_stops()` helper for future scheduler/cron integration
+- new audit actions: `livekit.publish.stop_scheduled`, `livekit.publish.stop_cancelled`
+- LiveKit webhook tests expanded to 23 cases
+
+Not included:
+
+- production scheduler/cron wiring for due stops
+- Alembic migration; DB-owner coordination still required
+- real mediamtx process management
+- real LiveKit SDK publishing
+
+### Room-Presence-Driven Gateway Publish Commands
+
+Completed in prior milestone.
+
+Implemented:
+
+- LiveKit `participant_joined` webhooks enqueue `gateway.command.start_publish` for known camera rooms with enabled gateway assignments
+- Start commands mint short-lived gateway publish tokens and record `StreamGrant` rows
+- LiveKit `participant_left` with `participant_count == 0` and `room_finished` enqueue `gateway.command.stop_publish`
+- Unknown rooms, nonzero participant counts, disabled gateways, and revoked/missing assignments do not enqueue commands
+- Publish command audit actions: `livekit.publish.start_enqueued`, `livekit.publish.stop_enqueued`, `livekit.publish.command_skipped`
+- Enqueued commands flow through the existing signed WebSocket and heartbeat fallback command provider path
+- 10 new tests covering start/stop enqueue, stream grants, skip paths, signed heartbeat fallback, and fail-closed token minting
+
+Not included:
+
+- 10-second grace timers
+- backend publish-state tracking
+- direct WebSocket push outside the existing queue/provider path
+- LiveKit REST calls
+- mediamtx process control or real media publishing
+
+### Edge Command Executor
+
+Completed in this milestone.
+
+Implemented:
+
+- `CommandExecutor` dispatches verified gateway commands by kind
+- `gateway.command.start_publish` validates camera, room, LiveKit URL, publish token, and token expiry payload fields
+- `gateway.command.stop_publish` validates camera and room payload fields
+- `MediaController` protocol defines async `start_publish` / `stop_publish`
+- `StubMediaController` safely records calls without controlling real media processes
+- `FailingMediaController` covers error-path tests
+- `PublishState` tracks active per-camera publish sessions in memory
+- Duplicate `start_publish` is idempotent and accepted without a duplicate controller call
+- `stop_publish` for a non-publishing camera is idempotent and accepted
+- WebSocket control path executes verified commands before ACKing
+- Heartbeat pending-command fallback executes verified commands before counting them accepted
+- 14 new executor tests plus updated control/runner tests
+
+Not included:
+
+- real mediamtx process management
+- real LiveKit SDK publishing
+- token refresh or expiry-driven stop
+- publish-state persistence across restarts
+- backend publish-state tracking or stop grace timers
+
+### LiveKit Webhook Receiver Foundation
+
+Completed in prior milestone.
+
+Implemented:
+
+- `POST /api/v1/webhooks/livekit` accepts signed LiveKit webhook events
+- Authorization JWT validation using active LiveKit API key/secret and raw-body SHA-256 claim
+- 60-second `createdAt` freshness window
+- duplicate webhook JWT signature rejection through `webhook_replay_cache`
+- status-relevant room event mapping into `CameraEvent` rows with `source=livekit_webhook`
+- system audit actions: `livekit.webhook.received`, `livekit.webhook.replay_rejected`
+- SSE visibility for ACL viewers through the existing camera events endpoint
+- 9 tests covering auth, signature/hash validation, replay, audit, event persistence, SSE visibility, unknown rooms, and preflight rejection
+
+Not included:
+
+- Gateway start/stop publish orchestration
+- Grace timers for last-participant-left
+- LiveKit REST calls
+- mediamtx process control
+- Real CCTV hardware integration
+
+### Admin Gateway Registry And Assignment Endpoints
+
+Completed in prior milestone.
+
+Implemented:
+
+- `POST /api/v1/admin/gateways` creates enabled gateway registry rows
+- `POST /api/v1/admin/gateways/{gateway_id}/disable` disables gateways
+- `POST /api/v1/admin/gateways/{gateway_id}/cameras` grants/revokes gateway-camera assignments
+- Successful mutations audit actions: `gateway.create`, `gateway.disable`, `gateway.camera.grant`, `gateway.camera.revoke`
+- Assignment grants enable gateway ingest-token and camera status authorization
+- 20 tests covering auth, validation, conflicts, audit, disable, assignment, and downstream authorization
+
+Not included:
+
+- Real service-token or mTLS credential bootstrap
+- Gateway credential rotation
+- LiveKit publish start/stop control
+- Database migrations
+
+### Gateway Camera Status Persistence
+
+Completed in prior milestone.
+
+Implemented:
+
+- `POST /api/v1/gateways/{gateway_id}/cameras/{camera_id}/status` persists `CameraEvent` rows
+- Requires matching gateway identity, valid UUIDs, enabled gateway, active camera, and active assignment
+- Maps gateway status `online`, `offline`, `degraded` to camera event kind
+- Uses `observed_at` if supplied, otherwise server time
+- Events use `EventSource.heartbeat` and are visible through `GET /api/v1/cameras/events`
+- 13 tests covering auth, validation, authorization, event persistence, observed_at, and SSE visibility
+
+Not included:
+
+- LiveKit room-presence publish orchestration
+- Event broker/subscriber integration
+- Real camera/media process control
+- Persisting status `detail` text
+
+### Camera Events SSE Endpoint
+
+Completed in prior milestone.
+
+Implemented:
+
+- `GET /api/v1/cameras/events` returns persisted camera events as `text/event-stream`
+- Filters through Camera + CameraAcl so users only receive events for active ACL cameras
+- Excludes retired cameras and revoked ACL grants
+- Supports exclusive `since` ISO timestamp filtering and `limit` (default 100, max 500)
+- Emits `event: camera_event` frames with event_id, camera_id, gateway_id, kind, source, and at
+- 7 tests covering auth, empty stream, ACL filtering, retired/revoked exclusions, since filtering, and invalid since
+
+Not included:
+
+- Infinite live polling loop
+- Event broker/subscriber integration
+- Gateway publish-command orchestration from LiveKit room presence
+- Frontend SSE client wiring
+
+### Admin Camera CRUD Endpoints
+
+Completed in prior milestone.
+
+Implemented:
+
+- `POST /api/v1/admin/cameras` — create camera (display_name, source_type, livekit_room_name)
+- `POST /api/v1/admin/cameras/{id}/acl` — grant or revoke user camera ACL
+- `POST /api/v1/admin/cameras/{id}/disable` — retire camera (soft delete)
+- Source type validated against CCTV-only enum
+- Room name uniqueness enforced
+- One active ACL grant per user/camera enforced
+- All three audit-logged via `_record_user_audit_required` (fail-closed)
+- 15 tests covering auth, validation, conflict, and success
+
+Not included:
+
+- Camera update/rename
+- Gateway assignment management
+- Viewer session termination on disable
+- Admin camera listing (all cameras)
+- LiveKit room-presence publish orchestration
+
+### Real Camera List Endpoint
+
+Completed in prior milestone.
+
+Implemented:
+
+- `GET /api/v1/cameras` wired to real DB query with Camera + CameraAcl join
+- Returns only cameras where the authenticated user has a non-revoked ACL entry
+- Excludes retired cameras
+- Cursor pagination using `created_at` (newest first, limit+1 pattern)
+- 7 tests: auth, empty, accessible, retired, revoked, pagination, user isolation
+
+### Deep Health Check Implementation
+
+Completed in prior milestone.
+
+Implemented:
+
+- `/api/v1/admin/health/deep` wired to real `SELECT 1` database connectivity probe
+- Returns `"connected"` when DB is reachable, `"error"` on failure
+- Overall status `"ok"` when DB connected, `"degraded"` otherwise
+- `livekit` and `gateway` remain `"not_connected"` (deferred)
+- No auth required — monitoring systems need unauthenticated access
+- 2 tests covering connected and error states
+
+### Gateway Command Audit Logging
+
+Completed in prior milestone.
+
+Implemented:
+
+- `command.enqueue` audit action on enqueue endpoint success
+- `command.cancel` audit action on cancel endpoint success
+- `commands.cleanup` audit action on cleanup endpoint success
+- All three use `_record_user_audit_required` (fail-closed)
+- Actor resolved via `get_or_create_user` for UUID actor_id
+- `request: Request` and `settings: Settings` added to endpoint signatures
+- 3 tests verifying audit rows are written
+
+Not included:
+
+- Denial path audit logging
+- Periodic background scheduler/cron
+- Real camera/media actions
+
+### Expired-Command Cleanup Admin Endpoint
+
+Completed in prior milestone.
+
+Implemented:
+
+- `POST /api/v1/admin/commands/cleanup` admin-only endpoint
+- Calls existing `expire_stale_commands(db)` to bulk-expire stale pending commands across all gateways
+- Returns `expired_count` with the number of commands expired
+- Idempotent — returns 0 when nothing to expire
+- 4 tests covering auth, zero-count, and successful expiry
+
+Not included:
+
+- Periodic background scheduler/cron
+- Real camera/media actions
+
+### Command Cancellation Admin Endpoint
+
+Completed in prior milestone.
+
+Implemented:
+
+- `POST /api/v1/admin/gateways/{gateway_id}/commands/{command_id}/cancel` admin-only endpoint
+- `cancelled` value added to `CommandStatus` enum
+- Only `pending` commands can be cancelled; non-pending returns 409 `command-not-pending`
+- Gateway and command existence checks with appropriate 404 errors
+- Listing endpoint status filter updated to accept `cancelled`
+- 8 tests covering auth, validation, conflict, and success
+
+Not included:
+
+- Audit logging of the cancel action
+- Real camera/media actions
+
+### Command Listing Admin Endpoint
+
+Completed in prior milestone.
+
+Implemented:
+
+- `GET /api/v1/admin/gateways/{gateway_id}/commands` admin-only endpoint
+- Cursor pagination using `issued_at` (newest first, descending)
+- Optional `status` filter (pending, accepted, rejected, expired, cancelled)
+- Gateway existence check with 404 `gateway-not-found`
+- Response shape `{"items": [...], "next_cursor": "<uuid>" | null}`
+- 7 tests covering auth, validation, empty list, ordering, and status filter
+
+Not included:
+
+- Scheduler/cron for cleanup
+- Audit logging of the listing call
+- Real camera/media actions
+
+### Background Expired-Command Cleanup
+
+Completed in prior milestone.
+
+Implemented:
+
+- `expire_stale_commands(db) -> int` utility function in `gateway/command_queue.py`
+- Bulk UPDATE marks pending commands past `expires_at` as `expired`
+- Returns count of updated rows; idempotent (only touches pending rows)
+- 4 tests covering marking, skip unexpired, skip accepted, return count
+
+Not included:
+
+- Scheduler/cron integration
+- Admin endpoint to trigger cleanup
+- Notification/alerting
+
+### Command Enqueue API Endpoint
+
+Completed in prior milestone.
+
+Implemented:
+
+- `POST /api/v1/admin/gateways/{gateway_id}/commands` admin-only endpoint
+- Request body: `kind` (required), `payload` (optional), `expires_in_seconds` (default 300, 10–3600)
+- Gateway existence check with 404 `gateway-not-found`
+- Returns 201 with command_id, gateway_id, kind, status, expires_at
+- 7 tests covering auth, validation, and success
+
+Not included:
+
+- Command listing/cancellation endpoints
+- Background expired-command cleanup job
+- Audit logging of command enqueue
+- Real camera/media actions
+
+### Command Queue App Factory Wiring
+
+Completed in prior milestone.
+
+Implemented:
+
+- Session-per-call `create_command_provider()` and `create_ack_sink()` wrappers in `gateway/command_queue.py`
+- `create_app()` wires hooks automatically when `DATABASE_URL` is configured (no `replace-me`)
+- Tests remain isolated — placeholder URL skips wiring; test overrides take precedence
+- 2 integration tests verifying session-per-call behavior
+
+Not included:
+
+- Background expired-command cleanup job
+- Command enqueue API endpoint
+- Real camera/media actions
+
+### Backend Command Queue Persistence
+
+Completed in prior milestone.
+
+Implemented:
+
+- `CommandStatus` enum (pending, accepted, rejected, expired) in `models/enums.py`
+- `GatewayCommandQueue` SQLAlchemy model in `models/tables.py` with FK to `edge_gateways`
+- `gateway/command_queue.py` with `enqueue_command`, `db_command_provider`, and `db_ack_sink`
+- Provider/sink match the existing `app.state` hook protocol
+- 9 tests covering enqueue, provider filtering/FIFO, ack acceptance/rejection, idempotency
+
+Not included:
+
+- Alembic migration (DB coworker ownership)
+- Background expired-command cleanup job
+- Command enqueue API endpoint
+- Real camera/media actions
 
 ### Audit Row Listing Endpoint
 
@@ -361,9 +721,9 @@ $env:PYTHONPATH = "src"; python -m compileall src alembic scripts
 Latest result:
 
 ```text
-pytest: 103 passed
+pytest: 232 passed
 ruff: all checks passed
-mypy: no issues found in 28 source files
+mypy: no issues found in 32 source files
 compileall: passed
 ```
 
@@ -379,9 +739,9 @@ $env:PYTHONPATH = "src"; python -m compileall src tests
 Latest result:
 
 ```text
-pytest: 43 passed
+pytest: 57 passed
 ruff: all checks passed
-mypy: no issues found in 7 source files
+mypy: no issues found in 10 source files
 compileall: passed
 ```
 
@@ -390,37 +750,25 @@ compileall: passed
 Recommended next task:
 
 ```text
-Backend Command Queue Table
+TBD — Next milestone to be determined
 ```
 
-Recommended scope:
-
-- add persistent command dispatch/queue scaffolding to move the gateway command loop beyond in-memory test hooks
-- do not add real camera actions, mediamtx control, or LiveKit publishing
-- keep dispatch retry policy and ACK persistence simple/deferred
-
-Why this is the best next step:
-
-- audit surfaces (verify, export, listing) are now complete for the local foundation
-- the gateway control channel has a proven in-memory dispatch/ACK protocol
-- the next logical step is persistence so commands survive backend restarts
+Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
 
 ## Not Implemented Yet
 
+- command denial path audit logging
+- periodic background scheduler/cron for automated cleanup
 - audit export signing
-- backend command queue table
-- persistent dispatch/retry model
 - production gateway control reconnect policy/supervision
-- command ACK persistence
 - mediamtx runtime configuration
-- real camera start/stop
-- LiveKit publishing orchestration
+- real camera/media start/stop
+- production scheduler/cron wiring for due publish stops
 - frontend UI
 - real Cloudflare Access setup
 - Google Workspace setup
 - Railway deployment
 - Neon production database setup
-- audit export signing
 
 ## External Accounts Status
 
@@ -449,7 +797,7 @@ Use local/dev placeholders and fail-closed behavior. Do not ask the user to set 
 - Reject invalid, unsigned, expired, tampered, or wrong-gateway commands.
 - Edge gateway must connect outbound to cloud/backend; do not add inbound WAN listeners.
 - Do not execute real camera/media actions until protocol skeletons are proven.
-- Do not add database persistence for commands until dispatch + ACK protocol behavior is proven.
+- Do not replace the stub media controller with real mediamtx/LiveKit control until runtime config, process supervision, and rollback behavior are planned and tested.
 - Do not hardcode real secrets, API keys, database passwords, school/user data, or production credentials.
 - Use dev auth only for local development.
 - Preserve the CCTV-only invariant: browser viewers never publish media.
@@ -492,15 +840,19 @@ Use local/dev placeholders and fail-closed behavior. Do not ask the user to set 
 - `apps/api/src/cctv_api/api/errors.py`: problem detail errors
 - `apps/api/src/cctv_api/api/health.py`: health endpoints
 - `apps/api/src/cctv_api/api/gateways.py`: gateway heartbeat, camera status, LiveKit token endpoints, gateway control WebSocket
+- `apps/api/src/cctv_api/api/livekit_webhooks.py`: LiveKit webhook receiver, replay cache, audit, and camera event persistence
 - `apps/api/src/cctv_api/db.py`: database/session setup
 - `apps/api/src/cctv_api/gateway/models.py`: gateway API and command envelope Pydantic models
 - `apps/api/src/cctv_api/gateway/command_signing.py`: backend command signing/verifying
+- `apps/api/src/cctv_api/gateway/command_queue.py`: persistent command queue provider/sink
+- `apps/api/src/cctv_api/gateway/publish_state.py`: backend camera publish-state and stop-grace helpers
 - `apps/api/src/cctv_api/models/tables.py`: SQLAlchemy table models
 - `apps/api/src/cctv_api/models/enums.py`: DB/domain enums
 - `apps/api/src/cctv_api/security/cloudflare_access.py`: CF Access JWT handling
 - `apps/api/src/cctv_api/security/dependencies.py`: auth dependencies
 - `apps/api/src/cctv_api/security/identity.py`: principal identity model
 - `apps/api/src/cctv_api/security/livekit_tokens.py`: LiveKit token helpers
+- `apps/api/src/cctv_api/security/livekit_webhooks.py`: LiveKit webhook Authorization JWT and body-hash verifier
 - `apps/api/src/cctv_api/security/policy.py`: RBAC policy helpers
 - `apps/api/src/cctv_api/security/session_cookie.py`: signed session cookie helpers
 - `apps/api/src/cctv_api/security/sessions.py`: session management
@@ -512,6 +864,8 @@ Use local/dev placeholders and fail-closed behavior. Do not ask the user to set 
 - `apps/api/tests/conftest.py`: backend pytest setup
 - `apps/api/tests/test_gateway.py`: heartbeat, camera status, gateway control WebSocket tests
 - `apps/api/tests/test_gateway_command_signing.py`: command signing tests
+- `apps/api/tests/test_gateway_command_queue.py`: command queue persistence tests
+- `apps/api/tests/test_livekit_webhooks.py`: LiveKit webhook receiver tests
 - `apps/api/tests/test_livekit_tokens.py`: viewer/gateway LiveKit token tests
 - `apps/api/tests/test_security.py`: auth/dev-auth tests
 - `apps/api/tests/test_sessions.py`: session tests
@@ -527,6 +881,9 @@ Use local/dev placeholders and fail-closed behavior. Do not ask the user to set 
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/runner.py`: heartbeat runner
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/commands.py`: command envelope parser/verifier
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/control.py`: gateway control WebSocket client
+- `apps/cctv-edge/agent/src/panoptix_edge_agent/executor.py`: verified command dispatcher
+- `apps/cctv-edge/agent/src/panoptix_edge_agent/media.py`: media controller protocol and stub/failing controllers
+- `apps/cctv-edge/agent/src/panoptix_edge_agent/publish_state.py`: in-memory publish session tracker
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/cli.py`: CLI entrypoint for heartbeat/control checks
 
 ### Edge Agent Tests
@@ -536,6 +893,7 @@ Use local/dev placeholders and fail-closed behavior. Do not ask the user to set 
 - `apps/cctv-edge/agent/tests/test_runner.py`: heartbeat runner tests
 - `apps/cctv-edge/agent/tests/test_commands.py`: command verifier tests
 - `apps/cctv-edge/agent/tests/test_control.py`: WebSocket control client tests
+- `apps/cctv-edge/agent/tests/test_executor.py`: command executor tests
 
 ### Migrations / Database
 
@@ -596,12 +954,15 @@ Panoptix/
           errors.py
           gateways.py
           health.py
+          livekit_webhooks.py
           router.py
         core/
           config.py
         gateway/
+          command_queue.py
           command_signing.py
           models.py
+          publish_state.py
         models/
           base.py
           enums.py
@@ -611,6 +972,7 @@ Panoptix/
           cloudflare_access.py
           dependencies.py
           identity.py
+          livekit_webhooks.py
           livekit_tokens.py
           policy.py
           session_cookie.py
@@ -623,8 +985,10 @@ Panoptix/
         test_cloudflare_access.py
         test_config.py
         test_gateway.py
+        test_gateway_command_queue.py
         test_gateway_command_signing.py
         test_health.py
+        test_livekit_webhooks.py
         test_livekit_tokens.py
         test_policy.py
         test_security.py
@@ -640,12 +1004,16 @@ Panoptix/
           commands.py
           config.py
           control.py
+          executor.py
+          media.py
+          publish_state.py
           runner.py
         tests/
           test_client.py
           test_commands.py
           test_config.py
           test_control.py
+          test_executor.py
           test_runner.py
       mediamtx/
         README.md
@@ -738,9 +1106,16 @@ Important local checks currently include:
 - gateway heartbeat
 - gateway camera status
 - LiveKit token local/fail-closed checks
+- LiveKit webhook receiver local signed webhook check
+- room-presence publish command enqueue checks
 - gateway command signing local check
 - admin audit listing
 - admin audit export
+- camera list endpoint
+- admin camera CRUD endpoints
+- camera events SSE endpoint
+- gateway camera status persistence
+- admin gateway registry and assignments
 - backend gateway control WebSocket hello check
 - backend gateway control WebSocket dispatch/ACK test
 - gateway heartbeat command fallback test
@@ -751,7 +1126,7 @@ Important local checks currently include:
 ## Suggested Prompt For The New IDE/LLM
 
 ```text
-Read HANDOFF.md and follow its instructions. Then read PROGRESS.md, IMPLEMENTATION_GUIDE.md, MANUAL_TESTING.md, README.md, CLAUDE.md, and the source files related to the next milestone. Confirm the current state and development rules before making changes. The next recommended milestone is Backend Command Queue Table.
+Read HANDOFF.md and follow its instructions. Then read PROGRESS.md, IMPLEMENTATION_GUIDE.md, MANUAL_TESTING.md, README.md, CLAUDE.md, and the source files related to the next milestone. Confirm the current state and development rules before making changes. The next recommended milestone is TBD; review docs/planning/secure-cctv-monitoring-system-v4.md and docs/implementation/api-reference.md before choosing it.
 ```
 
 ## Final Notes

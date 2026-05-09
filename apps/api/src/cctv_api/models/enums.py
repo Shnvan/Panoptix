@@ -37,6 +37,13 @@ class StreamKind(str, enum.Enum):
     gateway_publish = "gateway_publish"
 
 
+class CameraPublishStatus(str, enum.Enum):
+    idle = "idle"
+    starting = "starting"
+    publishing = "publishing"
+    stop_pending = "stop_pending"
+
+
 class ActorType(str, enum.Enum):
     user = "user"
     gateway = "gateway"
@@ -68,6 +75,14 @@ class RequestType(str, enum.Enum):
     objection = "objection"
     restriction = "restriction"
     other = "other"
+
+
+class CommandStatus(str, enum.Enum):
+    pending = "pending"
+    accepted = "accepted"
+    rejected = "rejected"
+    expired = "expired"
+    cancelled = "cancelled"
 
 
 class BackupUploadStatus(str, enum.Enum):

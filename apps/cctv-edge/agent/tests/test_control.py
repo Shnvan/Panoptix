@@ -10,7 +10,7 @@ from panoptix_edge_agent.config import AgentConfig
 from panoptix_edge_agent.control import ControlClientError, GatewayControlClient
 
 SIGNING_KEY = "test-command-signing-key-with-enough-entropy"
-VALID_SIGNATURE = "l-71KAAPUCsG-WaaroJwgexPNKsOB-9l37K232jAgOA"
+VALID_SIGNATURE = "XtEyJPLXf5z6QvlLFhVRqIhVpwbH0R7H_F_1W4dFzxw"
 
 
 class FakeWebSocket:
@@ -96,7 +96,13 @@ def _command(signature: str = VALID_SIGNATURE) -> str:
             "gateway_id": "gateway-1",
             "issued_at": "2026-05-07T12:00:00Z",
             "expires_at": "2999-05-07T12:00:30Z",
-            "payload": {"camera_id": "camera-1", "room": "camera_ab12cd34"},
+            "payload": {
+                "camera_id": "camera-1",
+                "room": "camera_ab12cd34",
+                "livekit_url": "wss://livekit.example.test",
+                "gateway_publish_token": "test-publish-token",
+                "token_expires_at": "2026-05-07T12:01:00Z",
+            },
             "signature": signature,
         }
     )
@@ -147,7 +153,7 @@ def test_run_once_connects_with_dev_gateway_header() -> None:
 def test_handle_message_accepts_matching_hello() -> None:
     client = GatewayControlClient(_config())
 
-    result = client.handle_message(_hello())
+    result = asyncio.run(client.handle_message(_hello()))
 
     assert result.kind == "hello"
     assert result.accepted is True
@@ -157,7 +163,7 @@ def test_handle_message_accepts_matching_hello() -> None:
 def test_handle_message_rejects_wrong_gateway_hello() -> None:
     client = GatewayControlClient(_config())
 
-    result = client.handle_message(_hello("gateway-2"))
+    result = asyncio.run(client.handle_message(_hello("gateway-2")))
 
     assert result.kind == "hello"
     assert result.accepted is False
@@ -167,7 +173,7 @@ def test_handle_message_rejects_wrong_gateway_hello() -> None:
 def test_handle_message_accepts_valid_command() -> None:
     client = GatewayControlClient(_config())
 
-    result = client.handle_message(_command())
+    result = asyncio.run(client.handle_message(_command()))
 
     assert result.kind == "command"
     assert result.accepted is True
@@ -178,7 +184,7 @@ def test_handle_message_accepts_valid_command() -> None:
 def test_handle_message_rejects_unsigned_command() -> None:
     client = GatewayControlClient(_config(command_signing_key=""))
 
-    result = client.handle_message(_command())
+    result = asyncio.run(client.handle_message(_command()))
 
     assert result.kind == "command"
     assert result.accepted is False
@@ -188,7 +194,7 @@ def test_handle_message_rejects_unsigned_command() -> None:
 def test_handle_message_rejects_tampered_command() -> None:
     client = GatewayControlClient(_config())
 
-    result = client.handle_message(_command("invalid-signature"))
+    result = asyncio.run(client.handle_message(_command("invalid-signature")))
 
     assert result.kind == "command"
     assert result.accepted is False
@@ -199,7 +205,7 @@ def test_handle_message_rejects_invalid_json() -> None:
     client = GatewayControlClient(_config())
 
     with pytest.raises(ControlClientError, match="not valid JSON"):
-        client.handle_message("not-json")
+        asyncio.run(client.handle_message("not-json"))
 
 
 def test_run_once_sends_accepted_ack_for_valid_command() -> None:

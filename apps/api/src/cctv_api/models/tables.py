@@ -25,7 +25,9 @@ from cctv_api.models.enums import (
     ActorType,
     BackupUploadStatus,
     CameraEventKind,
+    CameraPublishStatus,
     CameraSourceType,
+    CommandStatus,
     DpaKind,
     EventSource,
     GatewayStatus,
@@ -123,6 +125,56 @@ class EdgeGateway(Base):
         DateTime(timezone=True), server_default=text("now()"), nullable=False
     )
     disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class GatewayCommandQueue(Base):
+    __tablename__ = "gateway_command_queue"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    gateway_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("edge_gateways.id", ondelete="CASCADE"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(128), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'{}'"))
+    status: Mapped[CommandStatus] = mapped_column(
+        Enum(CommandStatus, name="command_status"), nullable=False, server_default=text("'pending'")
+    )
+    issued_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()"), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    acked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(String(512))
+
+    __table_args__ = (
+        Index("ix_gateway_command_queue_gateway_status", "gateway_id", "status"),
+    )
+
+
+class CameraPublishState(Base):
+    __tablename__ = "camera_publish_states"
+
+    camera_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("cameras.id", ondelete="CASCADE"), primary_key=True
+    )
+    gateway_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("edge_gateways.id"))
+    room: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[CameraPublishStatus] = mapped_column(
+        Enum(CameraPublishStatus, name="camera_publish_status"),
+        nullable=False,
+        server_default=text("'idle'"),
+    )
+    last_viewer_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    stop_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    stop_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()"), nullable=False
+    )
+
+    __table_args__ = (
+        Index("ix_camera_publish_states_status_due", "status", "stop_due_at"),
+    )
 
 
 class Camera(Base):

@@ -1297,21 +1297,686 @@ Operators now have a paginated in-browser audit browsing surface for quick inspe
 
 ---
 
-## 38. Current Verification Status
+## 38. Backend Command Queue Persistence
+
+### What was added
+
+- `CommandStatus` enum in `models/enums.py` — pending, accepted, rejected, expired
+- `GatewayCommandQueue` model in `models/tables.py` — persistent command row with gateway FK, kind, JSONB payload, status, timestamps, and error
+- `gateway/command_queue.py` — three public functions:
+  - `enqueue_command(db, *, gateway_id, kind, payload, expires_at)` — creates pending command row
+  - `db_command_provider(db)` — returns closure matching `app.state.gateway_control_command_provider` hook; queries pending/unexpired commands in FIFO order
+  - `db_ack_sink(db)` — returns closure matching `app.state.gateway_control_ack_sink` hook; marks command accepted/rejected with timestamp and error
+
+### Key design decisions
+
+- Row `id` (UUID) doubles as `command_id` in the command envelope — no separate lookup column needed
+- Signature is not persisted — signing happens at dispatch time using the existing `command_signing` module
+- Provider and sink match the existing hook protocol so wiring into `app.state` is a future one-line change
+- `db_ack_sink` is idempotent: unknown command IDs and `None` command IDs are silently ignored
+
+### What was not included
+
+- Alembic migration (DB coworker ownership)
+- Wiring into app factory (`app.state` hooks remain in-memory for now)
+- Background expired-command cleanup job
+- Real camera/media actions
+- Command enqueue API endpoint
+
+### Tests added
+
+9 new tests in `tests/test_gateway_command_queue.py`:
+1. enqueue creates pending row
+2. provider returns pending unexpired commands
+3. provider filters by gateway ID
+4. provider excludes accepted commands
+5. ack sink marks accepted
+6. ack sink marks rejected with error
+7. ack sink ignores unknown command ID
+8. ack sink ignores None command ID
+9. provider returns FIFO order
+
+---
+
+## 39. Command Queue App Factory Wiring
+
+### What was added
+
+- Session-per-call wrappers in `gateway/command_queue.py`:
+  - `create_command_provider()` — returns closure that opens/closes its own DB session per call
+  - `create_ack_sink()` — returns closure that opens/closes its own DB session per call, commits on success
+- App factory wiring in `main.py`:
+  - When `DATABASE_URL` is configured (no `replace-me`), hooks are wired automatically
+  - Tests with placeholder URL skip wiring; test overrides take precedence
+
+### Key design decisions
+
+- Session-per-call pattern avoids binding the hook lifecycle to a specific request/WebSocket session
+- The provider is read-only (no commit); the sink commits after updating command status
+- Guard condition uses `"replace-me" not in DATABASE_URL` to distinguish placeholder from real config
+- Existing test patterns unaffected — they override `app.state.*` after app creation
+
+### What was not included
+
+- Background expired-command cleanup job
+- Command enqueue API endpoint
+- Real camera/media actions
+- Production retry/supervision policy
+
+### Tests added
+
+2 new integration tests in `tests/test_gateway_command_queue.py`:
+1. `create_command_provider` returns commands via its own session
+2. `create_ack_sink` commits ACK via its own session
+
+---
+
+## 40. Command Enqueue API Endpoint
+
+### What was added
+
+- `POST /api/v1/admin/gateways/{gateway_id}/commands` in `api/router.py`
+- `EnqueueCommandRequest` Pydantic model: `kind`, `payload`, `expires_in_seconds` (default 300, 10–3600)
+- `EnqueueCommandResponse` Pydantic model: `command_id`, `gateway_id`, `kind`, `status`, `expires_at`
+- Admin-only auth via `require_role(principal, "admin")`
+- Gateway existence check returning 404 `gateway-not-found`
+- UUID path validation returning 400 `gateway-id-invalid`
+
+### Key design decisions
+
+- Uses `enqueue_command()` from `gateway/command_queue.py` (no duplication)
+- Commits in the endpoint (write endpoint, not just flush)
+- Returns 201 Created with the command details
+- Expiry computed server-side from `expires_in_seconds` to avoid clock-skew issues with client-supplied timestamps
+
+### What was not included
+
+- Command listing endpoint for admins
+- Command cancellation endpoint
+- Background expired-command cleanup job
+- Audit logging of command enqueue
+- Real camera/media actions
+
+### Tests added
+
+7 new tests in `tests/test_gateway_command_queue.py`:
+1. requires authentication (401)
+2. requires admin role (403)
+3. rejects invalid gateway UUID (400)
+4. rejects missing gateway (404)
+5. creates pending command (201)
+6. uses default expiry (300s)
+7. uses custom expiry
+
+---
+
+## 41. Background Expired-Command Cleanup
+
+### What was added
+
+- `expire_stale_commands(db) -> int` in `gateway/command_queue.py`
+- Single bulk `UPDATE` — marks pending commands past `expires_at` as `expired`
+- Returns count of updated rows
+- Idempotent: only touches `pending` → `expired` transition
+
+### Key design decisions
+
+- No scheduler/cron — function can be called manually, from an admin endpoint, or via a future scheduled task
+- Consistent with `enqueue_command` pattern: caller handles commit
+- Bulk update avoids row-by-row processing for efficiency
+
+### What was not included
+
+- Scheduler/cron integration
+- Admin endpoint to trigger cleanup
+- Notification/alerting
+- Real camera/media actions
+
+### Tests added
+
+4 new tests in `tests/test_gateway_command_queue.py`:
+1. marks expired pending rows
+2. skips unexpired commands
+3. skips already accepted
+4. returns correct count
+
+---
+
+## 42. Command Listing Admin Endpoint
+
+### What was added
+
+- `GET /api/v1/admin/gateways/{gateway_id}/commands` in `api/router.py`
+- Admin-only auth via `require_role(principal, "admin")`
+- Gateway existence check returning 404 `gateway-not-found`
+- UUID path validation returning 400 `gateway-id-invalid`
+- Cursor pagination using `issued_at` (newest first, descending)
+- Optional `status` filter (pending, accepted, rejected, expired) with 400 `status-invalid` for invalid values
+- Cursor-based pagination using command UUID with 400 `cursor-invalid` for invalid cursor
+
+### Key design decisions
+
+- Mirrors the audit listing endpoint pattern: `limit + 1` fetch, `next_cursor` in response
+- Orders by `issued_at DESC` (newest first) to show most recent commands at the top
+- Cursor resolves to a row's `issued_at`, then filters for items older than that timestamp
+- Invalid cursor UUIDs that don't match any row are silently ignored (returns full result set)
+- Response includes all command fields except internal DB metadata
+
+### What was not included
+
+- Command cancellation endpoint
+- Scheduler/cron for cleanup
+- Audit logging of the listing call
+- Real camera/media actions
+
+### Tests added
+
+7 new tests in `tests/test_gateway_command_queue.py`:
+1. requires authentication (401)
+2. requires admin role (403)
+3. rejects invalid gateway UUID (400)
+4. rejects missing gateway (404)
+5. returns empty list for gateway with no commands (200)
+6. returns commands newest first (issued_at DESC ordering)
+7. filters by status (only matching status returned)
+
+---
+
+## 43. Command Cancellation Admin Endpoint
+
+### What was added
+
+- `cancelled` value added to `CommandStatus` enum in `models/enums.py`
+- `POST /api/v1/admin/gateways/{gateway_id}/commands/{command_id}/cancel` in `api/router.py`
+- `CancelCommandResponse` Pydantic model: `command_id`, `gateway_id`, `kind`, `status`, `cancelled_at`
+- Admin-only auth via `require_role(principal, "admin")`
+- Gateway existence check returning 404 `gateway-not-found`
+- Command existence check (scoped to gateway) returning 404 `command-not-found`
+- Non-pending guard returning 409 `command-not-pending`
+- Listing endpoint status validation updated to accept "cancelled"
+
+### Key design decisions
+
+- Added a distinct `cancelled` status instead of reusing `rejected` — operators can now filter cancelled vs gateway-rejected commands
+- Cancel sets `acked_at` to the cancellation timestamp for consistency with the ACK flow
+- Command scoped to gateway in the query (both `id` and `gateway_id` must match) — prevents cross-gateway command cancellation
+- `expire_stale_commands` and `db_command_provider` unaffected — both only touch `pending` rows
+
+### What was not included
+
+- Scheduler/cron for cleanup
+- Audit logging of the cancel action
+- Real camera/media actions
+
+### Tests added
+
+8 new tests in `tests/test_gateway_command_queue.py`:
+1. requires authentication (401)
+2. requires admin role (403)
+3. rejects invalid gateway UUID (400)
+4. rejects invalid command UUID (400)
+5. rejects missing gateway (404)
+6. rejects missing command (404)
+7. rejects non-pending command (409)
+8. succeeds on pending command (200, status=cancelled, cancelled_at set)
+
+---
+
+## 44. Expired-Command Cleanup Admin Endpoint
+
+### What was added
+
+- `POST /api/v1/admin/commands/cleanup` in `api/router.py`
+- `ExpireCommandsResponse` Pydantic model: `expired_count: int`
+- Admin-only auth via `require_role(principal, "admin")`
+- Calls existing `expire_stale_commands(db)` then commits
+- `expire_stale_commands` added to import from `gateway/command_queue.py`
+
+### Key design decisions
+
+- No gateway path param — expires stale commands across ALL gateways in one call
+- Reuses existing `expire_stale_commands` function (no logic duplication)
+- Idempotent — safe to call repeatedly; returns 0 when nothing to expire
+- Endpoint commits after flush (function only flushes internally)
+
+### What was not included
+
+- Periodic background scheduler/cron
+- Notification/alerting on cleanup
+- Audit logging of the cleanup action
+- Real camera/media actions
+
+### Tests added
+
+4 new tests in `tests/test_gateway_command_queue.py`:
+1. requires authentication (401)
+2. requires admin role (403)
+3. returns zero when nothing to expire (200, expired_count=0)
+4. expires stale commands (200, expired_count=2 for 2 stale + 1 fresh)
+
+---
+
+## 45. Gateway Command Audit Logging
+
+### What was added
+
+- `request: Request` and `settings: Settings = Depends(get_settings)` parameters added to all three command mutation endpoints
+- `get_or_create_user` call added to resolve admin principal to a UUID actor_id
+- `_record_user_audit_required` call added to each success path (fail-closed)
+- `db.commit()` moved after audit call so command mutation and audit row commit atomically
+- Test helper `_endpoint_client` updated with valid HMAC key for all endpoint tests
+
+### Audit actions
+
+| Endpoint | Action | Resource | Payload |
+|----------|--------|----------|---------|
+| enqueue | `command.enqueue` | `gateway:<uuid>` | command_id, gateway_id, kind |
+| cancel | `command.cancel` | `command:<uuid>` | command_id, gateway_id, kind |
+| cleanup | `commands.cleanup` | `commands` | expired_count |
+
+### Key design decisions
+
+- Used `_record_user_audit_required` (not `_safely`) — command mutations are security-relevant actions where audit failure should block the operation
+- Actor resolved via existing `get_or_create_user` — same pattern as session revoke
+- Commit ordering: mutation flush → audit flush → single commit (atomic)
+- Existing test client updated with HMAC key since all success paths now require audit
+
+### What was not included
+
+- Audit on denial paths (gateway not found, command not found, non-pending)
+- Periodic background scheduler/cron
+- Real camera/media actions
+
+### Tests added
+
+3 new tests in `tests/test_gateway_command_queue.py`:
+1. enqueue writes `command.enqueue` audit row with kind and gateway_id in payload
+2. cancel writes `command.cancel` audit row with command_id and kind in payload
+3. cleanup writes `commands.cleanup` audit row with expired_count in payload
+
+---
+
+## 46. Deep Health Check Implementation
+
+### What was implemented
+
+The `/api/v1/admin/health/deep` placeholder was wired into a real database connectivity check. The endpoint now injects the `db_session` dependency and executes `SELECT 1` to probe database reachability.
+
+### How it works
+
+The endpoint:
+1. Receives a database session via FastAPI dependency injection
+2. Executes `SELECT 1` inside a try/except
+3. Returns `"connected"` on success, `"error"` on any exception
+4. Sets overall status to `"ok"` when DB is connected, `"degraded"` otherwise
+5. `livekit` and `gateway` remain `"not_connected"` (deferred to future milestones)
+
+### Key design decisions
+
+- No authentication required — monitoring systems and load balancers need unauthenticated access to deep health endpoints
+- Exception handling is intentionally broad (`except Exception`) to catch any DB connectivity issue
+- Overall status degrades to `"degraded"` rather than failing entirely — the endpoint itself should always return 200
+
+### What was not included
+
+- LiveKit connectivity check (requires LiveKit SDK integration)
+- Gateway connectivity check (requires heartbeat state)
+- Auth on the deep health endpoint
+
+### Tests added
+
+2 new tests in `tests/test_health.py`:
+1. `test_deep_health_db_connected` — working DB returns `{"status": "ok", "db": "connected", ...}`
+2. `test_deep_health_db_error` — broken DB returns `{"status": "degraded", "db": "error", ...}`
+
+---
+
+## 47. Real Camera List Endpoint
+
+### What was implemented
+
+The `GET /api/v1/cameras` placeholder was replaced with a real database query that returns cameras the authenticated user has active ACL access to. The endpoint joins the Camera and CameraAcl tables, filters by the authenticated user's ID, excludes retired cameras and revoked ACLs, and supports cursor pagination.
+
+### How it works
+
+The endpoint:
+1. Resolves the authenticated user via `get_or_create_user`
+2. Queries cameras joined with CameraAcl where `user_id` matches and `revoked_at IS NULL`
+3. Excludes cameras with `retired_at IS NOT NULL`
+4. Orders by `created_at` descending (newest first)
+5. Supports cursor pagination using `limit+1` fetch pattern
+
+### Key design decisions
+
+- Uses existing `str()` wrapping for UUID comparisons (required for SQLite test compatibility)
+- Reuses `_parse_uuid` helper for cursor validation
+- Does not expose `gateway_id`, `room_uuid`, or other internal fields in the response
+- No admin override — even admins only see cameras they have explicit ACL grants for
+
+### What was not included
+
+- Admin camera CRUD endpoints (create, update, retire)
+- Camera ACL management endpoints (grant, revoke)
+- Filtering by source_type, site, or gateway
+- LiveKit publish-state tracking and 10-second stop grace timers
+- SSE camera events stream
+
+### Tests added
+
+7 new tests in `tests/test_cameras.py`:
+1. Authentication required (401)
+2. Empty list when user has no ACL grants
+3. Returns cameras with active ACL
+4. Excludes retired cameras
+5. Excludes cameras with revoked ACL
+6. Cursor pagination works correctly
+7. User isolation — other users' cameras not visible
+
+---
+
+## 48. Admin Camera CRUD Endpoints
+
+### What was implemented
+
+Three admin-only endpoints for camera management: create camera, manage camera ACL (grant/revoke), and disable (retire) camera. All three require admin role, validate inputs, and write audit trail entries.
+
+### How it works
+
+1. **Create camera** (`POST /admin/cameras`): validates source_type against the CCTV-only enum, checks livekit_room_name uniqueness, creates the Camera row
+2. **Manage ACL** (`POST /admin/cameras/{id}/acl`): accepts `grant` or `revoke` action with a `user_email`. For grant, creates CameraAcl row (409 if already active). For revoke, sets `revoked_at` on the existing active grant (404 if none found)
+3. **Disable camera** (`POST /admin/cameras/{id}/disable`): sets `retired_at` on the camera (409 if already retired). Retired cameras are automatically excluded from the viewer camera list
+
+### Key design decisions
+
+- `get_or_create_user` used for both the target user (ACL recipient) and the actor (admin), matching existing patterns
+- `str()` wrapping on UUID comparisons for SQLite test compatibility
+- All three endpoints use `_record_user_audit_required` (fail-closed) with distinct action names: `camera.create`, `camera.acl.grant`, `camera.acl.revoke`, `camera.disable`
+- Pydantic request models with Field validation for length constraints
+
+### What was not included
+
+- Camera update/rename
+- Gateway assignment management
+- Viewer session termination on disable
+- Admin camera listing (all cameras regardless of ACL)
+
+### Tests added
+
+15 new tests in `tests/test_cameras.py`:
+- Create: auth (401), role (403), invalid source type (400), duplicate room name (409), success (201)
+- ACL: role (403), grant success (200), duplicate grant (409), revoke success (200), revoke not found (404), invalid action (400)
+- Disable: role (403), success (200), already retired (409), not found (404)
+
+---
+
+## 49. Camera Events SSE Endpoint
+
+### What was implemented
+
+The authenticated viewer camera events endpoint was added at `GET /api/v1/cameras/events`. It returns persisted camera events as a finite `text/event-stream` response, filtered to cameras the caller can access through active ACL grants.
+
+### How it works
+
+1. Resolves the authenticated user via `get_or_create_user`
+2. Queries `CameraEvent` joined through `Camera` and `CameraAcl`
+3. Excludes retired cameras and revoked ACLs
+4. Applies optional exclusive `since` filtering (`CameraEvent.at > since`)
+5. Emits one `event: camera_event` SSE frame per row
+
+### Key design decisions
+
+- Uses the same ACL filtering rule as `GET /api/v1/cameras`
+- Supports `limit` with default 100 and max 500
+- Parses ISO timestamps with `Z` accepted as UTC
+- Returns 400 `since-invalid` for malformed timestamps
+- Keeps this milestone finite and DB-backed only; no infinite polling loop, broker, or live gateway dependency
+
+### Tests added
+
+7 new tests in `tests/test_cameras.py`:
+- Authentication required (401)
+- Empty stream when user has no ACL grants
+- Accessible event SSE frame shape
+- Other users' camera events excluded
+- Revoked ACL and retired camera events excluded
+- `since` filters older events
+- Invalid `since` returns 400
+
+---
+
+## 50. Gateway Camera Status Persistence
+
+### What was implemented
+
+The gateway camera status endpoint now persists accepted status updates as `CameraEvent` rows. This connects gateway status reporting to the viewer/admin camera event stream without requiring CCTV hardware.
+
+### How it works
+
+1. Requires gateway identity and exact route/principal gateway match
+2. Validates gateway and camera IDs as UUIDs
+3. Requires enabled gateway, active camera, and active gateway-camera assignment
+4. Creates a `CameraEvent` with kind from the request status and source `heartbeat`
+5. Uses `observed_at` when supplied, otherwise server time
+
+### Key design decisions
+
+- Reuses the same authorization checks as gateway ingest-token issuance
+- Keeps response shape as `{"accepted": true}` for compatibility
+- Does not persist `detail` because `camera_events` has no detail column
+- Does not add LiveKit room-presence publish orchestration, event broker integration, or real camera controls
+
+### Tests added
+
+13 gateway status tests in `tests/test_gateway.py`:
+- Authentication and gateway identity mismatch
+- Invalid gateway/camera UUIDs
+- Missing/disabled gateway and missing/retired camera
+- Missing/revoked gateway-camera assignment
+- Event persistence and `observed_at`
+- SSE visibility for a viewer with camera ACL
+
+---
+
+## 51. Admin Gateway Registry And Assignment Endpoints
+
+### What was implemented
+
+Admin gateway management endpoints now create gateway registry rows, disable gateways, and manage gateway-camera assignments. This gives admins a tested API path for the assignment rows already required by gateway ingest-token issuance and camera status persistence.
+
+### How it works
+
+1. `POST /admin/gateways` creates an enabled `EdgeGateway`
+2. `POST /admin/gateways/{id}/disable` sets `status=disabled` and `disabled_at`
+3. `POST /admin/gateways/{id}/cameras` grants or revokes active `GatewayCameraAssignment` rows
+4. Assignment grants immediately enable gateway ingest-token and camera status authorization
+5. Successful mutations write audit entries
+
+### Key design decisions
+
+- Gateway registration creates only the registry row; credential bootstrap and mTLS issuance remain deferred
+- Assignment grants set explicit `granted_at` for SQLite composite-key stability
+- UUID comparisons follow the existing `str(uuid)` compatibility pattern
+- No LiveKit publish control, credential rotation, or migrations were added
+
+### Tests added
+
+20 tests in `tests/test_admin_gateways.py`:
+- Create gateway auth, role, success, and audit
+- Disable gateway auth, validation, success, enabled lookup prevention, and conflict
+- Assignment auth, validation, missing/retired resources, duplicate grant, revoke, and audit
+- Assignment grant enables gateway status and ingest-token authorization
+
+---
+
+## 52. LiveKit Webhook Receiver Foundation
+
+### What was implemented
+
+The backend now has a server-to-server LiveKit webhook receiver at `POST /api/v1/webhooks/livekit`. It verifies LiveKit's Authorization JWT against the active LiveKit API key/secret, checks the raw-body SHA-256 claim, enforces a 60-second event timestamp window, rejects duplicate webhook JWT signatures through `webhook_replay_cache`, and writes audit rows for accepted and replay-rejected webhooks.
+
+### How it works
+
+1. The route reads the raw body before parsing JSON.
+2. The verifier accepts bare JWTs or `Bearer <jwt>`, checks HS256 signature, issuer, and `sha256`.
+3. The handler validates `createdAt`, stores a replay-cache row, maps known room events by `room.name == cameras.livekit_room_name`, and creates a `CameraEvent` when relevant.
+4. Accepted webhooks write `livekit.webhook.received`; stale and duplicate replay rejections write `livekit.webhook.replay_rejected`.
+
+### Key design decisions
+
+- Uses LiveKit's current Authorization JWT webhook contract instead of the older local HMAC wording in planning docs.
+- Stores the JWT signature segment in `webhook_replay_cache.signature` to fit the existing 256-character schema.
+- Maps only status-relevant events in this milestone: `track_published` to `online`, `track_unpublished` and `room_finished` to `offline`, and `participant_connection_aborted` to `degraded`.
+- Unknown rooms and unsupported valid event types are accepted and audited but do not create camera events.
+- No gateway start/stop publish orchestration, grace timers, LiveKit REST calls, or mediamtx actions were added.
+
+### Tests added
+
+9 tests in `tests/test_livekit_webhooks.py`:
+- Authorization required
+- Invalid JWT/signature
+- Body hash mismatch
+- Stale `createdAt` rejection and audit
+- Duplicate replay rejection
+- Replay cache and accepted audit
+- Camera event persistence and SSE visibility
+- Unknown room accepted without event
+- Browser preflight not enabled
+
+---
+
+## 53. Room-Presence-Driven Gateway Publish Commands
+
+### What was implemented
+
+Accepted LiveKit room-presence webhooks now enqueue gateway publish control commands. `participant_joined` creates a start-publish command for a known active camera room with an enabled gateway assignment. `participant_left` with `participant_count == 0` and `room_finished` create stop-publish commands.
+
+### How it works
+
+1. The webhook receiver authenticates, replay-checks, and parses the LiveKit event as before.
+2. Presence events resolve the camera by `room.name == cameras.livekit_room_name`.
+3. The target gateway is the newest active, non-revoked `GatewayCameraAssignment` joined to an enabled `EdgeGateway`.
+4. Start commands mint a short-lived gateway publish token, record a `StreamGrant`, and enqueue `gateway.command.start_publish`.
+5. Stop commands enqueue `gateway.command.stop_publish`.
+6. Existing command providers expose the queued commands through the signed WebSocket and heartbeat fallback paths.
+
+### Key design decisions
+
+- Start command payloads include `camera_id`, `room`, `livekit_url`, `gateway_publish_token`, and `token_expires_at`.
+- Stop command payloads include only `camera_id` and `room`.
+- Unknown rooms are accepted without command enqueue. Known rooms without an enabled active gateway assignment audit `livekit.publish.command_skipped`.
+- `participant_left` without numeric `participant_count` does not enqueue a stop command.
+- No grace timers, publish-state table, direct WebSocket push, LiveKit REST calls, mediamtx action, or edge-agent execution were added.
+
+### Tests added
+
+10 additional tests in `tests/test_livekit_webhooks.py`:
+- start command enqueue and payload
+- stream grant creation
+- unknown-room no-op
+- missing assignment skip audit
+- disabled gateway and revoked assignment skip
+- zero-count participant-left stop command
+- nonzero-count participant-left no-op
+- room-finished stop command
+- signed heartbeat fallback delivery
+- fail-closed token minting branch
+
+---
+
+## 54. Edge Command Executor
+
+### What was implemented
+
+The edge agent now executes verified gateway commands through a small dispatch layer. It still uses a safe stub media controller, so no real mediamtx process or LiveKit publisher is started yet.
+
+### How it works
+
+1. `GatewayControlClient` receives a signed WebSocket command and verifies it as before.
+2. `HeartbeatRunner` receives signed fallback commands from heartbeat responses and verifies them as before.
+3. Verified commands are passed to `CommandExecutor`.
+4. `gateway.command.start_publish` validates `camera_id`, `room`, `livekit_url`, and `gateway_publish_token`, calls `MediaController.start_publish`, then records in-memory publish state.
+5. `gateway.command.stop_publish` validates `camera_id` and `room`, calls `MediaController.stop_publish`, then clears in-memory publish state.
+6. Invalid payloads, unknown command kinds, or media controller failures are rejected and surfaced as command errors/ACK rejections.
+
+### Key design decisions
+
+- `MediaController` is a protocol so real mediamtx/LiveKit control can be added behind the same interface later.
+- `StubMediaController` records calls and returns success; it does not control real media.
+- `PublishState` is process-local and in-memory only.
+- Duplicate start commands are idempotent and accepted without a second media-controller call.
+- Stop commands for cameras that are not publishing are idempotent and accepted.
+- WebSocket command handling became async so execution can be awaited inside the existing control loop.
+- Heartbeat command execution remains sync at the runner API boundary by using `asyncio.run()`.
+
+### Tests added
+
+14 tests in `apps/cctv-edge/agent/tests/test_executor.py`:
+- start publish calls the media controller and tracks state
+- duplicate start publish is idempotent
+- stop publish calls the media controller and clears state
+- stop publish for a non-publishing camera is idempotent
+- missing start/stop payload fields are rejected
+- unknown command kind is rejected
+- start/stop media controller failures are rejected without corrupting state
+
+Existing control and runner tests were updated for async execution and full command payloads.
+
+---
+
+## 55. Backend Publish State And Stop Grace Timers
+
+### What was implemented
+
+The backend now tracks camera publish lifecycle state and no longer immediately enqueues `stop_publish` when the last viewer leaves. Instead, it schedules a stop grace window and only emits a stop command when the due-stop processor runs after `stop_due_at`.
+
+### How it works
+
+1. `participant_joined` resolves the camera and assigned enabled gateway.
+2. If a stop is pending, the backend cancels it and audits `livekit.publish.stop_cancelled`.
+3. If the camera is already starting or publishing, no duplicate start command is enqueued.
+4. If the camera is idle, the backend marks state `starting`, mints a gateway-publish token, records a stream grant, and enqueues `gateway.command.start_publish`.
+5. `participant_left` with `participant_count == 0` marks state `stop_pending` and sets `stop_due_at = event_at + 10 seconds`.
+6. `enqueue_due_publish_stops()` finds due `stop_pending` states, enqueues `gateway.command.stop_publish`, and resets state to `idle`.
+7. `room_finished` still immediately enqueues `stop_publish` and resets state to `idle`.
+
+### Key design decisions
+
+- The grace timer is deterministic and testable; production scheduler/cron wiring remains a separate milestone.
+- The SQLAlchemy model is added for app/test behavior; Alembic migration remains DB-owner coordination unless explicitly requested.
+- Stop scheduling writes `livekit.publish.stop_scheduled`.
+- Stop cancellation writes `livekit.publish.stop_cancelled`.
+- Delayed due-stop enqueue uses the same `gateway.command.stop_publish` payload as immediate stop.
+- Real mediamtx/LiveKit publishing remains out of scope.
+
+### Tests added
+
+LiveKit webhook tests now cover:
+- publish state creation on first join
+- duplicate join idempotency
+- zero-viewer leave schedules stop instead of immediate stop
+- rejoin during grace cancels pending stop
+- due-stop processor enqueues stop after grace
+- due-stop processor skips before grace due
+- room-finished immediate stop resets state
+- existing unknown-room and missing-assignment behavior remains unchanged
+
+---
+
+## 56. Current Verification Status
 
 ### What passed
 
 The latest verification passed:
 
 ```text
-edge agent pytest: 43 passed
-edge agent mypy: no issues found
+backend pytest: 232 passed
+backend mypy: no issues found in 32 source files
+backend ruff: all checks passed
+backend compileall: passed
+edge agent pytest: 57 passed
+edge agent mypy: no issues found in 10 source files
 edge agent ruff: all checks passed
 edge agent compileall: passed
-pytest: 103 passed
-mypy: no issues found
-ruff: all checks passed
-compileall: passed
 ```
 
 ### How to run locally
@@ -1357,20 +2022,21 @@ This confirms the current backend and edge-agent code is working, typed correctl
 The following are intentionally not done yet:
 
 - frontend UI
-- persistent backend command queue
+- command denial path audit logging
+- periodic background scheduler/cron for automated cleanup
 - production gateway control reconnect policy/supervision
 - mediamtx runtime configuration
-- admin audit list/export endpoints
-- gateway command queue persistence and ACK persistence
-- LiveKit publishing orchestration
+- real mediamtx process management
+- real LiveKit SDK publishing
+- production scheduler/cron wiring for due publish stops
 
 ---
 
 ## Next Recommended Implementation Order
 
-### 1. Audit Export Skeleton
+### 1. TBD — Next milestone to be determined
 
-Add a narrow admin audit export scaffold using scrubbed audit rows, without export signing, key rotation UI, broad browsing filters, or database migrations.
+Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
 
 ---
 
@@ -1396,6 +2062,10 @@ The system now has:
 - protected browser API placeholders
 - gateway API placeholders
 - minimal outbound gateway heartbeat agent
+- signed gateway command execution through a stub media controller
+- in-memory edge publish-state tracking
+- LiveKit webhook-driven gateway publish command enqueueing
+- backend publish-state tracking with 10-second stop grace
 - passing backend and edge-agent tests, type checks, and lint checks
 
 The most important security idea so far is:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import uuid
 from collections.abc import Callable, Iterable
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request, WebSocket
@@ -24,7 +25,8 @@ from cctv_api.gateway.models import (
     GatewayIngestTokenRequest,
     GatewayIngestTokenResponse,
 )
-from cctv_api.models.enums import ActorType, StreamKind
+from cctv_api.models.enums import ActorType, CameraEventKind, EventSource, StreamKind
+from cctv_api.models.tables import CameraEvent
 from cctv_api.security.audit import AuditLogError, record_audit_event
 from cctv_api.security.dependencies import require_gateway_identity, verify_gateway_identity_ws
 from cctv_api.security.identity import Principal
@@ -211,17 +213,50 @@ def gateway_ingest_token(
 def gateway_camera_status(
     gateway_id: str,
     camera_id: str,
-    _payload: GatewayCameraStatusRequest,
+    payload: GatewayCameraStatusRequest,
     principal: Principal = Depends(require_gateway_identity),
+    db: DbSession = Depends(db_session),
 ) -> GatewayAcceptedResponse:
     _require_matching_gateway(gateway_id, principal)
-    if not camera_id:
+
+    gateway_uuid = _parse_uuid(gateway_id, "gateway-id-invalid")
+    camera_uuid = _parse_uuid(camera_id, "camera-id-invalid")
+
+    if get_enabled_gateway(db, gateway_uuid) is None:
         raise ProblemDetail(
-            status=400,
-            title="Bad Request",
-            detail="camera-id-required",
-            type_uri="https://panoptix.local/problems/bad-request",
+            status=403,
+            title="Forbidden",
+            detail="gateway-disabled-or-not-found",
+            type_uri="https://panoptix.local/problems/forbidden",
         )
+
+    camera = get_active_camera(db, camera_uuid)
+    if camera is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="camera-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+
+    if not gateway_has_active_camera_assignment(db, gateway_uuid, camera_uuid):
+        raise ProblemDetail(
+            status=403,
+            title="Forbidden",
+            detail="gateway-camera-assignment-denied",
+            type_uri="https://panoptix.local/problems/forbidden",
+        )
+
+    event = CameraEvent(
+        id=uuid.uuid4(),
+        camera_id=camera_uuid,
+        gateway_id=gateway_uuid,
+        kind=CameraEventKind(payload.status),
+        at=payload.observed_at or datetime.now(timezone.utc),
+        source=EventSource.heartbeat,
+    )
+    db.add(event)
+    db.commit()
     return GatewayAcceptedResponse()
 
 
