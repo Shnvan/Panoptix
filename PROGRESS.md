@@ -110,14 +110,16 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Gateway-only WebSocket identity checks added
 - [x] Valid gateways receive a connected hello message
 - [x] Missing or browser/user identities are rejected with WebSocket close code `1008`
-- [x] Command signing, queues, and dispatch remain deferred
+- [x] Backend command signing helpers added
+- [x] Edge-agent command verifier added
+- [x] Command queues, dispatch, ACKs, and gateway WebSocket client remain deferred
 
 ---
 
 ## Next Steps (In Order)
 
-### 1. Gateway Command Signing Foundation
-Implement canonical command envelopes, signing, verification, expiry checks, and gateway-target validation before adding real command dispatch.
+### 1. Agent WebSocket Command Receive Skeleton
+Implement the edge-agent WebSocket client, receive signed command envelopes, verify them locally, and reject invalid commands before adding real dispatch.
 
 ---
 

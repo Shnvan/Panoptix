@@ -533,7 +533,41 @@ Current limitation:
 Audit hash fields are deterministic placeholders, not the final HMAC chain.
 ```
 
-## 11. Database Validation
+## 11. Gateway Command Signing Local Check
+
+This is local-only and does not require LiveKit, Cloudflare, Google Workspace, or PostgreSQL.
+
+Backend signing helper tests:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_gateway_command_signing.py -v
+```
+
+Edge-agent verifier tests:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_commands.py -v
+```
+
+Agent command verifier config:
+
+```powershell
+$env:PANOPTIX_GATEWAY_COMMAND_SIGNING_KEY = "local-dev-command-signing-key-change-me"
+```
+
+Notes:
+
+- The backend signs canonical JSON excluding the `signature` field.
+- The edge agent verifies HMAC-SHA-256 signatures before future command execution.
+- Tampered, expired, wrong-gateway, or unsigned commands fail closed.
+- The WebSocket does not send real commands yet.
+- Do not use real production signing keys in local shell history.
+
+## 12. Database Validation
 
 If `DATABASE_URL` points to a real local PostgreSQL database:
 
@@ -549,7 +583,7 @@ Rollback-only write-path self-test:
 python scripts/db_validate.py --selftest
 ```
 
-## 12. Verification Commands
+## 13. Verification Commands
 
 ### Backend
 
@@ -573,7 +607,7 @@ python -m ruff check src tests
 python -m compileall src tests
 ```
 
-## 13. Quick Smoke Test Order
+## 14. Quick Smoke Test Order
 
 Use this order for a fast manual check after starting the API:
 

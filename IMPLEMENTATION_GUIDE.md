@@ -916,7 +916,7 @@ Missing or invalid gateway identity is rejected with WebSocket close code `1008`
 
 ### Important limitation
 
-This is only the channel skeleton. It does not implement command signing, queues, command dispatch, gateway-side WebSocket reconnect handling, mediamtx control, or LiveKit publishing orchestration.
+This is only the channel skeleton. Command signing and local edge-agent verification now exist, but the WebSocket does not yet send commands. Queues, command dispatch, gateway-side WebSocket reconnect handling, mediamtx control, and LiveKit publishing orchestration remain deferred.
 
 ### Why it matters
 
@@ -924,18 +924,61 @@ The backend now has a real authenticated outbound control-channel endpoint for g
 
 ---
 
-## 28. Current Verification Status
+## 28. Gateway Command Signing + Agent Verifier
+
+### What was implemented
+
+The gateway command contract now has matching backend and edge-agent signing logic:
+
+- backend canonical command JSON generation
+- backend HMAC-SHA-256 signing and verification
+- base64url signatures
+- constant-time signature comparison
+- expiry validation
+- gateway-target validation
+- edge-agent command envelope parsing
+- edge-agent local signature, expiry, and gateway-target verification
+
+### How it works
+
+The signature covers the command envelope without the `signature` field. The signed bytes are UTF-8 canonical JSON with sorted keys, compact separators, and UTC datetimes normalized with a `Z` suffix.
+
+The shared envelope shape is:
+
+```json
+{
+  "command_id": "uuid",
+  "kind": "gateway.command.start_publish",
+  "gateway_id": "gateway-id",
+  "issued_at": "2026-05-07T12:00:00Z",
+  "expires_at": "2026-05-07T12:00:30Z",
+  "payload": {},
+  "signature": "base64url-hmac-sha256"
+}
+```
+
+### Important limitation
+
+This milestone does not send commands over WebSocket yet. It only proves that backend-generated command envelopes can be verified by the edge agent and rejected if tampered, expired, or targeted at the wrong gateway.
+
+### Why it matters
+
+Before any gateway can execute backend instructions, the agent now has a local fail-closed mechanism to reject forged, replayed, expired, or mis-targeted control commands.
+
+---
+
+## 29. Current Verification Status
 
 ### What passed
 
 The latest verification passed:
 
 ```text
-edge agent pytest: 10 passed
+edge agent pytest: 17 passed
 edge agent mypy: no issues found
 edge agent ruff: all checks passed
 edge agent compileall: passed
-pytest: 50 passed
+pytest: 57 passed
 mypy: no issues found
 ruff: all checks passed
 compileall: passed
@@ -988,16 +1031,16 @@ The following are intentionally not done yet:
 - mediamtx runtime configuration
 - audit HMAC chain implementation
 - admin audit list/export/verify endpoints
-- signed gateway command validation
+- gateway command queue/dispatch/ACK
 - LiveKit publishing orchestration
 
 ---
 
 ## Next Recommended Implementation Order
 
-### 1. Gateway Command Signing Foundation
+### 1. Agent WebSocket Command Receive Skeleton
 
-Implement canonical command envelopes, signing, verification, expiry checks, and gateway-target validation before adding real command dispatch.
+Implement the edge-agent WebSocket client, receive signed command envelopes, verify them locally, and reject invalid commands before adding real dispatch.
 
 ### 2. Audit HMAC Chain Foundation
 

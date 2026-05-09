@@ -106,18 +106,18 @@ This document is the working contract between the Next.js frontend, FastAPI back
   "command_id": "uuid",
   "kind": "gateway.command.start_publish",
   "gateway_id": "uuid",
-  "camera_id": "uuid",
-  "room": "camera_ab12cd34",
   "issued_at": "2026-05-07T12:00:00Z",
   "expires_at": "2026-05-07T12:00:30Z",
   "payload": {
+    "camera_id": "uuid",
+    "room": "camera_ab12cd34",
     "gateway_publish_token": "short-lived-publisher-jwt"
   },
   "signature": "base64url-signature"
 }
 ```
 
-Gateway validates signature, target gateway, active assignment, command expiry, idempotency, and token scope before acting.
+The signature covers the canonical JSON form of the envelope excluding `signature`: UTF-8 JSON, sorted keys, compact separators, and UTC datetimes normalized to `Z`. The current implementation uses HMAC-SHA-256 and base64url signatures. Gateway validates signature, target gateway, command expiry, active assignment, idempotency, and token scope before acting.
 
 ## Webhook and health endpoints
 

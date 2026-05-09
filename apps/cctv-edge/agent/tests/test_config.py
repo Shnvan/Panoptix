@@ -25,6 +25,7 @@ def test_load_config_from_env_parses_values() -> None:
             "PANOPTIX_AGENT_VERSION": "0.2.0",
             "PANOPTIX_CAMERA_IDS": "camera-1, camera-2,,",
             "PANOPTIX_DEV_GATEWAY_IDENTITY": "true",
+            "PANOPTIX_GATEWAY_COMMAND_SIGNING_KEY": "test-signing-key",
         }
     )
 
@@ -35,6 +36,7 @@ def test_load_config_from_env_parses_values() -> None:
     assert config.agent_version == "0.2.0"
     assert config.camera_ids == ("camera-1", "camera-2")
     assert config.dev_identity_enabled is True
+    assert config.command_signing_key == "test-signing-key"
 
 
 def test_load_config_from_env_rejects_short_heartbeat_interval() -> None:

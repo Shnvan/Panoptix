@@ -17,6 +17,7 @@ Set these environment variables before running:
 | `PANOPTIX_AGENT_VERSION` | no | package version | Version string reported to the backend |
 | `PANOPTIX_CAMERA_IDS` | no | empty | Comma-separated camera IDs reported as online in heartbeat payloads |
 | `PANOPTIX_DEV_GATEWAY_IDENTITY` | no | `false` | Sends the backend dev gateway identity header for local development |
+| `PANOPTIX_GATEWAY_COMMAND_SIGNING_KEY` | no | empty | HMAC key used to verify future gateway control command envelopes |
 
 ## Run once
 
@@ -46,7 +47,7 @@ python -m compileall src tests
 
 ## Not included yet
 
-- gateway control WebSocket
-- signed command validation
+- gateway control WebSocket client
+- gateway command receive/ACK loop
 - mediamtx process management
 - LiveKit publishing orchestration

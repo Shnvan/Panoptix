@@ -20,6 +20,7 @@ class AgentConfig:
     request_timeout_seconds: float = 5.0
     camera_ids: tuple[str, ...] = ()
     dev_identity_enabled: bool = False
+    command_signing_key: str = ""
 
     @property
     def normalized_api_base_url(self) -> str:
@@ -35,6 +36,7 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
     agent_version = env.get("PANOPTIX_AGENT_VERSION", __version__).strip() or __version__
     camera_ids = _csv_value(env.get("PANOPTIX_CAMERA_IDS", ""))
     dev_identity_enabled = _bool_value(env.get("PANOPTIX_DEV_GATEWAY_IDENTITY", "false"))
+    command_signing_key = env.get("PANOPTIX_GATEWAY_COMMAND_SIGNING_KEY", "").strip()
 
     if heartbeat_interval_seconds < 5:
         raise ConfigError("PANOPTIX_HEARTBEAT_INTERVAL_SECONDS must be at least 5")
@@ -49,6 +51,7 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
         request_timeout_seconds=request_timeout_seconds,
         camera_ids=camera_ids,
         dev_identity_enabled=dev_identity_enabled,
+        command_signing_key=command_signing_key,
     )
 
 
