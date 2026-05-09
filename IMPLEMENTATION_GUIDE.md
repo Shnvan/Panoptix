@@ -1094,14 +1094,42 @@ Panoptix now has both primary WebSocket command delivery and heartbeat fallback 
 
 ---
 
-## 32. Current Verification Status
+## 32. Edge Gateway Control Reconnect/Backoff Skeleton
+
+### What was implemented
+
+The edge agent now has a bounded reconnect wrapper for the outbound gateway control WebSocket.
+
+It includes:
+
+- `PANOPTIX_GATEWAY_CONTROL_RECONNECT_ATTEMPTS`, defaulting to `3`
+- `PANOPTIX_GATEWAY_CONTROL_RECONNECT_BACKOFF_SECONDS`, defaulting to `1.0`
+- `GatewayControlClient.run_with_reconnect()` for bounded retry behavior
+- `python -m panoptix_edge_agent.cli --control-loop-once`
+- tests for first-attempt success, transient retry, max-attempt failure, and non-retryable malformed messages
+
+### How it works
+
+The reconnect wrapper calls the existing `run_once()` WebSocket control path. Temporary connection/run failures are retried up to the configured attempt limit with the configured backoff. Malformed control messages remain fail-closed and are not retried, so protocol errors do not get hidden as transient network failures.
+
+### Important limitation
+
+This is a bounded local skeleton, not the final production supervisor. There is no persistent command queue, no command execution, no mediamtx control, no LiveKit publishing orchestration, and no inbound gateway listener.
+
+### Why it matters
+
+The edge control channel now has a first resilience layer while preserving the zero-inbound-WAN-port design and keeping heartbeat fallback available.
+
+---
+
+## 33. Current Verification Status
 
 ### What passed
 
 The latest verification passed:
 
 ```text
-edge agent pytest: 37 passed
+edge agent pytest: 43 passed
 edge agent mypy: no issues found
 edge agent ruff: all checks passed
 edge agent compileall: passed
@@ -1155,7 +1183,7 @@ The following are intentionally not done yet:
 
 - frontend UI
 - persistent backend command queue
-- edge gateway control reconnect/backoff loop
+- production gateway control reconnect policy/supervision
 - mediamtx runtime configuration
 - audit HMAC chain implementation
 - admin audit list/export/verify endpoints
@@ -1166,11 +1194,7 @@ The following are intentionally not done yet:
 
 ## Next Recommended Implementation Order
 
-### 1. Edge Gateway Control Reconnect/Backoff Skeleton
-
-Add bounded reconnect/backoff behavior for the outbound gateway control WebSocket before any persistent DB command queue, mediamtx control, or LiveKit publishing orchestration.
-
-### 2. Audit HMAC Chain Foundation
+### 1. Audit HMAC Chain Foundation
 
 Replace placeholder audit hashes with real HMAC-SHA-256 chaining, previous-hash continuity, key lifecycle handling, and verification helpers.
 

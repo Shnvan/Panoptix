@@ -27,6 +27,8 @@ def test_load_config_from_env_parses_values() -> None:
             "PANOPTIX_DEV_GATEWAY_IDENTITY": "true",
             "PANOPTIX_GATEWAY_COMMAND_SIGNING_KEY": "test-signing-key",
             "PANOPTIX_GATEWAY_CONTROL_WS_PATH": "/custom/ws",
+            "PANOPTIX_GATEWAY_CONTROL_RECONNECT_ATTEMPTS": "5",
+            "PANOPTIX_GATEWAY_CONTROL_RECONNECT_BACKOFF_SECONDS": "2.5",
         }
     )
 
@@ -39,6 +41,8 @@ def test_load_config_from_env_parses_values() -> None:
     assert config.dev_identity_enabled is True
     assert config.command_signing_key == "test-signing-key"
     assert config.control_ws_path == "/custom/ws"
+    assert config.control_reconnect_attempts == 5
+    assert config.control_reconnect_backoff_seconds == 2.5
 
 
 def test_load_config_from_env_rejects_short_heartbeat_interval() -> None:
@@ -59,5 +63,27 @@ def test_load_config_from_env_rejects_control_ws_path_without_leading_slash() ->
                 "PANOPTIX_API_BASE_URL": "http://api.example.test",
                 "PANOPTIX_GATEWAY_ID": "gateway-1",
                 "PANOPTIX_GATEWAY_CONTROL_WS_PATH": "api/v1/gateway-control/ws",
+            }
+        )
+
+
+def test_load_config_from_env_rejects_control_reconnect_attempts_below_one() -> None:
+    with pytest.raises(ConfigError, match="RECONNECT_ATTEMPTS must be at least 1"):
+        load_config_from_env(
+            {
+                "PANOPTIX_API_BASE_URL": "http://api.example.test",
+                "PANOPTIX_GATEWAY_ID": "gateway-1",
+                "PANOPTIX_GATEWAY_CONTROL_RECONNECT_ATTEMPTS": "0",
+            }
+        )
+
+
+def test_load_config_from_env_rejects_negative_control_reconnect_backoff() -> None:
+    with pytest.raises(ConfigError, match="RECONNECT_BACKOFF_SECONDS"):
+        load_config_from_env(
+            {
+                "PANOPTIX_API_BASE_URL": "http://api.example.test",
+                "PANOPTIX_GATEWAY_ID": "gateway-1",
+                "PANOPTIX_GATEWAY_CONTROL_RECONNECT_BACKOFF_SECONDS": "-0.1",
             }
         )

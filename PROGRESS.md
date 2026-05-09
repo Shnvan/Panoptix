@@ -117,14 +117,15 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Edge-agent WebSocket command ACK/reject scaffold added
 - [x] Gateway heartbeat command fallback scaffold added with signed in-memory commands
 - [x] Edge-agent heartbeat pending-command verifier added
-- [x] Command queues, persistence, command execution, and full reconnect loop remain deferred
+- [x] Edge gateway control reconnect/backoff skeleton added
+- [x] Command queues, persistence, command execution, and production reconnect policy remain deferred
 
 ---
 
 ## Next Steps (In Order)
 
-### 1. Edge Gateway Control Reconnect/Backoff Skeleton
-Add bounded reconnect/backoff behavior for the outbound gateway control WebSocket before any persistent DB command queue, mediamtx control, or LiveKit publishing orchestration.
+### 1. Audit HMAC Chain Foundation
+Replace placeholder audit hashes with real HMAC-SHA-256 chaining, previous-hash continuity, key lifecycle handling, and verification helpers.
 
 ---
 

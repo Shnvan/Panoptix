@@ -77,6 +77,7 @@ Current implemented code is in `apps/cctv-edge/agent/`:
 - heartbeat pending-command verifier
 - `--once` CLI for heartbeat
 - `--control-once` CLI for one-shot WebSocket control check
+- `--control-loop-once` CLI for bounded reconnect/backoff control check
 
 Placeholders:
 
@@ -116,6 +117,29 @@ Current state:
 - DB coworker ownership is documented, but backend tests use database helpers where needed
 
 ## Recently Completed Milestones
+
+### Edge Gateway Control Reconnect/Backoff Skeleton
+
+Completed in this milestone.
+
+Implemented:
+
+- `PANOPTIX_GATEWAY_CONTROL_RECONNECT_ATTEMPTS`
+- `PANOPTIX_GATEWAY_CONTROL_RECONNECT_BACKOFF_SECONDS`
+- bounded `GatewayControlClient.run_with_reconnect()`
+- `--control-loop-once` local CLI check
+- retry for temporary connection/run failures
+- no retry for malformed fail-closed control messages
+- no inbound gateway listener, command execution, mediamtx control, or LiveKit publishing
+
+Verification:
+
+```text
+edge agent pytest: 43 passed
+edge agent mypy: no issues found
+edge agent ruff: all checks passed
+edge agent compileall: passed
+```
 
 ### Gateway WebSocket Command Dispatch + ACK Skeleton
 
@@ -237,7 +261,7 @@ $env:PYTHONPATH = "src"; python -m compileall src tests
 Latest result:
 
 ```text
-pytest: 37 passed
+pytest: 43 passed
 ruff: all checks passed
 mypy: no issues found in 7 source files
 compileall: passed
@@ -248,32 +272,29 @@ compileall: passed
 Recommended next task:
 
 ```text
-Edge Gateway Control Reconnect/Backoff Skeleton
+Audit HMAC Chain Foundation
 ```
 
 Recommended scope:
 
-- edge agent adds bounded reconnect/backoff behavior for the outbound gateway control WebSocket
-- reconnect attempts are configurable through existing environment/config patterns
-- heartbeat fallback remains available when WebSocket control is unavailable
-- no persistent DB queue yet
-- no mediamtx action yet
-- no LiveKit publishing action yet
-- no real camera action yet
+- replace placeholder audit hashes with real HMAC-SHA-256 chaining
+- preserve previous-hash continuity
+- add key lifecycle handling and verification helpers
+- keep current audit payload scrubbing behavior
+- do not add admin audit export endpoints yet unless needed for helper tests
 
 Why this is the best next step:
 
-- WebSocket command dispatch and heartbeat fallback are now proven locally
-- the next gap is long-running control-channel resilience
+- local command delivery, heartbeat fallback, and bounded reconnect behavior are now proven
+- audit already writes rows but still uses deterministic placeholder hashes
 - it is still small enough to keep safe
-- it avoids premature database queue complexity
-- it keeps command execution disabled until protocol behavior is tested
+- it strengthens the backend security foundation before command persistence or real camera actions
 
 ## Not Implemented Yet
 
 - backend command queue table
 - persistent dispatch/retry model
-- full WebSocket reconnect/backoff loop beyond the next skeleton
+- production gateway control reconnect policy/supervision
 - command ACK persistence
 - mediamtx runtime configuration
 - real camera start/stop
@@ -608,11 +629,12 @@ Important local checks currently include:
 - gateway heartbeat command fallback test
 - edge-agent heartbeat `--once`
 - edge-agent gateway control `--control-once`
+- edge-agent gateway control `--control-loop-once`
 
 ## Suggested Prompt For The New IDE/LLM
 
 ```text
-Read HANDOFF.md and follow its instructions. Then read PROGRESS.md, IMPLEMENTATION_GUIDE.md, MANUAL_TESTING.md, README.md, CLAUDE.md, and the source files related to the next milestone. Confirm the current state and development rules before making changes. The next recommended milestone is Edge Gateway Control Reconnect/Backoff Skeleton.
+Read HANDOFF.md and follow its instructions. Then read PROGRESS.md, IMPLEMENTATION_GUIDE.md, MANUAL_TESTING.md, README.md, CLAUDE.md, and the source files related to the next milestone. Confirm the current state and development rules before making changes. The next recommended milestone is Audit HMAC Chain Foundation.
 ```
 
 ## Final Notes

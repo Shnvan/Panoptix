@@ -428,7 +428,7 @@ Expected response:
 }
 ```
 
-This endpoint does not send real camera/media commands yet. Persistent command queues, heartbeat fallback, and full reconnect behavior remain future work.
+This endpoint does not send real camera/media commands yet. Persistent command queues and full production reconnect behavior remain future work.
 By default, a manually started backend still sends only this hello message unless local test code attaches an in-memory command provider hook.
 
 Edge-agent one-shot gateway control check from `apps/cctv-edge/agent`:
@@ -449,6 +449,32 @@ Expected output:
 gateway control accepted
 ```
 
+Edge-agent bounded gateway control reconnect check from `apps/cctv-edge/agent`:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+$env:PANOPTIX_API_BASE_URL = "http://127.0.0.1:8000"
+$env:PANOPTIX_GATEWAY_ID = "11111111-1111-1111-1111-111111111111"
+$env:PANOPTIX_DEV_GATEWAY_IDENTITY = "true"
+$env:PANOPTIX_GATEWAY_COMMAND_SIGNING_KEY = "local-dev-command-signing-key-change-me"
+$env:PANOPTIX_GATEWAY_CONTROL_RECONNECT_ATTEMPTS = "3"
+$env:PANOPTIX_GATEWAY_CONTROL_RECONNECT_BACKOFF_SECONDS = "1.0"
+python -m panoptix_edge_agent.cli --control-loop-once
+```
+
+Expected output when the API is available:
+
+```text
+gateway control reconnect accepted after 1 attempt(s)
+```
+
+Expected failure when the API is unavailable after all attempts:
+
+```text
+gateway control reconnect failed: gateway control websocket failed: ...
+```
+
 Current behavior:
 
 - the agent connects outbound to `/api/v1/gateway-control/ws`
@@ -457,6 +483,8 @@ Current behavior:
 - command envelope parsing and signature verification exist in the agent
 - if the backend sends a test-scaffolded signed command, the agent sends a `command_ack` with `status: accepted`
 - if the backend sends an invalid, unsigned, tampered, expired, or wrong-gateway command, the agent sends a `command_ack` with `status: rejected` and an error code
+- `--control-loop-once` retries temporary connection/run failures using the configured bounded attempts and backoff
+- malformed control messages still fail closed and are not retried
 - no public command enqueue API exists yet
 - no real commands are executed yet
 

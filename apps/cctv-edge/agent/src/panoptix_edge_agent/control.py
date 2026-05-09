@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import dataclass, field
+from collections.abc import Awaitable, Callable
 from typing import Any, AsyncContextManager, Protocol
 from urllib.parse import urlsplit, urlunsplit
 
@@ -14,7 +16,9 @@ from panoptix_edge_agent.config import AgentConfig
 
 
 class ControlClientError(RuntimeError):
-    pass
+    def __init__(self, message: str, *, retryable: bool = True) -> None:
+        self.retryable = retryable
+        super().__init__(message)
 
 
 class WebSocketConnection(Protocol):
@@ -45,7 +49,10 @@ class WebSocketsConnector:
         try:
             import websockets
         except ImportError as exc:
-            raise ControlClientError("websockets package is required for gateway control") from exc
+            raise ControlClientError(
+                "websockets package is required for gateway control",
+                retryable=False,
+            ) from exc
         return websockets.connect(
             url,
             additional_headers=headers,
@@ -84,14 +91,24 @@ class ControlRunResult:
     errors: tuple[str, ...] = field(default_factory=tuple)
 
 
+@dataclass(frozen=True)
+class ControlReconnectResult:
+    connected: bool
+    attempts: int
+    result: ControlRunResult | None = None
+    error: str | None = None
+
+
 class GatewayControlClient:
     def __init__(
         self,
         config: AgentConfig,
         connector: WebSocketConnector | None = None,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         self.config = config
         self.connector = WebSocketsConnector() if connector is None else connector
+        self.sleep = sleep
 
     @property
     def websocket_url(self) -> str:
@@ -101,12 +118,41 @@ class GatewayControlClient:
         elif parsed.scheme == "https":
             scheme = "wss"
         else:
-            raise ControlClientError("PANOPTIX_API_BASE_URL must use http or https")
+            raise ControlClientError(
+                "PANOPTIX_API_BASE_URL must use http or https",
+                retryable=False,
+            )
         return urlunsplit((scheme, parsed.netloc, self.config.control_ws_path, "", ""))
+
+    async def run_with_reconnect(self, *, max_messages: int = 1) -> ControlReconnectResult:
+        final_error: str | None = None
+        for attempt in range(1, self.config.control_reconnect_attempts + 1):
+            try:
+                result = await self.run_once(max_messages=max_messages)
+            except ControlClientError as exc:
+                final_error = str(exc)
+                if not exc.retryable or attempt >= self.config.control_reconnect_attempts:
+                    return ControlReconnectResult(
+                        connected=False,
+                        attempts=attempt,
+                        error=final_error,
+                    )
+                await self.sleep(self.config.control_reconnect_backoff_seconds)
+                continue
+            return ControlReconnectResult(
+                connected=True,
+                attempts=attempt,
+                result=result,
+            )
+        return ControlReconnectResult(
+            connected=False,
+            attempts=self.config.control_reconnect_attempts,
+            error=final_error,
+        )
 
     async def run_once(self, *, max_messages: int = 1) -> ControlRunResult:
         if max_messages < 1:
-            raise ControlClientError("max_messages must be at least 1")
+            raise ControlClientError("max_messages must be at least 1", retryable=False)
 
         errors: list[str] = []
         hello_received = False
@@ -191,7 +237,13 @@ def _decode_message(raw_message: str | bytes) -> dict[str, Any]:
     try:
         decoded = json.loads(raw_message)
     except json.JSONDecodeError as exc:
-        raise ControlClientError("gateway control message was not valid JSON") from exc
+        raise ControlClientError(
+            "gateway control message was not valid JSON",
+            retryable=False,
+        ) from exc
     if not isinstance(decoded, dict):
-        raise ControlClientError("gateway control message JSON must be an object")
+        raise ControlClientError(
+            "gateway control message JSON must be an object",
+            retryable=False,
+        )
     return decoded

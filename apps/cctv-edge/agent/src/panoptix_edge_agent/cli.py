@@ -21,6 +21,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="connect to gateway control WebSocket, read one message, and exit",
     )
+    parser.add_argument(
+        "--control-loop-once",
+        action="store_true",
+        help="run one bounded gateway control WebSocket reconnect loop and exit",
+    )
     return parser
 
 
@@ -42,6 +47,14 @@ def main(argv: list[str] | None = None) -> int:
             print("gateway control connected without accepted messages", file=sys.stderr)
             return 1
         print("gateway control accepted")
+        return 0
+
+    if args.control_loop_once:
+        reconnect_result = asyncio.run(GatewayControlClient(config).run_with_reconnect())
+        if not reconnect_result.connected:
+            print(f"gateway control reconnect failed: {reconnect_result.error}", file=sys.stderr)
+            return 1
+        print(f"gateway control reconnect accepted after {reconnect_result.attempts} attempt(s)")
         return 0
 
     runner = HeartbeatRunner(config)

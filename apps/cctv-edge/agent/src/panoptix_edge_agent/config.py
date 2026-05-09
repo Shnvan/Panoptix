@@ -22,6 +22,8 @@ class AgentConfig:
     dev_identity_enabled: bool = False
     command_signing_key: str = ""
     control_ws_path: str = "/api/v1/gateway-control/ws"
+    control_reconnect_attempts: int = 3
+    control_reconnect_backoff_seconds: float = 1.0
 
     @property
     def normalized_api_base_url(self) -> str:
@@ -39,6 +41,12 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
     dev_identity_enabled = _bool_value(env.get("PANOPTIX_DEV_GATEWAY_IDENTITY", "false"))
     command_signing_key = env.get("PANOPTIX_GATEWAY_COMMAND_SIGNING_KEY", "").strip()
     control_ws_path = env.get("PANOPTIX_GATEWAY_CONTROL_WS_PATH", "/api/v1/gateway-control/ws").strip()
+    control_reconnect_attempts = _int_value(env, "PANOPTIX_GATEWAY_CONTROL_RECONNECT_ATTEMPTS", 3)
+    control_reconnect_backoff_seconds = _float_value(
+        env,
+        "PANOPTIX_GATEWAY_CONTROL_RECONNECT_BACKOFF_SECONDS",
+        1.0,
+    )
 
     if heartbeat_interval_seconds < 5:
         raise ConfigError("PANOPTIX_HEARTBEAT_INTERVAL_SECONDS must be at least 5")
@@ -46,6 +54,12 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
         raise ConfigError("PANOPTIX_REQUEST_TIMEOUT_SECONDS must be greater than 0")
     if not control_ws_path.startswith("/"):
         raise ConfigError("PANOPTIX_GATEWAY_CONTROL_WS_PATH must start with /")
+    if control_reconnect_attempts < 1:
+        raise ConfigError("PANOPTIX_GATEWAY_CONTROL_RECONNECT_ATTEMPTS must be at least 1")
+    if control_reconnect_backoff_seconds < 0:
+        raise ConfigError(
+            "PANOPTIX_GATEWAY_CONTROL_RECONNECT_BACKOFF_SECONDS must be greater than or equal to 0"
+        )
 
     return AgentConfig(
         api_base_url=api_base_url,
@@ -57,6 +71,8 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
         dev_identity_enabled=dev_identity_enabled,
         command_signing_key=command_signing_key,
         control_ws_path=control_ws_path,
+        control_reconnect_attempts=control_reconnect_attempts,
+        control_reconnect_backoff_seconds=control_reconnect_backoff_seconds,
     )
 
 
