@@ -420,7 +420,33 @@ Expected response:
 }
 ```
 
-This endpoint does not send real commands yet. Command signing, queues, dispatch, and agent WebSocket reconnect behavior remain future work.
+This endpoint does not send real commands yet. Command queues, dispatch, ACKs, and full reconnect behavior remain future work.
+
+Edge-agent one-shot gateway control check from `apps/cctv-edge/agent`:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+$env:PANOPTIX_API_BASE_URL = "http://127.0.0.1:8000"
+$env:PANOPTIX_GATEWAY_ID = "11111111-1111-1111-1111-111111111111"
+$env:PANOPTIX_DEV_GATEWAY_IDENTITY = "true"
+$env:PANOPTIX_GATEWAY_COMMAND_SIGNING_KEY = "local-dev-command-signing-key-change-me"
+python -m panoptix_edge_agent.cli --control-once
+```
+
+Expected output:
+
+```text
+gateway control accepted
+```
+
+Current behavior:
+
+- the agent connects outbound to `/api/v1/gateway-control/ws`
+- the backend sends the connected hello message
+- the agent verifies that the hello message targets its configured gateway ID
+- command envelope parsing and signature verification exist in the agent
+- no real commands are sent or executed yet
 
 ## 8. Minimal Edge Heartbeat Agent
 

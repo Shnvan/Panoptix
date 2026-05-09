@@ -26,6 +26,7 @@ def test_load_config_from_env_parses_values() -> None:
             "PANOPTIX_CAMERA_IDS": "camera-1, camera-2,,",
             "PANOPTIX_DEV_GATEWAY_IDENTITY": "true",
             "PANOPTIX_GATEWAY_COMMAND_SIGNING_KEY": "test-signing-key",
+            "PANOPTIX_GATEWAY_CONTROL_WS_PATH": "/custom/ws",
         }
     )
 
@@ -37,6 +38,7 @@ def test_load_config_from_env_parses_values() -> None:
     assert config.camera_ids == ("camera-1", "camera-2")
     assert config.dev_identity_enabled is True
     assert config.command_signing_key == "test-signing-key"
+    assert config.control_ws_path == "/custom/ws"
 
 
 def test_load_config_from_env_rejects_short_heartbeat_interval() -> None:
@@ -46,5 +48,16 @@ def test_load_config_from_env_rejects_short_heartbeat_interval() -> None:
                 "PANOPTIX_API_BASE_URL": "http://api.example.test",
                 "PANOPTIX_GATEWAY_ID": "gateway-1",
                 "PANOPTIX_HEARTBEAT_INTERVAL_SECONDS": "4",
+            }
+        )
+
+
+def test_load_config_from_env_rejects_control_ws_path_without_leading_slash() -> None:
+    with pytest.raises(ConfigError, match="must start with /"):
+        load_config_from_env(
+            {
+                "PANOPTIX_API_BASE_URL": "http://api.example.test",
+                "PANOPTIX_GATEWAY_ID": "gateway-1",
+                "PANOPTIX_GATEWAY_CONTROL_WS_PATH": "api/v1/gateway-control/ws",
             }
         )

@@ -21,6 +21,7 @@ class AgentConfig:
     camera_ids: tuple[str, ...] = ()
     dev_identity_enabled: bool = False
     command_signing_key: str = ""
+    control_ws_path: str = "/api/v1/gateway-control/ws"
 
     @property
     def normalized_api_base_url(self) -> str:
@@ -37,11 +38,14 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
     camera_ids = _csv_value(env.get("PANOPTIX_CAMERA_IDS", ""))
     dev_identity_enabled = _bool_value(env.get("PANOPTIX_DEV_GATEWAY_IDENTITY", "false"))
     command_signing_key = env.get("PANOPTIX_GATEWAY_COMMAND_SIGNING_KEY", "").strip()
+    control_ws_path = env.get("PANOPTIX_GATEWAY_CONTROL_WS_PATH", "/api/v1/gateway-control/ws").strip()
 
     if heartbeat_interval_seconds < 5:
         raise ConfigError("PANOPTIX_HEARTBEAT_INTERVAL_SECONDS must be at least 5")
     if request_timeout_seconds <= 0:
         raise ConfigError("PANOPTIX_REQUEST_TIMEOUT_SECONDS must be greater than 0")
+    if not control_ws_path.startswith("/"):
+        raise ConfigError("PANOPTIX_GATEWAY_CONTROL_WS_PATH must start with /")
 
     return AgentConfig(
         api_base_url=api_base_url,
@@ -52,6 +56,7 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
         camera_ids=camera_ids,
         dev_identity_enabled=dev_identity_enabled,
         command_signing_key=command_signing_key,
+        control_ws_path=control_ws_path,
     )
 
 

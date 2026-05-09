@@ -967,14 +967,38 @@ Before any gateway can execute backend instructions, the agent now has a local f
 
 ---
 
-## 29. Current Verification Status
+## 29. Agent WebSocket Command Receive Skeleton
+
+### What was implemented
+
+The edge agent now has a gateway control client skeleton:
+
+- builds `ws://` or `wss://` URLs from `PANOPTIX_API_BASE_URL`
+- uses `PANOPTIX_GATEWAY_CONTROL_WS_PATH`, defaulting to `/api/v1/gateway-control/ws`
+- sends the local dev gateway identity header when enabled
+- supports `python -m panoptix_edge_agent.cli --control-once`
+- receives and validates the backend connected hello message
+- parses future command envelopes and verifies them with the command verifier
+- rejects invalid JSON, wrong-gateway hello messages, unsigned commands, and tampered commands
+
+### Important limitation
+
+The backend still only sends the connected hello message. The agent can verify command envelopes, but real backend dispatch, command ACKs, reconnect/backoff loop behavior, mediamtx control, and LiveKit publishing remain deferred.
+
+### Why it matters
+
+This proves the edge agent can initiate the outbound control channel and fail closed on invalid control messages before any command execution is added.
+
+---
+
+## 30. Current Verification Status
 
 ### What passed
 
 The latest verification passed:
 
 ```text
-edge agent pytest: 17 passed
+edge agent pytest: 28 passed
 edge agent mypy: no issues found
 edge agent ruff: all checks passed
 edge agent compileall: passed
@@ -1027,7 +1051,7 @@ This confirms the current backend and edge-agent code is working, typed correctl
 The following are intentionally not done yet:
 
 - frontend UI
-- signed WebSocket command stream
+- backend WebSocket command dispatch stream
 - mediamtx runtime configuration
 - audit HMAC chain implementation
 - admin audit list/export/verify endpoints
@@ -1038,9 +1062,9 @@ The following are intentionally not done yet:
 
 ## Next Recommended Implementation Order
 
-### 1. Agent WebSocket Command Receive Skeleton
+### 1. Backend WebSocket Command Dispatch Skeleton
 
-Implement the edge-agent WebSocket client, receive signed command envelopes, verify them locally, and reject invalid commands before adding real dispatch.
+Add backend-side command dispatch scaffolding over the existing gateway WebSocket, then add ACK handling before any real mediamtx or LiveKit command execution.
 
 ### 2. Audit HMAC Chain Foundation
 

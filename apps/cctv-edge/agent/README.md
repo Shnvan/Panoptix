@@ -18,6 +18,7 @@ Set these environment variables before running:
 | `PANOPTIX_CAMERA_IDS` | no | empty | Comma-separated camera IDs reported as online in heartbeat payloads |
 | `PANOPTIX_DEV_GATEWAY_IDENTITY` | no | `false` | Sends the backend dev gateway identity header for local development |
 | `PANOPTIX_GATEWAY_COMMAND_SIGNING_KEY` | no | empty | HMAC key used to verify future gateway control command envelopes |
+| `PANOPTIX_GATEWAY_CONTROL_WS_PATH` | no | `/api/v1/gateway-control/ws` | Gateway control WebSocket path |
 
 ## Run once
 
@@ -36,6 +37,17 @@ $env:PYTHONPATH = "src"
 python -m panoptix_edge_agent.cli
 ```
 
+## Connect to gateway control once
+
+```powershell
+$env:PYTHONPATH = "src"
+$env:PANOPTIX_API_BASE_URL = "http://localhost:8000"
+$env:PANOPTIX_GATEWAY_ID = "gateway-1"
+$env:PANOPTIX_DEV_GATEWAY_IDENTITY = "true"
+$env:PANOPTIX_GATEWAY_COMMAND_SIGNING_KEY = "local-dev-command-signing-key-change-me"
+python -m panoptix_edge_agent.cli --control-once
+```
+
 ## Test
 
 ```powershell
@@ -47,7 +59,6 @@ python -m compileall src tests
 
 ## Not included yet
 
-- gateway control WebSocket client
-- gateway command receive/ACK loop
+- gateway command dispatch/ACK loop
 - mediamtx process management
 - LiveKit publishing orchestration

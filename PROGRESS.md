@@ -112,14 +112,15 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Missing or browser/user identities are rejected with WebSocket close code `1008`
 - [x] Backend command signing helpers added
 - [x] Edge-agent command verifier added
-- [x] Command queues, dispatch, ACKs, and gateway WebSocket client remain deferred
+- [x] Edge-agent one-shot gateway control WebSocket client added
+- [x] Command queues, dispatch, ACKs, and full reconnect loop remain deferred
 
 ---
 
 ## Next Steps (In Order)
 
-### 1. Agent WebSocket Command Receive Skeleton
-Implement the edge-agent WebSocket client, receive signed command envelopes, verify them locally, and reject invalid commands before adding real dispatch.
+### 1. Backend WebSocket Command Dispatch Skeleton
+Add backend-side command dispatch scaffolding over the existing gateway WebSocket, then add ACK handling before any real mediamtx or LiveKit command execution.
 
 ---
 
