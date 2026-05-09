@@ -1047,18 +1047,65 @@ Panoptix now has a tested end-to-end local protocol loop: backend signs a comman
 
 ---
 
-## 31. Current Verification Status
+## 31. Gateway Heartbeat Command Fallback Skeleton
+
+### What was implemented
+
+The gateway heartbeat response now supports the first local-only fallback command path:
+
+```text
+POST /api/v1/gateways/{gateway_id}/heartbeat
+```
+
+It includes:
+
+- backend reuse of the existing app-state command provider hook
+- backend signing of every pending command returned in `pending_commands`
+- fail-closed HTTP behavior when command signing is not configured
+- edge-agent verification of heartbeat-delivered pending commands
+- local accepted/rejected command result counts on the heartbeat runner
+
+### How it works
+
+If local test or scaffold code attaches:
+
+```text
+app.state.gateway_control_command_provider
+```
+
+the backend signs those commands and returns them in the existing heartbeat response shape:
+
+```json
+{
+  "server_time": "2026-05-07T12:00:00Z",
+  "pending_commands": []
+}
+```
+
+The edge heartbeat runner verifies each pending command with the same fail-closed verifier used by the WebSocket client. Invalid, unsigned, expired, tampered, or wrong-gateway commands are rejected locally and are not executed.
+
+### Important limitation
+
+This is still not a persistent command queue. There is no heartbeat ACK persistence, no retry policy, no mediamtx action, no LiveKit publishing orchestration, and no real camera action.
+
+### Why it matters
+
+Panoptix now has both primary WebSocket command delivery and heartbeat fallback command delivery proven locally, while keeping command execution disabled.
+
+---
+
+## 32. Current Verification Status
 
 ### What passed
 
 The latest verification passed:
 
 ```text
-edge agent pytest: 32 passed
+edge agent pytest: 37 passed
 edge agent mypy: no issues found
 edge agent ruff: all checks passed
 edge agent compileall: passed
-pytest: 61 passed
+pytest: 63 passed
 mypy: no issues found
 ruff: all checks passed
 compileall: passed
@@ -1108,7 +1155,7 @@ The following are intentionally not done yet:
 
 - frontend UI
 - persistent backend command queue
-- gateway heartbeat fallback command delivery
+- edge gateway control reconnect/backoff loop
 - mediamtx runtime configuration
 - audit HMAC chain implementation
 - admin audit list/export/verify endpoints
@@ -1119,9 +1166,9 @@ The following are intentionally not done yet:
 
 ## Next Recommended Implementation Order
 
-### 1. Gateway Heartbeat Command Fallback Skeleton
+### 1. Edge Gateway Control Reconnect/Backoff Skeleton
 
-Add in-memory/test-scaffolded heartbeat fallback delivery for pending commands before any persistent DB command queue, mediamtx control, or LiveKit publishing orchestration.
+Add bounded reconnect/backoff behavior for the outbound gateway control WebSocket before any persistent DB command queue, mediamtx control, or LiveKit publishing orchestration.
 
 ### 2. Audit HMAC Chain Foundation
 

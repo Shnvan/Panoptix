@@ -53,10 +53,25 @@ def _require_matching_gateway(gateway_id: str, principal: Principal) -> None:
 def gateway_heartbeat(
     gateway_id: str,
     _payload: GatewayHeartbeatRequest,
+    request: Request,
     principal: Principal = Depends(require_gateway_identity),
+    settings: Settings = Depends(get_settings),
 ) -> GatewayHeartbeatResponse:
     _require_matching_gateway(gateway_id, principal)
-    return GatewayHeartbeatResponse()
+    try:
+        pending_commands = _signed_gateway_commands(
+            request.app.state,
+            gateway_id,
+            settings.GATEWAY_COMMAND_SIGNING_KEY,
+        )
+    except CommandSigningError as exc:
+        raise ProblemDetail(
+            status=503,
+            title="Service Unavailable",
+            detail="gateway-command-signing-failed",
+            type_uri="https://panoptix.local/problems/service-unavailable",
+        ) from exc
+    return GatewayHeartbeatResponse(pending_commands=pending_commands)
 
 
 @router.post("/gateways/{gateway_id}/ingest-token")
@@ -218,8 +233,11 @@ async def gateway_control_ws(
     await websocket.send_json({"type": "connected", "gateway_id": principal.gateway_id})
 
     try:
-        for command in _gateway_control_commands(websocket, principal.gateway_id):
-            signed_command = sign_command_envelope(command, settings.GATEWAY_COMMAND_SIGNING_KEY)
+        for signed_command in _signed_gateway_commands(
+            websocket.app.state,
+            principal.gateway_id,
+            settings.GATEWAY_COMMAND_SIGNING_KEY,
+        ):
             await websocket.send_json(signed_command.model_dump(mode="json"))
     except CommandSigningError:
         await websocket.close(code=1011, reason="gateway-command-signing-failed")
@@ -237,8 +255,19 @@ async def gateway_control_ws(
         pass
 
 
-def _gateway_control_commands(websocket: WebSocket, gateway_id: str) -> Iterable[GatewayCommandEnvelope]:
-    provider = getattr(websocket.app.state, "gateway_control_command_provider", None)
+def _signed_gateway_commands(
+    app_state: Any,
+    gateway_id: str,
+    signing_key: str,
+) -> list[GatewayCommandEnvelope]:
+    return [
+        sign_command_envelope(command, signing_key)
+        for command in _gateway_control_commands(app_state, gateway_id)
+    ]
+
+
+def _gateway_control_commands(app_state: Any, gateway_id: str) -> Iterable[GatewayCommandEnvelope]:
+    provider = getattr(app_state, "gateway_control_command_provider", None)
     if not callable(provider):
         return ()
     commands = provider(gateway_id)

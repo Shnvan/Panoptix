@@ -68,6 +68,44 @@ def test_gateway_heartbeat_accepts_dev_gateway_identity() -> None:
     assert data["pending_commands"] == []
 
 
+def test_gateway_heartbeat_returns_signed_pending_commands_from_app_state_provider() -> None:
+    client = _dev_gateway_client(signing_key=SIGNING_KEY)
+    client.app.state.gateway_control_command_provider = lambda gateway_id: [_command(gateway_id)]
+
+    response = client.post(
+        "/api/v1/gateways/gateway-1/heartbeat",
+        headers=_gateway_headers(),
+        json={"status": "online", "agent_version": "0.1.0", "cameras": []},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["pending_commands"]) == 1
+    command = GatewayCommandEnvelope.model_validate(data["pending_commands"][0])
+    assert command.gateway_id == "gateway-1"
+    assert command.signature
+    verify_command_envelope(
+        command,
+        SIGNING_KEY,
+        expected_gateway_id="gateway-1",
+        now=datetime(2026, 5, 7, 12, 0, 0, tzinfo=timezone.utc),
+    )
+
+
+def test_gateway_heartbeat_fails_closed_when_pending_command_signing_fails() -> None:
+    client = _dev_gateway_client(signing_key="replace-me")
+    client.app.state.gateway_control_command_provider = lambda gateway_id: [_command(gateway_id)]
+
+    response = client.post(
+        "/api/v1/gateways/gateway-1/heartbeat",
+        headers=_gateway_headers(),
+        json={"status": "online", "agent_version": "0.1.0", "cameras": []},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "gateway-command-signing-failed"
+
+
 def test_gateway_id_mismatch_returns_forbidden() -> None:
     client = _dev_gateway_client()
 

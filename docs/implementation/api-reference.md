@@ -133,6 +133,10 @@ The signature covers the canonical JSON form of the envelope excluding `signatur
 
 For rejected commands, `status` is `rejected` and `error` contains the fail-closed reason, such as `gateway-command-signature-invalid`, `gateway-command-expired`, or `gateway-command-target-mismatch`. The current implementation receives ACKs through an in-memory/test-scaffolded backend hook only; ACK persistence and retry policy are deferred.
 
+## Gateway heartbeat fallback
+
+The heartbeat response reuses `GatewayCommandEnvelope` in `pending_commands` for local/test-scaffolded fallback delivery. The backend signs every pending command before returning it. If signing is not configured, the heartbeat fails closed instead of returning unsigned commands. The current edge agent verifies heartbeat commands but does not execute camera, mediamtx, or LiveKit actions.
+
 ## Webhook and health endpoints
 
 | Method | Path | AuthZ | Request | Response | Notes |

@@ -297,6 +297,14 @@ Expected response shape:
 }
 ```
 
+Current fallback behavior:
+
+- by default, `pending_commands` remains empty
+- local test scaffolding can attach an in-memory command provider to return signed pending commands
+- signing failures fail closed instead of returning unsigned commands
+- no public enqueue API exists yet
+- no pending command is executed by the edge agent yet
+
 ### Gateway ID mismatch test
 
 ```powershell
@@ -695,3 +703,30 @@ python -m panoptix_edge_agent.cli --once
 ```
 
 If those pass, the public health path, dev user auth path, gateway auth path, and edge heartbeat foundation are working.
+
+## 15. Heartbeat Command Fallback Local Check
+
+The heartbeat fallback path is local-only and test-scaffolded. It does not require LiveKit, Cloudflare, Google Workspace, PostgreSQL, mediamtx, or real cameras.
+
+Backend heartbeat fallback tests:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_gateway.py -v
+```
+
+Edge-agent heartbeat pending-command verifier tests:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_runner.py -v
+```
+
+Expected behavior:
+
+- valid signed pending commands are counted as accepted by the edge heartbeat runner
+- tampered, expired, unsigned, or wrong-gateway pending commands are counted as rejected
+- rejected commands include local error codes such as `gateway-command-signature-invalid`
+- commands are verified only and are not executed
