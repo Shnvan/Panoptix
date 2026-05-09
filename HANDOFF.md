@@ -65,6 +65,7 @@ FastAPI backend currently implements:
 - HMAC-SHA-256 audit hash chain writer and verifier helpers
 - read-only admin audit verification endpoint with optional ID ranges and key-version handling
 - admin audit export endpoint returning scrubbed JSONL rows
+- admin audit row listing endpoint with cursor pagination
 
 ### Edge / Camera Plane
 
@@ -121,6 +122,28 @@ Current state:
 
 ## Recently Completed Milestones
 
+### Audit Row Listing Endpoint
+
+Completed in this milestone.
+
+Implemented:
+
+- `GET /api/v1/admin/audit` admin-only endpoint
+- cursor pagination using `AuditLog.id` (newest first, descending)
+- configurable `limit` (default 50, max 200)
+- optional `action` exact-match filter
+- response shape `{"items": [...], "next_cursor": "id" | null}`
+- internal chain fields excluded from response
+- fail-closed 503 when HMAC key is placeholder or empty
+
+Not included:
+
+- broad filters (actor_type, ts range, resource)
+- export signing
+- key rotation UI/workflow
+- database migrations
+- self-auditing the listing call
+
 ### Audit Export Skeleton
 
 Completed in this milestone.
@@ -137,7 +160,6 @@ Implemented:
 Not included:
 
 - export signing
-- audit row listing with cursor pagination
 - key rotation UI/workflow
 - broad browsing filters
 - database migrations
@@ -339,7 +361,7 @@ $env:PYTHONPATH = "src"; python -m compileall src alembic scripts
 Latest result:
 
 ```text
-pytest: 93 passed
+pytest: 103 passed
 ruff: all checks passed
 mypy: no issues found in 28 source files
 compileall: passed
@@ -368,24 +390,23 @@ compileall: passed
 Recommended next task:
 
 ```text
-Audit Row Listing Endpoint
+Backend Command Queue Table
 ```
 
 Recommended scope:
 
-- add a narrow admin audit row listing scaffold with cursor pagination
-- return scrubbed audit rows similar to the export endpoint but as paginated JSON
-- keep broad browsing filters, export signing, key rotation UI/workflows, and migrations deferred
+- add persistent command dispatch/queue scaffolding to move the gateway command loop beyond in-memory test hooks
+- do not add real camera actions, mediamtx control, or LiveKit publishing
+- keep dispatch retry policy and ACK persistence simple/deferred
 
 Why this is the best next step:
 
-- admin export now returns scrubbed JSONL for offline review
-- operators also need an in-browser audit browsing surface for quick inspection
-- it stays backend-local and small before command persistence or real camera actions
+- audit surfaces (verify, export, listing) are now complete for the local foundation
+- the gateway control channel has a proven in-memory dispatch/ACK protocol
+- the next logical step is persistence so commands survive backend restarts
 
 ## Not Implemented Yet
 
-- admin audit row listing endpoint
 - audit export signing
 - backend command queue table
 - persistent dispatch/retry model
@@ -399,7 +420,6 @@ Why this is the best next step:
 - Google Workspace setup
 - Railway deployment
 - Neon production database setup
-- admin audit row listing endpoint
 - audit export signing
 
 ## External Accounts Status
@@ -719,6 +739,7 @@ Important local checks currently include:
 - gateway camera status
 - LiveKit token local/fail-closed checks
 - gateway command signing local check
+- admin audit listing
 - admin audit export
 - backend gateway control WebSocket hello check
 - backend gateway control WebSocket dispatch/ACK test
@@ -730,7 +751,7 @@ Important local checks currently include:
 ## Suggested Prompt For The New IDE/LLM
 
 ```text
-Read HANDOFF.md and follow its instructions. Then read PROGRESS.md, IMPLEMENTATION_GUIDE.md, MANUAL_TESTING.md, README.md, CLAUDE.md, and the source files related to the next milestone. Confirm the current state and development rules before making changes. The next recommended milestone is Audit Row Listing Endpoint.
+Read HANDOFF.md and follow its instructions. Then read PROGRESS.md, IMPLEMENTATION_GUIDE.md, MANUAL_TESTING.md, README.md, CLAUDE.md, and the source files related to the next milestone. Confirm the current state and development rules before making changes. The next recommended milestone is Backend Command Queue Table.
 ```
 
 ## Final Notes

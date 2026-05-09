@@ -267,6 +267,51 @@ def export_admin_audit(
     )
 
 
+@v1_router.get("/admin/audit")
+def list_admin_audit(
+    cursor: int | None = Query(default=None, ge=1),
+    limit: int = Query(default=50, ge=1, le=200),
+    action: str | None = Query(default=None, max_length=128),
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    if not settings.AUDIT_HMAC_KEY.strip() or settings.AUDIT_HMAC_KEY.strip() == "replace-me":
+        raise ProblemDetail(
+            status=503,
+            title="Service Unavailable",
+            detail="audit-hmac-key-invalid",
+            type_uri="https://panoptix.local/problems/service-unavailable",
+        )
+    query = select(AuditLog)
+    if action is not None:
+        query = query.where(AuditLog.action == action)
+    if cursor is not None:
+        query = query.where(AuditLog.id < cursor)
+    query = query.order_by(AuditLog.id.desc()).limit(limit + 1)
+    rows = list(db.execute(query).scalars().all())
+    has_more = len(rows) > limit
+    if has_more:
+        rows = rows[:limit]
+    next_cursor: str | None = str(rows[-1].id) if has_more and rows else None
+    items = [
+        {
+            "id": row.id,
+            "ts": row.ts.isoformat() if row.ts else None,
+            "actor_id": str(row.actor_id) if row.actor_id else None,
+            "actor_type": row.actor_type.value if row.actor_type else None,
+            "action": row.action,
+            "resource": row.resource,
+            "payload": row.payload,
+            "ip": row.ip,
+            "ua": row.ua,
+        }
+        for row in rows
+    ]
+    return {"items": items, "next_cursor": next_cursor}
+
+
 @v1_router.get("/sessions/active")
 def get_active_sessions(
     principal: Principal = Depends(require_authenticated_user),

@@ -664,3 +664,134 @@ def test_admin_audit_export_returns_scrubbed_payload(test_db_session: DbSession)
     row = json.loads(lines[0])
     assert row["payload"]["token"] == REDACTED_VALUE
     assert row["payload"]["safe"] == "visible"
+
+
+def test_admin_audit_list_requires_authentication(test_db_session: DbSession) -> None:
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit")
+
+    assert response.status_code == 401
+
+
+def test_admin_audit_list_requires_admin_role(test_db_session: DbSession) -> None:
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit", headers=_auth_headers())
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "role-required"
+
+
+def test_admin_audit_list_returns_empty_list(test_db_session: DbSession) -> None:
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit", headers=_admin_headers())
+
+    assert response.status_code == 200
+    assert response.json() == {"items": [], "next_cursor": None}
+
+
+def test_admin_audit_list_returns_rows_newest_first(test_db_session: DbSession) -> None:
+    _record_test_audit_row(test_db_session, "test.list.first")
+    _record_test_audit_row(test_db_session, "test.list.second")
+    _record_test_audit_row(test_db_session, "test.list.third")
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit", headers=_admin_headers())
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 3
+    assert data["items"][0]["action"] == "test.list.third"
+    assert data["items"][1]["action"] == "test.list.second"
+    assert data["items"][2]["action"] == "test.list.first"
+    assert data["next_cursor"] is None
+
+
+def test_admin_audit_list_respects_limit(test_db_session: DbSession) -> None:
+    for i in range(5):
+        _record_test_audit_row(test_db_session, f"test.list.row{i}")
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit?limit=2", headers=_admin_headers())
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 2
+    assert data["next_cursor"] is not None
+
+
+def test_admin_audit_list_cursor_returns_next_page(test_db_session: DbSession) -> None:
+    for i in range(5):
+        _record_test_audit_row(test_db_session, f"test.list.row{i}")
+    client = _client_with_db(test_db_session)
+
+    page1 = client.get("/api/v1/admin/audit?limit=2", headers=_admin_headers())
+    assert page1.status_code == 200
+    data1 = page1.json()
+    assert len(data1["items"]) == 2
+    assert data1["next_cursor"] is not None
+
+    page2 = client.get(f"/api/v1/admin/audit?limit=2&cursor={data1['next_cursor']}", headers=_admin_headers())
+    assert page2.status_code == 200
+    data2 = page2.json()
+    assert len(data2["items"]) == 2
+
+    page1_ids = {item["id"] for item in data1["items"]}
+    page2_ids = {item["id"] for item in data2["items"]}
+    assert page1_ids.isdisjoint(page2_ids)
+
+
+def test_admin_audit_list_cursor_last_page_has_null_next_cursor(test_db_session: DbSession) -> None:
+    _record_test_audit_row(test_db_session, "test.list.first")
+    _record_test_audit_row(test_db_session, "test.list.second")
+    _record_test_audit_row(test_db_session, "test.list.third")
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit?limit=5", headers=_admin_headers())
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 3
+    assert data["next_cursor"] is None
+
+
+def test_admin_audit_list_action_filter(test_db_session: DbSession) -> None:
+    _record_test_audit_row(test_db_session, "login")
+    _record_test_audit_row(test_db_session, "login")
+    _record_test_audit_row(test_db_session, "logout")
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit?action=login", headers=_admin_headers())
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 2
+    assert all(item["action"] == "login" for item in data["items"])
+
+
+def test_admin_audit_list_fails_closed_with_placeholder_key(test_db_session: DbSession) -> None:
+    client = _client_with_db(test_db_session, audit_hmac_key="replace-me")
+
+    response = client.get("/api/v1/admin/audit", headers=_admin_headers())
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "audit-hmac-key-invalid"
+
+
+def test_admin_audit_list_excludes_internal_chain_fields(test_db_session: DbSession) -> None:
+    _record_test_audit_row(test_db_session, "test.list.fields")
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit", headers=_admin_headers())
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 1
+    item = data["items"][0]
+    expected_keys = {"id", "ts", "actor_id", "actor_type", "action", "resource", "payload", "ip", "ua"}
+    assert set(item.keys()) == expected_keys
+    assert "hash" not in item
+    assert "prev_hash" not in item
+    assert "hmac_key_version" not in item

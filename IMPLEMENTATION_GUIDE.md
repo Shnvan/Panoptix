@@ -1263,7 +1263,41 @@ Operators now have a first local/admin export surface for scrubbed audit data wi
 
 ---
 
-## 37. Current Verification Status
+## 37. Audit Row Listing Endpoint
+
+### What was implemented
+
+The backend now exposes an admin audit listing endpoint with cursor pagination:
+
+```text
+GET /api/v1/admin/audit
+```
+
+It includes:
+
+- admin-role enforcement through existing user auth and policy helpers
+- cursor pagination using `AuditLog.id` (descending, newest first)
+- configurable page size via `limit` query param (default 50, max 200)
+- optional `action` exact-match filter
+- fail-closed `503` behavior when `AUDIT_HMAC_KEY` is blank or left as `replace-me`
+- internal chain fields excluded from response
+- response shape: `{"items": [...], "next_cursor": "id" | null}`
+
+### How it works
+
+The endpoint queries audit rows ordered by ID descending. The cursor represents the last item's ID; the next page fetches rows with `id < cursor`. The server fetches `limit + 1` rows to detect whether more pages exist without a separate count query.
+
+### Important limitation
+
+This skeleton does not support broad browsing filters (actor_type, timestamp range, resource pattern), signed exports, key rotation UI, or audit events for the listing call itself.
+
+### Why it matters
+
+Operators now have a paginated in-browser audit browsing surface for quick inspection, complementing the JSONL export for offline review.
+
+---
+
+## 38. Current Verification Status
 
 ### What passed
 
@@ -1274,7 +1308,7 @@ edge agent pytest: 43 passed
 edge agent mypy: no issues found
 edge agent ruff: all checks passed
 edge agent compileall: passed
-pytest: 93 passed
+pytest: 103 passed
 mypy: no issues found
 ruff: all checks passed
 compileall: passed

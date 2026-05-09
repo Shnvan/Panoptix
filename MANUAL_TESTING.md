@@ -697,7 +697,94 @@ $env:PYTHONPATH = "src"
 python -m pytest tests/test_audit.py -v
 ```
 
-## 11. Admin Audit Export
+## 11. Admin Audit Listing
+
+Endpoint:
+
+```text
+GET /api/v1/admin/audit
+```
+
+This endpoint returns scrubbed audit rows as paginated JSON (newest first).
+
+Manual command:
+
+```powershell
+Invoke-RestMethod -Method GET -Uri "$BaseUrl/api/v1/admin/audit" -Headers $AdminHeaders
+```
+
+curl:
+
+```powershell
+curl.exe -s "$BaseUrl/api/v1/admin/audit" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-subject: admin@example.test" `
+  -H "x-panoptix-dev-email: admin@example.test" `
+  -H "x-panoptix-dev-roles: admin"
+```
+
+With pagination and filter:
+
+```powershell
+curl.exe -s "$BaseUrl/api/v1/admin/audit?limit=10&action=viewer.token.issued" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-subject: admin@example.test" `
+  -H "x-panoptix-dev-email: admin@example.test" `
+  -H "x-panoptix-dev-roles: admin"
+```
+
+Next page using cursor:
+
+```powershell
+curl.exe -s "$BaseUrl/api/v1/admin/audit?limit=10&cursor=42" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-subject: admin@example.test" `
+  -H "x-panoptix-dev-email: admin@example.test" `
+  -H "x-panoptix-dev-roles: admin"
+```
+
+Expected response shape:
+
+```json
+{
+  "items": [
+    {
+      "id": 42,
+      "ts": "2026-05-09T10:30:00+00:00",
+      "actor_id": "uuid-or-null",
+      "actor_type": "user",
+      "action": "viewer.token.issued",
+      "resource": "camera:uuid",
+      "payload": {"safe": "value", "token": "[REDACTED]"},
+      "ip": "127.0.0.1",
+      "ua": "Mozilla/5.0"
+    }
+  ],
+  "next_cursor": "37"
+}
+```
+
+Notes:
+
+- Requires admin role; non-admin users receive `403 role-required`.
+- Missing or placeholder `AUDIT_HMAC_KEY` returns `503 audit-hmac-key-invalid`.
+- `cursor` is the ID of the last item seen; the next page returns items with lower IDs.
+- `limit` defaults to 50, max 200.
+- `action` is an optional exact-match filter on the audit action field.
+- Results are sorted newest first (descending by ID).
+- `next_cursor` is `null` when there are no more pages.
+- Internal chain fields (`hash`, `prev_hash`, `hmac_key_version`) are excluded.
+- Payload values are already scrubbed at write time.
+
+Backend audit listing tests:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_audit.py -v -k "list"
+```
+
+## 12. Admin Audit Export
 
 Endpoint:
 
@@ -763,7 +850,7 @@ $env:PYTHONPATH = "src"
 python -m pytest tests/test_audit.py -v -k "export"
 ```
 
-## 12. Gateway Command Signing Local Check
+## 13. Gateway Command Signing Local Check
 
 This is local-only and does not require LiveKit, Cloudflare, Google Workspace, or PostgreSQL.
 
@@ -798,7 +885,7 @@ Notes:
 - There is no persistent command queue and no real camera/media command execution yet.
 - Do not use real production signing keys in local shell history.
 
-## 13. Database Validation
+## 14. Database Validation
 
 If `DATABASE_URL` points to a real local PostgreSQL database:
 
@@ -814,7 +901,7 @@ Rollback-only write-path self-test:
 python scripts/db_validate.py --selftest
 ```
 
-## 14. Verification Commands
+## 15. Verification Commands
 
 ### Backend
 
@@ -838,7 +925,7 @@ python -m ruff check src tests
 python -m compileall src tests
 ```
 
-## 15. Quick Smoke Test Order
+## 16. Quick Smoke Test Order
 
 Use this order for a fast manual check after starting the API:
 
@@ -861,7 +948,7 @@ python -m panoptix_edge_agent.cli --once
 
 If those pass, the public health path, dev user auth path, gateway auth path, and edge heartbeat foundation are working.
 
-## 16. Heartbeat Command Fallback Local Check
+## 17. Heartbeat Command Fallback Local Check
 
 The heartbeat fallback path is local-only and test-scaffolded. It does not require LiveKit, Cloudflare, Google Workspace, PostgreSQL, mediamtx, or real cameras.
 

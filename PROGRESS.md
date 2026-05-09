@@ -134,12 +134,21 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Internal chain fields (`hash`, `prev_hash`, `hmac_key_version`) excluded from export
 - [x] Export signing, key rotation UI, broad browsing filters, and migrations remain deferred
 
+### Audit Row Listing Endpoint
+- [x] Admin audit listing endpoint added at `GET /api/v1/admin/audit`
+- [x] Cursor pagination using `AuditLog.id` (newest first, descending)
+- [x] Configurable page size via `limit` param (default 50, max 200)
+- [x] Optional `action` exact-match filter
+- [x] Fail-closed 503 when HMAC key is placeholder or empty
+- [x] Internal chain fields excluded from response
+- [x] Broad filters, export signing, key rotation UI, and migrations remain deferred
+
 ---
 
 ## Next Steps (In Order)
 
-### 1. Audit Row Listing Endpoint
-Add a narrow admin audit row listing scaffold using scrubbed audit rows with cursor pagination, without broad browsing filters, export signing, or database migrations.
+### 1. Backend Command Queue Table
+Add persistent command dispatch/queue scaffolding to move the gateway command loop beyond in-memory test hooks, without adding real camera actions, mediamtx control, or LiveKit publishing.
 
 ---
 
