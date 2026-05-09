@@ -63,7 +63,7 @@ FastAPI backend currently implements:
 - in-memory/test-scaffolded WebSocket command dispatch + ACK handling
 - in-memory/test-scaffolded heartbeat command fallback
 - HMAC-SHA-256 audit hash chain writer and verifier helpers
-- read-only admin audit full-chain verification endpoint
+- read-only admin audit verification endpoint with optional ID ranges and key-version handling
 
 ### Edge / Camera Plane
 
@@ -120,9 +120,34 @@ Current state:
 
 ## Recently Completed Milestones
 
-### Admin Audit Verification Endpoint Skeleton
+### Audit Verification Range/Key-Version Support
 
 Completed in this milestone.
+
+Implemented:
+
+- optional inclusive `start_id` and `end_id` query params on `GET /api/v1/admin/audit/verify`
+- full-chain verification remains the default
+- open-ended ranges when only one bound is provided
+- continuity checks against the latest row before `start_id`
+- per-row key lookup using `audit_log.hmac_key_version` and local `audit_hmac_keys.key_enc`
+- structured failures for missing or invalid stored key versions
+
+Not included:
+
+- audit row listing
+- audit export signing
+- key rotation UI/workflow
+- database migrations
+- self-auditing the verification call
+
+### Admin Audit Verification Endpoint Skeleton
+
+Completed and pushed in commit:
+
+```text
+5003679 Add admin audit verification endpoint
+```
 
 Implemented:
 
@@ -136,7 +161,6 @@ Not included:
 
 - audit row listing
 - audit export signing
-- audit range or key-version query params
 - key rotation UI/workflow
 - database migrations
 - self-auditing the verification call
@@ -292,7 +316,7 @@ $env:PYTHONPATH = "src"; python -m compileall src alembic scripts
 Latest result:
 
 ```text
-pytest: 76 passed
+pytest: 85 passed
 ruff: all checks passed
 mypy: no issues found in 28 source files
 compileall: passed
@@ -321,20 +345,19 @@ compileall: passed
 Recommended next task:
 
 ```text
-Audit Verification Range/Key-Version Support
+Audit Export Skeleton
 ```
 
 Recommended scope:
 
-- add bounded range support to the existing admin audit verification endpoint
-- handle key-version continuity explicitly
-- keep audit row browsing, export signing, key rotation UI/workflows, and migrations deferred
-- preserve read-only verification and HMAC-chain fail-closed behavior
+- add a narrow admin audit export scaffold using scrubbed audit rows
+- keep export signing, key rotation UI/workflows, broad browsing filters, and migrations deferred
+- preserve audit payload scrubbing and do not include raw tokens or credentials
 
 Why this is the best next step:
 
-- the full-chain admin verification skeleton is now available
-- real operations will need bounded verification before audit tables grow
+- admin verification now supports full-chain, bounded ranges, and mixed key versions
+- operators will eventually need a controlled way to extract scrubbed audit rows
 - it stays backend-local and small before command persistence or real camera actions
 
 ## Not Implemented Yet
@@ -352,7 +375,6 @@ Why this is the best next step:
 - Railway deployment
 - Neon production database setup
 - admin audit list/export endpoints
-- audit verification ranges and key-version handling
 
 ## External Accounts Status
 
@@ -681,7 +703,7 @@ Important local checks currently include:
 ## Suggested Prompt For The New IDE/LLM
 
 ```text
-Read HANDOFF.md and follow its instructions. Then read PROGRESS.md, IMPLEMENTATION_GUIDE.md, MANUAL_TESTING.md, README.md, CLAUDE.md, and the source files related to the next milestone. Confirm the current state and development rules before making changes. The next recommended milestone is Audit Verification Range/Key-Version Support.
+Read HANDOFF.md and follow its instructions. Then read PROGRESS.md, IMPLEMENTATION_GUIDE.md, MANUAL_TESTING.md, README.md, CLAUDE.md, and the source files related to the next milestone. Confirm the current state and development rules before making changes. The next recommended milestone is Audit Export Skeleton.
 ```
 
 ## Final Notes

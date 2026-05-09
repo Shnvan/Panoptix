@@ -1170,12 +1170,17 @@ It includes:
 
 - admin-role enforcement through existing user auth and policy helpers
 - full-chain audit verification in `audit_log.id` order
+- optional inclusive `start_id` and `end_id` range verification
+- continuity checking against the latest row before `start_id`
+- mixed key-version verification using local `audit_hmac_keys.key_enc`
 - structured `valid`, `checked`, and `error` response fields
 - fail-closed `503` behavior when `AUDIT_HMAC_KEY` is blank or left as `replace-me`
 
 ### How it works
 
-The endpoint loads all audit rows ordered by ID and calls the existing `verify_audit_chain()` helper with the configured `AUDIT_HMAC_KEY`.
+The endpoint loads audit rows ordered by ID. Without query params it verifies the full chain. With `start_id` and/or `end_id`, it verifies only the inclusive range and uses the row before `start_id` as the expected previous hash.
+
+Each selected row is verified with the HMAC key version stored on that row. The current local foundation loads those key bytes from `audit_hmac_keys.key_enc`.
 
 Successful verification returns:
 
@@ -1189,9 +1194,11 @@ Successful verification returns:
 
 Tampering returns `200` with `valid: false` and an error such as `audit-chain-hash-mismatch` or `audit-chain-prev-hash-mismatch`.
 
+Missing or invalid stored key versions return `200` with `audit-chain-key-missing` or `audit-chain-key-invalid`.
+
 ### Important limitation
 
-This skeleton verifies the full chain only. It does not list audit rows, export audit data, support ranges or key-version filters, rotate keys, or write an audit event for the verification call itself.
+This skeleton does not list audit rows, export audit data, rotate keys, or write an audit event for the verification call itself.
 
 ### Why it matters
 
@@ -1199,7 +1206,28 @@ Operators now have a first local/admin verification surface for the tamper-evide
 
 ---
 
-## 35. Current Verification Status
+## 35. Audit Verification Range/Key-Version Support
+
+### What was implemented
+
+The admin audit verifier now supports bounded verification and mixed key versions.
+
+It includes:
+
+- optional inclusive `start_id` and `end_id` query params
+- `422` validation for invalid bounds
+- open-ended range support when one bound is omitted
+- empty-range success with `checked: 0`
+- continuity validation from the row before `start_id`
+- per-row key lookup by `audit_log.hmac_key_version`
+
+### Why it matters
+
+The audit verifier can now handle operationally useful slices of the audit chain without losing previous-hash continuity or assuming every row used the active key version.
+
+---
+
+## 36. Current Verification Status
 
 ### What passed
 
@@ -1210,7 +1238,7 @@ edge agent pytest: 43 passed
 edge agent mypy: no issues found
 edge agent ruff: all checks passed
 edge agent compileall: passed
-pytest: 76 passed
+pytest: 85 passed
 mypy: no issues found
 ruff: all checks passed
 compileall: passed
@@ -1263,7 +1291,6 @@ The following are intentionally not done yet:
 - production gateway control reconnect policy/supervision
 - mediamtx runtime configuration
 - admin audit list/export endpoints
-- audit verification ranges and key-version support
 - gateway command queue persistence and ACK persistence
 - LiveKit publishing orchestration
 
@@ -1271,9 +1298,9 @@ The following are intentionally not done yet:
 
 ## Next Recommended Implementation Order
 
-### 1. Audit Verification Range/Key-Version Support
+### 1. Audit Export Skeleton
 
-Extend the admin audit verifier carefully with bounded range support and key-version handling, without adding audit row browsing, export signing, key rotation UI, or database migrations.
+Add a narrow admin audit export scaffold using scrubbed audit rows, without export signing, key rotation UI, broad browsing filters, or database migrations.
 
 ---
 

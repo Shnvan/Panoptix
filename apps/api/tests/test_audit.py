@@ -24,6 +24,8 @@ from cctv_api.security.users import get_or_create_user
 
 AUDIT_HMAC_KEY_VERSION = 1
 AUDIT_HMAC_KEY = "test-audit-hmac-key-with-enough-entropy"
+AUDIT_HMAC_KEY_VERSION_2 = 2
+AUDIT_HMAC_KEY_2 = "test-second-audit-hmac-key-with-enough-entropy"
 
 
 def _client_with_db(test_db_session: DbSession, *, audit_hmac_key: str = AUDIT_HMAC_KEY) -> TestClient:
@@ -52,6 +54,27 @@ def _auth_headers(email: str = "viewer@example.test", roles: str = "viewer") -> 
     }
 
 
+def _admin_headers() -> dict[str, str]:
+    return _auth_headers(email="admin@example.test", roles="admin")
+
+
+def _record_test_audit_row(
+    db: DbSession,
+    action: str,
+    *,
+    audit_hmac_key_version: int = AUDIT_HMAC_KEY_VERSION,
+    audit_hmac_key: str = AUDIT_HMAC_KEY,
+) -> AuditLog:
+    return record_audit_event(
+        db,
+        actor_type=ActorType.user,
+        audit_hmac_key_version=audit_hmac_key_version,
+        audit_hmac_key=audit_hmac_key,
+        action=action,
+        resource=f"camera:{action}",
+    )
+
+
 def test_admin_audit_verify_requires_authentication(test_db_session: DbSession) -> None:
     client = _client_with_db(test_db_session)
 
@@ -75,7 +98,7 @@ def test_admin_audit_verify_accepts_empty_chain(test_db_session: DbSession) -> N
 
     response = client.get(
         "/api/v1/admin/audit/verify",
-        headers=_auth_headers(email="admin@example.test", roles="admin"),
+        headers=_admin_headers(),
     )
 
     assert response.status_code == 200
@@ -83,33 +106,159 @@ def test_admin_audit_verify_accepts_empty_chain(test_db_session: DbSession) -> N
 
 
 def test_admin_audit_verify_accepts_valid_chain(test_db_session: DbSession) -> None:
-    record_audit_event(
-        test_db_session,
-        actor_type=ActorType.user,
-        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
-        audit_hmac_key=AUDIT_HMAC_KEY,
-        action="test.audit.first",
-        resource="camera:first",
-    )
-    record_audit_event(
-        test_db_session,
-        actor_type=ActorType.user,
-        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
-        audit_hmac_key=AUDIT_HMAC_KEY,
-        action="test.audit.second",
-        resource="camera:second",
-    )
+    _record_test_audit_row(test_db_session, "test.audit.first")
+    _record_test_audit_row(test_db_session, "test.audit.second")
     client = _client_with_db(test_db_session)
 
     response = client.get(
         "/api/v1/admin/audit/verify",
-        headers=_auth_headers(email="admin@example.test", roles="admin"),
+        headers=_admin_headers(),
     )
 
     assert response.status_code == 200
     assert response.json() == {"valid": True, "checked": 2, "error": None}
     audit_rows = test_db_session.execute(select(AuditLog).order_by(AuditLog.id)).scalars().all()
     assert [row.action for row in audit_rows] == ["test.audit.first", "test.audit.second"]
+
+
+def test_admin_audit_verify_accepts_inclusive_subrange(test_db_session: DbSession) -> None:
+    first = _record_test_audit_row(test_db_session, "test.audit.first")
+    second = _record_test_audit_row(test_db_session, "test.audit.second")
+    third = _record_test_audit_row(test_db_session, "test.audit.third")
+    client = _client_with_db(test_db_session)
+
+    response = client.get(
+        f"/api/v1/admin/audit/verify?start_id={second.id}&end_id={third.id}",
+        headers=_admin_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"valid": True, "checked": 2, "error": None}
+    assert second.prev_hash == first.hash
+
+
+def test_admin_audit_verify_start_id_uses_prior_hash(test_db_session: DbSession) -> None:
+    first = _record_test_audit_row(test_db_session, "test.audit.first")
+    second = _record_test_audit_row(test_db_session, "test.audit.second")
+    _record_test_audit_row(test_db_session, "test.audit.third")
+    second.prev_hash = "tampered-previous-hash"
+    client = _client_with_db(test_db_session)
+
+    response = client.get(
+        f"/api/v1/admin/audit/verify?start_id={second.id}&end_id={second.id}",
+        headers=_admin_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "valid": False,
+        "checked": 1,
+        "error": "audit-chain-prev-hash-mismatch",
+    }
+    assert first.hash != second.prev_hash
+
+
+def test_admin_audit_verify_accepts_end_id_only(test_db_session: DbSession) -> None:
+    _record_test_audit_row(test_db_session, "test.audit.first")
+    second = _record_test_audit_row(test_db_session, "test.audit.second")
+    _record_test_audit_row(test_db_session, "test.audit.third")
+    client = _client_with_db(test_db_session)
+
+    response = client.get(
+        f"/api/v1/admin/audit/verify?end_id={second.id}",
+        headers=_admin_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"valid": True, "checked": 2, "error": None}
+
+
+def test_admin_audit_verify_accepts_start_id_only(test_db_session: DbSession) -> None:
+    _record_test_audit_row(test_db_session, "test.audit.first")
+    second = _record_test_audit_row(test_db_session, "test.audit.second")
+    _record_test_audit_row(test_db_session, "test.audit.third")
+    client = _client_with_db(test_db_session)
+
+    response = client.get(
+        f"/api/v1/admin/audit/verify?start_id={second.id}",
+        headers=_admin_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"valid": True, "checked": 2, "error": None}
+
+
+def test_admin_audit_verify_accepts_empty_range(test_db_session: DbSession) -> None:
+    _record_test_audit_row(test_db_session, "test.audit.first")
+    client = _client_with_db(test_db_session)
+
+    response = client.get(
+        "/api/v1/admin/audit/verify?start_id=999",
+        headers=_admin_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"valid": True, "checked": 0, "error": None}
+
+
+def test_admin_audit_verify_rejects_invalid_bounds(test_db_session: DbSession) -> None:
+    client = _client_with_db(test_db_session)
+
+    for query in ("start_id=0", "end_id=0", "start_id=3&end_id=2"):
+        response = client.get(f"/api/v1/admin/audit/verify?{query}", headers=_admin_headers())
+        assert response.status_code == 422
+
+
+def test_admin_audit_verify_accepts_mixed_key_versions(test_db_session: DbSession) -> None:
+    _record_test_audit_row(test_db_session, "test.audit.first")
+    _record_test_audit_row(
+        test_db_session,
+        "test.audit.second",
+        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION_2,
+        audit_hmac_key=AUDIT_HMAC_KEY_2,
+    )
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit/verify", headers=_admin_headers())
+
+    assert response.status_code == 200
+    assert response.json() == {"valid": True, "checked": 2, "error": None}
+
+
+def test_admin_audit_verify_reports_missing_key_version(test_db_session: DbSession) -> None:
+    _record_test_audit_row(test_db_session, "test.audit.first")
+    key = test_db_session.get(AuditHmacKey, AUDIT_HMAC_KEY_VERSION)
+    assert key is not None
+    test_db_session.delete(key)
+    test_db_session.commit()
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit/verify", headers=_admin_headers())
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "valid": False,
+        "checked": 1,
+        "error": "audit-chain-key-missing",
+    }
+
+
+def test_admin_audit_verify_reports_invalid_stored_key(test_db_session: DbSession) -> None:
+    _record_test_audit_row(test_db_session, "test.audit.first")
+    key = test_db_session.get(AuditHmacKey, AUDIT_HMAC_KEY_VERSION)
+    assert key is not None
+    key.key_enc = b"replace-me"
+    test_db_session.commit()
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit/verify", headers=_admin_headers())
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "valid": False,
+        "checked": 1,
+        "error": "audit-chain-key-invalid",
+    }
 
 
 def test_admin_audit_verify_reports_hash_mismatch(test_db_session: DbSession) -> None:
@@ -127,7 +276,7 @@ def test_admin_audit_verify_reports_hash_mismatch(test_db_session: DbSession) ->
 
     response = client.get(
         "/api/v1/admin/audit/verify",
-        headers=_auth_headers(email="admin@example.test", roles="admin"),
+        headers=_admin_headers(),
     )
 
     assert response.status_code == 200
@@ -139,28 +288,14 @@ def test_admin_audit_verify_reports_hash_mismatch(test_db_session: DbSession) ->
 
 
 def test_admin_audit_verify_reports_prev_hash_mismatch(test_db_session: DbSession) -> None:
-    record_audit_event(
-        test_db_session,
-        actor_type=ActorType.user,
-        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
-        audit_hmac_key=AUDIT_HMAC_KEY,
-        action="test.audit.first",
-        resource="camera:first",
-    )
-    second = record_audit_event(
-        test_db_session,
-        actor_type=ActorType.user,
-        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
-        audit_hmac_key=AUDIT_HMAC_KEY,
-        action="test.audit.second",
-        resource="camera:second",
-    )
+    _record_test_audit_row(test_db_session, "test.audit.first")
+    second = _record_test_audit_row(test_db_session, "test.audit.second")
     second.prev_hash = "tampered-previous-hash"
     client = _client_with_db(test_db_session)
 
     response = client.get(
         "/api/v1/admin/audit/verify",
-        headers=_auth_headers(email="admin@example.test", roles="admin"),
+        headers=_admin_headers(),
     )
 
     assert response.status_code == 200
@@ -176,7 +311,7 @@ def test_admin_audit_verify_fails_closed_with_placeholder_key(test_db_session: D
 
     response = client.get(
         "/api/v1/admin/audit/verify",
-        headers=_auth_headers(email="admin@example.test", roles="admin"),
+        headers=_admin_headers(),
     )
 
     assert response.status_code == 503
@@ -413,7 +548,7 @@ def test_admin_session_revoke_not_found_writes_audit_row(test_db_session: DbSess
 
     response = client.post(
         "/api/v1/sessions/revoke",
-        headers=_auth_headers(email="admin@example.test", roles="admin"),
+        headers=_admin_headers(),
         json={"session_id": str(missing_session_id)},
     )
 

@@ -7,7 +7,7 @@ import json
 import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
@@ -104,28 +104,42 @@ def verify_audit_log_row(
     audit_hmac_key: str,
     expected_prev_hash: str | None,
 ) -> AuditChainVerificationResult:
+    try:
+        key_bytes = _validated_hmac_key(audit_hmac_key)
+    except AuditLogError as exc:
+        return AuditChainVerificationResult(valid=False, checked=1, error=str(exc))
+    return _verify_audit_log_row_with_key_bytes(
+        row,
+        audit_hmac_key=key_bytes,
+        expected_prev_hash=expected_prev_hash,
+    )
+
+
+def _verify_audit_log_row_with_key_bytes(
+    row: AuditLog,
+    *,
+    audit_hmac_key: bytes,
+    expected_prev_hash: str | None,
+) -> AuditChainVerificationResult:
     if row.prev_hash != expected_prev_hash:
         return AuditChainVerificationResult(
             valid=False,
             checked=1,
             error="audit-chain-prev-hash-mismatch",
         )
-    try:
-        expected_hash = build_audit_hmac(
-            ts=row.ts,
-            actor_type=row.actor_type,
-            actor_id=row.actor_id,
-            action=row.action,
-            resource=row.resource,
-            payload=row.payload,
-            ip=row.ip,
-            ua=row.ua,
-            prev_hash=row.prev_hash,
-            hmac_key_version=row.hmac_key_version,
-            hmac_key=audit_hmac_key,
-        )
-    except AuditLogError as exc:
-        return AuditChainVerificationResult(valid=False, checked=1, error=str(exc))
+    expected_hash = _build_audit_hmac_with_key_bytes(
+        ts=row.ts,
+        actor_type=row.actor_type,
+        actor_id=row.actor_id,
+        action=row.action,
+        resource=row.resource,
+        payload=row.payload,
+        ip=row.ip,
+        ua=row.ua,
+        prev_hash=row.prev_hash,
+        hmac_key_version=row.hmac_key_version,
+        hmac_key=audit_hmac_key,
+    )
     if not hmac.compare_digest(row.hash, expected_hash):
         return AuditChainVerificationResult(
             valid=False,
@@ -150,6 +164,42 @@ def verify_audit_chain(
             expected_prev_hash=previous_hash,
         )
         checked += 1
+        if not result.valid:
+            return AuditChainVerificationResult(valid=False, checked=checked, error=result.error)
+        previous_hash = row.hash
+    return AuditChainVerificationResult(valid=True, checked=checked)
+
+
+def verify_audit_chain_by_key_version(
+    rows: Iterable[AuditLog],
+    *,
+    audit_hmac_keys_by_version: Mapping[int, bytes],
+    start_prev_hash: str | None = None,
+) -> AuditChainVerificationResult:
+    previous_hash = start_prev_hash
+    checked = 0
+    for row in rows:
+        checked += 1
+        raw_key = audit_hmac_keys_by_version.get(row.hmac_key_version)
+        if raw_key is None:
+            return AuditChainVerificationResult(
+                valid=False,
+                checked=checked,
+                error="audit-chain-key-missing",
+            )
+        try:
+            key_bytes = _validated_hmac_key_bytes(raw_key)
+        except AuditLogError:
+            return AuditChainVerificationResult(
+                valid=False,
+                checked=checked,
+                error="audit-chain-key-invalid",
+            )
+        result = _verify_audit_log_row_with_key_bytes(
+            row,
+            audit_hmac_key=key_bytes,
+            expected_prev_hash=previous_hash,
+        )
         if not result.valid:
             return AuditChainVerificationResult(valid=False, checked=checked, error=result.error)
         previous_hash = row.hash
@@ -192,6 +242,35 @@ def build_audit_hmac(
     prev_hash: str | None = None,
 ) -> str:
     key_bytes = _validated_hmac_key(hmac_key)
+    return _build_audit_hmac_with_key_bytes(
+        ts=ts,
+        actor_type=actor_type,
+        action=action,
+        resource=resource,
+        hmac_key_version=hmac_key_version,
+        hmac_key=key_bytes,
+        actor_id=actor_id,
+        payload=payload,
+        ip=ip,
+        ua=ua,
+        prev_hash=prev_hash,
+    )
+
+
+def _build_audit_hmac_with_key_bytes(
+    *,
+    ts: datetime,
+    actor_type: ActorType,
+    action: str,
+    resource: str,
+    hmac_key_version: int,
+    hmac_key: bytes,
+    actor_id: uuid.UUID | None = None,
+    payload: dict[str, Any] | None = None,
+    ip: str | None = None,
+    ua: str | None = None,
+    prev_hash: str | None = None,
+) -> str:
     material = {
         "actor_id": str(actor_id) if actor_id is not None else None,
         "ts": _normalize_value(ts),
@@ -205,7 +284,7 @@ def build_audit_hmac(
         "hmac_key_version": hmac_key_version,
     }
     canonical = json.dumps(material, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-    return hmac.new(key_bytes, canonical.encode("utf-8"), hashlib.sha256).hexdigest()
+    return hmac.new(hmac_key, canonical.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
 def _normalize_value(value: Any) -> Any:
@@ -232,10 +311,14 @@ def _is_sensitive_payload_key(key: str) -> bool:
 
 
 def _validated_hmac_key(audit_hmac_key: str) -> bytes:
-    key = audit_hmac_key.strip()
-    if not key or key == "replace-me":
+    return _validated_hmac_key_bytes(audit_hmac_key.encode("utf-8"))
+
+
+def _validated_hmac_key_bytes(audit_hmac_key: bytes) -> bytes:
+    key = bytes(audit_hmac_key).strip()
+    if not key or key == b"replace-me":
         raise AuditLogError("audit-hmac-key-invalid")
-    return key.encode("utf-8")
+    return key
 
 
 def _ensure_hmac_key(db: DbSession, *, version: int, key_bytes: bytes) -> None:

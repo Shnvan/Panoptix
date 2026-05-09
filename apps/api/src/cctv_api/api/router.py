@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
@@ -13,8 +13,12 @@ from cctv_api.api.gateways import router as gateway_router
 from cctv_api.core.config import Settings, get_settings
 from cctv_api.db import db_session
 from cctv_api.models.enums import ActorType, StreamKind
-from cctv_api.models.tables import AuditLog
-from cctv_api.security.audit import AuditLogError, record_audit_event, verify_audit_chain
+from cctv_api.models.tables import AuditHmacKey, AuditLog
+from cctv_api.security.audit import (
+    AuditLogError,
+    record_audit_event,
+    verify_audit_chain_by_key_version,
+)
 from cctv_api.security.dependencies import require_authenticated_user
 from cctv_api.security.identity import Principal
 from cctv_api.security.livekit_tokens import LiveKitTokenConfigError, mint_viewer_subscribe_token
@@ -177,11 +181,20 @@ def get_camera_view_token(
 
 @v1_router.get("/admin/audit/verify")
 def verify_admin_audit_chain(
+    start_id: int | None = Query(default=None, ge=1),
+    end_id: int | None = Query(default=None, ge=1),
     principal: Principal = Depends(require_authenticated_user),
     db: DbSession = Depends(db_session),
     settings: Settings = Depends(get_settings),
 ) -> AuditVerificationResponse:
     require_role(principal, "admin")
+    if start_id is not None and end_id is not None and start_id > end_id:
+        raise ProblemDetail(
+            status=422,
+            title="Unprocessable Entity",
+            detail="audit-range-invalid",
+            type_uri="https://panoptix.local/problems/unprocessable-entity",
+        )
     if not settings.AUDIT_HMAC_KEY.strip() or settings.AUDIT_HMAC_KEY.strip() == "replace-me":
         raise ProblemDetail(
             status=503,
@@ -189,15 +202,29 @@ def verify_admin_audit_chain(
             detail="audit-hmac-key-invalid",
             type_uri="https://panoptix.local/problems/service-unavailable",
         )
-    rows = db.execute(select(AuditLog).order_by(AuditLog.id)).scalars().all()
-    result = verify_audit_chain(rows, audit_hmac_key=settings.AUDIT_HMAC_KEY)
-    if result.error == "audit-hmac-key-invalid":
-        raise ProblemDetail(
-            status=503,
-            title="Service Unavailable",
-            detail=result.error,
-            type_uri="https://panoptix.local/problems/service-unavailable",
-        )
+    query = select(AuditLog)
+    if start_id is not None:
+        query = query.where(AuditLog.id >= start_id)
+    if end_id is not None:
+        query = query.where(AuditLog.id <= end_id)
+    rows = db.execute(query.order_by(AuditLog.id)).scalars().all()
+    previous_hash = None
+    if start_id is not None:
+        previous_hash = db.execute(
+            select(AuditLog.hash).where(AuditLog.id < start_id).order_by(AuditLog.id.desc()).limit(1)
+        ).scalar_one_or_none()
+    key_versions = {row.hmac_key_version for row in rows}
+    key_rows = (
+        db.execute(select(AuditHmacKey).where(AuditHmacKey.version.in_(key_versions))).scalars().all()
+        if key_versions
+        else []
+    )
+    key_map = {row.version: bytes(row.key_enc) for row in key_rows}
+    result = verify_audit_chain_by_key_version(
+        rows,
+        audit_hmac_keys_by_version=key_map,
+        start_prev_hash=previous_hash,
+    )
     return AuditVerificationResponse(valid=result.valid, checked=result.checked, error=result.error)
 
 

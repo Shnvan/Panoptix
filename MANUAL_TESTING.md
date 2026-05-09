@@ -616,7 +616,7 @@ The first audit admin endpoint is implemented:
 GET /api/v1/admin/audit/verify
 ```
 
-It verifies the full audit HMAC chain and does not list rows, export data, rotate keys, or write a new audit event.
+It verifies the full audit HMAC chain by default, or an inclusive audit ID range when `start_id` and/or `end_id` are provided. It does not list rows, export data, rotate keys, or write a new audit event.
 
 Local audit HMAC settings:
 
@@ -633,6 +633,12 @@ Manual verification call:
 Invoke-RestMethod -Method GET -Uri "$BaseUrl/api/v1/admin/audit/verify" -Headers $AdminHeaders
 ```
 
+Manual range verification call:
+
+```powershell
+Invoke-RestMethod -Method GET -Uri "$BaseUrl/api/v1/admin/audit/verify?start_id=10&end_id=20" -Headers $AdminHeaders
+```
+
 Expected response shape:
 
 ```json
@@ -646,7 +652,12 @@ Expected response shape:
 Notes:
 
 - `checked` is the number of audit rows verified in ID order.
+- `start_id` and `end_id` are optional inclusive audit log IDs; omitted bounds are open-ended.
+- When `start_id` is present, the verifier checks continuity against the latest row before `start_id`.
+- Each row is verified with its stored `hmac_key_version` using local `audit_hmac_keys.key_enc`.
 - Tampering returns `200` with `valid: false` and an error such as `audit-chain-hash-mismatch`.
+- Missing stored key versions return `200` with `valid: false` and `audit-chain-key-missing`.
+- Invalid stored keys return `200` with `valid: false` and `audit-chain-key-invalid`.
 - Missing or placeholder `AUDIT_HMAC_KEY` returns `503 audit-hmac-key-invalid`.
 - Non-admin users receive `403 role-required`.
 
