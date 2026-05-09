@@ -697,7 +697,73 @@ $env:PYTHONPATH = "src"
 python -m pytest tests/test_audit.py -v
 ```
 
-## 11. Gateway Command Signing Local Check
+## 11. Admin Audit Export
+
+Endpoint:
+
+```text
+GET /api/v1/admin/audit/export
+```
+
+This endpoint returns scrubbed audit rows as newline-delimited JSON (JSONL).
+
+Manual command:
+
+```powershell
+Invoke-RestMethod -Method GET -Uri "$BaseUrl/api/v1/admin/audit/export" -Headers $AdminHeaders
+```
+
+curl:
+
+```powershell
+curl.exe -s "$BaseUrl/api/v1/admin/audit/export" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-subject: admin@example.test" `
+  -H "x-panoptix-dev-email: admin@example.test" `
+  -H "x-panoptix-dev-roles: admin"
+```
+
+With optional ID range:
+
+```powershell
+curl.exe -s "$BaseUrl/api/v1/admin/audit/export?start_id=10&end_id=20" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-subject: admin@example.test" `
+  -H "x-panoptix-dev-email: admin@example.test" `
+  -H "x-panoptix-dev-roles: admin"
+```
+
+Expected response:
+
+- Content-Type: `application/x-ndjson`
+- Content-Disposition: `attachment; filename="audit-export.jsonl"`
+- Body: one JSON object per line, or empty if no audit rows exist
+
+Example JSONL row:
+
+```json
+{"id":1,"ts":"2026-05-07T12:00:00","actor_id":"uuid","actor_type":"user","action":"viewer.token.issued","resource":"camera:uuid","payload":{"safe":"value","token":"[REDACTED]"},"ip":"127.0.0.1","ua":"Mozilla/5.0"}
+```
+
+Notes:
+
+- Requires admin role; non-admin users receive `403 role-required`.
+- Missing or placeholder `AUDIT_HMAC_KEY` returns `503 audit-hmac-key-invalid`.
+- `start_id` and `end_id` are optional inclusive audit log IDs.
+- Invalid bounds (`start_id > end_id`, zero values) return `422`.
+- Exported rows do not include internal chain fields (`hash`, `prev_hash`, `hmac_key_version`).
+- Payload values are already scrubbed at write time; raw tokens or credentials are never returned.
+- Export signing is not implemented yet.
+
+Backend audit export tests:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_audit.py -v -k "export"
+```
+
+## 12. Gateway Command Signing Local Check
 
 This is local-only and does not require LiveKit, Cloudflare, Google Workspace, or PostgreSQL.
 
@@ -732,7 +798,7 @@ Notes:
 - There is no persistent command queue and no real camera/media command execution yet.
 - Do not use real production signing keys in local shell history.
 
-## 12. Database Validation
+## 13. Database Validation
 
 If `DATABASE_URL` points to a real local PostgreSQL database:
 
@@ -748,7 +814,7 @@ Rollback-only write-path self-test:
 python scripts/db_validate.py --selftest
 ```
 
-## 13. Verification Commands
+## 14. Verification Commands
 
 ### Backend
 
@@ -772,7 +838,7 @@ python -m ruff check src tests
 python -m compileall src tests
 ```
 
-## 14. Quick Smoke Test Order
+## 15. Quick Smoke Test Order
 
 Use this order for a fast manual check after starting the API:
 
@@ -795,7 +861,7 @@ python -m panoptix_edge_agent.cli --once
 
 If those pass, the public health path, dev user auth path, gateway auth path, and edge heartbeat foundation are working.
 
-## 15. Heartbeat Command Fallback Local Check
+## 16. Heartbeat Command Fallback Local Check
 
 The heartbeat fallback path is local-only and test-scaffolded. It does not require LiveKit, Cloudflare, Google Workspace, PostgreSQL, mediamtx, or real cameras.
 

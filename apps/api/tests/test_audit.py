@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import uuid
 
 from fastapi.testclient import TestClient
@@ -557,3 +558,109 @@ def test_admin_session_revoke_not_found_writes_audit_row(test_db_session: DbSess
     audit_rows = test_db_session.execute(select(AuditLog)).scalars().all()
     assert [row.action for row in audit_rows] == ["session.revoke.not_found"]
     assert audit_rows[0].payload == {"session_id": str(missing_session_id), "revoked": False}
+
+
+def test_admin_audit_export_requires_authentication(test_db_session: DbSession) -> None:
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit/export")
+
+    assert response.status_code == 401
+
+
+def test_admin_audit_export_requires_admin_role(test_db_session: DbSession) -> None:
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit/export", headers=_auth_headers())
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "role-required"
+
+
+def test_admin_audit_export_empty_returns_empty_body(test_db_session: DbSession) -> None:
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit/export", headers=_admin_headers())
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/x-ndjson")
+    assert response.headers["content-disposition"] == 'attachment; filename="audit-export.jsonl"'
+    assert response.text == ""
+
+
+def test_admin_audit_export_returns_jsonl_rows(test_db_session: DbSession) -> None:
+    _record_test_audit_row(test_db_session, "test.export.first")
+    _record_test_audit_row(test_db_session, "test.export.second")
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit/export", headers=_admin_headers())
+
+    assert response.status_code == 200
+    lines = [line for line in response.text.strip().split("\n") if line]
+    assert len(lines) == 2
+    first = json.loads(lines[0])
+    second = json.loads(lines[1])
+    expected_keys = {"id", "ts", "actor_id", "actor_type", "action", "resource", "payload", "ip", "ua"}
+    for row in (first, second):
+        assert set(row.keys()) == expected_keys
+        assert "hash" not in row
+        assert "prev_hash" not in row
+        assert "hmac_key_version" not in row
+    assert first["action"] == "test.export.first"
+    assert second["action"] == "test.export.second"
+
+
+def test_admin_audit_export_respects_id_bounds(test_db_session: DbSession) -> None:
+    _record_test_audit_row(test_db_session, "test.export.first")
+    second = _record_test_audit_row(test_db_session, "test.export.second")
+    _record_test_audit_row(test_db_session, "test.export.third")
+    client = _client_with_db(test_db_session)
+
+    response = client.get(
+        f"/api/v1/admin/audit/export?start_id={second.id}&end_id={second.id}",
+        headers=_admin_headers(),
+    )
+
+    assert response.status_code == 200
+    lines = [line for line in response.text.strip().split("\n") if line]
+    assert len(lines) == 1
+    row = json.loads(lines[0])
+    assert row["action"] == "test.export.second"
+
+
+def test_admin_audit_export_rejects_invalid_bounds(test_db_session: DbSession) -> None:
+    client = _client_with_db(test_db_session)
+
+    for query in ("start_id=0", "end_id=0", "start_id=3&end_id=2"):
+        response = client.get(f"/api/v1/admin/audit/export?{query}", headers=_admin_headers())
+        assert response.status_code == 422
+
+
+def test_admin_audit_export_fails_closed_with_placeholder_key(test_db_session: DbSession) -> None:
+    client = _client_with_db(test_db_session, audit_hmac_key="replace-me")
+
+    response = client.get("/api/v1/admin/audit/export", headers=_admin_headers())
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "audit-hmac-key-invalid"
+
+
+def test_admin_audit_export_returns_scrubbed_payload(test_db_session: DbSession) -> None:
+    record_audit_event(
+        test_db_session,
+        actor_type=ActorType.user,
+        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
+        audit_hmac_key=AUDIT_HMAC_KEY,
+        action="test.export.scrubbed",
+        resource="camera:test",
+        payload={"token": "secret-value", "safe": "visible"},
+    )
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit/export", headers=_admin_headers())
+
+    assert response.status_code == 200
+    lines = [line for line in response.text.strip().split("\n") if line]
+    row = json.loads(lines[0])
+    assert row["payload"]["token"] == REDACTED_VALUE
+    assert row["payload"]["safe"] == "visible"

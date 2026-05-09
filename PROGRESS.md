@@ -124,12 +124,22 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Edge gateway control reconnect/backoff skeleton added
 - [x] Command queues, persistence, command execution, and production reconnect policy remain deferred
 
+### Audit Export Skeleton
+- [x] Admin audit export endpoint added at `GET /api/v1/admin/audit/export`
+- [x] Admin-role enforcement through existing user auth and policy helpers
+- [x] Scrubbed audit rows returned as newline-delimited JSON (JSONL)
+- [x] Optional inclusive `start_id` and `end_id` range filtering
+- [x] `application/x-ndjson` content type with file download disposition
+- [x] Fail-closed 503 when HMAC key is placeholder or empty
+- [x] Internal chain fields (`hash`, `prev_hash`, `hmac_key_version`) excluded from export
+- [x] Export signing, key rotation UI, broad browsing filters, and migrations remain deferred
+
 ---
 
 ## Next Steps (In Order)
 
-### 1. Audit Export Skeleton
-Add a narrow admin audit export scaffold using scrubbed audit rows, without export signing, key rotation UI, broad browsing filters, or database migrations.
+### 1. Audit Row Listing Endpoint
+Add a narrow admin audit row listing scaffold using scrubbed audit rows with cursor pagination, without broad browsing filters, export signing, or database migrations.
 
 ---
 

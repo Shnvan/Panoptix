@@ -1227,7 +1227,43 @@ The audit verifier can now handle operationally useful slices of the audit chain
 
 ---
 
-## 36. Current Verification Status
+## 36. Audit Export Skeleton
+
+### What was implemented
+
+The backend now exposes a narrow admin audit export endpoint:
+
+```text
+GET /api/v1/admin/audit/export
+```
+
+It includes:
+
+- admin-role enforcement through existing user auth and policy helpers
+- scrubbed audit rows returned as newline-delimited JSON (JSONL)
+- optional inclusive `start_id` and `end_id` range filtering
+- `application/x-ndjson` content type with file download disposition
+- fail-closed `503` behavior when `AUDIT_HMAC_KEY` is blank or left as `replace-me`
+- internal chain fields (`hash`, `prev_hash`, `hmac_key_version`) excluded from export
+- each row includes: `id`, `ts`, `actor_id`, `actor_type`, `action`, `resource`, `payload`, `ip`, `ua`
+
+### How it works
+
+The endpoint loads audit rows ordered by ID with optional inclusive bounds. Each row is serialized as a compact JSON object on its own line. The payload field is already scrubbed at write time, so raw tokens or credentials never appear in the export.
+
+The response uses `StreamingResponse` with `application/x-ndjson` content type and a `Content-Disposition: attachment` header for file download.
+
+### Important limitation
+
+This skeleton does not sign the export, list audit rows with pagination, rotate keys, support broad browsing filters, or write an audit event for the export call itself.
+
+### Why it matters
+
+Operators now have a first local/admin export surface for scrubbed audit data without requiring database-level access or exposing internal HMAC chain details.
+
+---
+
+## 37. Current Verification Status
 
 ### What passed
 
@@ -1238,7 +1274,7 @@ edge agent pytest: 43 passed
 edge agent mypy: no issues found
 edge agent ruff: all checks passed
 edge agent compileall: passed
-pytest: 85 passed
+pytest: 93 passed
 mypy: no issues found
 ruff: all checks passed
 compileall: passed

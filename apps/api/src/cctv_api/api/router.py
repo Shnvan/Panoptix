@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import json
 import uuid
+from collections.abc import Generator, Sequence
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
+from starlette.responses import StreamingResponse
 
 from cctv_api.api.errors import ProblemDetail
 from cctv_api.api.gateways import router as gateway_router
@@ -228,6 +231,42 @@ def verify_admin_audit_chain(
     return AuditVerificationResponse(valid=result.valid, checked=result.checked, error=result.error)
 
 
+@v1_router.get("/admin/audit/export")
+def export_admin_audit(
+    start_id: int | None = Query(default=None, ge=1),
+    end_id: int | None = Query(default=None, ge=1),
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> StreamingResponse:
+    require_role(principal, "admin")
+    if start_id is not None and end_id is not None and start_id > end_id:
+        raise ProblemDetail(
+            status=422,
+            title="Unprocessable Entity",
+            detail="audit-range-invalid",
+            type_uri="https://panoptix.local/problems/unprocessable-entity",
+        )
+    if not settings.AUDIT_HMAC_KEY.strip() or settings.AUDIT_HMAC_KEY.strip() == "replace-me":
+        raise ProblemDetail(
+            status=503,
+            title="Service Unavailable",
+            detail="audit-hmac-key-invalid",
+            type_uri="https://panoptix.local/problems/service-unavailable",
+        )
+    query = select(AuditLog)
+    if start_id is not None:
+        query = query.where(AuditLog.id >= start_id)
+    if end_id is not None:
+        query = query.where(AuditLog.id <= end_id)
+    rows = db.execute(query.order_by(AuditLog.id)).scalars().all()
+    return StreamingResponse(
+        _iter_audit_jsonl(rows),
+        media_type="application/x-ndjson",
+        headers={"Content-Disposition": 'attachment; filename="audit-export.jsonl"'},
+    )
+
+
 @v1_router.get("/sessions/active")
 def get_active_sessions(
     principal: Principal = Depends(require_authenticated_user),
@@ -295,6 +334,26 @@ def revoke_user_session(
         payload={"session_id": body.session_id, "revoked": revoked},
     )
     return {"revoked": revoked, "session_id": str(body.session_id)}
+
+
+def _iter_audit_jsonl(rows: Sequence[AuditLog]) -> Generator[str, None, None]:
+    for row in rows:
+        line = json.dumps(
+            {
+                "id": row.id,
+                "ts": row.ts.isoformat() if row.ts else None,
+                "actor_id": str(row.actor_id) if row.actor_id else None,
+                "actor_type": row.actor_type.value if row.actor_type else None,
+                "action": row.action,
+                "resource": row.resource,
+                "payload": row.payload,
+                "ip": row.ip,
+                "ua": row.ua,
+            },
+            separators=(",", ":"),
+            ensure_ascii=True,
+        )
+        yield line + "\n"
 
 
 def _parse_uuid(value: str, detail: str) -> uuid.UUID:

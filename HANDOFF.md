@@ -64,6 +64,7 @@ FastAPI backend currently implements:
 - in-memory/test-scaffolded heartbeat command fallback
 - HMAC-SHA-256 audit hash chain writer and verifier helpers
 - read-only admin audit verification endpoint with optional ID ranges and key-version handling
+- admin audit export endpoint returning scrubbed JSONL rows
 
 ### Edge / Camera Plane
 
@@ -119,6 +120,28 @@ Current state:
 - DB coworker ownership is documented, but backend tests use database helpers where needed
 
 ## Recently Completed Milestones
+
+### Audit Export Skeleton
+
+Completed in this milestone.
+
+Implemented:
+
+- `GET /api/v1/admin/audit/export` admin-only endpoint
+- scrubbed audit rows returned as newline-delimited JSON (JSONL)
+- optional inclusive `start_id` and `end_id` range filtering
+- `application/x-ndjson` content type with `Content-Disposition: attachment` header
+- internal chain fields excluded from export
+- fail-closed 503 when HMAC key is placeholder or empty
+
+Not included:
+
+- export signing
+- audit row listing with cursor pagination
+- key rotation UI/workflow
+- broad browsing filters
+- database migrations
+- self-auditing the export call
 
 ### Audit Verification Range/Key-Version Support
 
@@ -316,7 +339,7 @@ $env:PYTHONPATH = "src"; python -m compileall src alembic scripts
 Latest result:
 
 ```text
-pytest: 85 passed
+pytest: 93 passed
 ruff: all checks passed
 mypy: no issues found in 28 source files
 compileall: passed
@@ -345,23 +368,25 @@ compileall: passed
 Recommended next task:
 
 ```text
-Audit Export Skeleton
+Audit Row Listing Endpoint
 ```
 
 Recommended scope:
 
-- add a narrow admin audit export scaffold using scrubbed audit rows
-- keep export signing, key rotation UI/workflows, broad browsing filters, and migrations deferred
-- preserve audit payload scrubbing and do not include raw tokens or credentials
+- add a narrow admin audit row listing scaffold with cursor pagination
+- return scrubbed audit rows similar to the export endpoint but as paginated JSON
+- keep broad browsing filters, export signing, key rotation UI/workflows, and migrations deferred
 
 Why this is the best next step:
 
-- admin verification now supports full-chain, bounded ranges, and mixed key versions
-- operators will eventually need a controlled way to extract scrubbed audit rows
+- admin export now returns scrubbed JSONL for offline review
+- operators also need an in-browser audit browsing surface for quick inspection
 - it stays backend-local and small before command persistence or real camera actions
 
 ## Not Implemented Yet
 
+- admin audit row listing endpoint
+- audit export signing
 - backend command queue table
 - persistent dispatch/retry model
 - production gateway control reconnect policy/supervision
@@ -374,7 +399,8 @@ Why this is the best next step:
 - Google Workspace setup
 - Railway deployment
 - Neon production database setup
-- admin audit list/export endpoints
+- admin audit row listing endpoint
+- audit export signing
 
 ## External Accounts Status
 
@@ -693,6 +719,7 @@ Important local checks currently include:
 - gateway camera status
 - LiveKit token local/fail-closed checks
 - gateway command signing local check
+- admin audit export
 - backend gateway control WebSocket hello check
 - backend gateway control WebSocket dispatch/ACK test
 - gateway heartbeat command fallback test
@@ -703,7 +730,7 @@ Important local checks currently include:
 ## Suggested Prompt For The New IDE/LLM
 
 ```text
-Read HANDOFF.md and follow its instructions. Then read PROGRESS.md, IMPLEMENTATION_GUIDE.md, MANUAL_TESTING.md, README.md, CLAUDE.md, and the source files related to the next milestone. Confirm the current state and development rules before making changes. The next recommended milestone is Audit Export Skeleton.
+Read HANDOFF.md and follow its instructions. Then read PROGRESS.md, IMPLEMENTATION_GUIDE.md, MANUAL_TESTING.md, README.md, CLAUDE.md, and the source files related to the next milestone. Confirm the current state and development rules before making changes. The next recommended milestone is Audit Row Listing Endpoint.
 ```
 
 ## Final Notes
