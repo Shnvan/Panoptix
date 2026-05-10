@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-from dataclasses import dataclass, field
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from typing import Any, AsyncContextManager, Protocol
 from urllib.parse import urlsplit, urlunsplit
 
@@ -99,6 +99,19 @@ class ControlReconnectResult:
     attempts: int
     result: ControlRunResult | None = None
     error: str | None = None
+    retryable_failures: int = 0
+    sleep_delays: tuple[float, ...] = field(default_factory=tuple)
+    stopped_reason: str = "connected"
+
+
+@dataclass(frozen=True)
+class ControlSupervisorResult:
+    cycles: int
+    connected_cycles: int = 0
+    failed_cycles: int = 0
+    consecutive_failures: int = 0
+    last_result: ControlReconnectResult | None = None
+    stopped_reason: str = "cycle-limit"
 
 
 class GatewayControlClient:
@@ -130,28 +143,43 @@ class GatewayControlClient:
 
     async def run_with_reconnect(self, *, max_messages: int = 1) -> ControlReconnectResult:
         final_error: str | None = None
+        retryable_failures = 0
+        sleep_delays: list[float] = []
         for attempt in range(1, self.config.control_reconnect_attempts + 1):
             try:
                 result = await self.run_once(max_messages=max_messages)
             except ControlClientError as exc:
                 final_error = str(exc)
+                if exc.retryable:
+                    retryable_failures += 1
                 if not exc.retryable or attempt >= self.config.control_reconnect_attempts:
                     return ControlReconnectResult(
                         connected=False,
                         attempts=attempt,
                         error=final_error,
+                        retryable_failures=retryable_failures,
+                        sleep_delays=tuple(sleep_delays),
+                        stopped_reason="exhausted-retries" if exc.retryable else "non-retryable-error",
                     )
-                await self.sleep(self.config.control_reconnect_backoff_seconds)
+                delay = self.config.control_reconnect_backoff_seconds
+                sleep_delays.append(delay)
+                await self.sleep(delay)
                 continue
             return ControlReconnectResult(
                 connected=True,
                 attempts=attempt,
                 result=result,
+                retryable_failures=retryable_failures,
+                sleep_delays=tuple(sleep_delays),
+                stopped_reason="connected",
             )
         return ControlReconnectResult(
             connected=False,
             attempts=self.config.control_reconnect_attempts,
             error=final_error,
+            retryable_failures=retryable_failures,
+            sleep_delays=tuple(sleep_delays),
+            stopped_reason="exhausted-retries",
         )
 
     async def run_once(self, *, max_messages: int = 1) -> ControlRunResult:
@@ -241,6 +269,71 @@ class GatewayControlClient:
         if self.config.dev_identity_enabled:
             headers["x-panoptix-dev-gateway-id"] = self.config.gateway_id
         return headers
+
+
+class GatewayControlSupervisor:
+    def __init__(
+        self,
+        client: GatewayControlClient,
+        *,
+        cycle_delay_seconds: float | None = None,
+    ) -> None:
+        if cycle_delay_seconds is not None and cycle_delay_seconds < 0:
+            raise ControlClientError("cycle_delay_seconds must be greater than or equal to 0", retryable=False)
+        self.client = client
+        self.cycle_delay_seconds = (
+            client.config.control_reconnect_backoff_seconds
+            if cycle_delay_seconds is None
+            else cycle_delay_seconds
+        )
+
+    async def run_once(
+        self,
+        *,
+        cycles: int = 1,
+        max_messages: int = 1,
+        stop_after_success: bool = False,
+    ) -> ControlSupervisorResult:
+        if cycles < 1:
+            raise ControlClientError("cycles must be at least 1", retryable=False)
+
+        connected_cycles = 0
+        failed_cycles = 0
+        consecutive_failures = 0
+        last_result: ControlReconnectResult | None = None
+        stopped_reason = "cycle-limit"
+
+        for cycle in range(1, cycles + 1):
+            result = await self.client.run_with_reconnect(max_messages=max_messages)
+            last_result = result
+            if result.connected:
+                connected_cycles += 1
+                consecutive_failures = 0
+                if stop_after_success:
+                    stopped_reason = "connected"
+                    break
+            else:
+                failed_cycles += 1
+                consecutive_failures += 1
+                if result.stopped_reason == "non-retryable-error":
+                    stopped_reason = "non-retryable-error"
+                    break
+            if cycle < cycles:
+                await self.client.sleep(self.cycle_delay_seconds)
+
+        return ControlSupervisorResult(
+            cycles=connected_cycles + failed_cycles,
+            connected_cycles=connected_cycles,
+            failed_cycles=failed_cycles,
+            consecutive_failures=consecutive_failures,
+            last_result=last_result,
+            stopped_reason=stopped_reason,
+        )
+
+    async def run_forever(self, *, max_messages: int = 1) -> None:
+        while True:
+            await self.run_once(cycles=1, max_messages=max_messages)
+            await self.client.sleep(self.cycle_delay_seconds)
 
 
 def _decode_message(raw_message: str | bytes) -> dict[str, Any]:

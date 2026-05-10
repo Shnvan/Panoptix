@@ -2344,7 +2344,98 @@ Scheduler tests cover:
 
 ---
 
-## 65. Current Verification Status
+## 65. Gateway Reconnect Supervision
+
+### What was implemented
+
+The edge agent now has stronger gateway control reconnect supervision before real media runtime work.
+
+### Reconnect telemetry
+
+`ControlReconnectResult` now includes:
+
+- retryable failure count
+- sleep delays used between attempts
+- stopped reason: `connected`, `exhausted-retries`, or `non-retryable-error`
+
+### Supervisor behavior
+
+`GatewayControlSupervisor` can run bounded repeated reconnect cycles and reports:
+
+- total cycles
+- connected cycles
+- failed cycles
+- consecutive failures
+- last reconnect result
+- stopped reason
+
+Non-retryable protocol/config errors stop supervision without retrying. Command validation remains fail-closed for unsigned, expired, tampered, wrong-gateway, unsupported, or malformed commands.
+
+### CLI behavior
+
+`--control-loop-once` now runs through the supervisor path and prints reconnect attempt count plus supervisor stopped reason.
+
+### Tests added
+
+Edge-agent control tests now cover:
+
+- richer reconnect telemetry
+- repeated successful cycles
+- stop-after-success
+- non-retryable supervisor stop
+- consecutive failure tracking
+- invalid cycle count rejection
+- cancellation propagation
+
+---
+
+## 66. Synthetic RTSP Test Source
+
+### What was implemented
+
+The edge agent now has a safe local synthetic RTSP source scaffold for development and CI.
+
+### Synthetic source settings
+
+The edge-agent config includes:
+
+- `PANOPTIX_SYNTHETIC_RTSP_URL`
+- `PANOPTIX_SYNTHETIC_VIDEO_SIZE`
+- `PANOPTIX_SYNTHETIC_FRAME_RATE`
+- `PANOPTIX_SYNTHETIC_AUDIO_FREQUENCY`
+
+The default local RTSP output is:
+
+```text
+rtsp://127.0.0.1:8554/synthetic-camera-1
+```
+
+### FFmpeg command builder
+
+`panoptix_edge_agent.synthetic_rtsp` builds a safe FFmpeg argument list for:
+
+- `testsrc` video
+- `sine` audio
+- low-latency x264 settings
+- RTSP output
+
+Automated tests do not launch FFmpeg or mediamtx.
+
+### Validation behavior
+
+Validation rejects:
+
+- non-RTSP URLs
+- RTSP URLs with credentials
+- invalid video dimensions
+- invalid frame rates
+- invalid audio frequencies
+
+Real mediamtx process supervision and real camera credentials remain out of scope.
+
+---
+
+## 67. Current Verification Status
 
 ### What passed
 
@@ -2355,7 +2446,7 @@ backend pytest: 308 passed
 backend mypy: no issues found in 37 source files
 backend ruff: all checks passed
 backend compileall: passed
-edge agent pytest: 57 passed
+edge agent pytest: 76 passed
 edge agent mypy: no issues found in 10 source files
 edge agent ruff: all checks passed
 edge agent compileall: passed
@@ -2404,7 +2495,6 @@ This confirms the current backend and edge-agent code is working, typed correctl
 The following are intentionally not done yet:
 
 - frontend UI
-- production gateway control reconnect policy/supervision
 - mediamtx runtime configuration
 - real mediamtx process management
 - real LiveKit SDK publishing
@@ -2417,7 +2507,7 @@ The following are intentionally not done yet:
 
 Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
 
-Possible candidates: gateway reconnect supervision, synthetic RTSP test source, Cloudflare production setup prep.
+Possible candidates: mediamtx runtime configuration, real LiveKit SDK publishing, Cloudflare production setup prep.
 
 ---
 
@@ -2457,6 +2547,8 @@ The system now has:
 - signed JSON audit exports
 - browser/admin CSRF protection and baseline security headers
 - disabled-by-default in-process maintenance scheduler
+- gateway control reconnect supervision
+- synthetic RTSP test-source scaffold
 - passing backend and edge-agent tests, type checks, and lint checks
 
 The most important security idea so far is:

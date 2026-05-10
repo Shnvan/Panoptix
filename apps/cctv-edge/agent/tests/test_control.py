@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from panoptix_edge_agent.config import AgentConfig
-from panoptix_edge_agent.control import ControlClientError, GatewayControlClient
+from panoptix_edge_agent.control import ControlClientError, GatewayControlClient, GatewayControlSupervisor
 
 SIGNING_KEY = "test-command-signing-key-with-enough-entropy"
 VALID_SIGNATURE = "XtEyJPLXf5z6QvlLFhVRqIhVpwbH0R7H_F_1W4dFzxw"
@@ -299,6 +299,9 @@ def test_run_with_reconnect_succeeds_on_first_attempt_without_sleeping() -> None
     assert result.attempts == 1
     assert result.result is not None
     assert result.result.hello_received is True
+    assert result.retryable_failures == 0
+    assert result.sleep_delays == ()
+    assert result.stopped_reason == "connected"
     assert sleep_delays == []
 
 
@@ -315,6 +318,9 @@ def test_run_with_reconnect_retries_after_transient_connection_failure() -> None
 
     assert result.connected is True
     assert result.attempts == 2
+    assert result.retryable_failures == 1
+    assert result.sleep_delays == (2.0,)
+    assert result.stopped_reason == "connected"
     assert connector.calls == 2
     assert sleep_delays == [2.0]
 
@@ -333,6 +339,9 @@ def test_run_with_reconnect_stops_after_configured_attempts() -> None:
     assert result.connected is False
     assert result.attempts == 2
     assert result.error == "gateway control websocket failed: temporary websocket failure"
+    assert result.retryable_failures == 2
+    assert result.sleep_delays == (0.5,)
+    assert result.stopped_reason == "exhausted-retries"
     assert connector.calls == 2
     assert sleep_delays == [0.5]
 
@@ -351,5 +360,123 @@ def test_run_with_reconnect_does_not_retry_invalid_control_message() -> None:
     assert result.connected is False
     assert result.attempts == 1
     assert result.error == "gateway control message was not valid JSON"
+    assert result.retryable_failures == 0
+    assert result.sleep_delays == ()
+    assert result.stopped_reason == "non-retryable-error"
     assert len(connector.calls) == 1
     assert sleep_delays == []
+
+
+def test_control_supervisor_runs_repeated_successful_cycles() -> None:
+    connector = RecordingConnector([_hello()])
+    sleep_delays: list[float] = []
+    client = GatewayControlClient(
+        _config(control_reconnect_attempts=2, control_reconnect_backoff_seconds=0.25),
+        connector=connector,
+        sleep=_sleep_recorder(sleep_delays),
+    )
+    supervisor = GatewayControlSupervisor(client)
+
+    result = asyncio.run(supervisor.run_once(cycles=3))
+
+    assert result.cycles == 3
+    assert result.connected_cycles == 3
+    assert result.failed_cycles == 0
+    assert result.consecutive_failures == 0
+    assert result.stopped_reason == "cycle-limit"
+    assert result.last_result is not None
+    assert result.last_result.connected is True
+    assert connector.calls == [
+        ("ws://api.example.test/api/v1/gateway-control/ws", {"Accept": "application/json", "x-panoptix-dev-gateway-id": "gateway-1"}, 3.0),
+        ("ws://api.example.test/api/v1/gateway-control/ws", {"Accept": "application/json", "x-panoptix-dev-gateway-id": "gateway-1"}, 3.0),
+        ("ws://api.example.test/api/v1/gateway-control/ws", {"Accept": "application/json", "x-panoptix-dev-gateway-id": "gateway-1"}, 3.0),
+    ]
+    assert sleep_delays == [0.25, 0.25]
+
+
+def test_control_supervisor_can_stop_after_first_success() -> None:
+    connector = RecordingConnector([_hello()])
+    sleep_delays: list[float] = []
+    client = GatewayControlClient(
+        _config(control_reconnect_attempts=2, control_reconnect_backoff_seconds=0.25),
+        connector=connector,
+        sleep=_sleep_recorder(sleep_delays),
+    )
+    supervisor = GatewayControlSupervisor(client)
+
+    result = asyncio.run(supervisor.run_once(cycles=3, stop_after_success=True))
+
+    assert result.cycles == 1
+    assert result.connected_cycles == 1
+    assert result.failed_cycles == 0
+    assert result.stopped_reason == "connected"
+    assert len(connector.calls) == 1
+    assert sleep_delays == []
+
+
+def test_control_supervisor_stops_on_non_retryable_error() -> None:
+    connector = RecordingConnector(["not-json"])
+    sleep_delays: list[float] = []
+    client = GatewayControlClient(
+        _config(control_reconnect_attempts=3, control_reconnect_backoff_seconds=0.25),
+        connector=connector,
+        sleep=_sleep_recorder(sleep_delays),
+    )
+    supervisor = GatewayControlSupervisor(client)
+
+    result = asyncio.run(supervisor.run_once(cycles=3))
+
+    assert result.cycles == 1
+    assert result.connected_cycles == 0
+    assert result.failed_cycles == 1
+    assert result.consecutive_failures == 1
+    assert result.stopped_reason == "non-retryable-error"
+    assert result.last_result is not None
+    assert result.last_result.error == "gateway control message was not valid JSON"
+    assert len(connector.calls) == 1
+    assert sleep_delays == []
+
+
+def test_control_supervisor_tracks_consecutive_failures() -> None:
+    connector = FlakyConnector(failures_before_success=99, messages=[_hello()])
+    sleep_delays: list[float] = []
+    client = GatewayControlClient(
+        _config(control_reconnect_attempts=1, control_reconnect_backoff_seconds=0.25),
+        connector=connector,
+        sleep=_sleep_recorder(sleep_delays),
+    )
+    supervisor = GatewayControlSupervisor(client)
+
+    result = asyncio.run(supervisor.run_once(cycles=2))
+
+    assert result.cycles == 2
+    assert result.connected_cycles == 0
+    assert result.failed_cycles == 2
+    assert result.consecutive_failures == 2
+    assert result.stopped_reason == "cycle-limit"
+    assert connector.calls == 2
+    assert sleep_delays == [0.25]
+
+
+def test_control_supervisor_rejects_invalid_cycle_count() -> None:
+    supervisor = GatewayControlSupervisor(GatewayControlClient(_config()))
+
+    with pytest.raises(ControlClientError, match="cycles must be at least 1"):
+        asyncio.run(supervisor.run_once(cycles=0))
+
+
+def test_control_supervisor_propagates_cancellation() -> None:
+    connector = FlakyConnector(failures_before_success=99, messages=[_hello()])
+
+    async def _cancel_sleep(_delay: float) -> None:
+        raise asyncio.CancelledError
+
+    client = GatewayControlClient(
+        _config(control_reconnect_attempts=2, control_reconnect_backoff_seconds=0.25),
+        connector=connector,
+        sleep=_cancel_sleep,
+    )
+    supervisor = GatewayControlSupervisor(client)
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(supervisor.run_once(cycles=1))

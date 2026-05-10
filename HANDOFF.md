@@ -133,9 +133,46 @@ Current state:
 
 ## Recently Completed Milestones
 
-### Production Maintenance Scheduler
+### Synthetic RTSP Test Source
 
 Completed in this milestone.
+
+Implemented:
+
+- edge-agent config now includes synthetic RTSP URL, video size, frame rate, and audio frequency
+- `synthetic_rtsp.py` builds a safe FFmpeg argument list for `testsrc` video and `sine` audio
+- validation rejects non-RTSP URLs, RTSP URLs containing credentials, invalid dimensions, and invalid rates
+- tests cover command construction and validation without requiring FFmpeg or mediamtx to be installed
+- `.env.example` and mediamtx docs include local synthetic-source defaults and security expectations
+
+Not included:
+
+- real mediamtx process supervision
+- real RTSP camera credentials
+- real LiveKit SDK publishing
+
+### Gateway Reconnect Supervision
+
+Completed in prior milestone.
+
+Implemented:
+
+- `ControlReconnectResult` now reports retryable failure count, sleep delays, and stopped reason
+- `GatewayControlSupervisor` runs bounded repeated reconnect cycles
+- supervisor tracks connected cycles, failed cycles, consecutive failures, and final result
+- non-retryable control errors stop supervision without weakening command validation
+- `--control-loop-once` now uses the supervisor path for bounded local smoke testing
+- edge-agent tests cover reconnect telemetry, repeated cycles, stop-after-success, non-retryable stop, consecutive failures, invalid cycle counts, and cancellation propagation
+
+Not included:
+
+- real mediamtx runtime control
+- real RTSP camera publishing
+- external monitoring service integration
+
+### Production Maintenance Scheduler
+
+Completed in prior milestone.
 
 Implemented:
 
@@ -916,9 +953,9 @@ $env:PYTHONPATH = "src"; python -m compileall src tests
 Latest result:
 
 ```text
-pytest: 57 passed
+pytest: 76 passed
 ruff: all checks passed
-mypy: no issues found in 10 source files
+mypy: no issues found in 11 source files
 compileall: passed
 ```
 
@@ -934,7 +971,6 @@ Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementat
 
 ## Not Implemented Yet
 
-- production gateway control reconnect policy/supervision
 - mediamtx runtime configuration
 - real camera/media start/stop
 - frontend UI

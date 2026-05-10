@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
+from urllib.parse import urlsplit
 
 from panoptix_edge_agent import __version__
 
@@ -24,6 +25,10 @@ class AgentConfig:
     control_ws_path: str = "/api/v1/gateway-control/ws"
     control_reconnect_attempts: int = 3
     control_reconnect_backoff_seconds: float = 1.0
+    synthetic_rtsp_url: str = "rtsp://127.0.0.1:8554/synthetic-camera-1"
+    synthetic_video_size: str = "1280x720"
+    synthetic_frame_rate: int = 30
+    synthetic_audio_frequency: int = 1000
 
     @property
     def normalized_api_base_url(self) -> str:
@@ -47,6 +52,13 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
         "PANOPTIX_GATEWAY_CONTROL_RECONNECT_BACKOFF_SECONDS",
         1.0,
     )
+    synthetic_rtsp_url = env.get(
+        "PANOPTIX_SYNTHETIC_RTSP_URL",
+        "rtsp://127.0.0.1:8554/synthetic-camera-1",
+    ).strip()
+    synthetic_video_size = env.get("PANOPTIX_SYNTHETIC_VIDEO_SIZE", "1280x720").strip()
+    synthetic_frame_rate = _int_value(env, "PANOPTIX_SYNTHETIC_FRAME_RATE", 30)
+    synthetic_audio_frequency = _int_value(env, "PANOPTIX_SYNTHETIC_AUDIO_FREQUENCY", 1000)
 
     if heartbeat_interval_seconds < 5:
         raise ConfigError("PANOPTIX_HEARTBEAT_INTERVAL_SECONDS must be at least 5")
@@ -60,6 +72,12 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
         raise ConfigError(
             "PANOPTIX_GATEWAY_CONTROL_RECONNECT_BACKOFF_SECONDS must be greater than or equal to 0"
         )
+    _validate_rtsp_url(synthetic_rtsp_url, "PANOPTIX_SYNTHETIC_RTSP_URL")
+    _validate_video_size(synthetic_video_size, "PANOPTIX_SYNTHETIC_VIDEO_SIZE")
+    if synthetic_frame_rate < 1:
+        raise ConfigError("PANOPTIX_SYNTHETIC_FRAME_RATE must be at least 1")
+    if synthetic_audio_frequency < 1:
+        raise ConfigError("PANOPTIX_SYNTHETIC_AUDIO_FREQUENCY must be at least 1")
 
     return AgentConfig(
         api_base_url=api_base_url,
@@ -73,6 +91,10 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
         control_ws_path=control_ws_path,
         control_reconnect_attempts=control_reconnect_attempts,
         control_reconnect_backoff_seconds=control_reconnect_backoff_seconds,
+        synthetic_rtsp_url=synthetic_rtsp_url,
+        synthetic_video_size=synthetic_video_size,
+        synthetic_frame_rate=synthetic_frame_rate,
+        synthetic_audio_frequency=synthetic_audio_frequency,
     )
 
 
@@ -114,3 +136,24 @@ def _bool_value(raw: str) -> bool:
     if value in {"0", "false", "no", "off", ""}:
         return False
     raise ConfigError("PANOPTIX_DEV_GATEWAY_IDENTITY must be a boolean")
+
+
+def _validate_rtsp_url(raw: str, name: str) -> None:
+    parsed = urlsplit(raw)
+    if parsed.scheme not in {"rtsp", "rtsps"} or not parsed.netloc:
+        raise ConfigError(f"{name} must be an rtsp:// or rtsps:// URL")
+    if parsed.username is not None or parsed.password is not None:
+        raise ConfigError(f"{name} must not include credentials")
+
+
+def _validate_video_size(raw: str, name: str) -> None:
+    width, separator, height = raw.partition("x")
+    if separator != "x":
+        raise ConfigError(f"{name} must use WIDTHxHEIGHT format")
+    try:
+        width_value = int(width)
+        height_value = int(height)
+    except ValueError as exc:
+        raise ConfigError(f"{name} must use integer WIDTHxHEIGHT values") from exc
+    if width_value < 1 or height_value < 1:
+        raise ConfigError(f"{name} dimensions must be at least 1")

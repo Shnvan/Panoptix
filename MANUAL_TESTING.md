@@ -1229,7 +1229,57 @@ python -m panoptix_edge_agent.cli --once
 
 If those pass, the public health path, dev user auth path, gateway auth path, and edge heartbeat foundation are working.
 
-## 17. Heartbeat Command Fallback Local Check
+## 17. Gateway Control Reconnect Supervision Check
+
+The edge agent has a bounded gateway control reconnect supervisor for local smoke testing.
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+$env:PANOPTIX_API_BASE_URL = "http://127.0.0.1:8000"
+$env:PANOPTIX_GATEWAY_ID = "11111111-1111-1111-1111-111111111111"
+$env:PANOPTIX_DEV_GATEWAY_IDENTITY = "true"
+$env:PANOPTIX_GATEWAY_COMMAND_SIGNING_KEY = "test-command-signing-key-with-enough-entropy"
+$env:PANOPTIX_GATEWAY_CONTROL_RECONNECT_ATTEMPTS = "3"
+$env:PANOPTIX_GATEWAY_CONTROL_RECONNECT_BACKOFF_SECONDS = "1"
+python -m panoptix_edge_agent.cli --control-loop-once
+```
+
+Expected success output includes:
+
+```text
+gateway control reconnect accepted after 1 attempt(s); supervisor stopped: connected
+```
+
+Expected failure output includes the final reconnect error. The supervisor does not weaken command verification; invalid, unsigned, expired, tampered, or wrong-gateway commands are still rejected.
+
+## 18. Synthetic RTSP Test Source Check
+
+The synthetic RTSP source is a dev/test scaffold. Automated tests only validate FFmpeg argument construction; they do not launch FFmpeg or mediamtx.
+
+Run the focused tests:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_synthetic_rtsp.py tests/test_config.py -v
+```
+
+Default synthetic output URL:
+
+```text
+rtsp://127.0.0.1:8554/synthetic-camera-1
+```
+
+Manual end-to-end testing requires starting `mediamtx` separately, then running the generated FFmpeg argument list against that local RTSP server. Keep `mediamtx` local-only and keep its HTTP API disabled or bound to loopback.
+
+Security expectations:
+
+- no browser, webcam, or phone publishing path is introduced
+- no RTSP credentials are allowed in the synthetic URL
+- real mediamtx supervision and real camera credentials remain future work
+
+## 19. Heartbeat Command Fallback Local Check
 
 The heartbeat fallback path is local-only and test-scaffolded. It does not require LiveKit, Cloudflare, Google Workspace, PostgreSQL, mediamtx, or real cameras.
 
@@ -1258,7 +1308,7 @@ Expected behavior:
 
 ---
 
-## 18. Edge Command Executor Tests
+## 20. Edge Command Executor Tests
 
 The edge command executor dispatches verified `gateway.command.start_publish` and `gateway.command.stop_publish` commands to a safe stub media controller.
 

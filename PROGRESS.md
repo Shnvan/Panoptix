@@ -387,6 +387,20 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Scheduled runs write system audit events while admin-triggered runs keep `admin.maintenance.run`
 - [x] Added scheduler tests for stale command expiry, due publish stops, audit rows, startup gating, and cancellation
 
+### Gateway Reconnect Supervision
+- [x] Added reconnect telemetry for retryable failures, sleep delays, and stopped reason
+- [x] Added bounded gateway control supervisor cycles for repeated reconnect attempts
+- [x] Preserved fail-closed command validation during reconnect/supervision
+- [x] Updated `--control-loop-once` to use the supervisor path
+- [x] Added edge-agent tests for retry telemetry, repeated cycles, stop-after-success, non-retryable stop, consecutive failures, invalid cycles, and cancellation
+
+### Synthetic RTSP Test Source
+- [x] Added edge-agent synthetic RTSP settings for RTSP URL, video size, frame rate, and audio frequency
+- [x] Added safe FFmpeg argument-list builder for `testsrc` video and `sine` audio
+- [x] Added validation that rejects non-RTSP URLs, URL credentials, invalid dimensions, and invalid rates
+- [x] Added tests that do not require FFmpeg or mediamtx to be installed
+- [x] Documented local synthetic source expectations and preserved the CCTV-only invariant
+
 ---
 
 ## Next Steps (In Order)

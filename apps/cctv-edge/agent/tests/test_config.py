@@ -29,6 +29,10 @@ def test_load_config_from_env_parses_values() -> None:
             "PANOPTIX_GATEWAY_CONTROL_WS_PATH": "/custom/ws",
             "PANOPTIX_GATEWAY_CONTROL_RECONNECT_ATTEMPTS": "5",
             "PANOPTIX_GATEWAY_CONTROL_RECONNECT_BACKOFF_SECONDS": "2.5",
+            "PANOPTIX_SYNTHETIC_RTSP_URL": "rtsp://127.0.0.1:8554/custom-source",
+            "PANOPTIX_SYNTHETIC_VIDEO_SIZE": "640x360",
+            "PANOPTIX_SYNTHETIC_FRAME_RATE": "15",
+            "PANOPTIX_SYNTHETIC_AUDIO_FREQUENCY": "440",
         }
     )
 
@@ -43,6 +47,10 @@ def test_load_config_from_env_parses_values() -> None:
     assert config.control_ws_path == "/custom/ws"
     assert config.control_reconnect_attempts == 5
     assert config.control_reconnect_backoff_seconds == 2.5
+    assert config.synthetic_rtsp_url == "rtsp://127.0.0.1:8554/custom-source"
+    assert config.synthetic_video_size == "640x360"
+    assert config.synthetic_frame_rate == 15
+    assert config.synthetic_audio_frequency == 440
 
 
 def test_load_config_from_env_rejects_short_heartbeat_interval() -> None:
@@ -85,5 +93,60 @@ def test_load_config_from_env_rejects_negative_control_reconnect_backoff() -> No
                 "PANOPTIX_API_BASE_URL": "http://api.example.test",
                 "PANOPTIX_GATEWAY_ID": "gateway-1",
                 "PANOPTIX_GATEWAY_CONTROL_RECONNECT_BACKOFF_SECONDS": "-0.1",
+            }
+        )
+
+
+def test_load_config_from_env_rejects_invalid_synthetic_rtsp_url() -> None:
+    with pytest.raises(ConfigError, match="PANOPTIX_SYNTHETIC_RTSP_URL"):
+        load_config_from_env(
+            {
+                "PANOPTIX_API_BASE_URL": "http://api.example.test",
+                "PANOPTIX_GATEWAY_ID": "gateway-1",
+                "PANOPTIX_SYNTHETIC_RTSP_URL": "http://127.0.0.1:8554/source",
+            }
+        )
+
+
+def test_load_config_from_env_rejects_synthetic_rtsp_url_credentials() -> None:
+    with pytest.raises(ConfigError, match="must not include credentials"):
+        load_config_from_env(
+            {
+                "PANOPTIX_API_BASE_URL": "http://api.example.test",
+                "PANOPTIX_GATEWAY_ID": "gateway-1",
+                "PANOPTIX_SYNTHETIC_RTSP_URL": "rtsp://user:pass@127.0.0.1:8554/source",
+            }
+        )
+
+
+def test_load_config_from_env_rejects_invalid_synthetic_video_size() -> None:
+    with pytest.raises(ConfigError, match="PANOPTIX_SYNTHETIC_VIDEO_SIZE"):
+        load_config_from_env(
+            {
+                "PANOPTIX_API_BASE_URL": "http://api.example.test",
+                "PANOPTIX_GATEWAY_ID": "gateway-1",
+                "PANOPTIX_SYNTHETIC_VIDEO_SIZE": "640/360",
+            }
+        )
+
+
+def test_load_config_from_env_rejects_invalid_synthetic_frame_rate() -> None:
+    with pytest.raises(ConfigError, match="PANOPTIX_SYNTHETIC_FRAME_RATE"):
+        load_config_from_env(
+            {
+                "PANOPTIX_API_BASE_URL": "http://api.example.test",
+                "PANOPTIX_GATEWAY_ID": "gateway-1",
+                "PANOPTIX_SYNTHETIC_FRAME_RATE": "0",
+            }
+        )
+
+
+def test_load_config_from_env_rejects_invalid_synthetic_audio_frequency() -> None:
+    with pytest.raises(ConfigError, match="PANOPTIX_SYNTHETIC_AUDIO_FREQUENCY"):
+        load_config_from_env(
+            {
+                "PANOPTIX_API_BASE_URL": "http://api.example.test",
+                "PANOPTIX_GATEWAY_ID": "gateway-1",
+                "PANOPTIX_SYNTHETIC_AUDIO_FREQUENCY": "0",
             }
         )

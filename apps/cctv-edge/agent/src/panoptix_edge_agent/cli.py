@@ -5,7 +5,11 @@ import asyncio
 import sys
 
 from panoptix_edge_agent.config import ConfigError, load_config_from_env
-from panoptix_edge_agent.control import ControlClientError, GatewayControlClient
+from panoptix_edge_agent.control import (
+    ControlClientError,
+    GatewayControlClient,
+    GatewayControlSupervisor,
+)
 from panoptix_edge_agent.runner import HeartbeatRunner
 
 
@@ -50,11 +54,19 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.control_loop_once:
-        reconnect_result = asyncio.run(GatewayControlClient(config).run_with_reconnect())
-        if not reconnect_result.connected:
-            print(f"gateway control reconnect failed: {reconnect_result.error}", file=sys.stderr)
+        supervisor_result = asyncio.run(
+            GatewayControlSupervisor(GatewayControlClient(config)).run_once(stop_after_success=True)
+        )
+        reconnect_result = supervisor_result.last_result
+        if reconnect_result is None or not reconnect_result.connected:
+            error = reconnect_result.error if reconnect_result is not None else "no reconnect result"
+            print(f"gateway control reconnect failed: {error}", file=sys.stderr)
             return 1
-        print(f"gateway control reconnect accepted after {reconnect_result.attempts} attempt(s)")
+        print(
+            "gateway control reconnect accepted "
+            f"after {reconnect_result.attempts} attempt(s); "
+            f"supervisor stopped: {supervisor_result.stopped_reason}"
+        )
         return 0
 
     runner = HeartbeatRunner(config)
