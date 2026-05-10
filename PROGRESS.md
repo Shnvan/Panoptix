@@ -379,6 +379,14 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Added baseline API security headers on success and problem-detail responses
 - [x] Added 11 tests covering CSRF helpers, browser CSRF enforcement, dev-auth compatibility, and security headers
 
+### Production Maintenance Scheduler
+- [x] Added reusable one-shot maintenance job logic shared by admin-triggered and scheduled maintenance
+- [x] Added disabled-by-default in-process scheduler loop controlled by `ENABLE_MAINTENANCE_SCHEDULER`
+- [x] Added `MAINTENANCE_INTERVAL_SECONDS` setting with safe lower bound
+- [x] Scheduler starts only with an enabled flag and non-placeholder database URL
+- [x] Scheduled runs write system audit events while admin-triggered runs keep `admin.maintenance.run`
+- [x] Added scheduler tests for stale command expiry, due publish stops, audit rows, startup gating, and cancellation
+
 ---
 
 ## Next Steps (In Order)

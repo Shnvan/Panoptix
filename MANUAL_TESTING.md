@@ -1161,6 +1161,29 @@ python scripts/db_validate.py --selftest
 
 ## 15. Verification Commands
 
+### Maintenance scheduler
+
+Manual maintenance remains available:
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "$BaseUrl/api/v1/admin/jobs/run-maintenance" -Headers $AdminHeaders
+```
+
+Expected response:
+
+```json
+{"expired_commands":0,"stops_enqueued":0}
+```
+
+The automatic in-process scheduler is disabled by default. To enable it for local smoke testing, set:
+
+```powershell
+$env:ENABLE_MAINTENANCE_SCHEDULER = "true"
+$env:MAINTENANCE_INTERVAL_SECONDS = "30"
+```
+
+The scheduler only starts when `DATABASE_URL` is not a placeholder. Scheduled runs write `system.maintenance.run` audit events.
+
 ### Backend
 
 ```powershell

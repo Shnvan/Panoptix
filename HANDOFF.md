@@ -133,9 +133,29 @@ Current state:
 
 ## Recently Completed Milestones
 
-### Browser/Admin Security Hardening
+### Production Maintenance Scheduler
 
 Completed in this milestone.
+
+Implemented:
+
+- reusable one-shot maintenance job logic now powers both admin-triggered and scheduled maintenance
+- disabled-by-default in-process scheduler loop is controlled by `ENABLE_MAINTENANCE_SCHEDULER`
+- scheduler interval is controlled by `MAINTENANCE_INTERVAL_SECONDS`
+- scheduler starts only when enabled and `DATABASE_URL` is not a placeholder
+- scheduled maintenance expires stale gateway commands and enqueues due publish-stop commands
+- scheduled runs write `system.maintenance.run` audit events; admin-triggered runs keep `admin.maintenance.run`
+- scheduler tests cover stale command expiry, due publish stops, system audit rows, startup gating, and cancellation
+
+Not included:
+
+- distributed scheduler locking for multi-instance deployments
+- external Railway/cron configuration
+- production database setup
+
+### Browser/Admin Security Hardening
+
+Completed in prior milestone.
 
 Implemented:
 
@@ -878,9 +898,9 @@ $env:PYTHONPATH = "src"; python -m compileall src alembic scripts
 Latest result:
 
 ```text
-pytest: 302 passed
+pytest: 308 passed
 ruff: all checks passed
-mypy: no issues found in 35 source files
+mypy: no issues found in 37 source files
 compileall: passed
 ```
 
@@ -914,7 +934,6 @@ Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementat
 
 ## Not Implemented Yet
 
-- production background scheduler/cron for automated maintenance
 - production gateway control reconnect policy/supervision
 - mediamtx runtime configuration
 - real camera/media start/stop

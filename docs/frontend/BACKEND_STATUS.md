@@ -208,6 +208,8 @@ All admin endpoints require the `admin` role.
 
 Runs expired-command cleanup and due publish-stop processing in a single admin call. Idempotent and safe to call repeatedly.
 
+The backend also has a disabled-by-default in-process maintenance scheduler controlled by `ENABLE_MAINTENANCE_SCHEDULER` and `MAINTENANCE_INTERVAL_SECONDS`; the admin endpoint remains available for manual runs.
+
 ### Audit
 
 | Method | Path | Request | Response |

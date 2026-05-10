@@ -2307,15 +2307,52 @@ API responses now include:
 
 ---
 
-## 64. Current Verification Status
+## 64. Production Maintenance Scheduler
+
+### What was implemented
+
+The backend now has a disabled-by-default in-process scheduler for recurring maintenance.
+
+### Scheduler settings
+
+- `ENABLE_MAINTENANCE_SCHEDULER=false` by default
+- `MAINTENANCE_INTERVAL_SECONDS=30` by default, with a minimum of 5 seconds
+
+The scheduler starts only when enabled and `DATABASE_URL` is not a placeholder.
+
+### Scheduled job behavior
+
+Scheduled maintenance runs the same core job as the manual admin endpoint:
+
+- expire stale pending gateway commands
+- enqueue due publish-stop commands after the viewer stop grace window
+
+Manual admin runs still write `admin.maintenance.run`.
+
+Scheduled runs write `system.maintenance.run`.
+
+### Tests added
+
+Scheduler tests cover:
+
+- stale command expiry
+- due publish-stop enqueueing
+- system audit rows
+- disabled-by-default startup gating
+- enabled startup gating
+- cancellation behavior
+
+---
+
+## 65. Current Verification Status
 
 ### What passed
 
 The latest verification passed:
 
 ```text
-backend pytest: 302 passed
-backend mypy: no issues found in 35 source files
+backend pytest: 308 passed
+backend mypy: no issues found in 37 source files
 backend ruff: all checks passed
 backend compileall: passed
 edge agent pytest: 57 passed
@@ -2367,12 +2404,10 @@ This confirms the current backend and edge-agent code is working, typed correctl
 The following are intentionally not done yet:
 
 - frontend UI
-- periodic background scheduler/cron for automated cleanup
 - production gateway control reconnect policy/supervision
 - mediamtx runtime configuration
 - real mediamtx process management
 - real LiveKit SDK publishing
-- production scheduler/cron wiring for due publish stops
 
 ---
 
@@ -2382,7 +2417,7 @@ The following are intentionally not done yet:
 
 Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
 
-Possible candidates: production scheduler/cron wiring, gateway reconnect supervision, synthetic RTSP test source.
+Possible candidates: gateway reconnect supervision, synthetic RTSP test source, Cloudflare production setup prep.
 
 ---
 
@@ -2421,6 +2456,7 @@ The system now has:
 - gateway command denial audit logging
 - signed JSON audit exports
 - browser/admin CSRF protection and baseline security headers
+- disabled-by-default in-process maintenance scheduler
 - passing backend and edge-agent tests, type checks, and lint checks
 
 The most important security idea so far is:

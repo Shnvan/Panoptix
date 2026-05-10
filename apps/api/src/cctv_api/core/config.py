@@ -62,6 +62,10 @@ class Settings(BaseSettings):
     GATEWAY_COMMAND_SIGNING_KEY: str = "replace-me"
     GATEWAY_HEARTBEAT_INTERVAL_SECONDS: int = Field(default=10, ge=5)
 
+    # ── Maintenance scheduler ──
+    ENABLE_MAINTENANCE_SCHEDULER: bool = False
+    MAINTENANCE_INTERVAL_SECONDS: int = Field(default=30, ge=5)
+
     # ── Security headers / CSP ──
     CSP_REPORT_URI: str = ""
     LIVEKIT_CONNECT_SRC: str = "wss://replace-me.livekit.cloud"

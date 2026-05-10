@@ -19,7 +19,7 @@ from cctv_api.api.livekit_webhooks import router as livekit_webhook_router
 from cctv_api.core.config import Settings, get_settings
 from cctv_api.db import db_session
 from cctv_api.gateway.command_queue import enqueue_command, expire_stale_commands
-from cctv_api.gateway.publish_state import enqueue_due_publish_stops
+from cctv_api.jobs.maintenance import run_admin_maintenance_job
 from cctv_api.models.enums import ActorType, CameraSourceType, CommandStatus, GatewayStatus, StreamKind
 from cctv_api.models.tables import (
     AuditHmacKey,
@@ -1086,9 +1086,8 @@ def run_maintenance(
 ) -> MaintenanceResponse:
     require_role(principal, "admin")
     user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
-    expired_count = expire_stale_commands(db)
 
-    def _audit(action: str, resource: str, payload: dict[str, object]) -> None:
+    def _audit(action: str, resource: str, payload: dict[str, object | None]) -> None:
         _record_user_audit_required(
             db,
             settings=settings,
@@ -1099,8 +1098,7 @@ def run_maintenance(
             payload=payload,
         )
 
-    stop_results = enqueue_due_publish_stops(db, audit=_audit)
-    stops_enqueued = len(stop_results)
+    result = run_admin_maintenance_job(db, audit=_audit)
     _record_user_audit_required(
         db,
         settings=settings,
@@ -1108,10 +1106,10 @@ def run_maintenance(
         actor_id=user.id,
         action="admin.maintenance.run",
         resource="maintenance",
-        payload={"expired_commands": expired_count, "stops_enqueued": stops_enqueued},
+        payload={"expired_commands": result.expired_commands, "stops_enqueued": result.stops_enqueued},
     )
     db.commit()
-    return MaintenanceResponse(expired_commands=expired_count, stops_enqueued=stops_enqueued)
+    return MaintenanceResponse(expired_commands=result.expired_commands, stops_enqueued=result.stops_enqueued)
 
 
 # ── Admin Camera CRUD ──
