@@ -2435,7 +2435,46 @@ Real mediamtx process supervision and real camera credentials remain out of scop
 
 ---
 
-## 67. Current Verification Status
+## 67. mediamtx Runtime Configuration
+
+### What was implemented
+
+The edge workspace now has a local-only mediamtx runtime configuration scaffold for the synthetic RTSP source.
+
+### Local config scaffold
+
+`apps/cctv-edge/mediamtx/mediamtx.local.yml` defines:
+
+- `rtspAddress: 127.0.0.1:8554`
+- `api: no`
+- `apiAddress: 127.0.0.1:9997`
+- `paths.synthetic-camera-1.source: publisher`
+
+This is a dev/test scaffold only. It is not production process supervision.
+
+### Validation helper
+
+`panoptix_edge_agent.mediamtx_config` can generate and validate the local config defaults.
+
+Validation enforces:
+
+- RTSP binding is loopback-only
+- enabled API binding is loopback-only
+- disabled API address, if present, is still loopback-only
+- synthetic path uses safe path characters
+
+Tests reject wildcard, WAN, and camera-VLAN API bindings.
+
+### What remains out of scope
+
+- real mediamtx process supervision
+- real RTSP camera credentials
+- real LiveKit SDK publishing
+- production Docker/systemd packaging
+
+---
+
+## 68. Current Verification Status
 
 ### What passed
 
@@ -2446,8 +2485,8 @@ backend pytest: 308 passed
 backend mypy: no issues found in 37 source files
 backend ruff: all checks passed
 backend compileall: passed
-edge agent pytest: 76 passed
-edge agent mypy: no issues found in 10 source files
+edge agent pytest: 88 passed
+edge agent mypy: no issues found in 12 source files
 edge agent ruff: all checks passed
 edge agent compileall: passed
 ```
@@ -2495,7 +2534,6 @@ This confirms the current backend and edge-agent code is working, typed correctl
 The following are intentionally not done yet:
 
 - frontend UI
-- mediamtx runtime configuration
 - real mediamtx process management
 - real LiveKit SDK publishing
 
@@ -2507,7 +2545,7 @@ The following are intentionally not done yet:
 
 Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
 
-Possible candidates: mediamtx runtime configuration, real LiveKit SDK publishing, Cloudflare production setup prep.
+Possible candidates: real mediamtx process management, real LiveKit SDK publishing, Cloudflare production setup prep.
 
 ---
 
@@ -2549,6 +2587,7 @@ The system now has:
 - disabled-by-default in-process maintenance scheduler
 - gateway control reconnect supervision
 - synthetic RTSP test-source scaffold
+- local-only mediamtx runtime config scaffold
 - passing backend and edge-agent tests, type checks, and lint checks
 
 The most important security idea so far is:

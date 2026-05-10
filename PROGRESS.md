@@ -401,6 +401,13 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Added tests that do not require FFmpeg or mediamtx to be installed
 - [x] Documented local synthetic source expectations and preserved the CCTV-only invariant
 
+### mediamtx Runtime Configuration
+- [x] Added local-only `mediamtx.local.yml` scaffold for the synthetic RTSP source
+- [x] Added edge-agent helper for generating and validating safe mediamtx local defaults
+- [x] Enforced loopback-only RTSP/API bindings and rejected wildcard, WAN, and camera-VLAN API bindings
+- [x] Added tests that validate the checked-in config without launching mediamtx
+- [x] Documented that real mediamtx process supervision remains a later milestone
+
 ---
 
 ## Next Steps (In Order)

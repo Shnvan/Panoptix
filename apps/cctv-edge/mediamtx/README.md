@@ -1,10 +1,22 @@
 # mediamtx Configuration
 
-Placeholder for gateway-side `mediamtx` configuration.
+Gateway-side `mediamtx` configuration scaffolding.
 
 Configuration must be pinned, reviewed, and kept aligned with the security invariants before pilot use.
 
 No production runtime configuration is included yet.
+
+## Local runtime scaffold
+
+`mediamtx.local.yml` is a dev/test scaffold for the synthetic RTSP source. It is intentionally local-only:
+
+```text
+rtspAddress: 127.0.0.1:8554
+api: no
+apiAddress: 127.0.0.1:9997
+```
+
+The edge-agent test suite verifies that the checked-in config matches the generated safe defaults and that API bindings are disabled or loopback-only.
 
 ## Local synthetic RTSP source
 
@@ -16,7 +28,7 @@ Default local output:
 rtsp://127.0.0.1:8554/synthetic-camera-1
 ```
 
-For manual testing, run `mediamtx` separately and keep its HTTP API disabled or bound to loopback only.
+For manual testing, run `mediamtx` separately with `mediamtx.local.yml` and keep its HTTP API disabled or bound to loopback only.
 
 Security expectations:
 

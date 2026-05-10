@@ -1279,6 +1279,27 @@ Security expectations:
 - no RTSP credentials are allowed in the synthetic URL
 - real mediamtx supervision and real camera credentials remain future work
 
+Local mediamtx config check:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_mediamtx_config.py -v
+```
+
+The checked-in local config is:
+
+```text
+apps/cctv-edge/mediamtx/mediamtx.local.yml
+```
+
+Expected behavior:
+
+- `mediamtx.local.yml` matches the generated safe defaults
+- RTSP is bound to `127.0.0.1:8554`
+- the HTTP API is disabled by default
+- wildcard, WAN, and camera-VLAN API bindings are rejected by tests
+
 ## 19. Heartbeat Command Fallback Local Check
 
 The heartbeat fallback path is local-only and test-scaffolded. It does not require LiveKit, Cloudflare, Google Workspace, PostgreSQL, mediamtx, or real cameras.

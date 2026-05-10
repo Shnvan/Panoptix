@@ -133,9 +133,27 @@ Current state:
 
 ## Recently Completed Milestones
 
-### Synthetic RTSP Test Source
+### mediamtx Runtime Configuration
 
 Completed in this milestone.
+
+Implemented:
+
+- `apps/cctv-edge/mediamtx/mediamtx.local.yml` provides local-only mediamtx defaults for the synthetic RTSP source
+- `mediamtx_config.py` generates and validates the safe local mediamtx config
+- RTSP/API bindings are constrained to loopback
+- tests reject wildcard, WAN, and camera-VLAN API bindings
+- tests verify the checked-in YAML matches generated defaults without launching mediamtx
+
+Not included:
+
+- real mediamtx process supervision
+- real RTSP camera credentials
+- real LiveKit SDK publishing
+
+### Synthetic RTSP Test Source
+
+Completed in prior milestone.
 
 Implemented:
 
@@ -953,9 +971,9 @@ $env:PYTHONPATH = "src"; python -m compileall src tests
 Latest result:
 
 ```text
-pytest: 76 passed
+pytest: 88 passed
 ruff: all checks passed
-mypy: no issues found in 11 source files
+mypy: no issues found in 12 source files
 compileall: passed
 ```
 
@@ -971,7 +989,7 @@ Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementat
 
 ## Not Implemented Yet
 
-- mediamtx runtime configuration
+- real mediamtx process management
 - real camera/media start/stop
 - frontend UI
 - real Cloudflare Access setup
