@@ -67,6 +67,17 @@ def _seed_gateway(
     return gateway
 
 
+def _gateway_token_headers(gateway_id: uuid.UUID | str, token: str) -> dict[str, str]:
+    return {
+        "x-panoptix-gateway-id": str(gateway_id),
+        "authorization": f"Bearer {token}",
+    }
+
+
+def _heartbeat_payload() -> dict[str, object]:
+    return {"status": "online", "agent_version": "0.1.0", "cameras": []}
+
+
 def test_service_tokens_are_unique_and_verifiable() -> None:
     token_a = generate_service_token()
     token_b = generate_service_token()
@@ -205,3 +216,138 @@ def test_second_rotation_invalidates_first_rotated_token(test_db_session: DbSess
     assert first != second
     assert not verify_service_token(first, gateway.service_token_hash)
     assert verify_service_token(second, gateway.service_token_hash)
+
+
+def test_gateway_heartbeat_accepts_valid_service_token(test_db_session: DbSession) -> None:
+    token = generate_service_token()
+    gateway = _seed_gateway(test_db_session, service_token_hash=hash_service_token(token))
+    client = _client(test_db_session)
+
+    response = client.post(
+        f"/api/v1/gateways/{gateway.id}/heartbeat",
+        headers=_gateway_token_headers(gateway.id, token),
+        json=_heartbeat_payload(),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["pending_commands"] == []
+
+
+def test_gateway_heartbeat_rejects_missing_service_token(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(test_db_session, service_token_hash=hash_service_token(generate_service_token()))
+    client = _client(test_db_session)
+
+    response = client.post(
+        f"/api/v1/gateways/{gateway.id}/heartbeat",
+        headers={"x-panoptix-gateway-id": str(gateway.id)},
+        json=_heartbeat_payload(),
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "gateway-identity-required"
+
+
+def test_gateway_heartbeat_rejects_missing_gateway_id(test_db_session: DbSession) -> None:
+    token = generate_service_token()
+    _seed_gateway(test_db_session, service_token_hash=hash_service_token(token))
+    client = _client(test_db_session)
+
+    response = client.post(
+        f"/api/v1/gateways/{uuid.uuid4()}/heartbeat",
+        headers={"authorization": f"Bearer {token}"},
+        json=_heartbeat_payload(),
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "gateway-identity-required"
+
+
+def test_gateway_heartbeat_rejects_invalid_gateway_id(test_db_session: DbSession) -> None:
+    client = _client(test_db_session)
+
+    response = client.post(
+        f"/api/v1/gateways/{uuid.uuid4()}/heartbeat",
+        headers=_gateway_token_headers("not-a-uuid", generate_service_token()),
+        json=_heartbeat_payload(),
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "gateway-identity-invalid"
+
+
+def test_gateway_heartbeat_rejects_unknown_gateway(test_db_session: DbSession) -> None:
+    gateway_id = uuid.uuid4()
+    client = _client(test_db_session)
+
+    response = client.post(
+        f"/api/v1/gateways/{gateway_id}/heartbeat",
+        headers=_gateway_token_headers(gateway_id, generate_service_token()),
+        json=_heartbeat_payload(),
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "gateway-identity-invalid"
+
+
+def test_gateway_heartbeat_rejects_disabled_gateway(test_db_session: DbSession) -> None:
+    token = generate_service_token()
+    gateway = _seed_gateway(
+        test_db_session,
+        status=GatewayStatus.disabled,
+        disabled_at=datetime.now(timezone.utc),
+        service_token_hash=hash_service_token(token),
+    )
+    client = _client(test_db_session)
+
+    response = client.post(
+        f"/api/v1/gateways/{gateway.id}/heartbeat",
+        headers=_gateway_token_headers(gateway.id, token),
+        json=_heartbeat_payload(),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "gateway-disabled"
+
+
+def test_gateway_heartbeat_rejects_gateway_without_token_hash(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(test_db_session)
+    client = _client(test_db_session)
+
+    response = client.post(
+        f"/api/v1/gateways/{gateway.id}/heartbeat",
+        headers=_gateway_token_headers(gateway.id, generate_service_token()),
+        json=_heartbeat_payload(),
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "gateway-credential-not-configured"
+
+
+def test_gateway_heartbeat_rejects_wrong_service_token(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(test_db_session, service_token_hash=hash_service_token(generate_service_token()))
+    client = _client(test_db_session)
+
+    response = client.post(
+        f"/api/v1/gateways/{gateway.id}/heartbeat",
+        headers=_gateway_token_headers(gateway.id, generate_service_token()),
+        json=_heartbeat_payload(),
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "gateway-credential-invalid"
+
+
+def test_gateway_token_for_gateway_a_cannot_call_gateway_b_route(test_db_session: DbSession) -> None:
+    token = generate_service_token()
+    gateway_a = _seed_gateway(test_db_session, service_token_hash=hash_service_token(token))
+    gateway_b = _seed_gateway(test_db_session, service_token_hash=hash_service_token(generate_service_token()))
+    client = _client(test_db_session)
+
+    response = client.post(
+        f"/api/v1/gateways/{gateway_b.id}/heartbeat",
+        headers=_gateway_token_headers(gateway_a.id, token),
+        json=_heartbeat_payload(),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "gateway-id-mismatch"

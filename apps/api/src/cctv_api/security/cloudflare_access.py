@@ -1,17 +1,24 @@
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from fastapi import Request, WebSocket
 from jwt import InvalidTokenError, PyJWKClient, PyJWKClientError, decode
+from sqlalchemy import select
+from sqlalchemy.orm import Session as DbSession
 
 from cctv_api.core.config import Settings
+from cctv_api.models.enums import GatewayStatus
+from cctv_api.models.tables import EdgeGateway
 from cctv_api.security.identity import Principal, PrincipalKind
+from cctv_api.security.service_tokens import verify_service_token
 
 
 class AccessVerificationError(Exception):
-    def __init__(self, detail: str) -> None:
+    def __init__(self, detail: str, *, status: int = 401) -> None:
         self.detail = detail
+        self.status = status
         super().__init__(detail)
 
 
@@ -33,12 +40,38 @@ class CloudflareAccessVerifier:
         claims = self._decode_browser_token(token)
         return self._principal_from_browser_claims(claims)
 
-    def verify_gateway_request(self, request: Request) -> Principal:
+    def verify_gateway_request(self, request: Request, db: DbSession) -> Principal:
         dev_principal = self._dev_gateway_principal(request)
         if dev_principal is not None:
             return dev_principal
 
-        raise AccessVerificationError("gateway-identity-required")
+        gateway_id = request.headers.get("x-panoptix-gateway-id")
+        token = self._bearer_token(request)
+        if not gateway_id or token is None:
+            raise AccessVerificationError("gateway-identity-required")
+
+        try:
+            gateway_uuid = uuid.UUID(gateway_id)
+        except ValueError as exc:
+            raise AccessVerificationError("gateway-identity-invalid") from exc
+
+        gateway = db.execute(select(EdgeGateway).where(EdgeGateway.id == str(gateway_uuid))).scalar_one_or_none()
+        if gateway is None:
+            raise AccessVerificationError("gateway-identity-invalid")
+        if gateway.status != GatewayStatus.enabled or gateway.disabled_at is not None:
+            raise AccessVerificationError("gateway-disabled", status=403)
+        if gateway.service_token_hash is None:
+            raise AccessVerificationError("gateway-credential-not-configured")
+        if not verify_service_token(token, gateway.service_token_hash):
+            raise AccessVerificationError("gateway-credential-invalid")
+
+        return Principal(
+            kind=PrincipalKind.GATEWAY,
+            subject=f"gateway:{gateway_uuid}",
+            gateway_id=str(gateway_uuid),
+            roles=frozenset({"gateway"}),
+            is_dev=False,
+        )
 
     def verify_gateway_websocket(self, websocket: WebSocket) -> Principal:
         gateway_id = websocket.headers.get("x-panoptix-dev-gateway-id")
@@ -151,3 +184,13 @@ class CloudflareAccessVerifier:
     @staticmethod
     def _split_header(value: str) -> set[str]:
         return {item.strip() for item in value.split(",") if item.strip()}
+
+    @staticmethod
+    def _bearer_token(request: Request) -> str | None:
+        authorization = request.headers.get("authorization")
+        if authorization is None:
+            return None
+        scheme, _, token = authorization.partition(" ")
+        if scheme.lower() != "bearer" or not token:
+            return None
+        return token

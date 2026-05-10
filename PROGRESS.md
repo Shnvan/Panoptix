@@ -349,6 +349,14 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] `gateway.credential.rotated` audit event added with redacted credential-sensitive fields
 - [x] 9 tests added for token utilities, one-time create issuance, rotation, disabled/missing gateway errors, audit, and invalidation
 
+### Gateway Token Verification
+- [x] Gateway API requests can authenticate with `x-panoptix-gateway-id` and `Authorization: Bearer <service_token>`
+- [x] Backend verifies bearer tokens against `EdgeGateway.service_token_hash`
+- [x] Disabled, unknown, invalid, missing-token, missing-hash, and wrong-token cases fail closed
+- [x] Valid service token resolves to a gateway `Principal`
+- [x] Dev gateway header auth remains unchanged for local-first tests
+- [x] 9 tests added for production-style gateway service-token authentication
+
 ---
 
 ## Next Steps (In Order)

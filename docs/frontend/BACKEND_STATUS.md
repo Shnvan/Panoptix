@@ -177,6 +177,7 @@ All admin endpoints require the `admin` role.
 | `POST` | `/api/v1/admin/gateways/{gateway_id}/cameras` | `{ "action": "grant"/"revoke", "camera_id" }` | assignment result |
 
 - Gateway `service_token` is returned only on create/rotate; frontend must display it once and never persist it.
+- Gateway HTTP APIs authenticate with `x-panoptix-gateway-id` plus `Authorization: Bearer <service_token>`; browser/frontend code must never call gateway APIs with these credentials.
 
 ### Command Queue
 

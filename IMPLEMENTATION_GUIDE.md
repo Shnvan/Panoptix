@@ -2108,15 +2108,58 @@ Gateway service-token issuance and rotation for the MVP gateway lifecycle.
 
 ---
 
-## 60. Current Verification Status
+## 60. Gateway Token Verification
+
+### What was implemented
+
+Production-style gateway HTTP request authentication using the issued/rotated gateway service token.
+
+### How it works
+
+Gateway HTTP requests authenticate with:
+
+```text
+x-panoptix-gateway-id: <gateway_uuid>
+Authorization: Bearer <service_token>
+```
+
+The backend:
+
+- parses the gateway UUID from `x-panoptix-gateway-id`
+- extracts the bearer token from `Authorization`
+- looks up `EdgeGateway`
+- rejects disabled gateways with 403 `gateway-disabled`
+- rejects missing/invalid/unknown/misconfigured/wrong credentials with 401 errors
+- verifies the token against `EdgeGateway.service_token_hash`
+- returns a gateway `Principal` for downstream gateway routes
+
+Dev header auth via `x-panoptix-dev-gateway-id` remains available in development.
+
+### Tests added
+
+9 production-style gateway auth tests were added to `apps/api/tests/test_gateway_credentials.py`:
+
+- valid service token accepted by heartbeat
+- missing token rejected
+- missing gateway ID rejected
+- invalid gateway ID rejected
+- unknown gateway rejected
+- disabled gateway rejected
+- gateway without stored token hash rejected
+- wrong service token rejected
+- token for gateway A cannot call gateway B route
+
+---
+
+## 61. Current Verification Status
 
 ### What passed
 
 The latest verification passed:
 
 ```text
-backend pytest: 271 passed
-backend mypy: no issues found in 32 source files
+backend pytest: 280 passed
+backend mypy: no issues found in 33 source files
 backend ruff: all checks passed
 backend compileall: passed
 edge agent pytest: 57 passed
@@ -2219,6 +2262,7 @@ The system now has:
 - unified admin maintenance endpoint for scheduled-job processing
 - admin role assignment and user disable with session revocation
 - gateway service-token issuance and credential rotation
+- gateway service-token verification on HTTP gateway requests
 - passing backend and edge-agent tests, type checks, and lint checks
 
 The most important security idea so far is:

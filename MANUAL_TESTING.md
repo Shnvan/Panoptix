@@ -1753,6 +1753,29 @@ Notes:
 - Audit event: `gateway.credential.rotated`.
 - Audit payload never includes the plaintext token.
 
+### Test gateway request authentication with the service token
+
+```powershell
+$gatewayHeaders = @{
+    "x-panoptix-gateway-id" = $gateway.gateway_id
+    "authorization" = "Bearer $($gateway.service_token)"
+}
+
+Invoke-RestMethod -Method POST `
+  -Uri "$BaseUrl/api/v1/gateways/$($gateway.gateway_id)/heartbeat" `
+  -Headers $gatewayHeaders `
+  -ContentType "application/json" `
+  -Body '{"status":"online","agent_version":"0.1.0","cameras":[]}'
+```
+
+Expected:
+
+- valid service token → heartbeat succeeds
+- missing token → 401 `gateway-identity-required`
+- wrong token → 401 `gateway-credential-invalid`
+- disabled gateway → 403 `gateway-disabled`
+- token for another gateway route → 403 `gateway-id-mismatch`
+
 ### Run credential tests
 
 ```powershell

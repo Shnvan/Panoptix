@@ -133,9 +133,29 @@ Current state:
 
 ## Recently Completed Milestones
 
-### Gateway Credential Rotation
+### Gateway Token Verification
 
 Completed in this milestone.
+
+Implemented:
+
+- gateway API requests can authenticate with `x-panoptix-gateway-id` plus `Authorization: Bearer <service_token>`
+- backend looks up `EdgeGateway` and verifies the bearer token against `service_token_hash`
+- disabled gateway requests fail with 403 `gateway-disabled`
+- invalid, unknown, missing-token, missing-hash, and wrong-token requests fail closed with 401 errors
+- valid service token creates a gateway `Principal` with `roles={"gateway"}`
+- dev gateway header auth remains unchanged for local-first tests
+- 9 production-style gateway auth tests added to `apps/api/tests/test_gateway_credentials.py`
+
+Not included:
+
+- WebSocket service-token authentication
+- mTLS certificate authentication
+- token grace period / dual-token rotation window
+
+### Gateway Credential Rotation
+
+Completed in prior milestone.
 
 Implemented:
 
@@ -150,7 +170,6 @@ Implemented:
 
 Not included:
 
-- production gateway service-token request verification
 - overlapping grace period for old/new credentials
 - mTLS certificate issuance/rotation
 
@@ -803,9 +822,9 @@ $env:PYTHONPATH = "src"; python -m compileall src alembic scripts
 Latest result:
 
 ```text
-pytest: 271 passed
+pytest: 280 passed
 ruff: all checks passed
-mypy: no issues found in 32 source files
+mypy: no issues found in 33 source files
 compileall: passed
 ```
 
@@ -840,7 +859,6 @@ Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementat
 ## Not Implemented Yet
 
 - command denial path audit logging
-- production gateway service-token request verification
 - production background scheduler/cron for automated maintenance
 - audit export signing
 - production gateway control reconnect policy/supervision

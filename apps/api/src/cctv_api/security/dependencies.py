@@ -13,12 +13,14 @@ from cctv_api.security.sessions import create_session, get_active_session, touch
 from cctv_api.security.users import get_or_create_user, get_user_roles
 
 
-def _auth_problem(detail: str) -> ProblemDetail:
+def _auth_problem(detail: str, *, status: int = 401) -> ProblemDetail:
+    title = "Forbidden" if status == 403 else "Unauthorized"
+    type_uri = "https://panoptix.local/problems/forbidden" if status == 403 else "https://panoptix.local/problems/unauthorized"
     return ProblemDetail(
-        status=401,
-        title="Unauthorized",
+        status=status,
+        title=title,
         detail=detail,
-        type_uri="https://panoptix.local/problems/unauthorized",
+        type_uri=type_uri,
     )
 
 
@@ -74,12 +76,13 @@ def require_authenticated_user(
 def require_gateway_identity(
     request: Request,
     settings: Settings = Depends(get_settings),
+    db: DbSession = Depends(db_session),
 ) -> Principal:
     verifier = CloudflareAccessVerifier(settings)
     try:
-        return verifier.verify_gateway_request(request)
+        return verifier.verify_gateway_request(request, db)
     except AccessVerificationError as exc:
-        raise _auth_problem(exc.detail) from exc
+        raise _auth_problem(exc.detail, status=exc.status) from exc
 
 
 def verify_gateway_identity_ws(
