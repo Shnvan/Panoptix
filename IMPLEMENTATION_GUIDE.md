@@ -2193,7 +2193,73 @@ Audit writes for denial paths are best-effort and do not mask the original denia
 
 ---
 
-## 62. Current Verification Status
+## 62. Audit Export Signing
+
+### What was implemented
+
+`GET /api/v1/admin/audit/export` now returns a self-contained signed JSON response for MVP audit exports.
+
+Response shape:
+
+```json
+{
+  "format": "audit-export-v1",
+  "manifest": {
+    "row_count": 2,
+    "start_id": 1,
+    "end_id": 2,
+    "content_sha256": "...",
+    "signature_algorithm": "HMAC-SHA256",
+    "signature_key_version": 1,
+    "signature": "..."
+  },
+  "items": []
+}
+```
+
+### How signing works
+
+- exported audit rows are serialized as canonical JSON
+- `content_sha256` is the SHA-256 digest of canonical exported `items`
+- the signature is HMAC-SHA256 over the canonical unsigned manifest
+- `signature` is not included in the bytes being signed
+- invalid placeholder audit keys still fail closed with 503 `audit-hmac-key-invalid`
+
+### Exported fields
+
+Exported items include safe audit fields:
+
+- `id`
+- `ts`
+- `actor_id`
+- `actor_type`
+- `action`
+- `resource`
+- `payload`
+- `ip`
+- `ua`
+
+Exported items intentionally omit:
+
+- `hash`
+- `prev_hash`
+- `hmac_key_version`
+
+### Tests updated
+
+Existing audit export tests now verify:
+
+- empty signed exports
+- non-empty signed exports
+- range-bounded signed exports
+- canonical content digest
+- HMAC signature verification
+- scrubbed payload export
+- invalid-key fail-closed behavior
+
+---
+
+## 63. Current Verification Status
 
 ### What passed
 
@@ -2268,7 +2334,7 @@ The following are intentionally not done yet:
 
 Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
 
-Possible candidates: security hardening (CSRF, headers), audit export signing, synthetic RTSP test source.
+Possible candidates: security hardening (CSRF, headers), production scheduler/cron wiring, synthetic RTSP test source.
 
 ---
 
@@ -2305,6 +2371,7 @@ The system now has:
 - gateway service-token issuance and credential rotation
 - gateway service-token verification on HTTP gateway requests
 - gateway command denial audit logging
+- signed JSON audit exports
 - passing backend and edge-agent tests, type checks, and lint checks
 
 The most important security idea so far is:

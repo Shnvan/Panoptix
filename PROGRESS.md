@@ -364,6 +364,14 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] `db_ack_sink` now returns explicit `AckSinkResult` outcomes for applied, missing command ID, invalid command ID, and command-not-found cases
 - [x] 11 tests added/expanded for denial audit coverage and observable ACK sink ignored outcomes
 
+### Audit Export Signing
+- [x] `GET /api/v1/admin/audit/export` now returns a self-contained signed JSON response
+- [x] Export response includes `format`, `manifest`, and exported audit `items`
+- [x] Manifest includes row count, first/last row IDs, canonical content SHA-256, signature algorithm, key version, and HMAC-SHA256 signature
+- [x] Signature covers a canonical unsigned manifest containing the exported item digest
+- [x] Exported items omit internal audit-chain fields (`hash`, `prev_hash`, `hmac_key_version`)
+- [x] Existing audit export tests updated to verify digest/signature, bounds, empty exports, scrubbed payloads, and fail-closed invalid key behavior
+
 ---
 
 ## Next Steps (In Order)

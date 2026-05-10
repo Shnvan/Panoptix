@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import uuid
 from collections.abc import Generator, Sequence
@@ -545,7 +547,7 @@ def export_admin_audit(
     principal: Principal = Depends(require_authenticated_user),
     db: DbSession = Depends(db_session),
     settings: Settings = Depends(get_settings),
-) -> StreamingResponse:
+) -> dict[str, object]:
     require_role(principal, "admin")
     if start_id is not None and end_id is not None and start_id > end_id:
         raise ProblemDetail(
@@ -566,12 +568,14 @@ def export_admin_audit(
         query = query.where(AuditLog.id >= start_id)
     if end_id is not None:
         query = query.where(AuditLog.id <= end_id)
-    rows = db.execute(query.order_by(AuditLog.id)).scalars().all()
-    return StreamingResponse(
-        _iter_audit_jsonl(rows),
-        media_type="application/x-ndjson",
-        headers={"Content-Disposition": 'attachment; filename="audit-export.jsonl"'},
+    rows = list(db.execute(query.order_by(AuditLog.id)).scalars().all())
+    items = [_audit_export_item(row) for row in rows]
+    manifest = _signed_audit_export_manifest(
+        items,
+        signature_key_version=settings.AUDIT_HMAC_KEY_VERSION,
+        signature_key=settings.AUDIT_HMAC_KEY,
     )
+    return {"format": "audit-export-v1", "manifest": manifest, "items": items}
 
 
 @v1_router.get("/admin/audit")
@@ -688,24 +692,45 @@ def revoke_user_session(
     return {"revoked": revoked, "session_id": str(body.session_id)}
 
 
-def _iter_audit_jsonl(rows: Sequence[AuditLog]) -> Generator[str, None, None]:
-    for row in rows:
-        line = json.dumps(
-            {
-                "id": row.id,
-                "ts": row.ts.isoformat() if row.ts else None,
-                "actor_id": str(row.actor_id) if row.actor_id else None,
-                "actor_type": row.actor_type.value if row.actor_type else None,
-                "action": row.action,
-                "resource": row.resource,
-                "payload": row.payload,
-                "ip": row.ip,
-                "ua": row.ua,
-            },
-            separators=(",", ":"),
-            ensure_ascii=True,
-        )
-        yield line + "\n"
+def _audit_export_item(row: AuditLog) -> dict[str, object]:
+    return {
+        "id": row.id,
+        "ts": row.ts.isoformat() if row.ts else None,
+        "actor_id": str(row.actor_id) if row.actor_id else None,
+        "actor_type": row.actor_type.value if row.actor_type else None,
+        "action": row.action,
+        "resource": row.resource,
+        "payload": row.payload,
+        "ip": row.ip,
+        "ua": row.ua,
+    }
+
+
+def _signed_audit_export_manifest(
+    items: Sequence[dict[str, object]],
+    *,
+    signature_key_version: int,
+    signature_key: str,
+) -> dict[str, object]:
+    content_sha256 = hashlib.sha256(_canonical_json_bytes(items)).hexdigest()
+    manifest: dict[str, object] = {
+        "row_count": len(items),
+        "start_id": items[0]["id"] if items else None,
+        "end_id": items[-1]["id"] if items else None,
+        "content_sha256": content_sha256,
+        "signature_algorithm": "HMAC-SHA256",
+        "signature_key_version": signature_key_version,
+    }
+    manifest["signature"] = hmac.new(
+        signature_key.strip().encode("utf-8"),
+        _canonical_json_bytes(manifest),
+        hashlib.sha256,
+    ).hexdigest()
+    return manifest
+
+
+def _canonical_json_bytes(value: object) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
 
 
 def _iter_camera_event_sse(rows: Sequence[CameraEvent]) -> Generator[str, None, None]:

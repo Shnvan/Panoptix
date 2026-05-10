@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import uuid
 
@@ -74,6 +76,22 @@ def _record_test_audit_row(
         action=action,
         resource=f"camera:{action}",
     )
+
+
+def _canonical_json_bytes(value: object) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+
+
+def _assert_valid_export_signature(data: dict[str, object]) -> None:
+    manifest = dict(data["manifest"])  # type: ignore[arg-type]
+    signature = str(manifest.pop("signature"))
+    assert manifest["content_sha256"] == hashlib.sha256(_canonical_json_bytes(data["items"])).hexdigest()
+    expected_signature = hmac.new(
+        AUDIT_HMAC_KEY.encode("utf-8"),
+        _canonical_json_bytes(manifest),
+        hashlib.sha256,
+    ).hexdigest()
+    assert hmac.compare_digest(signature, expected_signature)
 
 
 def test_admin_audit_verify_requires_authentication(test_db_session: DbSession) -> None:
@@ -577,18 +595,25 @@ def test_admin_audit_export_requires_admin_role(test_db_session: DbSession) -> N
     assert response.json()["detail"] == "role-required"
 
 
-def test_admin_audit_export_empty_returns_empty_body(test_db_session: DbSession) -> None:
+def test_admin_audit_export_empty_returns_signed_json_response(test_db_session: DbSession) -> None:
     client = _client_with_db(test_db_session)
 
     response = client.get("/api/v1/admin/audit/export", headers=_admin_headers())
 
     assert response.status_code == 200
-    assert response.headers["content-type"].startswith("application/x-ndjson")
-    assert response.headers["content-disposition"] == 'attachment; filename="audit-export.jsonl"'
-    assert response.text == ""
+    assert response.headers["content-type"].startswith("application/json")
+    data = response.json()
+    assert data["format"] == "audit-export-v1"
+    assert data["items"] == []
+    assert data["manifest"]["row_count"] == 0
+    assert data["manifest"]["start_id"] is None
+    assert data["manifest"]["end_id"] is None
+    assert data["manifest"]["signature_algorithm"] == "HMAC-SHA256"
+    assert data["manifest"]["signature_key_version"] == AUDIT_HMAC_KEY_VERSION
+    _assert_valid_export_signature(data)
 
 
-def test_admin_audit_export_returns_jsonl_rows(test_db_session: DbSession) -> None:
+def test_admin_audit_export_returns_signed_json_rows(test_db_session: DbSession) -> None:
     _record_test_audit_row(test_db_session, "test.export.first")
     _record_test_audit_row(test_db_session, "test.export.second")
     client = _client_with_db(test_db_session)
@@ -596,10 +621,12 @@ def test_admin_audit_export_returns_jsonl_rows(test_db_session: DbSession) -> No
     response = client.get("/api/v1/admin/audit/export", headers=_admin_headers())
 
     assert response.status_code == 200
-    lines = [line for line in response.text.strip().split("\n") if line]
-    assert len(lines) == 2
-    first = json.loads(lines[0])
-    second = json.loads(lines[1])
+    data = response.json()
+    assert data["format"] == "audit-export-v1"
+    items = data["items"]
+    assert len(items) == 2
+    first = items[0]
+    second = items[1]
     expected_keys = {"id", "ts", "actor_id", "actor_type", "action", "resource", "payload", "ip", "ua"}
     for row in (first, second):
         assert set(row.keys()) == expected_keys
@@ -608,6 +635,10 @@ def test_admin_audit_export_returns_jsonl_rows(test_db_session: DbSession) -> No
         assert "hmac_key_version" not in row
     assert first["action"] == "test.export.first"
     assert second["action"] == "test.export.second"
+    assert data["manifest"]["row_count"] == 2
+    assert data["manifest"]["start_id"] == first["id"]
+    assert data["manifest"]["end_id"] == second["id"]
+    _assert_valid_export_signature(data)
 
 
 def test_admin_audit_export_respects_id_bounds(test_db_session: DbSession) -> None:
@@ -622,10 +653,14 @@ def test_admin_audit_export_respects_id_bounds(test_db_session: DbSession) -> No
     )
 
     assert response.status_code == 200
-    lines = [line for line in response.text.strip().split("\n") if line]
-    assert len(lines) == 1
-    row = json.loads(lines[0])
+    data = response.json()
+    assert len(data["items"]) == 1
+    row = data["items"][0]
     assert row["action"] == "test.export.second"
+    assert data["manifest"]["row_count"] == 1
+    assert data["manifest"]["start_id"] == second.id
+    assert data["manifest"]["end_id"] == second.id
+    _assert_valid_export_signature(data)
 
 
 def test_admin_audit_export_rejects_invalid_bounds(test_db_session: DbSession) -> None:
@@ -660,10 +695,11 @@ def test_admin_audit_export_returns_scrubbed_payload(test_db_session: DbSession)
     response = client.get("/api/v1/admin/audit/export", headers=_admin_headers())
 
     assert response.status_code == 200
-    lines = [line for line in response.text.strip().split("\n") if line]
-    row = json.loads(lines[0])
+    data = response.json()
+    row = data["items"][0]
     assert row["payload"]["token"] == REDACTED_VALUE
     assert row["payload"]["safe"] == "visible"
+    _assert_valid_export_signature(data)
 
 
 def test_admin_audit_list_requires_authentication(test_db_session: DbSession) -> None:

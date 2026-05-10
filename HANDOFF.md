@@ -133,9 +133,28 @@ Current state:
 
 ## Recently Completed Milestones
 
-### Command Denial Audit Logging
+### Audit Export Signing
 
 Completed in this milestone.
+
+Implemented:
+
+- `GET /api/v1/admin/audit/export` now returns a self-contained signed JSON response
+- response shape is `{ "format": "audit-export-v1", "manifest": {...}, "items": [...] }`
+- manifest includes row count, start/end row IDs, canonical content SHA-256, signature algorithm, signature key version, and HMAC-SHA256 signature
+- signature covers a canonical unsigned manifest that includes the exported item digest
+- exported items continue to exclude internal audit-chain fields (`hash`, `prev_hash`, `hmac_key_version`)
+- existing audit export tests now verify digest/signature, range bounds, empty exports, scrubbed payloads, and invalid-key fail-closed behavior
+
+Not included:
+
+- downloadable JSONL/ZIP bundle
+- offline verifier CLI
+- production key custody/KMS integration
+
+### Command Denial Audit Logging
+
+Completed in prior milestone.
 
 Implemented:
 
@@ -148,7 +167,6 @@ Implemented:
 
 Not included:
 
-- signed audit export bundle
 - production SIEM/log forwarding
 - edge-agent local persistence for rejected commands
 
@@ -878,7 +896,6 @@ Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementat
 ## Not Implemented Yet
 
 - production background scheduler/cron for automated maintenance
-- audit export signing
 - production gateway control reconnect policy/supervision
 - mediamtx runtime configuration
 - real camera/media start/stop

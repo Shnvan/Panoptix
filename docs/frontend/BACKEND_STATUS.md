@@ -205,7 +205,9 @@ Runs expired-command cleanup and due publish-stop processing in a single admin c
 |---|---|---|---|
 | `GET` | `/api/v1/admin/audit` | query: `cursor`, `limit`, `action` | paginated audit rows |
 | `GET` | `/api/v1/admin/audit/verify` | query: `start_id`, `end_id` | `{ "valid", "checked", "error" }` |
-| `GET` | `/api/v1/admin/audit/export` | query: `start_id`, `end_id` | JSONL file download |
+| `GET` | `/api/v1/admin/audit/export` | query: `start_id`, `end_id` | signed JSON export: `{ "format", "manifest", "items" }` |
+
+- Audit export manifest includes row count, first/last row IDs, canonical content SHA-256, signature algorithm, signature key version, and HMAC-SHA256 signature.
 
 ---
 

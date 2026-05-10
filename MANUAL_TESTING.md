@@ -1836,6 +1836,33 @@ $env:PYTHONPATH = "src"
 python -m pytest tests/test_gateway_command_queue.py -k "audit" -v
 ```
 
+### Test signed audit export
+
+```powershell
+Invoke-RestMethod -Method GET `
+  -Uri "$BaseUrl/api/v1/admin/audit/export" `
+  -Headers $AdminHeaders
+```
+
+Expected:
+
+- response is JSON, not JSONL
+- `format` is `audit-export-v1`
+- `manifest.row_count` matches the number of exported `items`
+- `manifest.content_sha256` is the SHA-256 digest of canonical exported `items`
+- `manifest.signature_algorithm` is `HMAC-SHA256`
+- `manifest.signature_key_version` matches `AUDIT_HMAC_KEY_VERSION`
+- `manifest.signature` verifies against the canonical unsigned manifest
+- exported `items` do not include `hash`, `prev_hash`, or `hmac_key_version`
+
+Run audit export tests:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_audit.py -k "audit_export" -v
+```
+
 ---
 
 ## 18. Deep Health Check
