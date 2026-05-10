@@ -1316,6 +1316,22 @@ Expected behavior:
 - fake process lifecycle tests cover start, double-start rejection, graceful stop, timeout kill, and failure reporting
 - tests do not require mediamtx to be installed
 
+Local LiveKit publisher foundation check:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_livekit_publisher.py -v
+```
+
+Expected behavior:
+
+- fake publisher clients receive validated start/stop publish requests
+- invalid LiveKit URLs, RTSP source URLs, missing tokens, and room mismatches fail before unsafe adapter behavior
+- the default SDK-unavailable client fails clearly without real LiveKit credentials or packages
+- command-executor integration remains fail-closed and idempotent
+- no browser, webcam, phone, or frontend publishing path is introduced
+
 ## 19. Heartbeat Command Fallback Local Check
 
 The heartbeat fallback path is local-only and test-scaffolded. It does not require LiveKit, Cloudflare, Google Workspace, PostgreSQL, mediamtx, or real cameras.

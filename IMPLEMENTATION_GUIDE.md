@@ -2509,13 +2509,52 @@ Tests use fake process objects and do not require mediamtx to be installed.
 ### What remains out of scope
 
 - real RTSP camera credentials
-- real LiveKit SDK publishing
+- real LiveKit SDK package integration
 - production Docker/systemd unit management
-- replacing the stub media controller
 
 ---
 
-## 69. Current Verification Status
+## 69. LiveKit Publisher Foundation
+
+### What was implemented
+
+The edge agent now has a fakeable LiveKit publisher foundation behind the existing media-controller boundary.
+
+### Publisher boundary
+
+`panoptix_edge_agent.livekit_publisher` defines:
+
+- `LiveKitPublishRequest`
+- `LiveKitPublisherResult`
+- `LiveKitPublisherClient`
+- `LiveKitMediaController`
+- `SdkUnavailableLiveKitPublisherClient`
+
+The controller validates camera ID, room, LiveKit URL, gateway publish token presence, and source RTSP URL before calling the injected publisher adapter.
+
+### Safety behavior
+
+The default publisher client fails with `livekit-sdk-unavailable`, so tests and local verification do not require LiveKit credentials or a LiveKit SDK package.
+
+Tests cover:
+
+- successful start and stop with a fake publisher
+- duplicate start idempotency
+- room mismatch rejection
+- invalid URL and missing token rejection before adapter calls
+- adapter start and stop failures
+- command-executor integration with the new controller
+
+### What remains out of scope
+
+- hard dependency on the real LiveKit SDK package
+- real media packet publishing
+- browser, webcam, phone, or frontend publishing
+- real RTSP camera credentials
+
+---
+
+## 70. Current Verification Status
 
 ### What passed
 
@@ -2526,8 +2565,8 @@ backend pytest: 308 passed
 backend mypy: no issues found in 37 source files
 backend ruff: all checks passed
 backend compileall: passed
-edge agent pytest: 102 passed
-edge agent mypy: no issues found in 13 source files
+edge agent pytest: 116 passed
+edge agent mypy: no issues found in 14 source files
 edge agent ruff: all checks passed
 edge agent compileall: passed
 ```
@@ -2575,7 +2614,7 @@ This confirms the current backend and edge-agent code is working, typed correctl
 The following are intentionally not done yet:
 
 - frontend UI
-- real LiveKit SDK publishing
+- real LiveKit SDK package/media adapter
 - production Docker/systemd gateway supervision
 
 ---
@@ -2586,7 +2625,7 @@ The following are intentionally not done yet:
 
 Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
 
-Possible candidates: real LiveKit SDK publishing, production Docker/systemd gateway supervision, Cloudflare production setup prep.
+Possible candidates: real LiveKit SDK package/media adapter, production Docker/systemd gateway supervision, Cloudflare production setup prep.
 
 ---
 
@@ -2630,6 +2669,7 @@ The system now has:
 - synthetic RTSP test-source scaffold
 - local-only mediamtx runtime config scaffold
 - mediamtx process-management scaffold
+- LiveKit publisher/controller foundation
 - passing backend and edge-agent tests, type checks, and lint checks
 
 The most important security idea so far is:

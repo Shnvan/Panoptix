@@ -133,22 +133,43 @@ Current state:
 
 ## Recently Completed Milestones
 
-### mediamtx Process Management
+### LiveKit Publisher Foundation
 
 Completed in this milestone.
+
+Implemented:
+
+- `livekit_publisher.py` defines a fakeable LiveKit publisher client protocol and publish request/result models
+- `LiveKitMediaController` implements the existing `MediaController` boundary
+- start-publish validates camera ID, room, LiveKit URL, token, and source RTSP URL before calling the publisher adapter
+- duplicate starts for the same camera and room are idempotent at the controller boundary
+- stop-publish calls the injected publisher adapter and keeps session state on stop failures
+- `SdkUnavailableLiveKitPublisherClient` fails clearly without requiring a LiveKit package or real credentials
+- tests cover validation, success, failure, idempotency, SDK-unavailable behavior, and command-executor integration
+
+Not included:
+
+- hard dependency on the real LiveKit SDK package
+- real media packet publishing
+- browser, webcam, phone, or frontend publishing
+- real RTSP camera credentials
+
+### mediamtx Process Management
+
+Completed in prior milestone.
 
 Implemented:
 
 - `mediamtx_process.py` builds safe argument lists for local mediamtx startup
 - `MediamtxProcessManager` tracks an injected process and supports start, stop, status, double-start rejection, timeout kill, and failure reporting
 - fake-process tests cover lifecycle behavior without requiring mediamtx to be installed
-- process management remains independent of `StubMediaController`
+- process management remains independent of the media-controller implementation
 - production Docker/systemd supervision remains out of scope
 
 Not included:
 
 - real RTSP camera credentials
-- real LiveKit SDK publishing
+- real LiveKit SDK package integration
 - production Docker/systemd unit management
 
 ### mediamtx Runtime Configuration
@@ -167,7 +188,7 @@ Not included:
 
 - production Docker/systemd supervision
 - real RTSP camera credentials
-- real LiveKit SDK publishing
+- real LiveKit SDK package/media adapter
 
 ### Synthetic RTSP Test Source
 
@@ -183,9 +204,9 @@ Implemented:
 
 Not included:
 
-- real mediamtx process supervision
+- production Docker/systemd supervision
 - real RTSP camera credentials
-- real LiveKit SDK publishing
+- real LiveKit SDK package/media adapter
 
 ### Gateway Reconnect Supervision
 
@@ -403,8 +424,8 @@ Not included:
 
 - production scheduler/cron wiring for due stops
 - Alembic migration; DB-owner coordination still required
-- real mediamtx process management
-- real LiveKit SDK publishing
+- production Docker/systemd gateway supervision
+- real LiveKit SDK package/media adapter
 
 ### Room-Presence-Driven Gateway Publish Commands
 
@@ -449,8 +470,8 @@ Implemented:
 
 Not included:
 
-- real mediamtx process management
-- real LiveKit SDK publishing
+- production Docker/systemd gateway supervision
+- real LiveKit SDK package/media adapter
 - token refresh or expiry-driven stop
 - publish-state persistence across restarts
 - backend publish-state tracking or stop grace timers
@@ -989,9 +1010,9 @@ $env:PYTHONPATH = "src"; python -m compileall src tests
 Latest result:
 
 ```text
-pytest: 102 passed
+pytest: 116 passed
 ruff: all checks passed
-mypy: no issues found in 13 source files
+mypy: no issues found in 14 source files
 compileall: passed
 ```
 
@@ -1007,9 +1028,10 @@ Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementat
 
 ## Not Implemented Yet
 
-- real mediamtx process management
-- real camera/media start/stop
+- real LiveKit SDK package/media adapter
+- real RTSP camera credentials
 - frontend UI
+- production Docker/systemd gateway supervision
 - real Cloudflare Access setup
 - Google Workspace setup
 - Railway deployment
@@ -1132,6 +1154,8 @@ Use local/dev placeholders and fail-closed behavior. Do not ask the user to set 
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/control.py`: gateway control WebSocket client
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/executor.py`: verified command dispatcher
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/media.py`: media controller protocol and stub/failing controllers
+- `apps/cctv-edge/agent/src/panoptix_edge_agent/livekit_publisher.py`: fakeable LiveKit publisher controller boundary
+- `apps/cctv-edge/agent/src/panoptix_edge_agent/mediamtx_process.py`: local mediamtx process command/lifecycle scaffold
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/publish_state.py`: in-memory publish session tracker
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/cli.py`: CLI entrypoint for heartbeat/control checks
 
@@ -1143,6 +1167,8 @@ Use local/dev placeholders and fail-closed behavior. Do not ask the user to set 
 - `apps/cctv-edge/agent/tests/test_commands.py`: command verifier tests
 - `apps/cctv-edge/agent/tests/test_control.py`: WebSocket control client tests
 - `apps/cctv-edge/agent/tests/test_executor.py`: command executor tests
+- `apps/cctv-edge/agent/tests/test_livekit_publisher.py`: fakeable LiveKit publisher controller tests
+- `apps/cctv-edge/agent/tests/test_mediamtx_process.py`: mediamtx process lifecycle tests
 
 ### Migrations / Database
 

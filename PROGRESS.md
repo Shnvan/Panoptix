@@ -415,6 +415,13 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Preserved the stub media controller boundary; real LiveKit publishing remains future work
 - [x] Documented that production Docker/systemd supervision remains a later milestone
 
+### LiveKit Publisher Foundation
+- [x] Added fakeable edge-agent LiveKit publisher/client protocol and request model
+- [x] Added `LiveKitMediaController` implementing the existing media-controller boundary
+- [x] Validates LiveKit URL, source RTSP URL, token, camera ID, and room before adapter calls
+- [x] Added SDK-unavailable default client that fails clearly without requiring LiveKit credentials or packages
+- [x] Added tests for start/stop, idempotency, validation, adapter failures, and command-executor integration
+
 ---
 
 ## Next Steps (In Order)
