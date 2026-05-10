@@ -357,6 +357,13 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Dev gateway header auth remains unchanged for local-first tests
 - [x] 9 tests added for production-style gateway service-token authentication
 
+### Command Denial Audit Logging
+- [x] Heartbeat gateway mismatch and command-signing failures write best-effort audit events
+- [x] Camera status disabled, missing-camera, and unassigned denial paths write best-effort audit events
+- [x] Gateway control WebSocket unauthenticated, signing-failure, invalid-ACK, ACK gateway-mismatch, and not-applied ACK paths write best-effort audit events
+- [x] `db_ack_sink` now returns explicit `AckSinkResult` outcomes for applied, missing command ID, invalid command ID, and command-not-found cases
+- [x] 11 tests added/expanded for denial audit coverage and observable ACK sink ignored outcomes
+
 ---
 
 ## Next Steps (In Order)

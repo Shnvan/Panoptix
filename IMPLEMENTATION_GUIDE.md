@@ -2151,14 +2151,56 @@ Dev header auth via `x-panoptix-dev-gateway-id` remains available in development
 
 ---
 
-## 61. Current Verification Status
+## 61. Command Denial Audit Logging
+
+### What was implemented
+
+Gateway and command-control denial paths now write best-effort audit events so rejected gateway operations are visible during debugging and compliance review.
+
+### Audited denial paths
+
+- `gateway.heartbeat.denied.gateway_mismatch`
+- `gateway.heartbeat.denied.signing_failed`
+- `gateway.camera_status.denied.gateway_mismatch`
+- `gateway.camera_status.denied.disabled`
+- `gateway.camera_status.denied.camera_not_found`
+- `gateway.camera_status.denied.unassigned`
+- `gateway.control.denied.unauthenticated`
+- `gateway.control.denied.signing_failed`
+- `gateway.control.ack.denied.invalid`
+- `gateway.control.ack.denied.gateway_mismatch`
+- `gateway.control.ack.denied.not_applied`
+
+### ACK sink observability
+
+`db_ack_sink` now returns `AckSinkResult` instead of silently ignoring invalid ACKs.
+
+Observed outcomes:
+
+- applied
+- missing command ID
+- invalid command ID
+- command not found for gateway
+
+Audit writes for denial paths are best-effort and do not mask the original denial response.
+
+### Tests added/expanded
+
+11 tests were added or expanded across:
+
+- `apps/api/tests/test_gateway.py`
+- `apps/api/tests/test_gateway_command_queue.py`
+
+---
+
+## 62. Current Verification Status
 
 ### What passed
 
 The latest verification passed:
 
 ```text
-backend pytest: 280 passed
+backend pytest: 291 passed
 backend mypy: no issues found in 33 source files
 backend ruff: all checks passed
 backend compileall: passed
@@ -2211,7 +2253,6 @@ This confirms the current backend and edge-agent code is working, typed correctl
 The following are intentionally not done yet:
 
 - frontend UI
-- command denial path audit logging
 - periodic background scheduler/cron for automated cleanup
 - production gateway control reconnect policy/supervision
 - mediamtx runtime configuration
@@ -2227,7 +2268,7 @@ The following are intentionally not done yet:
 
 Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
 
-Possible candidates: security hardening (CSRF, headers, command denial audit), gateway credential rotation, synthetic RTSP test source.
+Possible candidates: security hardening (CSRF, headers), audit export signing, synthetic RTSP test source.
 
 ---
 
@@ -2263,6 +2304,7 @@ The system now has:
 - admin role assignment and user disable with session revocation
 - gateway service-token issuance and credential rotation
 - gateway service-token verification on HTTP gateway requests
+- gateway command denial audit logging
 - passing backend and edge-agent tests, type checks, and lint checks
 
 The most important security idea so far is:

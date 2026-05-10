@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from sqlalchemy import select, update
@@ -11,6 +12,13 @@ from cctv_api.db import get_sessionmaker
 from cctv_api.gateway.models import GatewayCommandAck, GatewayCommandEnvelope
 from cctv_api.models.enums import CommandStatus
 from cctv_api.models.tables import GatewayCommandQueue
+
+
+@dataclass(frozen=True)
+class AckSinkResult:
+    applied: bool
+    reason: str | None = None
+    command_id: str | None = None
 
 
 def enqueue_command(
@@ -71,21 +79,21 @@ def db_command_provider(db: DbSession) -> Callable[[str], list[GatewayCommandEnv
     return _provide
 
 
-def db_ack_sink(db: DbSession) -> Callable[[str, GatewayCommandAck], None]:
-    def _sink(gateway_id: str, ack: GatewayCommandAck) -> None:
+def db_ack_sink(db: DbSession) -> Callable[[str, GatewayCommandAck], AckSinkResult]:
+    def _sink(gateway_id: str, ack: GatewayCommandAck) -> AckSinkResult:
         if ack.command_id is None:
-            return
+            return AckSinkResult(applied=False, reason="command-id-missing")
         try:
             uuid.UUID(ack.command_id)
         except ValueError:
-            return
+            return AckSinkResult(applied=False, reason="command-id-invalid", command_id=ack.command_id)
         row = db.execute(
             select(GatewayCommandQueue)
             .where(GatewayCommandQueue.id == ack.command_id)
             .where(GatewayCommandQueue.gateway_id == gateway_id)
         ).scalar_one_or_none()
         if row is None:
-            return
+            return AckSinkResult(applied=False, reason="command-not-found", command_id=ack.command_id)
         now = datetime.now(timezone.utc)
         if ack.status == "accepted":
             row.status = CommandStatus.accepted
@@ -94,6 +102,7 @@ def db_ack_sink(db: DbSession) -> Callable[[str, GatewayCommandAck], None]:
             row.error = ack.error
         row.acked_at = now
         db.flush()
+        return AckSinkResult(applied=True, command_id=ack.command_id)
 
     return _sink
 

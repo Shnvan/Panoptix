@@ -94,8 +94,10 @@ def test_db_ack_sink_marks_command_accepted(db: DbSession) -> None:
     row = enqueue_command(db, gateway_id=gw.id, kind="restart", payload={}, expires_at=future)
     sink = db_ack_sink(db)
     ack = GatewayCommandAck(command_id=str(row.id), gateway_id=str(gw.id), status="accepted")
-    sink(str(gw.id), ack)
+    result = sink(str(gw.id), ack)
     db.refresh(row)
+    assert result.applied is True
+    assert result.command_id == str(row.id)
     assert row.status == CommandStatus.accepted
     assert row.acked_at is not None
     assert row.error is None
@@ -109,8 +111,10 @@ def test_db_ack_sink_marks_command_rejected_with_error(db: DbSession) -> None:
     ack = GatewayCommandAck(
         command_id=str(row.id), gateway_id=str(gw.id), status="rejected", error="not ready"
     )
-    sink(str(gw.id), ack)
+    result = sink(str(gw.id), ack)
     db.refresh(row)
+    assert result.applied is True
+    assert result.command_id == str(row.id)
     assert row.status == CommandStatus.rejected
     assert row.error == "not ready"
     assert row.acked_at is not None
@@ -119,15 +123,32 @@ def test_db_ack_sink_marks_command_rejected_with_error(db: DbSession) -> None:
 def test_db_ack_sink_ignores_unknown_command_id(db: DbSession) -> None:
     gw = _create_gateway(db)
     sink = db_ack_sink(db)
-    ack = GatewayCommandAck(command_id=str(uuid.uuid4()), gateway_id=str(gw.id), status="accepted")
-    sink(str(gw.id), ack)
+    command_id = str(uuid.uuid4())
+    ack = GatewayCommandAck(command_id=command_id, gateway_id=str(gw.id), status="accepted")
+    result = sink(str(gw.id), ack)
+    assert result.applied is False
+    assert result.reason == "command-not-found"
+    assert result.command_id == command_id
 
 
 def test_db_ack_sink_ignores_none_command_id(db: DbSession) -> None:
     gw = _create_gateway(db)
     sink = db_ack_sink(db)
     ack = GatewayCommandAck(command_id=None, gateway_id=str(gw.id), status="accepted")
-    sink(str(gw.id), ack)
+    result = sink(str(gw.id), ack)
+    assert result.applied is False
+    assert result.reason == "command-id-missing"
+    assert result.command_id is None
+
+
+def test_db_ack_sink_reports_invalid_command_id(db: DbSession) -> None:
+    gw = _create_gateway(db)
+    sink = db_ack_sink(db)
+    ack = GatewayCommandAck(command_id="not-a-uuid", gateway_id=str(gw.id), status="accepted")
+    result = sink(str(gw.id), ack)
+    assert result.applied is False
+    assert result.reason == "command-id-invalid"
+    assert result.command_id == "not-a-uuid"
 
 
 def test_db_command_provider_returns_commands_in_fifo_order(db: DbSession) -> None:

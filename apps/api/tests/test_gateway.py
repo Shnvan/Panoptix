@@ -16,7 +16,7 @@ from cctv_api.gateway.command_signing import verify_command_envelope
 from cctv_api.gateway.models import GatewayCommandAck, GatewayCommandEnvelope
 from cctv_api.main import create_app
 from cctv_api.models.enums import CameraEventKind, CameraSourceType, EventSource, GatewayStatus
-from cctv_api.models.tables import Camera, CameraAcl, CameraEvent, EdgeGateway, GatewayCameraAssignment, User
+from cctv_api.models.tables import AuditLog, Camera, CameraAcl, CameraEvent, EdgeGateway, GatewayCameraAssignment, User
 
 
 SIGNING_KEY = "test-command-signing-key-with-enough-entropy"
@@ -39,6 +39,8 @@ def _dev_gateway_client_with_db(test_db_session: DbSession, *, signing_key: str 
             APP_ENV="development",
             ALLOW_DEV_AUTH=True,
             GATEWAY_COMMAND_SIGNING_KEY=signing_key,
+            AUDIT_HMAC_KEY_VERSION=1,
+            AUDIT_HMAC_KEY="test-audit-key-with-enough-entropy",
         )
     )
 
@@ -115,6 +117,10 @@ def _grant_camera_acl(db: DbSession, *, user_id: uuid.UUID, camera_id: uuid.UUID
     db.add(acl)
     db.commit()
     return acl
+
+
+def _audit_actions(db: DbSession) -> list[str]:
+    return [row.action for row in db.execute(select(AuditLog).order_by(AuditLog.id)).scalars().all()]
 
 
 def _parse_sse_events(body: str) -> list[dict[str, object]]:
@@ -205,6 +211,21 @@ def test_gateway_heartbeat_fails_closed_when_pending_command_signing_fails() -> 
     assert response.json()["detail"] == "gateway-command-signing-failed"
 
 
+def test_gateway_heartbeat_signing_failure_writes_audit(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(test_db_session)
+    client = _dev_gateway_client_with_db(test_db_session, signing_key="replace-me")
+    client.app.state.gateway_control_command_provider = lambda gateway_id: [_command(gateway_id)]
+
+    response = client.post(
+        f"/api/v1/gateways/{gateway.id}/heartbeat",
+        headers=_gateway_headers(str(gateway.id)),
+        json={"status": "online", "agent_version": "0.1.0", "cameras": []},
+    )
+
+    assert response.status_code == 503
+    assert _audit_actions(test_db_session) == ["gateway.heartbeat.denied.signing_failed"]
+
+
 def test_gateway_id_mismatch_returns_forbidden() -> None:
     client = _dev_gateway_client()
 
@@ -254,6 +275,20 @@ def test_gateway_camera_status_rejects_gateway_id_mismatch() -> None:
 
     assert response.status_code == 403
     assert response.json()["detail"] == "gateway-id-mismatch"
+
+
+def test_gateway_heartbeat_mismatch_writes_audit(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(test_db_session)
+    client = _dev_gateway_client_with_db(test_db_session)
+
+    response = client.post(
+        f"/api/v1/gateways/{gateway.id}/heartbeat",
+        headers=_gateway_headers(str(uuid.uuid4())),
+        json={"status": "online", "agent_version": "0.1.0", "cameras": []},
+    )
+
+    assert response.status_code == 403
+    assert _audit_actions(test_db_session) == ["gateway.heartbeat.denied.gateway_mismatch"]
 
 
 def test_gateway_camera_status_rejects_invalid_gateway_id() -> None:
@@ -314,6 +349,22 @@ def test_gateway_camera_status_rejects_disabled_gateway(test_db_session: DbSessi
     assert response.json()["detail"] == "gateway-disabled-or-not-found"
 
 
+def test_gateway_camera_status_disabled_writes_audit(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(test_db_session, status=GatewayStatus.disabled)
+    camera = _seed_camera(test_db_session)
+    _assign_gateway_camera(test_db_session, gateway_id=gateway.id, camera_id=camera.id)
+    client = _dev_gateway_client_with_db(test_db_session)
+
+    response = client.post(
+        f"/api/v1/gateways/{gateway.id}/cameras/{camera.id}/status",
+        headers=_gateway_headers(str(gateway.id)),
+        json={"status": "online"},
+    )
+
+    assert response.status_code == 403
+    assert _audit_actions(test_db_session) == ["gateway.camera_status.denied.disabled"]
+
+
 def test_gateway_camera_status_rejects_missing_camera(test_db_session: DbSession) -> None:
     gateway = _seed_gateway(test_db_session)
     client = _dev_gateway_client_with_db(test_db_session)
@@ -326,6 +377,20 @@ def test_gateway_camera_status_rejects_missing_camera(test_db_session: DbSession
 
     assert response.status_code == 404
     assert response.json()["detail"] == "camera-not-found"
+
+
+def test_gateway_camera_status_missing_camera_writes_audit(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(test_db_session)
+    client = _dev_gateway_client_with_db(test_db_session)
+
+    response = client.post(
+        f"/api/v1/gateways/{gateway.id}/cameras/{uuid.uuid4()}/status",
+        headers=_gateway_headers(str(gateway.id)),
+        json={"status": "online"},
+    )
+
+    assert response.status_code == 404
+    assert _audit_actions(test_db_session) == ["gateway.camera_status.denied.camera_not_found"]
 
 
 def test_gateway_camera_status_rejects_retired_camera(test_db_session: DbSession) -> None:
@@ -357,6 +422,21 @@ def test_gateway_camera_status_rejects_missing_assignment(test_db_session: DbSes
 
     assert response.status_code == 403
     assert response.json()["detail"] == "gateway-camera-assignment-denied"
+
+
+def test_gateway_camera_status_unassigned_writes_audit(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(test_db_session)
+    camera = _seed_camera(test_db_session)
+    client = _dev_gateway_client_with_db(test_db_session)
+
+    response = client.post(
+        f"/api/v1/gateways/{gateway.id}/cameras/{camera.id}/status",
+        headers=_gateway_headers(str(gateway.id)),
+        json={"status": "online"},
+    )
+
+    assert response.status_code == 403
+    assert _audit_actions(test_db_session) == ["gateway.camera_status.denied.unassigned"]
 
 
 def test_gateway_camera_status_rejects_revoked_assignment(test_db_session: DbSession) -> None:
@@ -449,6 +529,16 @@ def test_gateway_control_ws_rejects_unauthenticated() -> None:
             pass
 
     assert exc_info.value.code == 1008
+
+
+def test_gateway_control_ws_unauthenticated_writes_audit(test_db_session: DbSession) -> None:
+    client = _dev_gateway_client_with_db(test_db_session)
+
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect("/api/v1/gateway-control/ws"):
+            pass
+
+    assert _audit_actions(test_db_session) == ["gateway.control.denied.unauthenticated"]
 
 
 def test_gateway_control_ws_rejects_browser_dev_auth() -> None:
@@ -563,6 +653,74 @@ def test_gateway_control_ws_records_rejected_ack_from_gateway() -> None:
     ]
 
 
+def test_gateway_control_ws_invalid_ack_writes_audit(test_db_session: DbSession) -> None:
+    client = _dev_gateway_client_with_db(test_db_session, signing_key=SIGNING_KEY)
+
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect(
+            "/api/v1/gateway-control/ws",
+            headers=_gateway_headers(str(uuid.uuid4())),
+        ) as ws:
+            ws.receive_json()
+            ws.send_text("{not-json")
+            ws.receive_json()
+
+    assert _audit_actions(test_db_session) == ["gateway.control.ack.denied.invalid"]
+
+
+def test_gateway_control_ws_ack_gateway_mismatch_writes_audit(test_db_session: DbSession) -> None:
+    gateway_id = str(uuid.uuid4())
+    client = _dev_gateway_client_with_db(test_db_session, signing_key=SIGNING_KEY)
+    client.app.state.gateway_control_command_provider = lambda gateway_id: [_command(gateway_id)]
+
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect(
+            "/api/v1/gateway-control/ws",
+            headers=_gateway_headers(gateway_id),
+        ) as ws:
+            ws.receive_json()
+            command = ws.receive_json()
+            ws.send_json(
+                {
+                    "type": "command_ack",
+                    "command_id": command["command_id"],
+                    "gateway_id": str(uuid.uuid4()),
+                    "status": "accepted",
+                }
+            )
+            ws.receive_json()
+
+    assert _audit_actions(test_db_session) == ["gateway.control.ack.denied.gateway_mismatch"]
+
+
+def test_gateway_control_ws_ack_not_applied_writes_audit(test_db_session: DbSession) -> None:
+    gateway_id = str(uuid.uuid4())
+    client = _dev_gateway_client_with_db(test_db_session, signing_key=SIGNING_KEY)
+    client.app.state.gateway_control_command_provider = lambda gateway_id: [_command(gateway_id)]
+    client.app.state.gateway_control_ack_sink = lambda gateway_id, ack: type(
+        "Result",
+        (),
+        {"applied": False, "reason": "command-not-found", "command_id": ack.command_id},
+    )()
+
+    with client.websocket_connect(
+        "/api/v1/gateway-control/ws",
+        headers=_gateway_headers(gateway_id),
+    ) as ws:
+        ws.receive_json()
+        command = ws.receive_json()
+        ws.send_json(
+            {
+                "type": "command_ack",
+                "command_id": command["command_id"],
+                "gateway_id": gateway_id,
+                "status": "accepted",
+            }
+        )
+
+    assert _audit_actions(test_db_session) == ["gateway.control.ack.denied.not_applied"]
+
+
 def test_gateway_control_ws_closes_without_sending_unsigned_command_when_signing_fails() -> None:
     client = _dev_gateway_client(signing_key="replace-me")
     client.app.state.gateway_control_command_provider = lambda gateway_id: [_command(gateway_id)]
@@ -576,3 +734,19 @@ def test_gateway_control_ws_closes_without_sending_unsigned_command_when_signing
             ws.receive_json()
 
     assert exc_info.value.code == 1011
+
+
+def test_gateway_control_ws_signing_failure_writes_audit(test_db_session: DbSession) -> None:
+    gateway_id = str(uuid.uuid4())
+    client = _dev_gateway_client_with_db(test_db_session, signing_key="replace-me")
+    client.app.state.gateway_control_command_provider = lambda gateway_id: [_command(gateway_id)]
+
+    with client.websocket_connect(
+        "/api/v1/gateway-control/ws",
+        headers=_gateway_headers(gateway_id),
+    ) as ws:
+        ws.receive_json()
+        with pytest.raises(WebSocketDisconnect):
+            ws.receive_json()
+
+    assert _audit_actions(test_db_session) == ["gateway.control.denied.signing_failed"]

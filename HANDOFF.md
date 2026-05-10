@@ -133,9 +133,28 @@ Current state:
 
 ## Recently Completed Milestones
 
-### Gateway Token Verification
+### Command Denial Audit Logging
 
 Completed in this milestone.
+
+Implemented:
+
+- heartbeat gateway mismatch and command-signing failures now write best-effort gateway audit events
+- camera status disabled, missing-camera, and unassigned denials now write best-effort gateway audit events
+- gateway control WebSocket unauthenticated, command-signing failure, invalid ACK, ACK gateway mismatch, and not-applied ACK paths now write best-effort gateway audit events
+- `db_ack_sink` now returns `AckSinkResult` so ignored ACKs are observable instead of silent
+- ACK sink outcomes cover applied, missing command ID, invalid command ID, and command-not-found
+- 11 tests added/expanded across `apps/api/tests/test_gateway.py` and `apps/api/tests/test_gateway_command_queue.py`
+
+Not included:
+
+- signed audit export bundle
+- production SIEM/log forwarding
+- edge-agent local persistence for rejected commands
+
+### Gateway Token Verification
+
+Completed in prior milestone.
 
 Implemented:
 
@@ -822,7 +841,7 @@ $env:PYTHONPATH = "src"; python -m compileall src alembic scripts
 Latest result:
 
 ```text
-pytest: 280 passed
+pytest: 291 passed
 ruff: all checks passed
 mypy: no issues found in 33 source files
 compileall: passed
@@ -858,7 +877,6 @@ Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementat
 
 ## Not Implemented Yet
 
-- command denial path audit logging
 - production background scheduler/cron for automated maintenance
 - audit export signing
 - production gateway control reconnect policy/supervision

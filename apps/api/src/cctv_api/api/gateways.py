@@ -57,8 +57,19 @@ def gateway_heartbeat(
     _payload: GatewayHeartbeatRequest,
     request: Request,
     principal: Principal = Depends(require_gateway_identity),
+    db: DbSession = Depends(db_session),
     settings: Settings = Depends(get_settings),
 ) -> GatewayHeartbeatResponse:
+    if principal.gateway_id != gateway_id:
+        _record_gateway_audit_safely(
+            db,
+            settings=settings,
+            request=request,
+            actor_id=_parse_uuid_or_none(principal.gateway_id),
+            action="gateway.heartbeat.denied.gateway_mismatch",
+            resource=f"gateway:{gateway_id}",
+            payload={"route_gateway_id": gateway_id, "principal_gateway_id": principal.gateway_id},
+        )
     _require_matching_gateway(gateway_id, principal)
     try:
         pending_commands = _signed_gateway_commands(
@@ -67,6 +78,15 @@ def gateway_heartbeat(
             settings.GATEWAY_COMMAND_SIGNING_KEY,
         )
     except CommandSigningError as exc:
+        _record_gateway_audit_safely(
+            db,
+            settings=settings,
+            request=request,
+            actor_id=_parse_uuid_or_none(principal.gateway_id),
+            action="gateway.heartbeat.denied.signing_failed",
+            resource=f"gateway:{gateway_id}",
+            payload={"gateway_id": gateway_id},
+        )
         raise ProblemDetail(
             status=503,
             title="Service Unavailable",
@@ -214,15 +234,36 @@ def gateway_camera_status(
     gateway_id: str,
     camera_id: str,
     payload: GatewayCameraStatusRequest,
+    request: Request,
     principal: Principal = Depends(require_gateway_identity),
     db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
 ) -> GatewayAcceptedResponse:
+    if principal.gateway_id != gateway_id:
+        _record_gateway_audit_safely(
+            db,
+            settings=settings,
+            request=request,
+            actor_id=_parse_uuid_or_none(principal.gateway_id),
+            action="gateway.camera_status.denied.gateway_mismatch",
+            resource=f"gateway:{gateway_id}",
+            payload={"route_gateway_id": gateway_id, "principal_gateway_id": principal.gateway_id},
+        )
     _require_matching_gateway(gateway_id, principal)
 
     gateway_uuid = _parse_uuid(gateway_id, "gateway-id-invalid")
     camera_uuid = _parse_uuid(camera_id, "camera-id-invalid")
 
     if get_enabled_gateway(db, gateway_uuid) is None:
+        _record_gateway_audit_safely(
+            db,
+            settings=settings,
+            request=request,
+            actor_id=gateway_uuid,
+            action="gateway.camera_status.denied.disabled",
+            resource=f"gateway:{gateway_uuid}",
+            payload={"gateway_id": str(gateway_uuid), "camera_id": str(camera_uuid)},
+        )
         raise ProblemDetail(
             status=403,
             title="Forbidden",
@@ -232,6 +273,15 @@ def gateway_camera_status(
 
     camera = get_active_camera(db, camera_uuid)
     if camera is None:
+        _record_gateway_audit_safely(
+            db,
+            settings=settings,
+            request=request,
+            actor_id=gateway_uuid,
+            action="gateway.camera_status.denied.camera_not_found",
+            resource=f"camera:{camera_uuid}",
+            payload={"gateway_id": str(gateway_uuid), "camera_id": str(camera_uuid)},
+        )
         raise ProblemDetail(
             status=404,
             title="Not Found",
@@ -240,6 +290,15 @@ def gateway_camera_status(
         )
 
     if not gateway_has_active_camera_assignment(db, gateway_uuid, camera_uuid):
+        _record_gateway_audit_safely(
+            db,
+            settings=settings,
+            request=request,
+            actor_id=gateway_uuid,
+            action="gateway.camera_status.denied.unassigned",
+            resource=f"camera:{camera_uuid}",
+            payload={"gateway_id": str(gateway_uuid), "camera_id": str(camera_uuid)},
+        )
         raise ProblemDetail(
             status=403,
             title="Forbidden",
@@ -265,8 +324,18 @@ async def gateway_control_ws(
     websocket: WebSocket,
     principal: Principal | None = Depends(verify_gateway_identity_ws),
     settings: Settings = Depends(get_settings),
+    db: DbSession = Depends(db_session),
 ) -> None:
     if principal is None or principal.gateway_id is None:
+        _record_gateway_ws_audit_safely(
+            db,
+            settings=settings,
+            websocket=websocket,
+            actor_id=None,
+            action="gateway.control.denied.unauthenticated",
+            resource="gateway-control",
+            payload={"reason": "gateway-identity-required"},
+        )
         await websocket.close(code=1008, reason="gateway-identity-required")
         return
 
@@ -281,6 +350,15 @@ async def gateway_control_ws(
         ):
             await websocket.send_json(signed_command.model_dump(mode="json"))
     except CommandSigningError:
+        _record_gateway_ws_audit_safely(
+            db,
+            settings=settings,
+            websocket=websocket,
+            actor_id=_parse_uuid_or_none(principal.gateway_id),
+            action="gateway.control.denied.signing_failed",
+            resource=f"gateway:{principal.gateway_id}",
+            payload={"gateway_id": principal.gateway_id},
+        )
         await websocket.close(code=1011, reason="gateway-command-signing-failed")
         return
 
@@ -288,10 +366,45 @@ async def gateway_control_ws(
         while True:
             raw_message = await websocket.receive_text()
             ack = _parse_gateway_command_ack(raw_message)
-            if ack is None or ack.gateway_id != principal.gateway_id:
+            if ack is None:
+                _record_gateway_ws_audit_safely(
+                    db,
+                    settings=settings,
+                    websocket=websocket,
+                    actor_id=_parse_uuid_or_none(principal.gateway_id),
+                    action="gateway.control.ack.denied.invalid",
+                    resource=f"gateway:{principal.gateway_id}",
+                    payload={"gateway_id": principal.gateway_id},
+                )
                 await websocket.close(code=1008, reason="gateway-command-ack-invalid")
                 return
-            _record_gateway_command_ack(websocket, principal.gateway_id, ack)
+            if ack.gateway_id != principal.gateway_id:
+                _record_gateway_ws_audit_safely(
+                    db,
+                    settings=settings,
+                    websocket=websocket,
+                    actor_id=_parse_uuid_or_none(principal.gateway_id),
+                    action="gateway.control.ack.denied.gateway_mismatch",
+                    resource=f"gateway:{principal.gateway_id}",
+                    payload={"ack_gateway_id": ack.gateway_id, "principal_gateway_id": principal.gateway_id},
+                )
+                await websocket.close(code=1008, reason="gateway-command-ack-invalid")
+                return
+            result = _record_gateway_command_ack(websocket, principal.gateway_id, ack)
+            if getattr(result, "applied", True) is False:
+                _record_gateway_ws_audit_safely(
+                    db,
+                    settings=settings,
+                    websocket=websocket,
+                    actor_id=_parse_uuid_or_none(principal.gateway_id),
+                    action="gateway.control.ack.denied.not_applied",
+                    resource=f"gateway:{principal.gateway_id}",
+                    payload={
+                        "gateway_id": principal.gateway_id,
+                        "command_id": getattr(result, "command_id", None),
+                        "reason": getattr(result, "reason", None),
+                    },
+                )
     except WebSocketDisconnect:
         pass
 
@@ -332,15 +445,15 @@ def _record_gateway_command_ack(
     websocket: WebSocket,
     gateway_id: str,
     ack: GatewayCommandAck,
-) -> None:
+) -> Any:
     sink: Callable[[str, GatewayCommandAck], Any] | None = getattr(
         websocket.app.state,
         "gateway_control_ack_sink",
         None,
     )
     if not callable(sink):
-        return
-    sink(gateway_id, ack)
+        return None
+    return sink(gateway_id, ack)
 
 
 def _parse_uuid(value: str, detail: str) -> uuid.UUID:
@@ -391,6 +504,33 @@ def _record_gateway_audit_safely(
         return
 
 
+def _record_gateway_ws_audit_safely(
+    db: DbSession,
+    *,
+    settings: Settings,
+    websocket: WebSocket,
+    actor_id: uuid.UUID | None,
+    action: str,
+    resource: str,
+    payload: dict[str, object] | None = None,
+) -> None:
+    try:
+        record_audit_event(
+            db,
+            actor_type=ActorType.gateway,
+            audit_hmac_key_version=settings.AUDIT_HMAC_KEY_VERSION,
+            audit_hmac_key=settings.AUDIT_HMAC_KEY,
+            actor_id=actor_id,
+            action=action,
+            resource=resource,
+            payload=payload,
+            ip=_websocket_ip(websocket),
+            ua=_websocket_ua(websocket),
+        )
+    except AuditLogError:
+        return
+
+
 def _record_gateway_audit_required(
     db: DbSession,
     *,
@@ -429,3 +569,11 @@ def _request_ip(request: Request) -> str | None:
 
 def _request_ua(request: Request) -> str | None:
     return request.headers.get("user-agent")
+
+
+def _websocket_ip(websocket: WebSocket) -> str | None:
+    return websocket.client.host if websocket.client is not None else None
+
+
+def _websocket_ua(websocket: WebSocket) -> str | None:
+    return websocket.headers.get("user-agent")

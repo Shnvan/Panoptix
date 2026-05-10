@@ -1790,6 +1790,8 @@ python -m pytest tests/test_gateway_credentials.py -v
 
 All gateway command mutation endpoints now write audit trail entries on success.
 
+Gateway denial paths now also write best-effort audit trail entries when gateway command/control operations are rejected.
+
 ### Audited actions
 
 | Endpoint | Audit Action |
@@ -1798,11 +1800,27 @@ All gateway command mutation endpoints now write audit trail entries on success.
 | `POST /admin/gateways/{id}/commands/{id}/cancel` | `command.cancel` |
 | `POST /admin/commands/cleanup` | `commands.cleanup` |
 
+### Audited denial actions
+
+| Path | Audit Action |
+|------|--------------|
+| gateway heartbeat mismatch | `gateway.heartbeat.denied.gateway_mismatch` |
+| gateway heartbeat signing failure | `gateway.heartbeat.denied.signing_failed` |
+| camera status disabled gateway | `gateway.camera_status.denied.disabled` |
+| camera status missing/retired camera | `gateway.camera_status.denied.camera_not_found` |
+| camera status unassigned camera | `gateway.camera_status.denied.unassigned` |
+| control WebSocket unauthenticated | `gateway.control.denied.unauthenticated` |
+| control WebSocket signing failure | `gateway.control.denied.signing_failed` |
+| control WebSocket invalid ACK | `gateway.control.ack.denied.invalid` |
+| control WebSocket ACK gateway mismatch | `gateway.control.ack.denied.gateway_mismatch` |
+| control WebSocket ACK not applied | `gateway.control.ack.denied.not_applied` |
+
 ### Notes
 
-- Audit entries are written using the existing `_record_user_audit_required` pattern (fail-closed: returns 503 if audit write fails).
-- Actor is the authenticated admin user (looked up via `get_or_create_user`).
-- Payload includes relevant identifiers: `command_id`, `gateway_id`, `kind`, or `expired_count`.
+- Successful admin command mutation audit entries use the existing required user-audit pattern.
+- Gateway denial audit entries are best-effort and do not mask the original denial reason.
+- Actor is the authenticated admin user for admin mutations, or the gateway actor when gateway identity is known.
+- Payload includes relevant identifiers such as `command_id`, `gateway_id`, `camera_id`, `kind`, `reason`, or `expired_count`.
 - Requires a valid `AUDIT_HMAC_KEY` (not placeholder). In local dev, set:
 
 ```powershell

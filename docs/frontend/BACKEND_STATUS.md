@@ -178,6 +178,7 @@ All admin endpoints require the `admin` role.
 
 - Gateway `service_token` is returned only on create/rotate; frontend must display it once and never persist it.
 - Gateway HTTP APIs authenticate with `x-panoptix-gateway-id` plus `Authorization: Bearer <service_token>`; browser/frontend code must never call gateway APIs with these credentials.
+- Gateway and control denial paths write backend audit events; frontend can surface related audit rows from the admin audit API.
 
 ### Command Queue
 
