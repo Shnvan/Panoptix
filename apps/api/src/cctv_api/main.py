@@ -7,6 +7,7 @@ from cctv_api.api.health import router as health_router
 from cctv_api.api.router import v1_router
 from cctv_api.core.config import Settings, get_settings
 from cctv_api.gateway.command_queue import create_ack_sink, create_command_provider
+from cctv_api.security.headers import add_security_headers
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -23,6 +24,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
 
     application.add_exception_handler(ProblemDetail, problem_detail_handler)
+    application.middleware("http")(lambda request, call_next: add_security_headers(request, call_next, resolved_settings))
 
     if settings is not None:
         application.dependency_overrides[get_settings] = override_settings

@@ -29,6 +29,7 @@ $env:AUDIT_HMAC_KEY = "local-dev-audit-hmac-key-change-me"
 - Token success paths need real or test database rows for users, cameras, ACLs, gateways, and assignments.
 - LiveKit token success paths need non-placeholder LiveKit settings.
 - Audit-producing success paths need a non-placeholder `AUDIT_HMAC_KEY`; audit writes fail closed when it is missing or left as `replace-me`.
+- Non-dev browser unsafe requests require a CSRF header matching the `panoptix_csrf` cookie; local development auth remains exempt.
 
 ## 2. Start The API Locally
 
@@ -82,6 +83,14 @@ $AdminHeaders = @{
   "x-panoptix-dev-roles" = "admin"
 }
 ```
+
+Security headers should be present on API success and problem-detail responses:
+
+```powershell
+Invoke-WebRequest -Uri "$BaseUrl/api/v1/me" -Headers $UserHeaders | Select-Object -ExpandProperty Headers
+```
+
+For non-dev browser session testing, first call a safe authenticated `GET` to receive `panoptix_session` and `panoptix_csrf`, then send the CSRF cookie value as `x-panoptix-csrf-token` on unsafe browser/admin requests.
 
 Development gateway auth headers:
 

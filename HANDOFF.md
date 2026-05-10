@@ -133,9 +133,28 @@ Current state:
 
 ## Recently Completed Milestones
 
-### Audit Export Signing
+### Browser/Admin Security Hardening
 
 Completed in this milestone.
+
+Implemented:
+
+- signed CSRF tokens are now bound to non-dev browser sessions
+- unsafe browser/admin routes require both `panoptix_csrf` cookie and matching `x-panoptix-csrf-token` header
+- CSRF enforcement covers admin mutations, privacy notice acceptance, and session revoke
+- safe methods, dev auth, gateway HTTP APIs, gateway WebSocket, LiveKit webhook, and health checks remain outside browser CSRF enforcement
+- baseline API security headers are added to success and problem-detail responses
+- 11 tests added across `apps/api/tests/test_security.py` and `apps/api/tests/test_sessions.py`
+
+Not included:
+
+- frontend client implementation for sending the CSRF header
+- Cloudflare Access production setup
+- dynamic frontend CSP for served frontend assets
+
+### Audit Export Signing
+
+Completed in prior milestone.
 
 Implemented:
 
@@ -859,9 +878,9 @@ $env:PYTHONPATH = "src"; python -m compileall src alembic scripts
 Latest result:
 
 ```text
-pytest: 291 passed
+pytest: 302 passed
 ruff: all checks passed
-mypy: no issues found in 33 source files
+mypy: no issues found in 35 source files
 compileall: passed
 ```
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 from fastapi import Depends, Request, Response, WebSocket
 from sqlalchemy.orm import Session as DbSession
 
@@ -7,6 +9,13 @@ from cctv_api.api.errors import ProblemDetail
 from cctv_api.core.config import Settings, get_settings
 from cctv_api.db import db_session
 from cctv_api.security.cloudflare_access import AccessVerificationError, CloudflareAccessVerifier
+from cctv_api.security.csrf import (
+    CSRF_COOKIE_NAME,
+    CSRF_HEADER_NAME,
+    CsrfTokenError,
+    create_csrf_token,
+    verify_csrf_token,
+)
 from cctv_api.security.identity import Principal, PrincipalKind
 from cctv_api.security.session_cookie import create_session_cookie, read_session_cookie
 from cctv_api.security.sessions import create_session, get_active_session, touch_session
@@ -48,6 +57,8 @@ def require_authenticated_user(
     session_row = get_active_session(db, session_id) if session_id else None
 
     if session_row is None:
+        if _csrf_required(request):
+            raise _auth_problem("csrf-token-required", status=403)
         ip = request.client.host if request.client else None
         ua = request.headers.get("user-agent", "")[:255]
         session_row = create_session(db, user_id=user.id, ua_fp=ua, ip=ip)
@@ -61,8 +72,11 @@ def require_authenticated_user(
             path="/",
         )
     else:
+        if _csrf_required(request):
+            _verify_request_csrf(request, session_row.id, settings)
         touch_session(db, session_row.id)
 
+    _set_csrf_cookie(response, session_row.id, settings)
     return Principal(
         kind=PrincipalKind.USER,
         subject=principal.subject,
@@ -94,3 +108,47 @@ def verify_gateway_identity_ws(
         return verifier.verify_gateway_websocket(websocket)
     except AccessVerificationError:
         return None
+
+
+def _csrf_required(request: Request) -> bool:
+    if request.method.upper() not in {"POST", "PUT", "PATCH", "DELETE"}:
+        return False
+    path = request.url.path
+    if path.startswith("/api/v1/gateways/"):
+        return False
+    if path == "/api/v1/gateway-control/ws":
+        return False
+    if path == "/api/v1/webhooks/livekit":
+        return False
+    return path.startswith("/api/v1/admin/") or path in {
+        "/api/v1/privacy/notice/accept",
+        "/api/v1/sessions/revoke",
+    }
+
+
+def _verify_request_csrf(request: Request, session_id: uuid.UUID, settings: Settings) -> None:
+    header_token = request.headers.get(CSRF_HEADER_NAME)
+    cookie_token = request.cookies.get(CSRF_COOKIE_NAME)
+    if not header_token or not cookie_token:
+        raise _auth_problem("csrf-token-required", status=403)
+    if header_token != cookie_token:
+        raise _auth_problem("csrf-token-invalid", status=403)
+    try:
+        verify_csrf_token(header_token, session_id=session_id, signing_key=settings.CSRF_SIGNING_KEY)
+    except CsrfTokenError as exc:
+        raise _auth_problem(exc.detail, status=403) from exc
+
+
+def _set_csrf_cookie(response: Response, session_id: uuid.UUID, settings: Settings) -> None:
+    try:
+        csrf_token = create_csrf_token(session_id, settings.CSRF_SIGNING_KEY)
+    except CsrfTokenError:
+        return
+    response.set_cookie(
+        key=CSRF_COOKIE_NAME,
+        value=csrf_token,
+        httponly=False,
+        secure=True,
+        samesite="lax",
+        path="/",
+    )

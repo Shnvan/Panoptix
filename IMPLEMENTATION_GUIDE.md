@@ -2259,15 +2259,63 @@ Existing audit export tests now verify:
 
 ---
 
-## 63. Current Verification Status
+## 63. Browser/Admin Security Hardening
+
+### What was implemented
+
+Browser/admin API routes now have CSRF protection for non-dev browser sessions and baseline security headers on API responses.
+
+### CSRF behavior
+
+- CSRF tokens are signed with `CSRF_SIGNING_KEY`
+- CSRF tokens are bound to the active browser session ID
+- non-dev browser sessions receive a readable `panoptix_csrf` cookie
+- unsafe browser/admin requests must send matching `x-panoptix-csrf-token`
+- missing or invalid CSRF tokens fail closed with 403 problem details
+
+Protected unsafe routes include:
+
+- `/api/v1/admin/...`
+- `/api/v1/privacy/notice/accept`
+- `/api/v1/sessions/revoke`
+
+Excluded routes include:
+
+- safe `GET`, `HEAD`, and `OPTIONS` requests
+- development auth requests
+- gateway HTTP APIs
+- gateway control WebSocket
+- LiveKit webhook
+- health checks
+
+### Security headers
+
+API responses now include:
+
+- `X-Content-Type-Options: nosniff`
+- `Referrer-Policy: no-referrer`
+- `X-Frame-Options: DENY`
+- `Permissions-Policy: camera=(), microphone=(), geolocation=()`
+- API-focused `Content-Security-Policy`
+
+### Tests added
+
+11 tests were added across:
+
+- `apps/api/tests/test_security.py`
+- `apps/api/tests/test_sessions.py`
+
+---
+
+## 64. Current Verification Status
 
 ### What passed
 
 The latest verification passed:
 
 ```text
-backend pytest: 291 passed
-backend mypy: no issues found in 33 source files
+backend pytest: 302 passed
+backend mypy: no issues found in 35 source files
 backend ruff: all checks passed
 backend compileall: passed
 edge agent pytest: 57 passed
@@ -2334,7 +2382,7 @@ The following are intentionally not done yet:
 
 Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
 
-Possible candidates: security hardening (CSRF, headers), production scheduler/cron wiring, synthetic RTSP test source.
+Possible candidates: production scheduler/cron wiring, gateway reconnect supervision, synthetic RTSP test source.
 
 ---
 
@@ -2372,6 +2420,7 @@ The system now has:
 - gateway service-token verification on HTTP gateway requests
 - gateway command denial audit logging
 - signed JSON audit exports
+- browser/admin CSRF protection and baseline security headers
 - passing backend and edge-agent tests, type checks, and lint checks
 
 The most important security idea so far is:

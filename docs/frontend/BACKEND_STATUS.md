@@ -30,6 +30,15 @@ The backend will treat these headers as a verified identity with admin role. Dev
 
 The frontend API client should send these headers on every request during local development.
 
+Production/non-dev browser sessions use signed cookies and CSRF protection:
+
+- safe authenticated `GET` requests can establish/refresh `panoptix_session` and `panoptix_csrf`
+- unsafe browser/admin requests must send `x-panoptix-csrf-token` matching the `panoptix_csrf` cookie
+- CSRF enforcement applies to admin mutations, privacy notice acceptance, and session revoke
+- gateway APIs and LiveKit webhooks do not use browser CSRF
+
+All API responses include baseline security headers such as `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy`, and an API-focused `Content-Security-Policy`.
+
 ---
 
 ## Implemented Browser/Session Endpoints

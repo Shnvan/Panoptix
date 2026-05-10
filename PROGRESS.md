@@ -372,6 +372,13 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Exported items omit internal audit-chain fields (`hash`, `prev_hash`, `hmac_key_version`)
 - [x] Existing audit export tests updated to verify digest/signature, bounds, empty exports, scrubbed payloads, and fail-closed invalid key behavior
 
+### Browser/Admin Security Hardening
+- [x] Added signed CSRF tokens bound to non-dev browser sessions
+- [x] Unsafe browser/admin routes now require matching CSRF cookie and `x-panoptix-csrf-token` header
+- [x] Gateway HTTP APIs, gateway WebSocket, LiveKit webhook, health checks, safe methods, and dev auth remain outside browser CSRF enforcement
+- [x] Added baseline API security headers on success and problem-detail responses
+- [x] Added 11 tests covering CSRF helpers, browser CSRF enforcement, dev-auth compatibility, and security headers
+
 ---
 
 ## Next Steps (In Order)

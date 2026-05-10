@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import uuid
 
+import pytest
 from sqlalchemy.orm import Session as DbSession
 
+from cctv_api.security.csrf import CsrfTokenError, create_csrf_token, verify_csrf_token
 from cctv_api.security.sessions import create_session, get_active_session, list_active_sessions, revoke_session
 from cctv_api.security.session_cookie import create_session_cookie, read_session_cookie
 from cctv_api.security.users import get_or_create_user
@@ -51,6 +53,33 @@ def test_session_cookie_rejects_bad_uuid() -> None:
 def test_session_cookie_rejects_none_value() -> None:
     result = read_session_cookie("", SIGNING_KEY)
     assert result is None
+
+
+def test_csrf_token_roundtrip() -> None:
+    session_id = uuid.uuid4()
+    token = create_csrf_token(session_id, SIGNING_KEY)
+    verify_csrf_token(token, session_id=session_id, signing_key=SIGNING_KEY)
+
+
+def test_csrf_token_rejects_wrong_session() -> None:
+    token = create_csrf_token(uuid.uuid4(), SIGNING_KEY)
+    with pytest.raises(CsrfTokenError) as exc_info:
+        verify_csrf_token(token, session_id=uuid.uuid4(), signing_key=SIGNING_KEY)
+    assert exc_info.value.detail == "csrf-token-invalid"
+
+
+def test_csrf_token_rejects_tampered_signature() -> None:
+    session_id = uuid.uuid4()
+    token = create_csrf_token(session_id, SIGNING_KEY)
+    with pytest.raises(CsrfTokenError) as exc_info:
+        verify_csrf_token(token[:-4] + "XXXX", session_id=session_id, signing_key=SIGNING_KEY)
+    assert exc_info.value.detail == "csrf-token-invalid"
+
+
+def test_csrf_token_rejects_placeholder_key() -> None:
+    with pytest.raises(CsrfTokenError) as exc_info:
+        create_csrf_token(uuid.uuid4(), "replace-me")
+    assert exc_info.value.detail == "csrf-signing-key-invalid"
 
 
 def test_create_and_list_active_session(test_db_session: DbSession) -> None:
