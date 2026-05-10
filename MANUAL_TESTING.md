@@ -1332,6 +1332,23 @@ Expected behavior:
 - command-executor integration remains fail-closed and idempotent
 - no browser, webcam, phone, or frontend publishing path is introduced
 
+Synthetic end-to-end publish dry-run check:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_publish_dry_run.py -v
+```
+
+Expected behavior:
+
+- signed synthetic `start_publish` and `stop_publish` commands verify before execution
+- `CommandExecutor` drives `LiveKitMediaController` with the synthetic RTSP source URL
+- fake LiveKit publisher calls record safe metadata without logging token values
+- optional fake mediamtx lifecycle hooks run without launching mediamtx
+- tampered and wrong-gateway commands fail closed
+- no real LiveKit SDK, camera, FFmpeg, mediamtx process, browser publisher, or external account is required
+
 ## 19. Heartbeat Command Fallback Local Check
 
 The heartbeat fallback path is local-only and test-scaffolded. It does not require LiveKit, Cloudflare, Google Workspace, PostgreSQL, mediamtx, or real cameras.

@@ -2554,7 +2554,45 @@ Tests cover:
 
 ---
 
-## 70. Current Verification Status
+## 70. Synthetic End-to-End Publish Dry Run
+
+### What was implemented
+
+The edge agent now has a fake-only synthetic publish dry-run harness.
+
+### Dry-run path
+
+`panoptix_edge_agent.publish_dry_run` can:
+
+- build signed synthetic `gateway.command.start_publish` and `gateway.command.stop_publish` commands
+- verify signatures before execution
+- run commands through `CommandExecutor`
+- drive `LiveKitMediaController` with the synthetic RTSP source URL
+- record fake LiveKit publisher calls without logging token values
+- optionally run fake mediamtx lifecycle hooks
+
+### Tests cover
+
+- successful signed start/stop flow
+- custom safe dry-run config
+- duplicate start idempotency
+- stop-only safety
+- tampered command rejection
+- wrong-gateway rejection
+- publisher start and stop failures
+- fake mediamtx start and stop failures
+
+### What remains out of scope
+
+- real LiveKit SDK package/media adapter
+- real RTSP camera credentials
+- real FFmpeg or mediamtx process execution
+- browser, webcam, phone, or frontend publishing
+- external account setup
+
+---
+
+## 71. Current Verification Status
 
 ### What passed
 
@@ -2565,8 +2603,8 @@ backend pytest: 308 passed
 backend mypy: no issues found in 37 source files
 backend ruff: all checks passed
 backend compileall: passed
-edge agent pytest: 116 passed
-edge agent mypy: no issues found in 14 source files
+edge agent pytest: 127 passed
+edge agent mypy: no issues found in 15 source files
 edge agent ruff: all checks passed
 edge agent compileall: passed
 ```
@@ -2670,6 +2708,7 @@ The system now has:
 - local-only mediamtx runtime config scaffold
 - mediamtx process-management scaffold
 - LiveKit publisher/controller foundation
+- synthetic end-to-end publish dry-run harness
 - passing backend and edge-agent tests, type checks, and lint checks
 
 The most important security idea so far is:

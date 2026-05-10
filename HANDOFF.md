@@ -133,9 +133,29 @@ Current state:
 
 ## Recently Completed Milestones
 
-### LiveKit Publisher Foundation
+### Synthetic End-to-End Publish Dry Run
 
 Completed in this milestone.
+
+Implemented:
+
+- `publish_dry_run.py` builds signed synthetic `start_publish` and `stop_publish` commands
+- dry-run execution verifies command signatures before calling `CommandExecutor`
+- `CommandExecutor` drives `LiveKitMediaController` using the synthetic RTSP source URL
+- fake LiveKit publisher records safe call metadata without logging token values
+- optional fake mediamtx lifecycle hooks prove start/stop ordering without launching mediamtx
+- tests cover happy path, custom config, duplicate start idempotency, stop-only safety, tampered command rejection, wrong-gateway rejection, publisher failures, and mediamtx lifecycle failures
+
+Not included:
+
+- real LiveKit SDK package/media adapter
+- real RTSP camera credentials
+- real FFmpeg or mediamtx process execution
+- browser, webcam, phone, or frontend publishing
+
+### LiveKit Publisher Foundation
+
+Completed in prior milestone.
 
 Implemented:
 
@@ -1155,6 +1175,7 @@ Use local/dev placeholders and fail-closed behavior. Do not ask the user to set 
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/executor.py`: verified command dispatcher
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/media.py`: media controller protocol and stub/failing controllers
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/livekit_publisher.py`: fakeable LiveKit publisher controller boundary
+- `apps/cctv-edge/agent/src/panoptix_edge_agent/publish_dry_run.py`: fake-only synthetic publish dry-run harness
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/mediamtx_process.py`: local mediamtx process command/lifecycle scaffold
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/publish_state.py`: in-memory publish session tracker
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/cli.py`: CLI entrypoint for heartbeat/control checks
@@ -1168,6 +1189,7 @@ Use local/dev placeholders and fail-closed behavior. Do not ask the user to set 
 - `apps/cctv-edge/agent/tests/test_control.py`: WebSocket control client tests
 - `apps/cctv-edge/agent/tests/test_executor.py`: command executor tests
 - `apps/cctv-edge/agent/tests/test_livekit_publisher.py`: fakeable LiveKit publisher controller tests
+- `apps/cctv-edge/agent/tests/test_publish_dry_run.py`: synthetic publish dry-run tests
 - `apps/cctv-edge/agent/tests/test_mediamtx_process.py`: mediamtx process lifecycle tests
 
 ### Migrations / Database

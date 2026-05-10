@@ -422,6 +422,13 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Added SDK-unavailable default client that fails clearly without requiring LiveKit credentials or packages
 - [x] Added tests for start/stop, idempotency, validation, adapter failures, and command-executor integration
 
+### Synthetic End-to-End Publish Dry Run
+- [x] Added fake-only edge-agent dry-run harness for signed start/stop publish commands
+- [x] Proved `CommandExecutor` drives `LiveKitMediaController` with the synthetic RTSP source URL
+- [x] Added optional fake mediamtx lifecycle hooks without launching mediamtx
+- [x] Added tests for happy path, duplicate start idempotency, stop-only safety, tampered/wrong-gateway rejection, publisher failures, and mediamtx lifecycle failures
+- [x] Preserved no-real-services invariant: no LiveKit SDK, real camera, FFmpeg, mediamtx process, browser publisher, or external account required
+
 ---
 
 ## Next Steps (In Order)
