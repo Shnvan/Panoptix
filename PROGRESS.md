@@ -429,12 +429,20 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Added tests for happy path, duplicate start idempotency, stop-only safety, tampered/wrong-gateway rejection, publisher failures, and mediamtx lifecycle failures
 - [x] Preserved no-real-services invariant: no LiveKit SDK, real camera, FFmpeg, mediamtx process, browser publisher, or external account required
 
+### Real LiveKit SDK Media Adapter
+- [x] Added optional `LiveKitSdkPublisherClient` behind the existing edge-agent publisher boundary
+- [x] Kept the LiveKit SDK lazy/optional with a `livekit` package extra and `livekit-sdk-unavailable` missing-SDK failure
+- [x] Added SDK room connect/disconnect lifecycle tracking by camera ID with fixed, token-safe error codes
+- [x] Added injectable media-session seam that receives the validated CCTV `source_url` without implementing RTSP frame decode yet
+- [x] Added fake SDK/session tests for start, stop, cleanup, failure, idempotent unknown stop, and token non-disclosure
+- [x] Preserved CCTV-only invariant: no browser, webcam, phone, frontend, real camera, or external-account publishing path was introduced
+
 ---
 
 ## Next Steps (In Order)
 
 ### 1. TBD — Next milestone to be determined
-Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
+Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone. RTSP-to-LiveKit media packet publishing remains future work.
 
 ---
 

@@ -13,6 +13,9 @@ dev = [
     "ruff>=0.5.0",
     "mypy>=1.10.0",
 ]
+livekit = [
+    "livekit>=1.1,<2",
+]
 
 [project.scripts]
 panoptix-edge-agent = "panoptix_edge_agent.cli:main"

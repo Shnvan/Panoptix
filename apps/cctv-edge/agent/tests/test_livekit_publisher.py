@@ -9,6 +9,7 @@ from panoptix_edge_agent.livekit_publisher import (
     LiveKitMediaController,
     LiveKitPublishRequest,
     LiveKitPublisherResult,
+    LiveKitSdkPublisherClient,
     SdkUnavailableLiveKitPublisherClient,
 )
 
@@ -33,6 +34,93 @@ class FakeLiveKitPublisherClient:
     async def stop_publish(self, *, camera_id: str, room: str) -> LiveKitPublisherResult:
         self.stop_calls.append({"camera_id": camera_id, "room": room})
         return self.stop_result
+
+
+class FakeSdkRoom:
+    def __init__(
+        self,
+        *,
+        connect_error: Exception | None = None,
+        disconnect_error: Exception | None = None,
+    ) -> None:
+        self.connect_error = connect_error
+        self.disconnect_error = disconnect_error
+        self.connect_calls: list[dict[str, object]] = []
+        self.disconnect_calls = 0
+
+    async def connect(self, url: str, token: str, options: object) -> None:
+        self.connect_calls.append({"url": url, "token": token, "options": options})
+        if self.connect_error is not None:
+            raise self.connect_error
+
+    async def disconnect(self) -> None:
+        self.disconnect_calls += 1
+        if self.disconnect_error is not None:
+            raise self.disconnect_error
+
+
+class FakeRtcModule:
+    def __init__(self, room: FakeSdkRoom) -> None:
+        self.room = room
+        self.room_options_calls: list[dict[str, bool]] = []
+
+    def Room(self) -> FakeSdkRoom:
+        return self.room
+
+    def RoomOptions(self, *, auto_subscribe: bool) -> dict[str, bool]:
+        options = {"auto_subscribe": auto_subscribe}
+        self.room_options_calls.append(options)
+        return options
+
+
+class FakeMediaSession:
+    def __init__(
+        self,
+        *,
+        start_error: Exception | None = None,
+        stop_error: Exception | None = None,
+    ) -> None:
+        self.start_error = start_error
+        self.stop_error = stop_error
+        self.start_calls = 0
+        self.stop_calls = 0
+
+    async def start(self) -> None:
+        self.start_calls += 1
+        if self.start_error is not None:
+            raise self.start_error
+
+    async def stop(self) -> None:
+        self.stop_calls += 1
+        if self.stop_error is not None:
+            raise self.stop_error
+
+
+class RecordingMediaSessionFactory:
+    def __init__(self, session: FakeMediaSession | None = None) -> None:
+        self.session = FakeMediaSession() if session is None else session
+        self.calls: list[dict[str, object]] = []
+
+    def __call__(
+        self,
+        *,
+        request: LiveKitPublishRequest,
+        room: FakeSdkRoom,
+    ) -> FakeMediaSession:
+        self.calls.append({"request": request, "room": room})
+        return self.session
+
+
+def _publish_request(**overrides: str) -> LiveKitPublishRequest:
+    values = {
+        "camera_id": "camera-1",
+        "room": "camera_ab12cd34",
+        "livekit_url": "wss://livekit.example.test",
+        "token": "gateway-token-secret",
+        "source_url": "rtsp://127.0.0.1:8554/synthetic-camera-1",
+    }
+    values.update(overrides)
+    return LiveKitPublishRequest(**values)
 
 
 def _start_command(**overrides: object) -> GatewayCommand:
@@ -306,6 +394,131 @@ def test_sdk_unavailable_client_fails_clearly() -> None:
 
     assert result.ok is False
     assert result.error == "livekit-sdk-unavailable"
+
+
+def test_livekit_sdk_publisher_missing_sdk_fails_clearly() -> None:
+    def missing_sdk() -> FakeRtcModule:
+        raise ModuleNotFoundError("No module named 'livekit'")
+
+    client = LiveKitSdkPublisherClient(rtc_module_resolver=missing_sdk)
+
+    result = asyncio.run(client.start_publish(_publish_request()))
+
+    assert result.ok is False
+    assert result.error == "livekit-sdk-unavailable"
+    assert "gateway-token-secret" not in repr(result)
+
+
+def test_livekit_sdk_publisher_start_connects_room_and_starts_media_session() -> None:
+    room = FakeSdkRoom()
+    rtc_module = FakeRtcModule(room)
+    session_factory = RecordingMediaSessionFactory()
+    client = LiveKitSdkPublisherClient(
+        rtc_module=rtc_module,
+        media_session_factory=session_factory,
+    )
+
+    result = asyncio.run(client.start_publish(_publish_request()))
+
+    assert result.ok is True
+    assert room.connect_calls == [
+        {
+            "url": "wss://livekit.example.test",
+            "token": "gateway-token-secret",
+            "options": {"auto_subscribe": False},
+        }
+    ]
+    assert rtc_module.room_options_calls == [{"auto_subscribe": False}]
+    assert len(session_factory.calls) == 1
+    assert session_factory.calls[0]["room"] is room
+    request = session_factory.calls[0]["request"]
+    assert isinstance(request, LiveKitPublishRequest)
+    assert request.camera_id == "camera-1"
+    assert request.room == "camera_ab12cd34"
+    assert request.source_url == "rtsp://127.0.0.1:8554/synthetic-camera-1"
+    assert session_factory.session.start_calls == 1
+    assert "camera-1" in client.active_sessions
+
+
+def test_livekit_sdk_publisher_stop_disconnects_room_and_stops_media_session() -> None:
+    room = FakeSdkRoom()
+    session_factory = RecordingMediaSessionFactory()
+    client = LiveKitSdkPublisherClient(
+        rtc_module=FakeRtcModule(room),
+        media_session_factory=session_factory,
+    )
+    asyncio.run(client.start_publish(_publish_request()))
+
+    result = asyncio.run(client.stop_publish(camera_id="camera-1", room="camera_ab12cd34"))
+
+    assert result.ok is True
+    assert session_factory.session.stop_calls == 1
+    assert room.disconnect_calls == 1
+    assert "camera-1" not in client.active_sessions
+
+
+def test_livekit_sdk_publisher_start_failure_does_not_store_session() -> None:
+    room = FakeSdkRoom(connect_error=RuntimeError("gateway-token-secret leaked from sdk"))
+    session_factory = RecordingMediaSessionFactory()
+    client = LiveKitSdkPublisherClient(
+        rtc_module=FakeRtcModule(room),
+        media_session_factory=session_factory,
+    )
+
+    result = asyncio.run(client.start_publish(_publish_request()))
+
+    assert result.ok is False
+    assert result.error == "livekit-sdk-start-failed"
+    assert "gateway-token-secret" not in repr(result)
+    assert "camera-1" not in client.active_sessions
+    assert room.disconnect_calls == 1
+    assert session_factory.calls == []
+
+
+def test_livekit_sdk_publisher_media_session_start_failure_cleans_up_room() -> None:
+    room = FakeSdkRoom()
+    session = FakeMediaSession(start_error=RuntimeError("media start failed"))
+    session_factory = RecordingMediaSessionFactory(session)
+    client = LiveKitSdkPublisherClient(
+        rtc_module=FakeRtcModule(room),
+        media_session_factory=session_factory,
+    )
+
+    result = asyncio.run(client.start_publish(_publish_request()))
+
+    assert result.ok is False
+    assert result.error == "livekit-sdk-start-failed"
+    assert session.start_calls == 1
+    assert session.stop_calls == 1
+    assert room.disconnect_calls == 1
+    assert "camera-1" not in client.active_sessions
+
+
+def test_livekit_sdk_publisher_stop_failure_keeps_session() -> None:
+    room = FakeSdkRoom(disconnect_error=RuntimeError("gateway-token-secret leaked from sdk"))
+    session_factory = RecordingMediaSessionFactory()
+    client = LiveKitSdkPublisherClient(
+        rtc_module=FakeRtcModule(room),
+        media_session_factory=session_factory,
+    )
+    asyncio.run(client.start_publish(_publish_request()))
+
+    result = asyncio.run(client.stop_publish(camera_id="camera-1", room="camera_ab12cd34"))
+
+    assert result.ok is False
+    assert result.error == "livekit-sdk-stop-failed"
+    assert "gateway-token-secret" not in repr(result)
+    assert "camera-1" in client.active_sessions
+    assert session_factory.session.stop_calls == 1
+    assert room.disconnect_calls == 1
+
+
+def test_livekit_sdk_publisher_stop_unknown_session_is_idempotent() -> None:
+    client = LiveKitSdkPublisherClient(rtc_module=FakeRtcModule(FakeSdkRoom()))
+
+    result = asyncio.run(client.stop_publish(camera_id="camera-1", room="camera_ab12cd34"))
+
+    assert result.ok is True
 
 
 def test_command_executor_works_with_livekit_media_controller() -> None:

@@ -133,6 +133,27 @@ Current state:
 
 ## Recently Completed Milestones
 
+### Real LiveKit SDK Media Adapter
+
+Completed in this milestone.
+
+Implemented:
+
+- `LiveKitSdkPublisherClient` provides an optional LiveKit Python SDK adapter behind `LiveKitPublisherClient`
+- SDK import remains lazy and optional; missing SDK returns `livekit-sdk-unavailable`
+- adapter connects `rtc.Room()` with `RoomOptions(auto_subscribe=False)` and disconnects on stop
+- active SDK sessions are tracked by camera ID, start failures do not store sessions, and stop failures keep sessions for retry
+- injectable media-session seam receives the validated CCTV `source_url` for future RTSP frame publishing work
+- fake SDK/session tests cover missing SDK, connect/disconnect, cleanup, failure behavior, unknown-stop idempotency, and token non-disclosure
+
+Not included:
+
+- RTSP frame decode or LiveKit local video-track publishing
+- real RTSP camera credentials
+- real FFmpeg, mediamtx, WHIP, RTMP, or LiveKit Ingress execution
+- browser, webcam, phone, or frontend publishing
+- external account setup
+
 ### Synthetic End-to-End Publish Dry Run
 
 Completed in this milestone.
@@ -148,7 +169,7 @@ Implemented:
 
 Not included:
 
-- real LiveKit SDK package/media adapter
+- RTSP-to-LiveKit frame/track publishing
 - real RTSP camera credentials
 - real FFmpeg or mediamtx process execution
 - browser, webcam, phone, or frontend publishing
@@ -189,7 +210,7 @@ Implemented:
 Not included:
 
 - real RTSP camera credentials
-- real LiveKit SDK package integration
+- RTSP-to-LiveKit frame/track publishing
 - production Docker/systemd unit management
 
 ### mediamtx Runtime Configuration
@@ -208,7 +229,7 @@ Not included:
 
 - production Docker/systemd supervision
 - real RTSP camera credentials
-- real LiveKit SDK package/media adapter
+- RTSP-to-LiveKit frame/track publishing
 
 ### Synthetic RTSP Test Source
 
@@ -226,7 +247,7 @@ Not included:
 
 - production Docker/systemd supervision
 - real RTSP camera credentials
-- real LiveKit SDK package/media adapter
+- RTSP-to-LiveKit frame/track publishing
 
 ### Gateway Reconnect Supervision
 
@@ -445,7 +466,7 @@ Not included:
 - production scheduler/cron wiring for due stops
 - Alembic migration; DB-owner coordination still required
 - production Docker/systemd gateway supervision
-- real LiveKit SDK package/media adapter
+- RTSP-to-LiveKit frame/track publishing
 
 ### Room-Presence-Driven Gateway Publish Commands
 
@@ -491,7 +512,7 @@ Implemented:
 Not included:
 
 - production Docker/systemd gateway supervision
-- real LiveKit SDK package/media adapter
+- RTSP-to-LiveKit frame/track publishing
 - token refresh or expiry-driven stop
 - publish-state persistence across restarts
 - backend publish-state tracking or stop grace timers
@@ -1030,9 +1051,9 @@ $env:PYTHONPATH = "src"; python -m compileall src tests
 Latest result:
 
 ```text
-pytest: 116 passed
+pytest: 134 passed
 ruff: all checks passed
-mypy: no issues found in 14 source files
+mypy: no issues found in 15 source files
 compileall: passed
 ```
 
@@ -1048,7 +1069,7 @@ Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementat
 
 ## Not Implemented Yet
 
-- real LiveKit SDK package/media adapter
+- RTSP-to-LiveKit frame/track publishing
 - real RTSP camera credentials
 - frontend UI
 - production Docker/systemd gateway supervision

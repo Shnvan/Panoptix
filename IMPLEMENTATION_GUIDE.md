@@ -2509,7 +2509,7 @@ Tests use fake process objects and do not require mediamtx to be installed.
 ### What remains out of scope
 
 - real RTSP camera credentials
-- real LiveKit SDK package integration
+- RTSP-to-LiveKit frame/track publishing
 - production Docker/systemd unit management
 
 ---
@@ -2584,7 +2584,7 @@ The edge agent now has a fake-only synthetic publish dry-run harness.
 
 ### What remains out of scope
 
-- real LiveKit SDK package/media adapter
+- RTSP-to-LiveKit frame/track publishing
 - real RTSP camera credentials
 - real FFmpeg or mediamtx process execution
 - browser, webcam, phone, or frontend publishing
@@ -2592,7 +2592,55 @@ The edge agent now has a fake-only synthetic publish dry-run harness.
 
 ---
 
-## 71. Current Verification Status
+## 71. Real LiveKit SDK Media Adapter
+
+### What was implemented
+
+The edge agent now has an optional LiveKit Python SDK session adapter behind the existing fakeable publisher boundary.
+
+### SDK adapter behavior
+
+`panoptix_edge_agent.livekit_publisher.LiveKitSdkPublisherClient`:
+
+- lazily imports `livekit.rtc` only when `start_publish()` runs
+- returns `livekit-sdk-unavailable` when the SDK package is missing
+- creates `rtc.Room()` and connects with `RoomOptions(auto_subscribe=False)`
+- tracks active SDK sessions by camera ID
+- disconnects the room on stop
+- returns fixed start/stop failure codes without exposing gateway publish tokens
+
+The `livekit` package is available only as an optional extra:
+
+```powershell
+python -m pip install -e ".[livekit]"
+```
+
+### Media-session seam
+
+The SDK adapter includes an injectable media-session factory that receives the validated `LiveKitPublishRequest` and SDK room. This proves the CCTV RTSP `source_url` reaches the adapter boundary while keeping RTSP decode and LiveKit local video-track publishing out of this milestone.
+
+### Tests cover
+
+- missing SDK failure
+- fake SDK room connect/disconnect
+- `auto_subscribe=False` room options
+- media-session start/stop handoff
+- start cleanup without storing failed sessions
+- stop failure preserving active sessions for retry
+- idempotent stop for unknown sessions
+- token non-disclosure in returned result objects
+
+### What remains out of scope
+
+- RTSP frame decode or LiveKit local video-track publishing
+- real RTSP camera credentials
+- real FFmpeg, mediamtx, WHIP, RTMP, or LiveKit Ingress execution
+- browser, webcam, phone, or frontend publishing
+- external account setup
+
+---
+
+## 72. Current Verification Status
 
 ### What passed
 
@@ -2603,7 +2651,7 @@ backend pytest: 308 passed
 backend mypy: no issues found in 37 source files
 backend ruff: all checks passed
 backend compileall: passed
-edge agent pytest: 127 passed
+edge agent pytest: 134 passed
 edge agent mypy: no issues found in 15 source files
 edge agent ruff: all checks passed
 edge agent compileall: passed
@@ -2652,7 +2700,7 @@ This confirms the current backend and edge-agent code is working, typed correctl
 The following are intentionally not done yet:
 
 - frontend UI
-- real LiveKit SDK package/media adapter
+- RTSP-to-LiveKit frame/track publishing
 - production Docker/systemd gateway supervision
 
 ---
@@ -2663,7 +2711,7 @@ The following are intentionally not done yet:
 
 Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
 
-Possible candidates: real LiveKit SDK package/media adapter, production Docker/systemd gateway supervision, Cloudflare production setup prep.
+Possible candidates: RTSP-to-LiveKit frame/track publishing, production Docker/systemd gateway supervision, Cloudflare production setup prep.
 
 ---
 
