@@ -42,6 +42,7 @@ from cctv_api.security.dependencies import require_authenticated_user
 from cctv_api.security.identity import Principal
 from cctv_api.security.livekit_tokens import LiveKitTokenConfigError, mint_viewer_subscribe_token
 from cctv_api.security.policy import require_role
+from cctv_api.security.service_tokens import generate_service_token, hash_service_token
 from cctv_api.security.sessions import list_active_sessions, revoke_all_user_sessions, revoke_session
 from cctv_api.security.stream_access import (
     get_active_camera,
@@ -1117,10 +1118,12 @@ def create_gateway(
     require_role(principal, "admin")
     actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
     now = datetime.now(timezone.utc)
+    raw_token = generate_service_token()
     gateway = EdgeGateway(
         id=uuid.uuid4(),
         name=body.name,
         status=GatewayStatus.enabled,
+        service_token_hash=hash_service_token(raw_token),
         mtls_fingerprint=body.mtls_fingerprint,
         cert_expires_at=body.cert_expires_at,
         created_at=now,
@@ -1133,7 +1136,7 @@ def create_gateway(
         actor_id=actor.id,
         action="gateway.create",
         resource=f"gateway:{gateway.id}",
-        payload={"gateway_id": str(gateway.id), "name": body.name},
+        payload={"gateway_id": str(gateway.id), "name": body.name, "credential_issued": True},
     )
     db.commit()
     return {
@@ -1141,6 +1144,7 @@ def create_gateway(
         "name": gateway.name,
         "status": gateway.status.value,
         "created_at": gateway.created_at.isoformat(),
+        "service_token": raw_token,
     }
 
 
@@ -1190,6 +1194,57 @@ def disable_gateway(
         "name": gateway.name,
         "status": gateway.status.value,
         "disabled_at": gateway.disabled_at.isoformat(),
+    }
+
+
+class RotateCredentialRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=512)
+
+
+@v1_router.post("/admin/gateways/{gateway_id}/rotate-credential")
+def rotate_gateway_credential(
+    gateway_id: str,
+    body: RotateCredentialRequest,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    gateway_uuid = _parse_uuid(gateway_id, "gateway-id-invalid")
+    gateway = db.execute(select(EdgeGateway).where(EdgeGateway.id == str(gateway_uuid))).scalar_one_or_none()
+    if gateway is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="gateway-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+    if gateway.status == GatewayStatus.disabled or gateway.disabled_at is not None:
+        raise ProblemDetail(
+            status=409,
+            title="Conflict",
+            detail="gateway-disabled",
+            type_uri="https://panoptix.local/problems/conflict",
+        )
+    raw_token = generate_service_token()
+    gateway.service_token_hash = hash_service_token(raw_token)
+    now = datetime.now(timezone.utc)
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=actor.id,
+        action="gateway.credential.rotated",
+        resource=f"gateway:{gateway_uuid}",
+        payload={"gateway_id": str(gateway_uuid), "reason": body.reason},
+    )
+    db.commit()
+    return {
+        "gateway_id": str(gateway_uuid),
+        "service_token": raw_token,
+        "rotated_at": now.isoformat(),
     }
 
 

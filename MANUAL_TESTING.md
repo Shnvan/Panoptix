@@ -1709,6 +1709,60 @@ python -m pytest tests/test_admin_user_management.py -v
 
 ---
 
+## 29. Gateway Credential Rotation
+
+Gateway creation now returns a one-time service token, and admins can rotate that token later.
+
+### Create a gateway and capture the one-time token
+
+```powershell
+$gateway = Invoke-RestMethod -Method POST `
+  -Uri "$BaseUrl/api/v1/admin/gateways" `
+  -Headers $AdminHeaders `
+  -ContentType "application/json" `
+  -Body '{"name":"Local Gateway"}'
+
+$gateway.gateway_id
+$gateway.service_token
+```
+
+Expected:
+
+- response includes `service_token`
+- the token is shown once and should be copied to gateway config
+- backend stores only a hash, not the plaintext token
+
+### Rotate gateway credential
+
+```powershell
+$gatewayId = "<gateway-uuid>"
+Invoke-RestMethod -Method POST `
+  -Uri "$BaseUrl/api/v1/admin/gateways/$gatewayId/rotate-credential" `
+  -Headers $AdminHeaders `
+  -ContentType "application/json" `
+  -Body '{"reason":"routine rotation"}'
+```
+
+Expected: `{ "gateway_id": "...", "service_token": "...", "rotated_at": "..." }`
+
+Notes:
+
+- The old token is invalidated immediately.
+- Disabled gateway → 409 `gateway-disabled`.
+- Missing gateway → 404 `gateway-not-found`.
+- Audit event: `gateway.credential.rotated`.
+- Audit payload never includes the plaintext token.
+
+### Run credential tests
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_gateway_credentials.py -v
+```
+
+---
+
 ## 25. Gateway Command Audit Logging
 
 All gateway command mutation endpoints now write audit trail entries on success.

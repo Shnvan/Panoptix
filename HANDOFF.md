@@ -133,9 +133,30 @@ Current state:
 
 ## Recently Completed Milestones
 
-### Admin User Management
+### Gateway Credential Rotation
 
 Completed in this milestone.
+
+Implemented:
+
+- `POST /api/v1/admin/gateways` now returns a one-time plaintext `service_token`
+- gateway rows store only `service_token_hash`
+- `POST /api/v1/admin/gateways/{gateway_id}/rotate-credential` issues a new one-time token and overwrites the stored hash
+- old service tokens are invalidated immediately after rotation
+- credential-sensitive audit payload fields are scrubbed/redacted by existing audit scrubbing
+- audit event: `gateway.credential.rotated`
+- `apps/api/src/cctv_api/security/service_tokens.py` provides token generation, hashing, and constant-time verification
+- 9 tests added in `apps/api/tests/test_gateway_credentials.py`
+
+Not included:
+
+- production gateway service-token request verification
+- overlapping grace period for old/new credentials
+- mTLS certificate issuance/rotation
+
+### Admin User Management
+
+Completed in prior milestone.
 
 Implemented:
 
@@ -782,7 +803,7 @@ $env:PYTHONPATH = "src"; python -m compileall src alembic scripts
 Latest result:
 
 ```text
-pytest: 262 passed
+pytest: 271 passed
 ruff: all checks passed
 mypy: no issues found in 32 source files
 compileall: passed
@@ -819,6 +840,7 @@ Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementat
 ## Not Implemented Yet
 
 - command denial path audit logging
+- production gateway service-token request verification
 - production background scheduler/cron for automated maintenance
 - audit export signing
 - production gateway control reconnect policy/supervision
@@ -930,6 +952,7 @@ Use local/dev placeholders and fail-closed behavior. Do not ask the user to set 
 - `apps/api/tests/test_privacy_admin_users.py`: privacy notice and admin user list tests
 - `apps/api/tests/test_maintenance.py`: admin maintenance endpoint tests
 - `apps/api/tests/test_admin_user_management.py`: admin role assignment and user disable tests
+- `apps/api/tests/test_gateway_credentials.py`: gateway service-token issuance and rotation tests
 - `apps/api/tests/test_security.py`: auth/dev-auth tests
 - `apps/api/tests/test_sessions.py`: session tests
 - `apps/api/tests/test_audit.py`: audit tests

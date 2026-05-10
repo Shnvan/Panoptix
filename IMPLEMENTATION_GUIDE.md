@@ -2070,14 +2070,52 @@ Role assignment and user disable endpoints to complete the admin user lifecycle.
 
 ---
 
-## 59. Current Verification Status
+## 59. Gateway Credential Rotation
+
+### What was implemented
+
+Gateway service-token issuance and rotation for the MVP gateway lifecycle.
+
+### How it works
+
+1. `POST /api/v1/admin/gateways` now generates a plaintext `service_token` once.
+   - The gateway row stores only `service_token_hash`.
+   - The response returns `service_token` once so the operator can copy it to the gateway.
+   - Audit payload notes credential issuance, but credential-sensitive fields are redacted by audit scrubbing.
+
+2. `POST /api/v1/admin/gateways/{gateway_id}/rotate-credential` with `{ "reason": "..." }`
+   - Requires admin role.
+   - Generates a new service token and overwrites `service_token_hash`.
+   - Immediately invalidates the old token.
+   - Returns `{ "gateway_id", "service_token", "rotated_at" }`.
+   - Audits `gateway.credential.rotated` without logging the plaintext token.
+
+3. `service_tokens.py` centralizes secure token handling.
+   - `generate_service_token()`
+   - `hash_service_token()`
+   - `verify_service_token()`
+
+### Tests added
+
+9 tests in `apps/api/tests/test_gateway_credentials.py`:
+
+- token uniqueness and hash verification
+- create gateway returns one-time token and stores only hash
+- rotate requires auth/admin role
+- invalid/missing/disabled gateway errors
+- rotation returns a new token and audits
+- second rotation invalidates the first rotated token
+
+---
+
+## 60. Current Verification Status
 
 ### What passed
 
 The latest verification passed:
 
 ```text
-backend pytest: 262 passed
+backend pytest: 271 passed
 backend mypy: no issues found in 32 source files
 backend ruff: all checks passed
 backend compileall: passed
@@ -2180,6 +2218,7 @@ The system now has:
 - safe admin user listing endpoint
 - unified admin maintenance endpoint for scheduled-job processing
 - admin role assignment and user disable with session revocation
+- gateway service-token issuance and credential rotation
 - passing backend and edge-agent tests, type checks, and lint checks
 
 The most important security idea so far is:

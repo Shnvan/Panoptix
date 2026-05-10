@@ -341,6 +341,14 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] `revoke_all_user_sessions` bulk helper added to `sessions.py`
 - [x] 13 tests added for auth, role, grant/revoke, disable, session revocation, and audit
 
+### Gateway Credential Rotation
+- [x] `POST /api/v1/admin/gateways` now issues a one-time `service_token` and stores only its SHA-256 hash
+- [x] `POST /api/v1/admin/gateways/{gateway_id}/rotate-credential` rotates the gateway service token and immediately invalidates the old token
+- [x] Plaintext service tokens are returned only in create/rotate responses and are never stored or audited
+- [x] `service_tokens.py` added for generation, hashing, and constant-time verification
+- [x] `gateway.credential.rotated` audit event added with redacted credential-sensitive fields
+- [x] 9 tests added for token utilities, one-time create issuance, rotation, disabled/missing gateway errors, audit, and invalidation
+
 ---
 
 ## Next Steps (In Order)
