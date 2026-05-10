@@ -193,7 +193,7 @@ Expected response shape:
 ### Revoke session
 
 ```powershell
-$Body = @{ session_id = $SessionId } | ConvertTo-Json
+$Body = @{ session_id = "00000000-0000-0000-0000-000000000000" } | ConvertTo-Json
 Invoke-RestMethod -Method POST -Uri "$BaseUrl/api/v1/sessions/revoke" -Headers $UserHeaders -ContentType "application/json" -Body $Body
 ```
 
@@ -211,6 +211,80 @@ Expected response shape for an allowed request:
   "session_id": "33333333-3333-3333-3333-333333333333"
 }
 ```
+
+### Privacy notice
+
+Fetch the current operator privacy notice:
+
+```powershell
+Invoke-RestMethod -Method GET `
+  -Uri "$BaseUrl/api/v1/privacy/notice" `
+  -Headers $UserHeaders
+```
+
+Expected response includes:
+
+```json
+{
+  "notice_version": "2026-05-10",
+  "title": "Panoptix CCTV Operator Privacy Notice",
+  "accepted": false,
+  "accepted_at": null
+}
+```
+
+Accept the current notice:
+
+```powershell
+$NoticeBody = @{ notice_version = "2026-05-10" } | ConvertTo-Json
+Invoke-RestMethod -Method POST `
+  -Uri "$BaseUrl/api/v1/privacy/notice/accept" `
+  -Headers $UserHeaders `
+  -ContentType "application/json" `
+  -Body $NoticeBody
+```
+
+Expected behavior:
+
+- Response has `status = accepted`.
+- A `privacy_notice_acceptances` row exists for the user/version.
+- Audit contains `privacy.notice.accepted`.
+- Repeating the same accept call is idempotent and does not create duplicate rows.
+- Wrong versions return `409 privacy-notice-version-mismatch`.
+
+### Admin users
+
+List users as admin:
+
+```powershell
+Invoke-RestMethod -Method GET `
+  -Uri "$BaseUrl/api/v1/admin/users?limit=50" `
+  -Headers $AdminHeaders
+```
+
+Expected response:
+
+```json
+{
+  "items": [
+    {
+      "user_id": "uuid",
+      "email": "admin@example.test",
+      "roles": ["admin"],
+      "role_default": "none",
+      "disabled_at": null,
+      "created_at": "..."
+    }
+  ],
+  "next_cursor": null
+}
+```
+
+Notes:
+
+- Viewer/non-admin callers receive `403 role-required`.
+- Exact email filtering is available with `?email=user@example.test`.
+- The response intentionally excludes `idp_subject`, session rows, CF JWTs, tokens, and secrets.
 
 ## 6. Viewer LiveKit Token Endpoint
 

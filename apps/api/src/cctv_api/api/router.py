@@ -27,6 +27,8 @@ from cctv_api.models.tables import (
     EdgeGateway,
     GatewayCameraAssignment,
     GatewayCommandQueue,
+    PrivacyNoticeAcceptance,
+    User,
 )
 from cctv_api.security.audit import (
     AuditLogError,
@@ -43,11 +45,18 @@ from cctv_api.security.stream_access import (
     record_stream_grant,
     user_has_active_camera_acl,
 )
-from cctv_api.security.users import get_or_create_user
+from cctv_api.security.users import get_or_create_user, get_user_roles
 
 v1_router = APIRouter(prefix="/api/v1")
 v1_router.include_router(gateway_router)
 v1_router.include_router(livekit_webhook_router)
+
+CURRENT_PRIVACY_NOTICE_VERSION = "2026-05-10"
+CURRENT_PRIVACY_NOTICE_TITLE = "Panoptix CCTV Operator Privacy Notice"
+CURRENT_PRIVACY_NOTICE_BODY = (
+    "Panoptix provides live-view access to assigned CCTV cameras only. "
+    "Use is audited. Do not record, publish, or share camera views outside approved operations."
+)
 
 
 @v1_router.get("/me")
@@ -137,6 +146,125 @@ class AuditVerificationResponse(BaseModel):
     valid: bool
     checked: int
     error: str | None = None
+
+
+class PrivacyNoticeResponse(BaseModel):
+    notice_version: str
+    title: str
+    body: str
+    accepted: bool
+    accepted_at: datetime | None = None
+
+
+class PrivacyNoticeAcceptRequest(BaseModel):
+    notice_version: str = Field(min_length=1, max_length=64)
+
+
+class PrivacyNoticeAcceptResponse(BaseModel):
+    notice_version: str
+    accepted_at: datetime
+    status: str
+
+
+@v1_router.get("/admin/users")
+def list_admin_users(
+    cursor: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    email: str | None = Query(default=None, max_length=320),
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    query = select(User).order_by(User.created_at.desc(), User.id.desc())
+    if email is not None:
+        query = query.where(User.email == email)
+    if cursor is not None:
+        cursor_uuid = _parse_uuid(cursor, "cursor-invalid")
+        cursor_row = db.execute(select(User).where(User.id == str(cursor_uuid))).scalar_one_or_none()
+        if cursor_row is not None:
+            query = query.where(User.created_at < cursor_row.created_at)
+    rows = list(db.execute(query.limit(limit + 1)).scalars().all())
+    has_more = len(rows) > limit
+    if has_more:
+        rows = rows[:limit]
+    next_cursor: str | None = str(rows[-1].id) if has_more and rows else None
+    items = [
+        {
+            "user_id": str(row.id),
+            "email": row.email,
+            "roles": sorted(get_user_roles(db, row.id)),
+            "role_default": row.role_default,
+            "disabled_at": row.disabled_at.isoformat() if row.disabled_at else None,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        }
+        for row in rows
+    ]
+    return {"items": items, "next_cursor": next_cursor}
+
+
+@v1_router.get("/privacy/notice")
+def get_privacy_notice(
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+) -> PrivacyNoticeResponse:
+    user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    acceptance = db.execute(
+        select(PrivacyNoticeAcceptance)
+        .where(PrivacyNoticeAcceptance.user_id == str(user.id))
+        .where(PrivacyNoticeAcceptance.notice_version == CURRENT_PRIVACY_NOTICE_VERSION)
+    ).scalar_one_or_none()
+    return PrivacyNoticeResponse(
+        notice_version=CURRENT_PRIVACY_NOTICE_VERSION,
+        title=CURRENT_PRIVACY_NOTICE_TITLE,
+        body=CURRENT_PRIVACY_NOTICE_BODY,
+        accepted=acceptance is not None,
+        accepted_at=acceptance.accepted_at if acceptance is not None else None,
+    )
+
+
+@v1_router.post("/privacy/notice/accept")
+def accept_privacy_notice(
+    body: PrivacyNoticeAcceptRequest,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> PrivacyNoticeAcceptResponse:
+    if body.notice_version != CURRENT_PRIVACY_NOTICE_VERSION:
+        raise ProblemDetail(
+            status=409,
+            title="Conflict",
+            detail="privacy-notice-version-mismatch",
+            type_uri="https://panoptix.local/problems/conflict",
+        )
+    user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    acceptance = db.execute(
+        select(PrivacyNoticeAcceptance)
+        .where(PrivacyNoticeAcceptance.user_id == str(user.id))
+        .where(PrivacyNoticeAcceptance.notice_version == CURRENT_PRIVACY_NOTICE_VERSION)
+    ).scalar_one_or_none()
+    if acceptance is None:
+        acceptance = PrivacyNoticeAcceptance(
+            user_id=user.id,
+            notice_version=CURRENT_PRIVACY_NOTICE_VERSION,
+            accepted_at=datetime.now(timezone.utc),
+        )
+        db.add(acceptance)
+        _record_user_audit_required(
+            db,
+            settings=settings,
+            request=request,
+            actor_id=user.id,
+            action="privacy.notice.accepted",
+            resource=f"privacy_notice:{CURRENT_PRIVACY_NOTICE_VERSION}",
+            payload={"notice_version": CURRENT_PRIVACY_NOTICE_VERSION},
+        )
+        db.commit()
+    return PrivacyNoticeAcceptResponse(
+        notice_version=acceptance.notice_version,
+        accepted_at=acceptance.accepted_at,
+        status="accepted",
+    )
 
 
 @v1_router.get("/cameras/{camera_id}/view-token")

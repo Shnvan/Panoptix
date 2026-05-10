@@ -1962,14 +1962,54 @@ LiveKit webhook tests now cover:
 
 ---
 
-## 56. Current Verification Status
+## 56. Privacy Notice And Admin User Listing APIs
+
+### What was implemented
+
+The backend now exposes the MVP privacy-notice gate endpoints and a safe admin user list endpoint for frontend admin screens.
+
+### How it works
+
+1. `GET /api/v1/privacy/notice` returns the current static operator privacy notice and whether the caller accepted the current version.
+2. `POST /api/v1/privacy/notice/accept` accepts only the current notice version.
+3. The first acceptance inserts `PrivacyNoticeAcceptance` and writes `privacy.notice.accepted`.
+4. Repeating acceptance for the same version is idempotent and does not duplicate rows or audit events.
+5. `GET /api/v1/admin/users` requires admin role and returns safe user list data.
+6. The admin user list supports `limit`, `cursor`, and exact `email` filtering.
+
+### Key design decisions
+
+- Notice content is a safe backend constant for this local-first milestone; production-configured notice content remains future work.
+- The existing `PrivacyNoticeAcceptance` table is used; no new model was needed.
+- Wrong notice versions fail with 409 `privacy-notice-version-mismatch`.
+- Admin user listing does not expose `idp_subject`, session rows, CF JWTs, tokens, or secrets.
+- Role names are read through existing `UserRole` and `Role` rows.
+
+### Tests added
+
+11 tests in `apps/api/tests/test_privacy_admin_users.py` cover:
+
+- authentication required for privacy notice
+- current notice response shape and unaccepted state
+- acceptance row creation and audit logging
+- idempotent repeated acceptance
+- wrong-version rejection
+- admin-only user listing
+- safe user fields and role names
+- exact email filter
+- cursor pagination
+- invalid cursor rejection
+
+---
+
+## 57. Current Verification Status
 
 ### What passed
 
 The latest verification passed:
 
 ```text
-backend pytest: 232 passed
+backend pytest: 243 passed
 backend mypy: no issues found in 32 source files
 backend ruff: all checks passed
 backend compileall: passed
@@ -2034,9 +2074,9 @@ The following are intentionally not done yet:
 
 ## Next Recommended Implementation Order
 
-### 1. TBD — Next milestone to be determined
+### 1. Scheduler Jobs
 
-Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
+Wire deterministic processors for expired command cleanup and due publish stops behind a safe admin/manual trigger or local scheduler scaffold.
 
 ---
 
@@ -2066,6 +2106,8 @@ The system now has:
 - in-memory edge publish-state tracking
 - LiveKit webhook-driven gateway publish command enqueueing
 - backend publish-state tracking with 10-second stop grace
+- privacy notice acceptance endpoints
+- safe admin user listing endpoint
 - passing backend and edge-agent tests, type checks, and lint checks
 
 The most important security idea so far is:

@@ -314,12 +314,24 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] LiveKit webhook tests expanded to 23 cases covering start idempotency, stop scheduling, stop cancellation, due-stop processing, and immediate room-finished stop
 - [x] Backend verification clean: 232 tests passing; mypy, ruff, and compileall clean
 
+### Privacy Notice And Admin User Listing APIs
+- [x] `GET /api/v1/privacy/notice` returns the current operator privacy notice and the caller's acceptance state
+- [x] `POST /api/v1/privacy/notice/accept` records the current notice acceptance using `PrivacyNoticeAcceptance`
+- [x] Privacy notice acceptance is idempotent for the current version
+- [x] Successful first acceptance writes `privacy.notice.accepted` audit rows and fails closed on audit write failure
+- [x] Wrong notice versions return 409 `privacy-notice-version-mismatch`
+- [x] `GET /api/v1/admin/users` lists safe user fields for admins only
+- [x] Admin user listing supports `limit`, `cursor`, and exact `email` filtering
+- [x] Admin user listing returns role names via `UserRole`/`Role` without exposing IdP subject, sessions, or tokens
+- [x] 11 tests added for auth, response shape, acceptance recording, idempotency, audit, filtering, and pagination
+- [x] Backend verification clean: 243 tests passing; mypy, ruff, and compileall clean
+
 ---
 
 ## Next Steps (In Order)
 
-### 1. TBD — Next milestone to be determined
-Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
+### 1. Scheduler Jobs
+Wire deterministic processors for expired command cleanup and due publish stops behind a safe admin/manual trigger or local scheduler scaffold.
 
 ---
 

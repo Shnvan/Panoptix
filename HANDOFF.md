@@ -133,9 +133,33 @@ Current state:
 
 ## Recently Completed Milestones
 
-### Backend Publish State And Stop Grace Timers
+### Privacy Notice And Admin User Listing APIs
 
 Completed in this milestone.
+
+Implemented:
+
+- `GET /api/v1/privacy/notice` returns current operator notice text and caller acceptance state
+- `POST /api/v1/privacy/notice/accept` records current-version acceptance in `PrivacyNoticeAcceptance`
+- acceptance is idempotent and only the first current-version acceptance writes audit
+- successful first acceptance audits `privacy.notice.accepted`
+- wrong notice versions return 409 `privacy-notice-version-mismatch`
+- `GET /api/v1/admin/users` lists safe user fields for admins only
+- admin user list supports `limit`, `cursor`, and exact `email` filter
+- admin user list returns role names without exposing IdP subject, session rows, or tokens
+- 11 tests added in `apps/api/tests/test_privacy_admin_users.py`
+
+Not included:
+
+- role assignment endpoint
+- user disable endpoint
+- MFA reset endpoint
+- IdP invite flow
+- production-configured notice content management
+
+### Backend Publish State And Stop Grace Timers
+
+Completed in prior milestone.
 
 Implemented:
 
@@ -721,7 +745,7 @@ $env:PYTHONPATH = "src"; python -m compileall src alembic scripts
 Latest result:
 
 ```text
-pytest: 232 passed
+pytest: 243 passed
 ruff: all checks passed
 mypy: no issues found in 32 source files
 compileall: passed
@@ -750,10 +774,10 @@ compileall: passed
 Recommended next task:
 
 ```text
-TBD — Next milestone to be determined
+Scheduler Jobs — wire deterministic processors for expired command cleanup and due publish stops behind a safe admin/manual trigger or local scheduler scaffold
 ```
 
-Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
+This keeps backend lifecycle cleanup deterministic before moving toward real mediamtx/media publishing.
 
 ## Not Implemented Yet
 
@@ -867,6 +891,7 @@ Use local/dev placeholders and fail-closed behavior. Do not ask the user to set 
 - `apps/api/tests/test_gateway_command_queue.py`: command queue persistence tests
 - `apps/api/tests/test_livekit_webhooks.py`: LiveKit webhook receiver tests
 - `apps/api/tests/test_livekit_tokens.py`: viewer/gateway LiveKit token tests
+- `apps/api/tests/test_privacy_admin_users.py`: privacy notice and admin user list tests
 - `apps/api/tests/test_security.py`: auth/dev-auth tests
 - `apps/api/tests/test_sessions.py`: session tests
 - `apps/api/tests/test_audit.py`: audit tests

@@ -2,7 +2,7 @@
 
 This document lists every implemented backend API endpoint, what the frontend can build against today, what is not ready yet, and local dev setup instructions.
 
-Last updated: 2026-05-09
+Last updated: 2026-05-10
 
 ---
 
@@ -13,19 +13,22 @@ The backend supports a dev-auth mode so the frontend can run locally without Clo
 Set these environment variables when running the backend:
 
 ```env
-ENVIRONMENT=development
-DEV_AUTH_ENABLED=true
+APP_ENV=development
+ALLOW_DEV_AUTH=true
 ```
 
-Then pass identity via request header:
+Then pass identity via request headers:
 
 ```
-X-Dev-Auth: admin@example.com
+x-panoptix-dev-auth: 1
+x-panoptix-dev-email: admin@example.test
+x-panoptix-dev-subject: admin@example.test
+x-panoptix-dev-roles: admin
 ```
 
-The backend will treat this header as a verified identity with admin role. This header is rejected when `DEV_AUTH_ENABLED` is not `true` or `ENVIRONMENT` is not `development`.
+The backend will treat these headers as a verified identity with admin role. Dev auth is rejected unless `ALLOW_DEV_AUTH=true` and `APP_ENV=development`.
 
-The frontend API client should send this header on every request during local development.
+The frontend API client should send these headers on every request during local development.
 
 ---
 
@@ -112,11 +115,42 @@ These are the endpoints the frontend consumes directly.
 - **Response:** `{ "revoked": true, "session_id": "uuid" }`
 - **Use:** sign out other sessions
 
+### `GET /api/v1/privacy/notice`
+
+- **Auth:** any authenticated user
+- **Response:**
+  ```json
+  {
+    "notice_version": "2026-05-10",
+    "title": "Panoptix CCTV Operator Privacy Notice",
+    "body": "notice text",
+    "accepted": false,
+    "accepted_at": null
+  }
+  ```
+- **Use:** first-login privacy notice gate
+
+### `POST /api/v1/privacy/notice/accept`
+
+- **Auth:** any authenticated user
+- **Request:** `{ "notice_version": "2026-05-10" }`
+- **Response:** `{ "notice_version": "2026-05-10", "accepted_at": "...", "status": "accepted" }`
+- **Use:** record current privacy notice acceptance
+- **Note:** repeated acceptance for the same current version is idempotent
+
 ---
 
 ## Implemented Admin Endpoints
 
 All admin endpoints require the `admin` role.
+
+### User Management
+
+| Method | Path | Request | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/admin/users` | query: `cursor`, `limit`, `email` | paginated safe user list |
+
+Returned user fields are limited to `user_id`, `email`, `roles`, `role_default`, `disabled_at`, and `created_at`.
 
 ### Camera Management
 
@@ -210,6 +244,8 @@ Common `detail` values the frontend should handle:
 | `room-name-taken` | 409 | LiveKit room name already used |
 | `audit-hmac-key-invalid` | 503 | audit system misconfigured |
 | `session-not-owned` | 403 | non-admin trying to revoke another user's session |
+| `privacy-notice-version-mismatch` | 409 | frontend submitted a stale privacy notice version |
+| `cursor-invalid` | 400 | cursor is not a valid UUID for UUID-cursor endpoints |
 
 ---
 
@@ -220,6 +256,7 @@ List endpoints use cursor-based pagination:
 - Send `cursor` (from previous `next_cursor`) and `limit`
 - Response includes `items` array and `next_cursor` (null when no more pages)
 - Audit list uses integer cursor (`id`); camera list uses UUID cursor
+- Admin users list uses UUID cursor and supports exact `email` filtering
 
 ---
 
@@ -234,9 +271,11 @@ List endpoints use cursor-based pagination:
 - [x] Placeholder video tile (real LiveKit playback can be wired later)
 - [x] Empty state: "no assigned cameras"
 - [x] Loading / error / offline / reconnecting states
+- [x] First-login privacy notice gate with acceptance persistence
 
 ### Admin Screens
 
+- [x] Basic user list
 - [x] Create camera form
 - [x] Disable/retire camera
 - [x] Grant/revoke camera ACL by user email
@@ -270,8 +309,7 @@ Do not build against or depend on these:
 |---|---|
 | Real LiveKit Cloud video playback | LiveKit tokens are mintable but no gateway is publishing real streams yet |
 | Real camera streams | Edge agent has stub media controller only |
-| Privacy notice endpoints | `GET /api/v1/privacy/notice` and `POST /api/v1/privacy/notice/accept` are not implemented |
-| Admin user management | `GET /api/v1/admin/users`, role update, disable, MFA reset are not implemented |
+| Full admin user management | role update, disable, MFA reset, and IdP invite flow are not implemented |
 | Gateway credential rotation | `POST /api/v1/admin/gateways/{id}/rotate-credential` is not implemented |
 | DPA/signage export | `POST /api/v1/admin/dpa/export` and signage attestation are not implemented |
 | LiveKit fallback mode | `POST /api/v1/admin/livekit/fallback` is not implemented |
