@@ -55,6 +55,17 @@ def revoke_session(db: DbSession, session_id: uuid.UUID) -> bool:
     return True
 
 
+def revoke_all_user_sessions(db: DbSession, user_id: uuid.UUID) -> int:
+    now = datetime.now(timezone.utc)
+    result = db.execute(
+        update(Session)
+        .where(Session.user_id == str(user_id), Session.revoked_at.is_(None))
+        .values(revoked_at=now)
+    )
+    db.flush()
+    return result.rowcount  # type: ignore[attr-defined]
+
+
 def list_active_sessions(db: DbSession, user_id: uuid.UUID) -> list[Session]:
     stmt = (
         select(Session)

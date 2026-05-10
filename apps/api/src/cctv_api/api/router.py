@@ -29,7 +29,9 @@ from cctv_api.models.tables import (
     GatewayCameraAssignment,
     GatewayCommandQueue,
     PrivacyNoticeAcceptance,
+    Role,
     User,
+    UserRole,
 )
 from cctv_api.security.audit import (
     AuditLogError,
@@ -40,7 +42,7 @@ from cctv_api.security.dependencies import require_authenticated_user
 from cctv_api.security.identity import Principal
 from cctv_api.security.livekit_tokens import LiveKitTokenConfigError, mint_viewer_subscribe_token
 from cctv_api.security.policy import require_role
-from cctv_api.security.sessions import list_active_sessions, revoke_session
+from cctv_api.security.sessions import list_active_sessions, revoke_all_user_sessions, revoke_session
 from cctv_api.security.stream_access import (
     get_active_camera,
     record_stream_grant,
@@ -201,6 +203,106 @@ def list_admin_users(
         for row in rows
     ]
     return {"items": items, "next_cursor": next_cursor}
+
+
+class RoleActionRequest(BaseModel):
+    action: str = Field(pattern="^(grant|revoke)$")
+    role_name: str = Field(min_length=1, max_length=64)
+
+
+class RoleActionResponse(BaseModel):
+    user_id: str
+    role_name: str
+    action: str
+    status: str
+
+
+@v1_router.post("/admin/users/{user_id}/role")
+def admin_user_role(
+    user_id: str,
+    body: RoleActionRequest,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> RoleActionResponse:
+    require_role(principal, "admin")
+    target_uuid = _parse_uuid(user_id, "user-not-found")
+    target_user = db.execute(select(User).where(User.id == str(target_uuid))).scalar_one_or_none()
+    if target_user is None:
+        raise ProblemDetail(status=404, title="Not Found", detail="user-not-found", type_uri="https://panoptix.local/problems/not-found")
+    role_row = db.execute(select(Role).where(Role.name == body.role_name)).scalar_one_or_none()
+    if role_row is None:
+        raise ProblemDetail(status=404, title="Not Found", detail="role-not-found", type_uri="https://panoptix.local/problems/not-found")
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    existing = db.execute(
+        select(UserRole).where(UserRole.user_id == str(target_uuid), UserRole.role_id == role_row.id)
+    ).scalar_one_or_none()
+    if body.action == "grant":
+        if existing is not None:
+            raise ProblemDetail(status=409, title="Conflict", detail="role-already-granted", type_uri="https://panoptix.local/problems/conflict")
+        db.add(UserRole(user_id=target_uuid, role_id=role_row.id))
+        db.flush()
+        _record_user_audit_required(
+            db, settings=settings, request=request, actor_id=actor.id,
+            action="admin.user.role.granted",
+            resource=f"user:{target_uuid}",
+            payload={"user_id": str(target_uuid), "role_name": body.role_name},
+        )
+    else:
+        if existing is None:
+            raise ProblemDetail(status=404, title="Not Found", detail="role-not-granted", type_uri="https://panoptix.local/problems/not-found")
+        db.delete(existing)
+        db.flush()
+        _record_user_audit_required(
+            db, settings=settings, request=request, actor_id=actor.id,
+            action="admin.user.role.revoked",
+            resource=f"user:{target_uuid}",
+            payload={"user_id": str(target_uuid), "role_name": body.role_name},
+        )
+    db.commit()
+    return RoleActionResponse(user_id=str(target_uuid), role_name=body.role_name, action=body.action, status="ok")
+
+
+class DisableUserRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=512)
+
+
+class DisableUserResponse(BaseModel):
+    user_id: str
+    disabled_at: str
+    sessions_revoked: int
+
+
+@v1_router.post("/admin/users/{user_id}/disable")
+def admin_disable_user(
+    user_id: str,
+    body: DisableUserRequest,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> DisableUserResponse:
+    require_role(principal, "admin")
+    target_uuid = _parse_uuid(user_id, "user-not-found")
+    target_user = db.execute(select(User).where(User.id == str(target_uuid))).scalar_one_or_none()
+    if target_user is None:
+        raise ProblemDetail(status=404, title="Not Found", detail="user-not-found", type_uri="https://panoptix.local/problems/not-found")
+    if target_user.disabled_at is not None:
+        raise ProblemDetail(status=409, title="Conflict", detail="user-already-disabled", type_uri="https://panoptix.local/problems/conflict")
+    now = datetime.now(timezone.utc)
+    target_user.disabled_at = now
+    db.flush()
+    sessions_revoked = revoke_all_user_sessions(db, target_uuid)
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _record_user_audit_required(
+        db, settings=settings, request=request, actor_id=actor.id,
+        action="admin.user.disabled",
+        resource=f"user:{target_uuid}",
+        payload={"user_id": str(target_uuid), "reason": body.reason, "sessions_revoked": sessions_revoked},
+    )
+    db.commit()
+    return DisableUserResponse(user_id=str(target_uuid), disabled_at=now.isoformat(), sessions_revoked=sessions_revoked)
 
 
 @v1_router.get("/privacy/notice")

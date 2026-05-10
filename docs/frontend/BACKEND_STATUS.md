@@ -149,8 +149,12 @@ All admin endpoints require the `admin` role.
 | Method | Path | Request | Response |
 |---|---|---|---|
 | `GET` | `/api/v1/admin/users` | query: `cursor`, `limit`, `email` | paginated safe user list |
+| `POST` | `/api/v1/admin/users/{user_id}/role` | `{ "action": "grant"/"revoke", "role_name" }` | role action result |
+| `POST` | `/api/v1/admin/users/{user_id}/disable` | `{ "reason" }` | `{ "user_id", "disabled_at", "sessions_revoked" }` |
 
-Returned user fields are limited to `user_id`, `email`, `roles`, `role_default`, `disabled_at`, and `created_at`.
+- Returned user list fields: `user_id`, `email`, `roles`, `role_default`, `disabled_at`, `created_at`
+- Role assignment: `action` must be `grant` or `revoke`; `role_name` must match a known role
+- Disable: sets `disabled_at` and bulk-revokes all active sessions immediately
 
 ### Camera Management
 

@@ -1640,6 +1640,75 @@ python -m pytest tests/test_maintenance.py -v
 
 ---
 
+## 27. Admin User Role Assignment
+
+Admin-only endpoint to grant or revoke a role for a user.
+
+### Grant a role
+
+```powershell
+$userId = "<target-user-uuid>"
+Invoke-RestMethod -Method POST `
+  -Uri "$BaseUrl/api/v1/admin/users/$userId/role" `
+  -Headers $AdminHeaders `
+  -ContentType "application/json" `
+  -Body '{"action":"grant","role_name":"viewer"}'
+```
+
+Expected: `{ "user_id": "...", "role_name": "viewer", "action": "grant", "status": "ok" }`
+
+### Revoke a role
+
+```powershell
+Invoke-RestMethod -Method POST `
+  -Uri "$BaseUrl/api/v1/admin/users/$userId/role" `
+  -Headers $AdminHeaders `
+  -ContentType "application/json" `
+  -Body '{"action":"revoke","role_name":"viewer"}'
+```
+
+Notes:
+
+- Unknown user → 404 `user-not-found`
+- Unknown role → 404 `role-not-found`
+- Duplicate grant → 409 `role-already-granted`
+- Revoke without existing grant → 404 `role-not-granted`
+
+---
+
+## 28. Admin User Disable
+
+Admin-only endpoint to disable a user and revoke all their active sessions.
+
+### Disable a user
+
+```powershell
+$userId = "<target-user-uuid>"
+Invoke-RestMethod -Method POST `
+  -Uri "$BaseUrl/api/v1/admin/users/$userId/disable" `
+  -Headers $AdminHeaders `
+  -ContentType "application/json" `
+  -Body '{"reason":"policy violation"}'
+```
+
+Expected: `{ "user_id": "...", "disabled_at": "...", "sessions_revoked": 2 }`
+
+Notes:
+
+- Already-disabled user → 409 `user-already-disabled`
+- Unknown user → 404 `user-not-found`
+- All active sessions are bulk-revoked immediately.
+
+### Run admin user management tests
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_admin_user_management.py -v
+```
+
+---
+
 ## 25. Gateway Command Audit Logging
 
 All gateway command mutation endpoints now write audit trail entries on success.

@@ -333,6 +333,14 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Existing `POST /api/v1/admin/commands/cleanup` kept for backward compat
 - [x] 6 tests added for auth, role, empty run, expired commands, due publish stops, and audit
 
+### Admin User Management
+- [x] `POST /api/v1/admin/users/{user_id}/role` grants or revokes a role for a user
+- [x] `POST /api/v1/admin/users/{user_id}/disable` disables a user and revokes all active sessions
+- [x] Both endpoints write audit events (`admin.user.role.granted`, `admin.user.role.revoked`, `admin.user.disabled`)
+- [x] Error handling for user-not-found, role-not-found, role-already-granted, role-not-granted, user-already-disabled
+- [x] `revoke_all_user_sessions` bulk helper added to `sessions.py`
+- [x] 13 tests added for auth, role, grant/revoke, disable, session revocation, and audit
+
 ---
 
 ## Next Steps (In Order)

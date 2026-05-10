@@ -133,9 +133,28 @@ Current state:
 
 ## Recently Completed Milestones
 
-### Scheduler Jobs: Admin Maintenance Endpoint
+### Admin User Management
 
 Completed in this milestone.
+
+Implemented:
+
+- `POST /api/v1/admin/users/{user_id}/role` grants or revokes a role (`grant`/`revoke` action with `role_name`)
+- `POST /api/v1/admin/users/{user_id}/disable` disables user and bulk-revokes all active sessions
+- audit events: `admin.user.role.granted`, `admin.user.role.revoked`, `admin.user.disabled`
+- error handling: `user-not-found`, `role-not-found`, `role-already-granted`, `role-not-granted`, `user-already-disabled`
+- `revoke_all_user_sessions` bulk helper in `sessions.py`
+- 13 tests added in `apps/api/tests/test_admin_user_management.py`
+
+Not included:
+
+- MFA reset endpoint
+- IdP invite flow
+- user re-enable endpoint
+
+### Scheduler Jobs: Admin Maintenance Endpoint
+
+Completed in prior milestone.
 
 Implemented:
 
@@ -763,7 +782,7 @@ $env:PYTHONPATH = "src"; python -m compileall src alembic scripts
 Latest result:
 
 ```text
-pytest: 249 passed
+pytest: 262 passed
 ruff: all checks passed
 mypy: no issues found in 32 source files
 compileall: passed
@@ -910,6 +929,7 @@ Use local/dev placeholders and fail-closed behavior. Do not ask the user to set 
 - `apps/api/tests/test_livekit_tokens.py`: viewer/gateway LiveKit token tests
 - `apps/api/tests/test_privacy_admin_users.py`: privacy notice and admin user list tests
 - `apps/api/tests/test_maintenance.py`: admin maintenance endpoint tests
+- `apps/api/tests/test_admin_user_management.py`: admin role assignment and user disable tests
 - `apps/api/tests/test_security.py`: auth/dev-auth tests
 - `apps/api/tests/test_sessions.py`: session tests
 - `apps/api/tests/test_audit.py`: audit tests

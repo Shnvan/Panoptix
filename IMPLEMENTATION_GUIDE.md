@@ -2036,14 +2036,48 @@ A unified admin-only maintenance endpoint that runs both existing deterministic 
 
 ---
 
-## 58. Current Verification Status
+## 58. Admin User Management
+
+### What was implemented
+
+Role assignment and user disable endpoints to complete the admin user lifecycle.
+
+### How it works
+
+1. `POST /api/v1/admin/users/{user_id}/role` with `{ "action": "grant"|"revoke", "role_name": "..." }`
+   - Looks up `Role` by name, inserts or deletes `UserRole` row
+   - Audits `admin.user.role.granted` or `admin.user.role.revoked`
+   - Returns 404 for unknown user/role, 409 for duplicate grant, 404 for revoking non-granted role
+
+2. `POST /api/v1/admin/users/{user_id}/disable` with `{ "reason": "..." }`
+   - Sets `User.disabled_at`, bulk-revokes all active sessions via `revoke_all_user_sessions`
+   - Audits `admin.user.disabled` with reason and revoked session count
+   - Returns 409 if already disabled
+
+### Tests added
+
+13 tests in `apps/api/tests/test_admin_user_management.py`:
+
+- auth/role checks for both endpoints
+- role grant success + audit
+- role grant duplicate (409)
+- role revoke success + audit
+- role revoke not-granted (404)
+- user/role not-found (404)
+- disable success with session revocation + audit
+- disable already-disabled (409)
+- disable user-not-found (404)
+
+---
+
+## 59. Current Verification Status
 
 ### What passed
 
 The latest verification passed:
 
 ```text
-backend pytest: 249 passed
+backend pytest: 262 passed
 backend mypy: no issues found in 32 source files
 backend ruff: all checks passed
 backend compileall: passed
@@ -2112,6 +2146,8 @@ The following are intentionally not done yet:
 
 Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
 
+Possible candidates: security hardening (CSRF, headers, command denial audit), gateway credential rotation, synthetic RTSP test source.
+
 ---
 
 ## Big Picture Summary
@@ -2143,6 +2179,7 @@ The system now has:
 - privacy notice acceptance endpoints
 - safe admin user listing endpoint
 - unified admin maintenance endpoint for scheduled-job processing
+- admin role assignment and user disable with session revocation
 - passing backend and edge-agent tests, type checks, and lint checks
 
 The most important security idea so far is:
