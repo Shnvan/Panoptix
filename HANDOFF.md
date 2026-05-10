@@ -133,9 +133,27 @@ Current state:
 
 ## Recently Completed Milestones
 
-### mediamtx Runtime Configuration
+### mediamtx Process Management
 
 Completed in this milestone.
+
+Implemented:
+
+- `mediamtx_process.py` builds safe argument lists for local mediamtx startup
+- `MediamtxProcessManager` tracks an injected process and supports start, stop, status, double-start rejection, timeout kill, and failure reporting
+- fake-process tests cover lifecycle behavior without requiring mediamtx to be installed
+- process management remains independent of `StubMediaController`
+- production Docker/systemd supervision remains out of scope
+
+Not included:
+
+- real RTSP camera credentials
+- real LiveKit SDK publishing
+- production Docker/systemd unit management
+
+### mediamtx Runtime Configuration
+
+Completed in prior milestone.
 
 Implemented:
 
@@ -147,7 +165,7 @@ Implemented:
 
 Not included:
 
-- real mediamtx process supervision
+- production Docker/systemd supervision
 - real RTSP camera credentials
 - real LiveKit SDK publishing
 
@@ -971,9 +989,9 @@ $env:PYTHONPATH = "src"; python -m compileall src tests
 Latest result:
 
 ```text
-pytest: 88 passed
+pytest: 102 passed
 ruff: all checks passed
-mypy: no issues found in 12 source files
+mypy: no issues found in 13 source files
 compileall: passed
 ```
 

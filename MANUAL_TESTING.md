@@ -1300,6 +1300,22 @@ Expected behavior:
 - the HTTP API is disabled by default
 - wildcard, WAN, and camera-VLAN API bindings are rejected by tests
 
+Local mediamtx process-management check:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_mediamtx_process.py -v
+```
+
+Expected behavior:
+
+- process command construction returns an argument list, not a shell string
+- default command references `apps/cctv-edge/mediamtx/mediamtx.local.yml`
+- invalid binary/config values are rejected
+- fake process lifecycle tests cover start, double-start rejection, graceful stop, timeout kill, and failure reporting
+- tests do not require mediamtx to be installed
+
 ## 19. Heartbeat Command Fallback Local Check
 
 The heartbeat fallback path is local-only and test-scaffolded. It does not require LiveKit, Cloudflare, Google Workspace, PostgreSQL, mediamtx, or real cameras.

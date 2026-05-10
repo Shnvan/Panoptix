@@ -2467,14 +2467,55 @@ Tests reject wildcard, WAN, and camera-VLAN API bindings.
 
 ### What remains out of scope
 
-- real mediamtx process supervision
+- production Docker/systemd supervision
 - real RTSP camera credentials
 - real LiveKit SDK publishing
 - production Docker/systemd packaging
 
 ---
 
-## 68. Current Verification Status
+## 68. mediamtx Process Management
+
+### What was implemented
+
+The edge agent now has safe local mediamtx process-management scaffolding.
+
+### Process command builder
+
+`panoptix_edge_agent.mediamtx_process` builds a safe argument list for local mediamtx startup.
+
+Default command shape:
+
+```text
+mediamtx apps/cctv-edge/mediamtx/mediamtx.local.yml
+```
+
+The command builder rejects empty values, option-like binary names, missing config files, and non-YAML config paths.
+
+### Lifecycle manager
+
+`MediamtxProcessManager` manages an injected process object and supports:
+
+- start
+- stop
+- running-status checks
+- double-start rejection
+- graceful terminate
+- timeout kill
+- startup and stop failure reporting
+
+Tests use fake process objects and do not require mediamtx to be installed.
+
+### What remains out of scope
+
+- real RTSP camera credentials
+- real LiveKit SDK publishing
+- production Docker/systemd unit management
+- replacing the stub media controller
+
+---
+
+## 69. Current Verification Status
 
 ### What passed
 
@@ -2485,8 +2526,8 @@ backend pytest: 308 passed
 backend mypy: no issues found in 37 source files
 backend ruff: all checks passed
 backend compileall: passed
-edge agent pytest: 88 passed
-edge agent mypy: no issues found in 12 source files
+edge agent pytest: 102 passed
+edge agent mypy: no issues found in 13 source files
 edge agent ruff: all checks passed
 edge agent compileall: passed
 ```
@@ -2534,8 +2575,8 @@ This confirms the current backend and edge-agent code is working, typed correctl
 The following are intentionally not done yet:
 
 - frontend UI
-- real mediamtx process management
 - real LiveKit SDK publishing
+- production Docker/systemd gateway supervision
 
 ---
 
@@ -2545,7 +2586,7 @@ The following are intentionally not done yet:
 
 Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
 
-Possible candidates: real mediamtx process management, real LiveKit SDK publishing, Cloudflare production setup prep.
+Possible candidates: real LiveKit SDK publishing, production Docker/systemd gateway supervision, Cloudflare production setup prep.
 
 ---
 
@@ -2588,6 +2629,7 @@ The system now has:
 - gateway control reconnect supervision
 - synthetic RTSP test-source scaffold
 - local-only mediamtx runtime config scaffold
+- mediamtx process-management scaffold
 - passing backend and edge-agent tests, type checks, and lint checks
 
 The most important security idea so far is:

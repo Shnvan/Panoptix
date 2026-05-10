@@ -408,6 +408,13 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Added tests that validate the checked-in config without launching mediamtx
 - [x] Documented that real mediamtx process supervision remains a later milestone
 
+### mediamtx Process Management
+- [x] Added safe mediamtx process argument-list builder
+- [x] Added injectable lifecycle manager for start, stop, status, double-start, timeout, and failure behavior
+- [x] Added fake-process tests that do not require mediamtx to be installed
+- [x] Preserved the stub media controller boundary; real LiveKit publishing remains future work
+- [x] Documented that production Docker/systemd supervision remains a later milestone
+
 ---
 
 ## Next Steps (In Order)

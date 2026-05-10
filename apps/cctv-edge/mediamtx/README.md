@@ -18,6 +18,18 @@ apiAddress: 127.0.0.1:9997
 
 The edge-agent test suite verifies that the checked-in config matches the generated safe defaults and that API bindings are disabled or loopback-only.
 
+## Local process management
+
+The edge agent can build a safe `mediamtx` process argument list and manage a local process through an injectable lifecycle manager.
+
+Default command shape:
+
+```text
+mediamtx apps/cctv-edge/mediamtx/mediamtx.local.yml
+```
+
+Automated tests use fake process objects. They do not require `mediamtx` to be installed and do not launch media processes.
+
 ## Local synthetic RTSP source
 
 The edge agent can now build a dev/test FFmpeg command for a synthetic RTSP source using `testsrc` video and `sine` audio.
@@ -37,4 +49,4 @@ Security expectations:
 - do not put camera credentials in synthetic RTSP URLs
 - do not use browser, webcam, or phone publishing paths
 
-Real `mediamtx` process supervision remains a later milestone.
+Production Docker/systemd supervision remains a later milestone.
