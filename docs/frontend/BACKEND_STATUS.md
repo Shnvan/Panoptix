@@ -182,6 +182,14 @@ Returned user fields are limited to `user_id`, `email`, `roles`, `role_default`,
 
 - **`status`** filter accepts: `pending`, `accepted`, `rejected`, `expired`, `cancelled`
 
+### Maintenance
+
+| Method | Path | Request | Response |
+|---|---|---|---|
+| `POST` | `/api/v1/admin/jobs/run-maintenance` | none | `{ "expired_commands", "stops_enqueued" }` |
+
+Runs expired-command cleanup and due publish-stop processing in a single admin call. Idempotent and safe to call repeatedly.
+
 ### Audit
 
 | Method | Path | Request | Response |

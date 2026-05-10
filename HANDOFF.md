@@ -133,9 +133,27 @@ Current state:
 
 ## Recently Completed Milestones
 
-### Privacy Notice And Admin User Listing APIs
+### Scheduler Jobs: Admin Maintenance Endpoint
 
 Completed in this milestone.
+
+Implemented:
+
+- `POST /api/v1/admin/jobs/run-maintenance` runs both `expire_stale_commands` and `enqueue_due_publish_stops` in one admin call
+- returns `{ "expired_commands": N, "stops_enqueued": N }`
+- writes `admin.maintenance.run` audit event with both counts
+- existing `POST /api/v1/admin/commands/cleanup` kept for backward compat
+- 6 tests added in `apps/api/tests/test_maintenance.py`
+
+Not included:
+
+- automatic background loop / cron
+- production scheduler wiring
+- Railway / external cron integration
+
+### Privacy Notice And Admin User Listing APIs
+
+Completed in prior milestone.
 
 Implemented:
 
@@ -745,7 +763,7 @@ $env:PYTHONPATH = "src"; python -m compileall src alembic scripts
 Latest result:
 
 ```text
-pytest: 243 passed
+pytest: 249 passed
 ruff: all checks passed
 mypy: no issues found in 32 source files
 compileall: passed
@@ -774,20 +792,19 @@ compileall: passed
 Recommended next task:
 
 ```text
-Scheduler Jobs — wire deterministic processors for expired command cleanup and due publish stops behind a safe admin/manual trigger or local scheduler scaffold
+TBD — Next milestone to be determined
 ```
 
-This keeps backend lifecycle cleanup deterministic before moving toward real mediamtx/media publishing.
+Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
 
 ## Not Implemented Yet
 
 - command denial path audit logging
-- periodic background scheduler/cron for automated cleanup
+- production background scheduler/cron for automated maintenance
 - audit export signing
 - production gateway control reconnect policy/supervision
 - mediamtx runtime configuration
 - real camera/media start/stop
-- production scheduler/cron wiring for due publish stops
 - frontend UI
 - real Cloudflare Access setup
 - Google Workspace setup
@@ -892,6 +909,7 @@ Use local/dev placeholders and fail-closed behavior. Do not ask the user to set 
 - `apps/api/tests/test_livekit_webhooks.py`: LiveKit webhook receiver tests
 - `apps/api/tests/test_livekit_tokens.py`: viewer/gateway LiveKit token tests
 - `apps/api/tests/test_privacy_admin_users.py`: privacy notice and admin user list tests
+- `apps/api/tests/test_maintenance.py`: admin maintenance endpoint tests
 - `apps/api/tests/test_security.py`: auth/dev-auth tests
 - `apps/api/tests/test_sessions.py`: session tests
 - `apps/api/tests/test_audit.py`: audit tests

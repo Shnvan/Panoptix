@@ -17,6 +17,7 @@ from cctv_api.api.livekit_webhooks import router as livekit_webhook_router
 from cctv_api.core.config import Settings, get_settings
 from cctv_api.db import db_session
 from cctv_api.gateway.command_queue import enqueue_command, expire_stale_commands
+from cctv_api.gateway.publish_state import enqueue_due_publish_stops
 from cctv_api.models.enums import ActorType, CameraSourceType, CommandStatus, GatewayStatus, StreamKind
 from cctv_api.models.tables import (
     AuditHmacKey,
@@ -941,6 +942,48 @@ def expire_pending_commands(
     )
     db.commit()
     return ExpireCommandsResponse(expired_count=count)
+
+
+class MaintenanceResponse(BaseModel):
+    expired_commands: int
+    stops_enqueued: int
+
+
+@v1_router.post("/admin/jobs/run-maintenance")
+def run_maintenance(
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> MaintenanceResponse:
+    require_role(principal, "admin")
+    user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    expired_count = expire_stale_commands(db)
+
+    def _audit(action: str, resource: str, payload: dict[str, object]) -> None:
+        _record_user_audit_required(
+            db,
+            settings=settings,
+            request=request,
+            actor_id=user.id,
+            action=action,
+            resource=resource,
+            payload=payload,
+        )
+
+    stop_results = enqueue_due_publish_stops(db, audit=_audit)
+    stops_enqueued = len(stop_results)
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=user.id,
+        action="admin.maintenance.run",
+        resource="maintenance",
+        payload={"expired_commands": expired_count, "stops_enqueued": stops_enqueued},
+    )
+    db.commit()
+    return MaintenanceResponse(expired_commands=expired_count, stops_enqueued=stops_enqueued)
 
 
 # ── Admin Camera CRUD ──

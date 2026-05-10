@@ -326,12 +326,19 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] 11 tests added for auth, response shape, acceptance recording, idempotency, audit, filtering, and pagination
 - [x] Backend verification clean: 243 tests passing; mypy, ruff, and compileall clean
 
+### Scheduler Jobs: Admin Maintenance Endpoint
+- [x] `POST /api/v1/admin/jobs/run-maintenance` runs both `expire_stale_commands` and `enqueue_due_publish_stops` in a single admin call
+- [x] Returns `{ "expired_commands": N, "stops_enqueued": N }`
+- [x] Writes `admin.maintenance.run` audit event with both counts
+- [x] Existing `POST /api/v1/admin/commands/cleanup` kept for backward compat
+- [x] 6 tests added for auth, role, empty run, expired commands, due publish stops, and audit
+
 ---
 
 ## Next Steps (In Order)
 
-### 1. Scheduler Jobs
-Wire deterministic processors for expired command cleanup and due publish stops behind a safe admin/manual trigger or local scheduler scaffold.
+### 1. TBD — Next milestone to be determined
+Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
 
 ---
 

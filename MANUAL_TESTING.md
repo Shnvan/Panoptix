@@ -1601,6 +1601,45 @@ python -m pytest tests/test_gateway_command_queue.py -k "expire_cleanup" -v
 
 ---
 
+## 26. Admin Maintenance Endpoint
+
+Unified admin-only endpoint that runs both `expire_stale_commands` and `enqueue_due_publish_stops` in a single call.
+
+### Trigger maintenance
+
+```powershell
+Invoke-RestMethod -Method POST `
+  -Uri "$BaseUrl/api/v1/admin/jobs/run-maintenance" `
+  -Headers $AdminHeaders
+```
+
+Expected response:
+
+```json
+{
+  "expired_commands": 0,
+  "stops_enqueued": 0
+}
+```
+
+Notes:
+
+- Requires admin role; viewer callers receive `403 role-required`.
+- Runs both `expire_stale_commands` and `enqueue_due_publish_stops` deterministically.
+- Writes `admin.maintenance.run` audit event with both counts.
+- Idempotent — calling it twice with no new work returns zeros.
+- The existing `POST /api/v1/admin/commands/cleanup` is still available for backward compat.
+
+### Run maintenance tests
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_maintenance.py -v
+```
+
+---
+
 ## 25. Gateway Command Audit Logging
 
 All gateway command mutation endpoints now write audit trail entries on success.

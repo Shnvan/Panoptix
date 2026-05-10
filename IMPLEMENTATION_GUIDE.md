@@ -2002,14 +2002,48 @@ The backend now exposes the MVP privacy-notice gate endpoints and a safe admin u
 
 ---
 
-## 57. Current Verification Status
+## 57. Scheduler Jobs: Admin Maintenance Endpoint
+
+### What was implemented
+
+A unified admin-only maintenance endpoint that runs both existing deterministic processors in a single call.
+
+### How it works
+
+1. `POST /api/v1/admin/jobs/run-maintenance` requires admin role.
+2. It calls `expire_stale_commands(db)` to mark expired pending commands.
+3. It calls `enqueue_due_publish_stops(db, audit=...)` to enqueue stop commands for cameras past their grace window.
+4. It writes an `admin.maintenance.run` audit event with both counts.
+5. Returns `{ "expired_commands": N, "stops_enqueued": N }`.
+
+### Key design decisions
+
+- Unified endpoint runs both processors because they are always safe to run together.
+- Existing `POST /api/v1/admin/commands/cleanup` is preserved for backward compatibility.
+- No background loop; production scheduler/cron wiring remains future work.
+- The endpoint is idempotent; calling it repeatedly is safe.
+
+### Tests added
+
+6 tests in `apps/api/tests/test_maintenance.py`:
+
+- auth required
+- admin role required
+- empty run returns zeros
+- expired stale commands are counted correctly
+- due publish stops are enqueued correctly
+- audit row written with correct action and payload
+
+---
+
+## 58. Current Verification Status
 
 ### What passed
 
 The latest verification passed:
 
 ```text
-backend pytest: 243 passed
+backend pytest: 249 passed
 backend mypy: no issues found in 32 source files
 backend ruff: all checks passed
 backend compileall: passed
@@ -2074,9 +2108,9 @@ The following are intentionally not done yet:
 
 ## Next Recommended Implementation Order
 
-### 1. Scheduler Jobs
+### 1. TBD — Next milestone to be determined
 
-Wire deterministic processors for expired command cleanup and due publish stops behind a safe admin/manual trigger or local scheduler scaffold.
+Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
 
 ---
 
@@ -2108,6 +2142,7 @@ The system now has:
 - backend publish-state tracking with 10-second stop grace
 - privacy notice acceptance endpoints
 - safe admin user listing endpoint
+- unified admin maintenance endpoint for scheduled-job processing
 - passing backend and edge-agent tests, type checks, and lint checks
 
 The most important security idea so far is:
