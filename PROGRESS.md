@@ -580,14 +580,21 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Templates contain only placeholder values; no real secrets committed
 - [x] Docker Compose, Dockerfile, and Windows/NSSM templates remain deferred
 
+### Docker And Windows Service Templates
+- [x] Added `docs/runbooks/templates/Dockerfile.edge-agent.example` with non-root user and no EXPOSE
+- [x] Added `docs/runbooks/templates/docker-compose.edge-agent.example.yml` with no ports, external env, read-only FS
+- [x] Added `docs/runbooks/templates/nssm-install.example.ps1` Windows/NSSM service install script with placeholder values
+- [x] Linked Docker templates from `docs/runbooks/edge-gateway-service.md` Docker section
+- [x] Linked Windows templates from `docs/runbooks/edge-gateway-service.md` Windows/NSSM section
+- [x] Updated `docs/runbooks/templates/README.md` with all template files
+- [x] Updated template review section in `MANUAL_TESTING.md` with Docker and Windows verification checks
+- [x] All templates contain only placeholder values; no real secrets committed
+
 ---
 
 ## Next Steps (In Order)
 
-### 1. Docker and Windows service templates
-Add Docker Compose / Dockerfile and Windows/NSSM service templates as docs-only reference artifacts, without building images or installing services.
-
-### 2. Later production integration milestones
+### 1. Later production integration milestones
 Cloudflare production setup prep, Railway/Neon staging deployment, and real RTSP camera credential handling remain future work.
 
 ---

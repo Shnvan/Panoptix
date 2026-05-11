@@ -192,6 +192,13 @@ ports:
   - "9997:9997"
 ```
 
+Reviewed templates are available in [`docs/runbooks/templates/`](templates/):
+
+- [`Dockerfile.edge-agent.example`](templates/Dockerfile.edge-agent.example) — Docker image template with non-root user and no EXPOSE
+- [`docker-compose.edge-agent.example.yml`](templates/docker-compose.edge-agent.example.yml) — Compose template with no ports, external env, read-only FS
+
+Copy and adapt these templates to the target host. Do not use them without completing the network security gates.
+
 Docker health checks:
 
 ```bash
@@ -231,6 +238,13 @@ Arguments: -m panoptix_edge_agent.cli --supervise
 Startup directory: C:\Panoptix\edge-agent
 Environment: loaded from C:\Panoptix\config\gateway.env by wrapper or service manager
 ```
+
+Reviewed templates are available in [`docs/runbooks/templates/`](templates/):
+
+- [`nssm-install.example.ps1`](templates/nssm-install.example.ps1) — NSSM service install script with placeholder values
+- [`gateway.env.example`](templates/gateway.env.example) — environment file with placeholder-only values (shared with Linux)
+
+Copy and adapt these templates to the target host. Do not use them without completing the network security gates.
 
 Windows checks:
 

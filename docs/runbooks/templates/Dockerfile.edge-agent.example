@@ -1,0 +1,38 @@
+# Panoptix Edge Gateway — Dockerfile template
+#
+# This is a docs-only template. Do not build production images from it
+# without operator review, credential provisioning, and network security gates.
+#
+# See docs/runbooks/edge-gateway-service.md for the full operational runbook.
+
+# Pinned Python base image per ADR 0007
+FROM python:3.12.7-slim AS base
+
+# Security: non-root service user
+RUN groupadd --gid 1001 cctv-gateway && \
+    useradd --uid 1001 --gid 1001 --shell /bin/false cctv-gateway
+
+WORKDIR /opt/panoptix/edge-agent
+
+# Install dependencies first for layer caching
+COPY apps/cctv-edge/agent/pyproject.toml ./
+RUN pip install --no-cache-dir .
+
+# Copy application source
+COPY apps/cctv-edge/agent/src/ ./src/
+
+# Writable state directory for runtime data
+RUN mkdir -p /var/lib/cctv-gateway && \
+    chown cctv-gateway:cctv-gateway /var/lib/cctv-gateway
+
+# Security: non-root, read-only FS where possible
+USER cctv-gateway
+
+ENV PYTHONPATH=/opt/panoptix/edge-agent/src \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# IMPORTANT: No EXPOSE — the edge gateway has zero inbound ports.
+# Do not add EXPOSE or publish any ports.
+
+ENTRYPOINT ["python", "-m", "panoptix_edge_agent.cli", "--supervise"]

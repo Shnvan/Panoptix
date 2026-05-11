@@ -8,6 +8,9 @@ Docs-only service and environment templates for deploying the Panoptix edge gate
 |----------|---------|
 | `cctv-gateway.service.example` | Linux systemd unit file for the edge gateway supervisor |
 | `gateway.env.example` | Environment file with placeholder-only values for gateway configuration |
+| `Dockerfile.edge-agent.example` | Docker image template for the edge gateway (no EXPOSE, non-root user) |
+| `docker-compose.edge-agent.example.yml` | Docker Compose template with no ports, external env file, read-only FS |
+| `nssm-install.example.ps1` | Windows/NSSM service install script with placeholder values |
 
 ## Usage
 
@@ -30,7 +33,6 @@ To use them on a target gateway host:
 
 ## Not Included
 
-- Docker Compose or Dockerfile templates (future milestone)
-- Windows/NSSM service wrapper templates (future milestone)
 - Real credentials or production configuration values
 - Automated installation scripts
+- Production-ready Docker registry or CI/CD pipeline configuration

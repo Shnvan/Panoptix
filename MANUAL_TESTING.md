@@ -2678,16 +2678,22 @@ For host service operation guidance, see `docs/runbooks/edge-gateway-service.md`
 
 ### Review production service templates
 
-Reviewed Linux systemd service templates are available in `docs/runbooks/templates/`:
+Reviewed service templates are available in `docs/runbooks/templates/`:
 
-- `cctv-gateway.service.example` — systemd unit file with hardening settings
+- `cctv-gateway.service.example` — Linux systemd unit file with hardening settings
 - `gateway.env.example` — environment file with placeholder-only values
+- `Dockerfile.edge-agent.example` — Docker image template with non-root user and no EXPOSE
+- `docker-compose.edge-agent.example.yml` — Docker Compose template with no ports, external env, read-only FS
+- `nssm-install.example.ps1` — Windows/NSSM service install script with placeholder values
 
 To review the templates locally:
 
 ```powershell
 Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\templates\cctv-gateway.service.example
 Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\templates\gateway.env.example
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\templates\Dockerfile.edge-agent.example
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\templates\docker-compose.edge-agent.example.yml
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\templates\nssm-install.example.ps1
 ```
 
 Verification checks:
@@ -2696,7 +2702,10 @@ Verification checks:
 - The systemd unit uses `NoNewPrivileges=yes`, `ProtectSystem=strict`, and a dedicated service user.
 - The environment file defaults to `PANOPTIX_MEDIA_PUBLISHER_MODE=stub` and `PANOPTIX_SUPERVISE_MEDIAMTX=false`.
 - Real media publishing lines are commented out.
-- No WAN-facing port exposure is configured.
+- The Dockerfile has no `EXPOSE` directive and uses a non-root `cctv-gateway` user.
+- The Compose file has no `ports:` section and uses `read_only: true`.
+- The NSSM script contains only placeholder paths and warns about secrets and firewall.
+- No WAN-facing port exposure is configured in any template.
 
 These templates are not installed or enabled by any automated process. They are reference artifacts for future operator review.
 
