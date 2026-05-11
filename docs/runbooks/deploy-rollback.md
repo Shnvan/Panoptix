@@ -10,6 +10,7 @@
 - API contract smoke tests pass.
 - Staging smoke tests pass.
 - No critical/high security scan findings.
+- Staging prep checklist complete (see [Railway/Neon Staging Prep](railway-neon-staging-prep.md)).
 
 ## Deploy steps
 

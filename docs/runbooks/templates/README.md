@@ -11,6 +11,8 @@ Docs-only service and environment templates for deploying the Panoptix edge gate
 | `Dockerfile.edge-agent.example` | Docker image template for the edge gateway (no EXPOSE, non-root user) |
 | `docker-compose.edge-agent.example.yml` | Docker Compose template with no ports, external env file, read-only FS |
 | `nssm-install.example.ps1` | Windows/NSSM service install script with placeholder values |
+| `railway-api.env.example` | Railway API staging environment template with placeholder-only values |
+| `neon-staging-checklist.md` | Neon Postgres staging database provisioning checklist |
 
 ## Usage
 

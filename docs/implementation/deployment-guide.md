@@ -82,6 +82,10 @@ Rollback order:
 5. Run T-30 and API smoke tests.
 6. Record incident and audit event.
 
+## Staging Prep
+
+Before first staging deploy, complete the [Railway/Neon Staging Prep](../runbooks/railway-neon-staging-prep.md) checklist and review the placeholder templates in `docs/runbooks/templates/`.
+
 ## Direct origin policy
 
 Railway-generated service URLs are not supported user entry points. Protected API routes reject direct requests without valid CF Access JWT. Frontend direct-origin requests may render only a harmless shell/redirect and must not include data-bearing bootstrap content.

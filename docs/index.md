@@ -103,6 +103,7 @@ All diagrams are in Mermaid format (`.mmd`).
 | [Edge Gateway Service](runbooks/edge-gateway-service.md) | Docs-only host/service runbook for Docker, Linux systemd, and Windows/NSSM edge supervisor operation |
 | [Cloudflare Production Setup](runbooks/cloudflare-production-setup.md) | Docs-only Cloudflare Access, routing, JWT, and rollback preparation checklist |
 | [CF Access Rollback](runbooks/cf-access-rollback.md) | Provider-console/Terraform recovery for CF Access/DNS policy issues |
+| [Railway/Neon Staging Prep](runbooks/railway-neon-staging-prep.md) | Docs-only staging deployment prep for Railway compute and Neon Postgres |
 | [Deploy and Rollback](runbooks/deploy-rollback.md) | Railway deploy, rollback triggers, and post-rollback checks |
 | [Backup and Restore](runbooks/backup-restore.md) | Backup, restore, and restore-drill procedure |
 

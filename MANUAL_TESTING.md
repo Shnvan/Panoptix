@@ -2714,6 +2714,34 @@ Expected validation behavior:
 
 These steps do not modify Cloudflare, DNS, Railway, or Neon. They validate local backend guardrails only.
 
+### Review Railway/Neon staging prep
+
+The docs-only staging deployment prep is available at:
+
+- `docs/runbooks/railway-neon-staging-prep.md` — main staging prep runbook
+- `docs/runbooks/templates/railway-api.env.example` — Railway API env template
+- `docs/runbooks/templates/neon-staging-checklist.md` — Neon database provisioning checklist
+
+To review locally:
+
+```powershell
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\railway-neon-staging-prep.md
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\templates\railway-api.env.example
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\templates\neon-staging-checklist.md
+```
+
+Verification checks:
+
+- The runbook contains only placeholder values, not real Railway project IDs, Neon hosts, passwords, or API keys.
+- Railway service plan matches the existing Dockerfile and start command in `apps/api/`.
+- Neon roles separate runtime (`cctv_app_runtime`) from migration (`cctv_migrator`).
+- Connection strings require `sslmode=require`.
+- Migration safety section requires expand/contract pattern.
+- Release gates reference existing deploy-rollback and Cloudflare setup runbooks.
+- The Railway env template includes all guarded fields that the production auth guardrails check.
+
+These steps do not create Railway services, Neon databases, or Cloudflare policies. They are preparation docs only.
+
 ### Review production service templates
 
 Reviewed service templates are available in `docs/runbooks/templates/`:

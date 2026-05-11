@@ -610,15 +610,27 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Updated Cloudflare setup and manual testing docs with guardrail validation expectations
 - [x] Verified focused tests, ruff, and mypy pass
 
+### Railway/Neon Staging Deployment Prep
+- [x] Created `docs/runbooks/railway-neon-staging-prep.md` with full staging prep runbook
+- [x] Documented Railway service plan for `cctv-api` and future `cctv-web`
+- [x] Documented Neon staging database setup, role separation, connection strings, and SSL
+- [x] Documented required environment variable groups with guardrail cross-references
+- [x] Documented migration safety (expand/contract pattern, role separation)
+- [x] Documented staging smoke validation checklist and release gates
+- [x] Created `docs/runbooks/templates/railway-api.env.example` with placeholder-only staging env
+- [x] Created `docs/runbooks/templates/neon-staging-checklist.md` for database provisioning
+- [x] Updated `docs/index.md`, `docs/implementation/deployment-guide.md`, `docs/runbooks/deploy-rollback.md`, and templates README
+- [x] Added staging prep review section to `MANUAL_TESTING.md`
+
 ---
 
 ## Next Steps (In Order)
 
-### 1. Railway/Neon staging deployment prep
-Prepare staging deployment variables, database provisioning checklist, and release gates without committing secrets.
-
-### 2. Real RTSP camera credential handling
+### 1. Real RTSP camera credential handling
 Define secure camera credential storage, rotation, and edge deployment handling before real camera onboarding.
+
+### 2. Actual staging account setup
+Create Railway services, Neon databases, and Cloudflare Access policies using the staging prep runbook.
 
 ---
 
