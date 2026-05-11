@@ -44,6 +44,7 @@ from cctv_api.security.dependencies import require_authenticated_user
 from cctv_api.security.identity import Principal
 from cctv_api.security.livekit_tokens import LiveKitTokenConfigError, mint_viewer_subscribe_token
 from cctv_api.security.policy import require_role
+from cctv_api.security.rate_limit import RateLimitConfig, get_rate_limiter
 from cctv_api.security.service_tokens import generate_service_token, hash_service_token
 from cctv_api.security.sessions import list_active_sessions, revoke_all_user_sessions, revoke_session
 from cctv_api.security.stream_access import (
@@ -383,6 +384,20 @@ def get_camera_view_token(
 ) -> ViewerTokenResponse:
     camera_uuid = _parse_uuid(camera_id, "camera-id-invalid")
     user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+
+    # ── Rate limit check (§16.17) ──
+    _check_rate_limit(
+        key=f"viewer-token:{user.id}",
+        max_requests=settings.RATE_LIMIT_VIEWER_TOKEN_MAX,
+        window_seconds=settings.RATE_LIMIT_VIEWER_TOKEN_WINDOW,
+        audit_action="viewer.token.rate_limited",
+        resource=f"camera:{camera_uuid}",
+        db=db,
+        settings=settings,
+        request=request,
+        actor_id=user.id,
+    )
+
     if user.disabled_at is not None:
         _record_user_audit_safely(
             db,
@@ -839,6 +854,41 @@ def _request_ip(request: Request) -> str | None:
 
 def _request_ua(request: Request) -> str | None:
     return request.headers.get("user-agent")
+
+
+def _check_rate_limit(
+    *,
+    key: str,
+    max_requests: int,
+    window_seconds: int,
+    audit_action: str,
+    resource: str,
+    db: DbSession,
+    settings: Settings,
+    request: Request,
+    actor_id: uuid.UUID,
+) -> None:
+    """Check rate limit and raise 429 if exceeded (§16.17)."""
+    limiter = get_rate_limiter()
+    config = RateLimitConfig(max_requests=max_requests, window_seconds=window_seconds)
+    result = limiter.check(key, config)
+    if not result.allowed:
+        _record_user_audit_safely(
+            db,
+            settings=settings,
+            request=request,
+            actor_id=actor_id,
+            action=audit_action,
+            resource=resource,
+            payload={"retry_after": result.retry_after},
+        )
+        raise ProblemDetail(
+            status=429,
+            title="Too Many Requests",
+            detail="rate-limit-exceeded",
+            type_uri="https://panoptix.local/problems/rate-limit-exceeded",
+            headers={"Retry-After": str(result.retry_after)},
+        )
 
 
 class EnqueueCommandRequest(BaseModel):

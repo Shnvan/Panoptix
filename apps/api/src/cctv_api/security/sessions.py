@@ -35,6 +35,38 @@ def get_active_session(db: DbSession, session_id: uuid.UUID) -> Session | None:
     return db.execute(stmt).scalar_one_or_none()
 
 
+def is_session_expired(
+    session_row: Session,
+    *,
+    idle_timeout_seconds: int,
+    absolute_timeout_seconds: int,
+    now: datetime | None = None,
+) -> str | None:
+    """Check whether a session has exceeded its TTL.
+
+    Returns ``None`` if the session is still valid, or a short reason
+    string (``"session-idle-expired"`` / ``"session-absolute-expired"``)
+    for the auth dependency to use as the error detail.
+    """
+    current = now or datetime.now(timezone.utc)
+
+    # Absolute timeout — §16.4: 8 h max session lifetime
+    created = session_row.created_at
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=timezone.utc)
+    if (current - created).total_seconds() > absolute_timeout_seconds:
+        return "session-absolute-expired"
+
+    # Idle timeout — §16.4: 15 min of inactivity
+    last_active = session_row.last_seen_at or session_row.created_at
+    if last_active.tzinfo is None:
+        last_active = last_active.replace(tzinfo=timezone.utc)
+    if (current - last_active).total_seconds() > idle_timeout_seconds:
+        return "session-idle-expired"
+
+    return None
+
+
 def touch_session(db: DbSession, session_id: uuid.UUID) -> None:
     stmt = (
         update(Session)

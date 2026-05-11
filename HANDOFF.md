@@ -133,9 +133,44 @@ Current state:
 
 ## Recently Completed Milestones
 
-### CSP, CORS, and Security Headers Hardening
+### App-Level Rate Limiting
 
 Completed in this milestone.
+
+Implemented:
+
+- In-memory sliding-window rate limiter (`security/rate_limit.py`) — per-key, thread-safe
+- Viewer token endpoint rate-limited per user (30/min default)
+- Gateway ingest token endpoint rate-limited per gateway (20/min default)
+- 429 responses include `Retry-After` header
+- Audit events on rate limit denial: `viewer.token.rate_limited`, `gateway.ingest.rate_limited`
+- 9 new tests (7 unit + 2 integration); 329 total backend tests passing
+
+Not included:
+
+- Redis/Memcached backend (in-process only — CF is the primary enforcement layer)
+- Rate limiting on non-token endpoints (heartbeat, etc.)
+
+### Session Idle/Absolute TTL Enforcement
+
+Completed in prior milestone.
+
+Implemented:
+
+- `is_session_expired()` helper checks both idle (15 min) and absolute (8 h) timeouts
+- Wired into `require_authenticated_user` — expired sessions auto-revoked and return 401
+- `touch_session()` resets idle timer on each request; absolute is non-resettable
+- `SESSION_IDLE_TIMEOUT_SECONDS` and `SESSION_ABSOLUTE_TIMEOUT_SECONDS` settings added
+- 5 new tests; 320 total backend tests passing
+
+Not included:
+
+- Admin re-auth window (≤5 min) — requires frontend integration
+- Session listing/active-count admin API
+
+### CSP, CORS, and Security Headers Hardening
+
+Completed in prior milestone.
 
 Implemented:
 

@@ -18,7 +18,13 @@ from cctv_api.security.csrf import (
 )
 from cctv_api.security.identity import Principal, PrincipalKind
 from cctv_api.security.session_cookie import create_session_cookie, read_session_cookie
-from cctv_api.security.sessions import create_session, get_active_session, touch_session
+from cctv_api.security.sessions import (
+    create_session,
+    get_active_session,
+    is_session_expired,
+    revoke_session,
+    touch_session,
+)
 from cctv_api.security.users import get_or_create_user, get_user_roles
 
 
@@ -72,6 +78,16 @@ def require_authenticated_user(
             path="/",
         )
     else:
+        # ── Session TTL enforcement (§16.4) ──
+        expiry_reason = is_session_expired(
+            session_row,
+            idle_timeout_seconds=settings.SESSION_IDLE_TIMEOUT_SECONDS,
+            absolute_timeout_seconds=settings.SESSION_ABSOLUTE_TIMEOUT_SECONDS,
+        )
+        if expiry_reason is not None:
+            revoke_session(db, session_row.id)
+            raise _auth_problem(expiry_reason)
+
         if _csrf_required(request):
             _verify_request_csrf(request, session_row.id, settings)
         touch_session(db, session_row.id)

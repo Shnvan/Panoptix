@@ -2851,6 +2851,57 @@ This is the first milestone that can exercise the full real media path (FFmpeg -
 
 ---
 
+## 40. App-Level Rate Limiting
+
+### What was implemented
+
+In-memory sliding-window rate limiter per v4 plan §16.17. Protects viewer token and gateway ingest token endpoints from abuse.
+
+### New files
+
+- `security/rate_limit.py`: `RateLimiter` class with per-key sliding window, `RateLimitConfig`, singleton `get_rate_limiter()`
+
+### Modified files
+
+- `api/errors.py`: Added optional `headers` parameter to `ProblemDetail` (enables `Retry-After`)
+- `api/router.py`: Added `_check_rate_limit()` helper, wired into viewer token endpoint
+- `api/gateways.py`: Wired rate limit into gateway ingest token endpoint
+- `core/config.py`: Added 4 rate limit settings
+
+### Endpoints protected
+
+| Endpoint | Key | Default limit |
+|----------|-----|---------------|
+| `GET /cameras/{id}/view-token` | `viewer-token:{user_id}` | 30/min |
+| `POST /gateways/{id}/ingest-token` | `gateway-ingest:{gateway_id}` | 20/min |
+
+### Audit events
+
+- `viewer.token.rate_limited` — logged when a viewer token request is denied
+- `gateway.ingest.rate_limited` — logged when a gateway ingest request is denied
+
+---
+
+## 39. Session Idle/Absolute TTL Enforcement
+
+### What was implemented
+
+Session TTL enforcement per v4 plan §16.4: idle 15 min, absolute 8 h.
+
+### Changes
+
+- `core/config.py`: Added `SESSION_IDLE_TIMEOUT_SECONDS` (default 900) and `SESSION_ABSOLUTE_TIMEOUT_SECONDS` (default 28800)
+- `security/sessions.py`: Added `is_session_expired()` that checks absolute timeout first (takes precedence), then idle timeout using `last_seen_at` (or `created_at` fallback)
+- `security/dependencies.py`: Wired TTL check into `require_authenticated_user` — expired sessions are auto-revoked and return 401 with `session-idle-expired` or `session-absolute-expired`
+- `touch_session()` already resets `last_seen_at` on each authenticated request, which resets the idle timer
+
+### Not included
+
+- Admin re-auth window (≤5 min for admin mutations) — requires frontend session-age awareness
+- Session listing/active-count admin API
+
+---
+
 ## 38. CSP, CORS, and Security Headers Hardening
 
 ### What was implemented

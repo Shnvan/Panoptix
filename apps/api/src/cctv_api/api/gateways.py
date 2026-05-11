@@ -31,6 +31,7 @@ from cctv_api.security.audit import AuditLogError, record_audit_event
 from cctv_api.security.dependencies import require_gateway_identity, verify_gateway_identity_ws
 from cctv_api.security.identity import Principal
 from cctv_api.security.livekit_tokens import LiveKitTokenConfigError, mint_gateway_publish_token
+from cctv_api.security.rate_limit import RateLimitConfig, get_rate_limiter
 from cctv_api.security.stream_access import (
     gateway_has_active_camera_assignment,
     get_active_camera,
@@ -119,6 +120,31 @@ def gateway_ingest_token(
 
     gateway_uuid = _parse_uuid(gateway_id, "gateway-id-invalid")
     camera_uuid = _parse_uuid(payload.camera_id, "camera-id-invalid")
+
+    # ── Rate limit check (§16.17) ──
+    limiter = get_rate_limiter()
+    rl_config = RateLimitConfig(
+        max_requests=settings.RATE_LIMIT_GATEWAY_INGEST_MAX,
+        window_seconds=settings.RATE_LIMIT_GATEWAY_INGEST_WINDOW,
+    )
+    rl_result = limiter.check(f"gateway-ingest:{gateway_uuid}", rl_config)
+    if not rl_result.allowed:
+        _record_gateway_audit_safely(
+            db,
+            settings=settings,
+            request=request,
+            actor_id=gateway_uuid,
+            action="gateway.ingest.rate_limited",
+            resource=f"camera:{camera_uuid}",
+            payload={"retry_after": rl_result.retry_after},
+        )
+        raise ProblemDetail(
+            status=429,
+            title="Too Many Requests",
+            detail="rate-limit-exceeded",
+            type_uri="https://panoptix.local/problems/rate-limit-exceeded",
+            headers={"Retry-After": str(rl_result.retry_after)},
+        )
 
     if get_enabled_gateway(db, gateway_uuid) is None:
         _record_gateway_audit_safely(

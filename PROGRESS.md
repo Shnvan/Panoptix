@@ -498,6 +498,32 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] All 315 backend tests passing; existing tests updated for expanded header assertions
 - [x] Preserved CCTV-only invariant: `Permissions-Policy: camera=(), microphone=()` is the technical enforcement of Inv 5
 
+### Session Idle/Absolute TTL Enforcement
+- [x] Added `SESSION_IDLE_TIMEOUT_SECONDS` (default 900 = 15 min) and `SESSION_ABSOLUTE_TIMEOUT_SECONDS` (default 28800 = 8 h) to `Settings`
+- [x] Added `is_session_expired()` helper to `sessions.py` that checks both idle and absolute TTLs
+- [x] Absolute timeout checked first (takes precedence) — session older than 8 h is always expired
+- [x] Idle timeout uses `last_seen_at` (falls back to `created_at`) — 15 min inactivity expires the session
+- [x] Wired TTL enforcement into `require_authenticated_user` dependency — expired sessions auto-revoked and return 401
+- [x] `touch_session()` already updates `last_seen_at` on each authenticated request, resetting the idle timer
+- [x] Expired sessions are revoked in DB before returning 401 (fail-closed)
+- [x] Added 5 new TTL tests: valid session, idle expiry, absolute expiry, idle timer reset via touch, absolute precedence
+- [x] All 320 backend tests passing; existing tests unchanged
+- [x] Ruff and mypy clean
+
+### App-Level Rate Limiting
+- [x] Created `security/rate_limit.py` with in-memory sliding-window `RateLimiter` (per-key, thread-safe)
+- [x] Added `RateLimitConfig` dataclass and singleton `get_rate_limiter()` for shared state
+- [x] Added `ProblemDetail` support for response headers (enables `Retry-After` on 429)
+- [x] Wired rate limit into viewer token endpoint (`GET /cameras/{id}/view-token`) — keyed by `viewer-token:{user_id}`
+- [x] Wired rate limit into gateway ingest token endpoint (`POST /gateways/{id}/ingest-token`) — keyed by `gateway-ingest:{gateway_id}`
+- [x] Rate-limited requests return `429 Too Many Requests` with `Retry-After` header
+- [x] Rate-limited requests write audit events: `viewer.token.rate_limited` and `gateway.ingest.rate_limited`
+- [x] Added 4 configurable settings: `RATE_LIMIT_VIEWER_TOKEN_MAX` (30/min), `RATE_LIMIT_VIEWER_TOKEN_WINDOW` (60s), `RATE_LIMIT_GATEWAY_INGEST_MAX` (20/min), `RATE_LIMIT_GATEWAY_INGEST_WINDOW` (60s)
+- [x] Added 7 unit tests for limiter core (allow, block, independent keys, reset, window expiry, remaining, retry-after)
+- [x] Added 2 integration tests for viewer token rate limiting with full DB setup
+- [x] All 329 backend tests passing; existing tests unchanged
+- [x] Ruff and mypy clean
+
 ---
 
 ## Next Steps (In Order)

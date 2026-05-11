@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     SESSION_COOKIE_NAME: str = "panoptix_session"
     SESSION_SIGNING_KEY: str = "replace-me"
     CSRF_SIGNING_KEY: str = "replace-me"
+    SESSION_IDLE_TIMEOUT_SECONDS: int = Field(default=900, ge=60)  # 15 min
+    SESSION_ABSOLUTE_TIMEOUT_SECONDS: int = Field(default=28800, ge=300)  # 8 h
 
     # ── Audit HMAC chain ──
     AUDIT_HMAC_KEY_VERSION: int = Field(default=1, ge=1)
@@ -69,6 +71,12 @@ class Settings(BaseSettings):
     # ── Security headers / CSP ──
     CSP_REPORT_URI: str = ""
     LIVEKIT_CONNECT_SRC: str = "wss://replace-me.livekit.cloud"
+
+    # ── Rate limiting (§16.17) ──
+    RATE_LIMIT_VIEWER_TOKEN_MAX: int = Field(default=30, ge=1)
+    RATE_LIMIT_VIEWER_TOKEN_WINDOW: int = Field(default=60, ge=10)
+    RATE_LIMIT_GATEWAY_INGEST_MAX: int = Field(default=20, ge=1)
+    RATE_LIMIT_GATEWAY_INGEST_WINDOW: int = Field(default=60, ge=10)
 
     @property
     def cf_access_browser_audiences(self) -> list[str]:
