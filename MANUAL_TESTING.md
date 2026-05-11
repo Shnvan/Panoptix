@@ -2547,6 +2547,89 @@ smoke config error: PANOPTIX_SMOKE_FFMPEG_BINARY 'ffmpeg' was not found on PATH
 - The API secret must be at least 32 characters; short secrets are rejected
 - The smoke test does not use the backend API server — it mints tokens locally
 
+### LiveKit Cloud smoke checklist
+
+Use this checklist when testing against a real LiveKit Cloud project. This is a manual-only validation path and must not introduce committed credentials.
+
+Preflight:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+python -m pip install -e ".[livekit]"
+ffmpeg -version
+python -c "import livekit.rtc; print('livekit sdk available')"
+```
+
+Secret handling rules:
+
+- Set LiveKit Cloud values only as session-scoped PowerShell environment variables.
+- Do not write real values to `.env`, `.env.example`, Markdown files, screenshots, commits, tickets, or chat logs.
+- Capture only the LiveKit host name in notes, not API keys, API secrets, or generated JWTs.
+- Clear the PowerShell variables after the smoke run.
+
+Set LiveKit Cloud variables in the same terminal that runs the smoke command:
+
+```powershell
+$env:PANOPTIX_SMOKE_LIVEKIT_URL = "wss://<your-livekit-cloud-host>"
+$env:PANOPTIX_SMOKE_LIVEKIT_API_KEY = "<temporary-api-key>"
+$env:PANOPTIX_SMOKE_LIVEKIT_API_SECRET = "<temporary-api-secret>"
+$env:PANOPTIX_SMOKE_ROOM = "panoptix-smoke-test"
+$env:PANOPTIX_SMOKE_CAMERA_ID = "synthetic-smoke-camera"
+$env:PANOPTIX_SMOKE_DURATION_SECONDS = "10"
+$env:PANOPTIX_SMOKE_RTSP_URL = "rtsp://127.0.0.1:8554/synthetic-camera-1"
+```
+
+Start local media prerequisites:
+
+```powershell
+mediamtx C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\mediamtx\mediamtx.local.yml
+```
+
+In another terminal:
+
+```powershell
+ffmpeg -re -f lavfi -i "testsrc=size=640x480:rate=15" -c:v libx264 -pix_fmt yuv420p -preset veryfast -tune zerolatency -f rtsp rtsp://127.0.0.1:8554/synthetic-camera-1
+```
+
+Run the LiveKit Cloud smoke:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+python -m panoptix_edge_agent.cli --smoke-ffmpeg-livekit
+```
+
+After the run, clear secrets from the shell:
+
+```powershell
+Remove-Item Env:\PANOPTIX_SMOKE_LIVEKIT_URL -ErrorAction SilentlyContinue
+Remove-Item Env:\PANOPTIX_SMOKE_LIVEKIT_API_KEY -ErrorAction SilentlyContinue
+Remove-Item Env:\PANOPTIX_SMOKE_LIVEKIT_API_SECRET -ErrorAction SilentlyContinue
+```
+
+Smoke result template:
+
+```text
+Date/time:
+LiveKit host only:
+Room:
+RTSP source:
+Duration:
+Result:
+Cleanup OK:
+Visible in LiveKit Cloud dashboard:
+Notes:
+Secrets removed from shell: yes/no
+```
+
+Expected interpretation:
+
+- `smoke: PASSED` with `cleanup_ok: True` means the edge smoke path connected, published for the bounded duration, and disconnected cleanly.
+- `livekit-sdk-unavailable` means the optional SDK package is missing from the active Python environment.
+- `smoke-start-failed` usually means LiveKit connection, token, FFmpeg, mediamtx, or RTSP source setup failed.
+- A successful checklist run is not complete until temporary secrets are cleared and no real secret values are captured in notes.
+
 ### Using livekit-ffmpeg mode for the edge agent
 
 To make the edge agent use real FFmpeg/LiveKit publishing when receiving `start_publish` commands from the backend, set:

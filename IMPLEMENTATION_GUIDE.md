@@ -2785,7 +2785,29 @@ The LiveKit removal path is fail-open for disable: API errors are collected and 
 
 ---
 
-## 76. Current Verification Status
+## 76. Real LiveKit Cloud Smoke Checklist
+
+### What was implemented
+
+The manual testing guide now has a LiveKit Cloud-specific smoke checklist for the existing opt-in `--smoke-ffmpeg-livekit` path.
+
+### Checklist behavior
+
+The checklist documents:
+
+- optional LiveKit SDK installation with `python -m pip install -e ".[livekit]"`
+- preflight checks for FFmpeg and `livekit.rtc`
+- session-only PowerShell environment variables for LiveKit Cloud URL/key/secret
+- local mediamtx and synthetic FFmpeg RTSP source startup
+- the smoke command: `python -m panoptix_edge_agent.cli --smoke-ffmpeg-livekit`
+- cleanup commands for removing LiveKit secrets from the shell
+- a smoke result template that records host/room/result metadata without credentials
+
+This is a runbook/checklist milestone only. It does not mark real LiveKit Cloud smoke testing as passed, and it does not store real credentials in the repository.
+
+---
+
+## 77. Current Verification Status
 
 ### What passed
 

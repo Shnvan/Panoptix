@@ -133,9 +133,27 @@ Current state:
 
 ## Recently Completed Milestones
 
-### User Disable → LiveKit Participant Kill
+### Real LiveKit Cloud Smoke Checklist
 
 Completed in this milestone.
+
+Implemented:
+
+- Added LiveKit Cloud-specific manual smoke checklist to `MANUAL_TESTING.md`
+- Documented preflight checks for optional LiveKit SDK, FFmpeg, mediamtx, and synthetic RTSP source
+- Documented session-only PowerShell environment variables for real LiveKit Cloud URL/key/secret
+- Added explicit secret-handling rules and post-run environment cleanup commands
+- Added smoke result template that records only non-secret result metadata
+
+Not included:
+
+- Real LiveKit Cloud smoke execution
+- Real credentials, `.env` changes, screenshots, or committed smoke results
+- Making FFmpeg-backed publishing the default edge-agent runtime path
+
+### User Disable → LiveKit Participant Kill
+
+Completed in prior milestone.
 
 Implemented:
 
@@ -1234,10 +1252,10 @@ compileall: passed
 Recommended next task:
 
 ```text
-TBD - Next milestone to be determined
+Run Real LiveKit Cloud Smoke Manually When Credentials Are Ready
 ```
 
-Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
+Use `MANUAL_TESTING.md#27-real-ffmpeg-to-livekit-smoke-test` and the LiveKit Cloud smoke checklist. Do not commit credentials or mark real cloud smoke as passed until it is actually run.
 
 ## Not Implemented Yet
 

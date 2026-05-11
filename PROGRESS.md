@@ -539,12 +539,23 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] All 341 backend tests passing
 - [x] Ruff, mypy, and compileall clean
 
+### Real LiveKit Cloud Smoke Checklist
+- [x] Added LiveKit Cloud-specific manual smoke checklist to `MANUAL_TESTING.md`
+- [x] Documented preflight checks for optional LiveKit SDK, FFmpeg, mediamtx, and synthetic RTSP source
+- [x] Documented session-only PowerShell environment variable usage for real LiveKit Cloud values
+- [x] Added explicit secret-handling rules and post-run environment cleanup commands
+- [x] Added smoke result template that captures host/room/result metadata without credentials
+- [x] Clarified this is a runbook/checklist milestone; real cloud smoke is not marked passed until manually run with real temporary credentials
+
 ---
 
 ## Next Steps (In Order)
 
-### 1. TBD - Next milestone to be determined
-Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone. Real LiveKit Cloud smoke testing, production gateway supervision, and real RTSP camera credentials remain future work.
+### 1. Run Real LiveKit Cloud Smoke Manually When Credentials Are Ready
+Use `MANUAL_TESTING.md#27-real-ffmpeg-to-livekit-smoke-test` and the LiveKit Cloud smoke checklist. Do not commit real credentials or mark the smoke passed until it is actually run.
+
+### 2. TBD - Next code milestone to be determined
+Likely candidates: production gateway supervision, Cloudflare production setup prep, or real RTSP camera credential handling.
 
 ---
 
