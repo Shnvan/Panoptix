@@ -295,6 +295,38 @@ Notes:
 - Exact email filtering is available with `?email=user@example.test`.
 - The response intentionally excludes `idp_subject`, session rows, CF JWTs, tokens, and secrets.
 
+Disable a user as admin:
+
+```powershell
+$UserId = "00000000-0000-0000-0000-000000000000"
+$DisableBody = @{ reason = "manual disable test" } | ConvertTo-Json
+Invoke-RestMethod -Method POST `
+  -Uri "$BaseUrl/api/v1/admin/users/$UserId/disable" `
+  -Headers $AdminHeaders `
+  -ContentType "application/json" `
+  -Body $DisableBody
+```
+
+Expected response shape:
+
+```json
+{
+  "user_id": "uuid",
+  "disabled_at": "...",
+  "sessions_revoked": 0,
+  "participants_removed": 0,
+  "participant_errors": []
+}
+```
+
+Notes:
+
+- Admin disable revokes all active sessions for the target user.
+- The backend attempts LiveKit viewer participant removal for active camera ACL rooms.
+- Placeholder LiveKit credentials skip participant removal and return `livekit-credentials-placeholder`.
+- LiveKit removal errors are returned and audited but do not block the disable.
+- Raw LiveKit admin JWTs and API secrets must never appear in responses or audit payloads.
+
 ## 6. Viewer LiveKit Token Endpoint
 
 Endpoint:

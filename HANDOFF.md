@@ -133,9 +133,27 @@ Current state:
 
 ## Recently Completed Milestones
 
-### App-Level Rate Limiting
+### User Disable → LiveKit Participant Kill
 
 Completed in this milestone.
+
+Implemented:
+
+- `security/livekit_rooms.py`: `remove_user_participants()` calls LiveKit Twirp API via httpx
+- Wired into `admin_disable_user` — after session revocation, removes viewer participants from active rooms
+- Fail-open: errors collected and audited but don't block the disable
+- Graceful placeholder detection — skips when LiveKit creds are `replace-me`
+- `DisableUserResponse` now includes `participants_removed` and `participant_errors`
+- tests cover LiveKit room API behavior and router ACL-room integration; 341 total backend tests passing
+
+Not included:
+
+- Proactive participant scan (only checks rooms the user has ACL for)
+- Gateway participant kill on gateway disable (separate future milestone)
+
+### App-Level Rate Limiting
+
+Completed in prior milestone.
 
 Implemented:
 
@@ -1187,9 +1205,9 @@ $env:PYTHONPATH = "src"; python -m compileall src alembic scripts
 Latest result:
 
 ```text
-pytest: 308 passed
+pytest: 341 passed
 ruff: all checks passed
-mypy: no issues found in 37 source files
+mypy: no issues found in 39 source files
 compileall: passed
 ```
 
@@ -1315,6 +1333,7 @@ Use local/dev placeholders and fail-closed behavior. Do not ask the user to set 
 - `apps/api/src/cctv_api/security/dependencies.py`: auth dependencies
 - `apps/api/src/cctv_api/security/identity.py`: principal identity model
 - `apps/api/src/cctv_api/security/livekit_tokens.py`: LiveKit token helpers
+- `apps/api/src/cctv_api/security/livekit_rooms.py`: LiveKit participant removal helper for user disable
 - `apps/api/src/cctv_api/security/livekit_webhooks.py`: LiveKit webhook Authorization JWT and body-hash verifier
 - `apps/api/src/cctv_api/security/policy.py`: RBAC policy helpers
 - `apps/api/src/cctv_api/security/session_cookie.py`: signed session cookie helpers
@@ -1329,6 +1348,7 @@ Use local/dev placeholders and fail-closed behavior. Do not ask the user to set 
 - `apps/api/tests/test_gateway_command_signing.py`: command signing tests
 - `apps/api/tests/test_gateway_command_queue.py`: command queue persistence tests
 - `apps/api/tests/test_livekit_webhooks.py`: LiveKit webhook receiver tests
+- `apps/api/tests/test_livekit_rooms.py`: LiveKit room participant removal tests
 - `apps/api/tests/test_livekit_tokens.py`: viewer/gateway LiveKit token tests
 - `apps/api/tests/test_privacy_admin_users.py`: privacy notice and admin user list tests
 - `apps/api/tests/test_maintenance.py`: admin maintenance endpoint tests

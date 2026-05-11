@@ -524,6 +524,21 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] All 329 backend tests passing; existing tests unchanged
 - [x] Ruff and mypy clean
 
+### User Disable → LiveKit Participant Kill
+- [x] Created `security/livekit_rooms.py` with `remove_user_participants()` — calls LiveKit Twirp API via httpx
+- [x] Mints short-lived admin JWT for LiveKit server authentication
+- [x] Derives HTTP URL from configured WSS URL (wss:// → https://)
+- [x] Lists participants per room, matches `viewer:{user_id}:*` identities, removes them
+- [x] Fail-open design: errors are collected and audited but do not block the disable flow
+- [x] Gracefully skips when LiveKit credentials are placeholders
+- [x] Wired into `admin_disable_user`: after session revocation, queries user's camera ACLs → room names → removes participants
+- [x] Response includes `participants_removed` and `participant_errors` fields
+- [x] Audit event `admin.user.disabled` payload includes participant removal results
+- [x] Added 12 tests: URL derivation, admin token, placeholder skip, success, multi-room, non-viewer filtering, error handling, and router ACL-room integration
+- [x] Updated existing disable test to assert new response fields
+- [x] All 341 backend tests passing
+- [x] Ruff, mypy, and compileall clean
+
 ---
 
 ## Next Steps (In Order)

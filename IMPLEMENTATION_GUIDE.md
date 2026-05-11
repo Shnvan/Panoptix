@@ -2750,15 +2750,50 @@ This remains opt-in. The default `LiveKitMediaController` and default SDK publis
 
 ---
 
-## 75. Current Verification Status
+## 75. User Disable LiveKit Participant Removal
+
+### What was implemented
+
+Admin user disable now revokes sessions and attempts to remove the disabled user's active LiveKit viewer participants.
+
+### Backend behavior
+
+`admin_disable_user` now:
+
+- marks the user disabled
+- revokes all active sessions
+- queries active, non-retired camera rooms from the user's active camera ACLs
+- calls `remove_user_participants()` for those rooms
+- audits `participants_removed` and `participant_errors`
+- returns participant removal results in the disable response
+
+`cctv_api.security.livekit_rooms` uses LiveKit's Twirp room API through `httpx`, mints a short-lived admin JWT from configured LiveKit credentials, lists participants per room, and removes identities matching `viewer:{user_id}:*`.
+
+The LiveKit removal path is fail-open for disable: API errors are collected and audited, but they do not leave the user enabled. Placeholder credentials skip removal safely.
+
+### Tests cover
+
+- LiveKit HTTP URL derivation
+- LiveKit admin token minting
+- placeholder credential skip
+- participant removal success
+- non-viewer participant filtering
+- multiple-room removal
+- list/remove error collection
+- admin-disable response and audit payloads
+- router ACL-room filtering for active, non-retired camera rooms
+
+---
+
+## 76. Current Verification Status
 
 ### What passed
 
 The latest verification passed:
 
 ```text
-backend pytest: 308 passed
-backend mypy: no issues found in 37 source files
+backend pytest: 341 passed
+backend mypy: no issues found in 39 source files
 backend ruff: all checks passed
 backend compileall: passed
 edge agent pytest: 159 passed

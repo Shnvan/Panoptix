@@ -42,6 +42,7 @@ from cctv_api.security.audit import (
 )
 from cctv_api.security.dependencies import require_authenticated_user
 from cctv_api.security.identity import Principal
+from cctv_api.security.livekit_rooms import remove_user_participants
 from cctv_api.security.livekit_tokens import LiveKitTokenConfigError, mint_viewer_subscribe_token
 from cctv_api.security.policy import require_role
 from cctv_api.security.rate_limit import RateLimitConfig, get_rate_limiter
@@ -276,6 +277,8 @@ class DisableUserResponse(BaseModel):
     user_id: str
     disabled_at: str
     sessions_revoked: int
+    participants_removed: int = 0
+    participant_errors: list[str] = Field(default_factory=list)
 
 
 @v1_router.post("/admin/users/{user_id}/disable")
@@ -298,15 +301,42 @@ def admin_disable_user(
     target_user.disabled_at = now
     db.flush()
     sessions_revoked = revoke_all_user_sessions(db, target_uuid)
+
+    # ── LiveKit participant kill (§13.5 rule 11) ──
+    acl_rooms = (
+        db.execute(
+            select(Camera.livekit_room_name)
+            .join(CameraAcl, CameraAcl.camera_id == Camera.id)
+            .where(CameraAcl.user_id == str(target_uuid))
+            .where(CameraAcl.revoked_at.is_(None))
+            .where(Camera.retired_at.is_(None))
+        )
+        .scalars()
+        .all()
+    )
+    removal = remove_user_participants(settings, user_id=target_uuid, room_names=list(acl_rooms))
+
     actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
     _record_user_audit_required(
         db, settings=settings, request=request, actor_id=actor.id,
         action="admin.user.disabled",
         resource=f"user:{target_uuid}",
-        payload={"user_id": str(target_uuid), "reason": body.reason, "sessions_revoked": sessions_revoked},
+        payload={
+            "user_id": str(target_uuid),
+            "reason": body.reason,
+            "sessions_revoked": sessions_revoked,
+            "participants_removed": removal.participants_removed,
+            "participant_errors": removal.errors,
+        },
     )
     db.commit()
-    return DisableUserResponse(user_id=str(target_uuid), disabled_at=now.isoformat(), sessions_revoked=sessions_revoked)
+    return DisableUserResponse(
+        user_id=str(target_uuid),
+        disabled_at=now.isoformat(),
+        sessions_revoked=sessions_revoked,
+        participants_removed=removal.participants_removed,
+        participant_errors=removal.errors,
+    )
 
 
 @v1_router.get("/privacy/notice")

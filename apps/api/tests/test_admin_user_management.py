@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -10,7 +11,9 @@ from sqlalchemy.orm import Session as DbSession
 from cctv_api.core.config import Settings
 from cctv_api.db import db_session
 from cctv_api.main import create_app
-from cctv_api.models.tables import AuditLog, Role, Session, User, UserRole
+from cctv_api.models.enums import CameraSourceType
+from cctv_api.models.tables import AuditLog, Camera, CameraAcl, Role, Session, User, UserRole
+from cctv_api.security.livekit_rooms import ParticipantRemovalResult
 
 
 _ADMIN_HEADERS = {
@@ -66,6 +69,20 @@ def _seed_session(db: DbSession, *, user_id: uuid.UUID) -> Session:
     db.commit()
     db.refresh(s)
     return s
+
+
+def _seed_camera(db: DbSession, *, room_name: str, retired: bool = False) -> Camera:
+    camera = Camera(
+        id=uuid.uuid4(),
+        display_name=room_name,
+        source_type=CameraSourceType.rtsp,
+        livekit_room_name=room_name,
+        retired_at=datetime.now(timezone.utc) if retired else None,
+    )
+    db.add(camera)
+    db.commit()
+    db.refresh(camera)
+    return camera
 
 
 # ── Role assignment tests ──
@@ -193,6 +210,10 @@ def test_disable_user_success_revokes_sessions_and_audits(test_db_session: DbSes
     assert data["user_id"] == str(user.id)
     assert data["sessions_revoked"] == 2
     assert data["disabled_at"] is not None
+    # LiveKit credentials are placeholders in test settings, so participant
+    # removal should be skipped gracefully
+    assert data["participants_removed"] == 0
+    assert "livekit-credentials-placeholder" in data["participant_errors"]
 
     test_db_session.refresh(user)
     assert user.disabled_at is not None
@@ -205,6 +226,53 @@ def test_disable_user_success_revokes_sessions_and_audits(test_db_session: DbSes
     audit = test_db_session.execute(select(AuditLog).where(AuditLog.action == "admin.user.disabled")).scalar_one()
     assert audit.payload["reason"] == "policy violation"
     assert audit.payload["sessions_revoked"] == 2
+    assert audit.payload["participants_removed"] == 0
+
+
+def test_disable_user_removes_participants_from_active_acl_rooms(
+    test_db_session: DbSession,
+) -> None:
+    user = _seed_user(test_db_session, email="target@example.test")
+    active_camera = _seed_camera(test_db_session, room_name="active-room")
+    retired_camera = _seed_camera(test_db_session, room_name="retired-room", retired=True)
+    revoked_camera = _seed_camera(test_db_session, room_name="revoked-room")
+    test_db_session.add_all(
+        [
+            CameraAcl(user_id=user.id, camera_id=active_camera.id),
+            CameraAcl(user_id=user.id, camera_id=retired_camera.id),
+            CameraAcl(
+                user_id=user.id,
+                camera_id=revoked_camera.id,
+                revoked_at=datetime.now(timezone.utc),
+            ),
+        ]
+    )
+    test_db_session.commit()
+    removal = ParticipantRemovalResult(
+        rooms_checked=1,
+        participants_removed=1,
+        errors=["remove-failed:active-room:viewer:500"],
+    )
+
+    client = _client(test_db_session)
+    with patch("cctv_api.api.router.remove_user_participants", return_value=removal) as remover:
+        resp = client.post(
+            f"/api/v1/admin/users/{user.id}/disable",
+            json={"reason": "policy violation"},
+            headers=_ADMIN_HEADERS,
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["participants_removed"] == 1
+    assert data["participant_errors"] == ["remove-failed:active-room:viewer:500"]
+    remover.assert_called_once()
+    assert str(remover.call_args.kwargs["user_id"]) == str(user.id)
+    assert remover.call_args.kwargs["room_names"] == ["active-room"]
+
+    audit = test_db_session.execute(select(AuditLog).where(AuditLog.action == "admin.user.disabled")).scalar_one()
+    assert audit.payload["participants_removed"] == 1
+    assert audit.payload["participant_errors"] == ["remove-failed:active-room:viewer:500"]
 
 
 def test_disable_already_disabled(test_db_session: DbSession) -> None:

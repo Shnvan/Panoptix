@@ -128,7 +128,7 @@ def test_revoke_session_returns_false_for_unknown_session(test_db_session: DbSes
 
 
 def test_session_not_expired_when_within_limits(test_db_session: DbSession) -> None:
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timezone
 
     from cctv_api.security.sessions import is_session_expired
 
