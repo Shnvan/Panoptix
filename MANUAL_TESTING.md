@@ -2674,6 +2674,8 @@ Security expectations:
 - Keep `mediamtx.local.yml` loopback-only and do not expose RTSP, HLS, WebRTC, RTMP, or mediamtx API listeners to WAN.
 - Stop the supervisor with `Ctrl+C`; it will attempt to stop supervised `mediamtx` before exit.
 
+For host service operation guidance, see `docs/runbooks/edge-gateway-service.md`. That runbook covers Linux systemd, Docker, and Windows/NSSM service shapes without installing services or committing secrets.
+
 ### Run smoke config validation tests
 
 ```powershell

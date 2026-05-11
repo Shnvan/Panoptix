@@ -564,12 +564,19 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Added fake-based tests for supervisor success/failure, mediamtx cleanup, config parsing, and CLI dispatch
 - [x] Edge verification passed: `210 passed`, ruff clean, mypy clean, compileall passed
 
+### Production Host/Service Runbooks
+- [x] Added docs-only `docs/runbooks/edge-gateway-service.md`
+- [x] Covered Docker, Linux systemd, and Windows/NSSM service operation shapes
+- [x] Documented environment-file, startup, shutdown, restart, logging, health verification, rollback, and incident-response checklists
+- [x] Preserved zero-inbound-WAN-port invariant and banned WAN exposure for RTSP, HLS, WebRTC, RTMP, and mediamtx API listeners
+- [x] Linked the runbook from the docs index and manual testing docs
+
 ---
 
 ## Next Steps (In Order)
 
-### 1. Production host/service packaging
-Prepare deployment packaging for the edge gateway runtime, such as Docker/systemd or Windows service runbooks, without installing services or exposing WAN media ports on this development machine.
+### 1. Production service templates
+Convert the approved host/service runbook into reviewed service templates, likely Linux systemd first, without installing services or committing secrets.
 
 ### 2. Later production integration milestones
 Cloudflare production setup prep, Railway/Neon staging deployment, and real RTSP camera credential handling remain future work.
