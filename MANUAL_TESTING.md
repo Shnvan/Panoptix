@@ -2626,6 +2626,7 @@ Secrets removed from shell: yes/no
 Expected interpretation:
 
 - `smoke: PASSED` with `cleanup_ok: True` means the edge smoke path connected, published for the bounded duration, and disconnected cleanly.
+- Transient LiveKit signal retry/timeout logs can appear during connection; judge the run by the final `smoke: PASSED` / `cleanup_ok` result.
 - `livekit-sdk-unavailable` means the optional SDK package is missing from the active Python environment.
 - `smoke-start-failed` usually means LiveKit connection, token, FFmpeg, mediamtx, or RTSP source setup failed.
 - A successful checklist run is not complete until temporary secrets are cleared and no real secret values are captured in notes.

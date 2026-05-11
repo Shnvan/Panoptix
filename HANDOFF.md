@@ -133,9 +133,31 @@ Current state:
 
 ## Recently Completed Milestones
 
-### Real LiveKit Cloud Smoke Checklist
+### Real LiveKit Cloud Smoke Execution
 
 Completed in this milestone.
+
+Result:
+
+- Ran `python -m panoptix_edge_agent.cli --smoke-ffmpeg-livekit` against LiveKit Cloud
+- LiveKit host only: `panoptix-4feff0dr.livekit.cloud`
+- Room: `panoptix-smoke-test`
+- RTSP source: `rtsp://127.0.0.1:8554/synthetic-camera-1`
+- Camera ID: `synthetic-smoke-camera`
+- Requested duration: 10s
+- Result: `smoke: PASSED`, `frames_published: 1`, `duration: 38.84s`, `cleanup_ok: True`
+- Transient LiveKit signal retry/timeout logs occurred, but final result passed and cleanup succeeded
+- LiveKit Cloud smoke secrets were cleared from the shell after the run
+
+Not included:
+
+- API key, API secret, generated JWT, or credential material in committed files
+- Production deployment readiness
+- Making FFmpeg-backed publishing the default edge-agent runtime path
+
+### Real LiveKit Cloud Smoke Checklist
+
+Completed in prior milestone.
 
 Implemented:
 
@@ -147,7 +169,6 @@ Implemented:
 
 Not included:
 
-- Real LiveKit Cloud smoke execution
 - Real credentials, `.env` changes, screenshots, or committed smoke results
 - Making FFmpeg-backed publishing the default edge-agent runtime path
 
@@ -1252,15 +1273,14 @@ compileall: passed
 Recommended next task:
 
 ```text
-Run Real LiveKit Cloud Smoke Manually When Credentials Are Ready
+Production Gateway Supervision
 ```
 
-Use `MANUAL_TESTING.md#27-real-ffmpeg-to-livekit-smoke-test` and the LiveKit Cloud smoke checklist. Do not commit credentials or mark real cloud smoke as passed until it is actually run.
+Plan and implement Docker/systemd-style gateway and mediamtx supervision so the edge runtime can restart safely, expose useful health/status signals, and preserve the zero-inbound-WAN-port invariant.
 
 ## Not Implemented Yet
 
 - real FFmpeg execution
-- real LiveKit Cloud smoke testing
 - real RTSP camera credentials
 - frontend UI
 - production Docker/systemd gateway supervision
@@ -1273,13 +1293,14 @@ Use `MANUAL_TESTING.md#27-real-ffmpeg-to-livekit-smoke-test` and the LiveKit Clo
 
 Do not require these yet for current local work:
 
-- LiveKit Cloud
 - Google Workspace
 - Cloudflare Access
 - Railway
 - Neon
 - R2
 - Sentry/Better Stack/UptimeRobot
+
+LiveKit Cloud was used for a bounded smoke test only. No LiveKit API key, API secret, generated JWT, or credential material should be committed.
 
 Use local/dev placeholders and fail-closed behavior. Do not ask the user to set up external accounts until local protocol foundations are ready.
 

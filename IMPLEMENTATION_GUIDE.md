@@ -2807,7 +2807,35 @@ This is a runbook/checklist milestone only. It does not mark real LiveKit Cloud 
 
 ---
 
-## 77. Current Verification Status
+## 77. Real LiveKit Cloud Smoke Execution
+
+### What was verified
+
+The existing edge-agent `--smoke-ffmpeg-livekit` path successfully published synthetic RTSP video to a real LiveKit Cloud project and disconnected cleanly.
+
+### Smoke setup
+
+- LiveKit host only: `panoptix-4feff0dr.livekit.cloud`
+- Room: `panoptix-smoke-test`
+- Camera ID: `synthetic-smoke-camera`
+- RTSP source: `rtsp://127.0.0.1:8554/synthetic-camera-1`
+- Requested duration: 10s
+- Local media path: mediamtx with repo config plus FFmpeg synthetic `testsrc`
+
+### Result
+
+```text
+smoke: PASSED
+frames_published: 1
+duration: 38.84s
+cleanup_ok: True
+```
+
+Transient LiveKit signal retry/timeout logs appeared during connection, but the final smoke result passed and cleanup succeeded. LiveKit Cloud smoke secrets were cleared from the shell after the run and are not stored in the repository.
+
+---
+
+## 78. Current Verification Status
 
 ### What passed
 
@@ -3019,18 +3047,17 @@ This closes the loop between the backend command flow and real media publishing.
 The following are intentionally not done yet:
 
 - frontend UI
-- real LiveKit Cloud smoke testing
 - production Docker/systemd gateway supervision
 
 ---
 
 ## Next Recommended Implementation Order
 
-### 1. TBD - Next milestone to be determined
+### 1. Production Gateway Supervision
 
-Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
+Plan and implement Docker/systemd-style gateway and mediamtx supervision so the edge runtime can restart safely, expose useful health/status signals, and preserve the zero-inbound-WAN-port invariant.
 
-Possible candidates: real LiveKit Cloud smoke checklist, production Docker/systemd gateway supervision, Cloudflare production setup prep.
+Later candidates: Cloudflare production setup prep, Railway/Neon staging deployment, and real RTSP camera credential handling.
 
 ---
 
@@ -3077,6 +3104,7 @@ The system now has:
 - LiveKit publisher/controller foundation
 - live media controller wiring with opt-in livekit-ffmpeg mode
 - synthetic end-to-end publish dry-run harness
+- successful real LiveKit Cloud smoke test with synthetic RTSP source
 - passing backend and edge-agent tests, type checks, and lint checks
 
 The most important security idea so far is:

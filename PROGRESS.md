@@ -547,15 +547,24 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Added smoke result template that captures host/room/result metadata without credentials
 - [x] Clarified this is a runbook/checklist milestone; real cloud smoke is not marked passed until manually run with real temporary credentials
 
+### Real LiveKit Cloud Smoke Execution
+- [x] Ran `python -m panoptix_edge_agent.cli --smoke-ffmpeg-livekit` against LiveKit Cloud
+- [x] Used synthetic RTSP source `rtsp://127.0.0.1:8554/synthetic-camera-1`
+- [x] Published to LiveKit host `panoptix-4feff0dr.livekit.cloud`, room `panoptix-smoke-test`
+- [x] Smoke result: `smoke: PASSED`, `frames_published: 1`, `duration: 38.84s`, `cleanup_ok: True`
+- [x] Observed transient LiveKit signal retry/timeout logs, but final smoke result passed and cleanup succeeded
+- [x] Cleared LiveKit Cloud smoke secrets from the shell after the run
+- [x] No API key, API secret, generated JWT, or credential material committed
+
 ---
 
 ## Next Steps (In Order)
 
-### 1. Run Real LiveKit Cloud Smoke Manually When Credentials Are Ready
-Use `MANUAL_TESTING.md#27-real-ffmpeg-to-livekit-smoke-test` and the LiveKit Cloud smoke checklist. Do not commit real credentials or mark the smoke passed until it is actually run.
+### 1. Production Gateway Supervision
+Plan and implement Docker/systemd-style gateway and mediamtx supervision so the edge runtime can restart safely, expose useful health/status signals, and preserve the zero-inbound-WAN-port invariant.
 
-### 2. TBD - Next code milestone to be determined
-Likely candidates: production gateway supervision, Cloudflare production setup prep, or real RTSP camera credential handling.
+### 2. Later production integration milestones
+Cloudflare production setup prep, Railway/Neon staging deployment, and real RTSP camera credential handling remain future work.
 
 ---
 
