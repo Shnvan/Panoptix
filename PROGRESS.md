@@ -461,12 +461,36 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Added tests for config handoff, opt-in publisher construction, fake frame publish, cleanup, and token-safe start failure
 - [x] Preserved opt-in behavior: default controller/publisher behavior still does not launch FFmpeg or require LiveKit credentials
 
+### Real Local FFmpeg/LiveKit Smoke Scaffold
+- [x] Added `smoke_config.py` with fail-closed environment variable validation for manual smoke tests
+- [x] Added `smoke_ffmpeg_livekit.py` with async smoke runner, standalone HS256 JWT token minting, and structured result reporting
+- [x] Added `--smoke-ffmpeg-livekit` CLI flag that bypasses backend config requirements and runs against real local FFmpeg/LiveKit
+- [x] Smoke config validates LiveKit URL scheme, RTSP URL scheme/credentials, API secret minimum length, FFmpeg binary PATH presence, and duration bounds
+- [x] Smoke runner mints a short-lived publish-only LiveKit token locally without requiring the backend API
+- [x] Token minting uses a standalone HS256 JWT encoder to avoid requiring PyJWT on the edge agent
+- [x] Added 20 smoke config validation tests and 9 smoke runner tests using fake SDK/FFmpeg objects
+- [x] No real credentials, real LiveKit Cloud accounts, or real cameras are committed to the repo
+- [x] Existing 159 tests remain unchanged and passing; total test count is now 187
+- [x] Preserved CCTV-only invariant: browser/viewer clients still never publish media
+
+### Live Media Controller Wiring
+- [x] Added `media_factory.py` with `build_media_controller(config)` factory that selects `StubMediaController` or `LiveKitMediaController` based on `PANOPTIX_MEDIA_PUBLISHER_MODE`
+- [x] Added `media_publisher_mode`, `media_source_url`, `media_width`, `media_height`, `media_frame_rate`, and `media_ffmpeg_binary` to `AgentConfig`
+- [x] Updated `cli.py` to build the media controller once and pass a shared `CommandExecutor` to both `HeartbeatRunner` and `GatewayControlClient`
+- [x] When `livekit-ffmpeg` mode is set, the factory builds the real `LiveKitMediaController` backed by `LiveKitSdkPublisherClient` and `FfmpegVideoTrackMediaSessionFactory`
+- [x] When the LiveKit SDK is unavailable, the factory falls back to `StubMediaController` with an error marker (no crash)
+- [x] `PANOPTIX_MEDIA_SOURCE_URL` validation only applies when mode is `livekit-ffmpeg` (stub mode skips it)
+- [x] Added 12 media factory tests covering stub default, livekit-ffmpeg wiring with fakes, SDK fallback, config validation
+- [x] Existing 187 tests remain unchanged and passing; total test count is now 199
+- [x] Default behavior unchanged: `stub` mode is the default, no real services required
+- [x] Preserved CCTV-only invariant: browser/viewer clients still never publish media
+
 ---
 
 ## Next Steps (In Order)
 
 ### 1. TBD - Next milestone to be determined
-Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone. Real FFmpeg execution, real LiveKit Cloud smoke testing, real camera credentials, and production gateway supervision remain future work.
+Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone. Real LiveKit Cloud smoke testing, production gateway supervision, and real RTSP camera credentials remain future work.
 
 ---
 

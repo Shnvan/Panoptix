@@ -2407,3 +2407,134 @@ Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_cameras.py -v
 ```
+
+## 27. Real FFmpeg-to-LiveKit Smoke Test
+
+The `--smoke-ffmpeg-livekit` CLI flag runs the real FFmpeg-to-LiveKit media pipeline for a bounded duration. This is a manual-only test path that requires real FFmpeg, a real RTSP source (e.g., mediamtx with synthetic testsrc), and a real LiveKit server.
+
+### Prerequisites
+
+- FFmpeg installed and on PATH
+- mediamtx installed and running with synthetic RTSP source
+- LiveKit server accessible (local dev `livekit-server --dev` or LiveKit Cloud)
+- `livekit` Python package installed (`pip install livekit`)
+- No backend API server required — this runs locally on the edge agent
+
+### Required environment variables
+
+Set these in the PowerShell session before running:
+
+```powershell
+$env:PANOPTIX_SMOKE_LIVEKIT_URL = "ws://127.0.0.1:7880"
+$env:PANOPTIX_SMOKE_LIVEKIT_API_KEY = "devkey"
+$env:PANOPTIX_SMOKE_LIVEKIT_API_SECRET = "secret-with-at-least-thirty-two-bytes"
+```
+
+Do not use real production secrets. These values are for local testing only.
+
+### Optional environment variables
+
+```powershell
+$env:PANOPTIX_SMOKE_RTSP_URL = "rtsp://127.0.0.1:8554/synthetic-camera-1"
+$env:PANOPTIX_SMOKE_ROOM = "smoke-test-room"
+$env:PANOPTIX_SMOKE_CAMERA_ID = "smoke-test-camera"
+$env:PANOPTIX_SMOKE_DURATION_SECONDS = "10"
+$env:PANOPTIX_SMOKE_WIDTH = "640"
+$env:PANOPTIX_SMOKE_HEIGHT = "480"
+$env:PANOPTIX_SMOKE_FRAME_RATE = "15"
+$env:PANOPTIX_SMOKE_FFMPEG_BINARY = "ffmpeg"
+```
+
+### Step-by-step
+
+Terminal 1 — start mediamtx:
+
+```powershell
+mediamtx mediamtx.local.yml
+```
+
+Terminal 2 — start the synthetic RTSP source:
+
+```powershell
+ffmpeg -re -f lavfi -i "testsrc=size=640x480:rate=15" -c:v libx264 -pix_fmt yuv420p -preset veryfast -tune zerolatency -f rtsp rtsp://127.0.0.1:8554/synthetic-camera-1
+```
+
+Terminal 3 — run the smoke test:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+$env:PANOPTIX_SMOKE_LIVEKIT_URL = "ws://127.0.0.1:7880"
+$env:PANOPTIX_SMOKE_LIVEKIT_API_KEY = "devkey"
+$env:PANOPTIX_SMOKE_LIVEKIT_API_SECRET = "secret-with-at-least-thirty-two-bytes"
+$env:PANOPTIX_SMOKE_DURATION_SECONDS = "10"
+python -m panoptix_edge_agent.cli --smoke-ffmpeg-livekit
+```
+
+### Expected pass output
+
+```text
+smoke: starting FFmpeg-to-LiveKit smoke test
+  livekit_url: ws://127.0.0.1:7880
+  rtsp_url:    rtsp://127.0.0.1:8554/synthetic-camera-1
+  room:        smoke-test-room
+  camera_id:   smoke-test-camera
+  duration:    10s
+  resolution:  640x480@15fps
+smoke: PASSED
+  frames_published: 1
+  duration:         10.01s
+  cleanup_ok:       True
+```
+
+### Expected fail output
+
+Missing LiveKit SDK:
+
+```text
+smoke: FAILED — livekit-sdk-unavailable
+```
+
+Missing environment variables:
+
+```text
+smoke config error: PANOPTIX_SMOKE_LIVEKIT_URL is required
+```
+
+FFmpeg not found:
+
+```text
+smoke config error: PANOPTIX_SMOKE_FFMPEG_BINARY 'ffmpeg' was not found on PATH
+```
+
+### Troubleshooting
+
+- If the smoke test fails with `livekit-sdk-unavailable`, install the LiveKit SDK: `pip install livekit`
+- If it fails with `smoke-start-failed`, check that mediamtx is running and the RTSP source is publishing
+- If it fails with `smoke-token-mint-failed`, check that your API key/secret are valid
+- The API secret must be at least 32 characters; short secrets are rejected
+- The smoke test does not use the backend API server — it mints tokens locally
+
+### Using livekit-ffmpeg mode for the edge agent
+
+To make the edge agent use real FFmpeg/LiveKit publishing when receiving `start_publish` commands from the backend, set:
+
+```powershell
+$env:PANOPTIX_MEDIA_PUBLISHER_MODE = "livekit-ffmpeg"
+$env:PANOPTIX_MEDIA_SOURCE_URL = "rtsp://127.0.0.1:8554/synthetic-camera-1"
+$env:PANOPTIX_MEDIA_WIDTH = "640"
+$env:PANOPTIX_MEDIA_HEIGHT = "480"
+$env:PANOPTIX_MEDIA_FRAME_RATE = "15"
+```
+
+This is separate from the `--smoke-ffmpeg-livekit` manual smoke test. The media publisher mode controls the behavior of the normal heartbeat/control command paths.
+
+Default mode is `stub` -- commands are accepted but no real media is published.
+
+### Run smoke config validation tests
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_smoke_config.py tests/test_smoke_ffmpeg_livekit.py -v
+```

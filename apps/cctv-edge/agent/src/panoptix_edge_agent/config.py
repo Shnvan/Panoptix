@@ -29,6 +29,12 @@ class AgentConfig:
     synthetic_video_size: str = "1280x720"
     synthetic_frame_rate: int = 30
     synthetic_audio_frequency: int = 1000
+    media_publisher_mode: str = "stub"
+    media_source_url: str = "rtsp://127.0.0.1:8554/synthetic-camera-1"
+    media_width: int = 640
+    media_height: int = 480
+    media_frame_rate: int = 15
+    media_ffmpeg_binary: str = "ffmpeg"
 
     @property
     def normalized_api_base_url(self) -> str:
@@ -59,6 +65,15 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
     synthetic_video_size = env.get("PANOPTIX_SYNTHETIC_VIDEO_SIZE", "1280x720").strip()
     synthetic_frame_rate = _int_value(env, "PANOPTIX_SYNTHETIC_FRAME_RATE", 30)
     synthetic_audio_frequency = _int_value(env, "PANOPTIX_SYNTHETIC_AUDIO_FREQUENCY", 1000)
+    media_publisher_mode = env.get("PANOPTIX_MEDIA_PUBLISHER_MODE", "stub").strip().lower()
+    media_source_url = env.get(
+        "PANOPTIX_MEDIA_SOURCE_URL",
+        "rtsp://127.0.0.1:8554/synthetic-camera-1",
+    ).strip()
+    media_width = _int_value(env, "PANOPTIX_MEDIA_WIDTH", 640)
+    media_height = _int_value(env, "PANOPTIX_MEDIA_HEIGHT", 480)
+    media_frame_rate = _int_value(env, "PANOPTIX_MEDIA_FRAME_RATE", 15)
+    media_ffmpeg_binary = env.get("PANOPTIX_MEDIA_FFMPEG_BINARY", "ffmpeg").strip() or "ffmpeg"
 
     if heartbeat_interval_seconds < 5:
         raise ConfigError("PANOPTIX_HEARTBEAT_INTERVAL_SECONDS must be at least 5")
@@ -78,6 +93,18 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
         raise ConfigError("PANOPTIX_SYNTHETIC_FRAME_RATE must be at least 1")
     if synthetic_audio_frequency < 1:
         raise ConfigError("PANOPTIX_SYNTHETIC_AUDIO_FREQUENCY must be at least 1")
+    if media_publisher_mode not in {"stub", "livekit-ffmpeg"}:
+        raise ConfigError("PANOPTIX_MEDIA_PUBLISHER_MODE must be 'stub' or 'livekit-ffmpeg'")
+    if media_publisher_mode == "livekit-ffmpeg":
+        _validate_rtsp_url(media_source_url, "PANOPTIX_MEDIA_SOURCE_URL")
+        if media_width < 1:
+            raise ConfigError("PANOPTIX_MEDIA_WIDTH must be at least 1")
+        if media_height < 1:
+            raise ConfigError("PANOPTIX_MEDIA_HEIGHT must be at least 1")
+        if media_frame_rate < 1:
+            raise ConfigError("PANOPTIX_MEDIA_FRAME_RATE must be at least 1")
+        if not media_ffmpeg_binary:
+            raise ConfigError("PANOPTIX_MEDIA_FFMPEG_BINARY is required")
 
     return AgentConfig(
         api_base_url=api_base_url,
@@ -95,6 +122,12 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
         synthetic_video_size=synthetic_video_size,
         synthetic_frame_rate=synthetic_frame_rate,
         synthetic_audio_frequency=synthetic_audio_frequency,
+        media_publisher_mode=media_publisher_mode,
+        media_source_url=media_source_url,
+        media_width=media_width,
+        media_height=media_height,
+        media_frame_rate=media_frame_rate,
+        media_ffmpeg_binary=media_ffmpeg_binary,
     )
 
 

@@ -133,9 +133,53 @@ Current state:
 
 ## Recently Completed Milestones
 
-### Synthetic FFmpeg-to-LiveKit Local Smoke Wiring
+### Live Media Controller Wiring
 
 Completed in this milestone.
+
+Implemented:
+
+- `media_factory.py` provides `build_media_controller(config)` that selects `StubMediaController` or `LiveKitMediaController` based on `PANOPTIX_MEDIA_PUBLISHER_MODE`
+- `AgentConfig` now includes `media_publisher_mode`, `media_source_url`, `media_width`, `media_height`, `media_frame_rate`, and `media_ffmpeg_binary`
+- `cli.py` builds the media controller once and passes a shared `CommandExecutor` to both `HeartbeatRunner` and `GatewayControlClient`
+- when `livekit-ffmpeg` mode is set, the factory builds the real `LiveKitMediaController` backed by `LiveKitSdkPublisherClient` and `FfmpegVideoTrackMediaSessionFactory`
+- when the LiveKit SDK is unavailable, the factory falls back to `StubMediaController` with an error marker
+- default behavior is unchanged: `stub` mode, no real services required
+
+Not included:
+
+- making `livekit-ffmpeg` the default mode
+- real LiveKit Cloud smoke testing
+- production Docker/systemd gateway supervision
+- browser, webcam, phone, or frontend publishing
+- external account setup
+
+### Real Local FFmpeg/LiveKit Smoke Scaffold
+
+Completed in prior milestone.
+
+Implemented:
+
+- `smoke_config.py` provides fail-closed environment variable validation for manual smoke tests
+- `smoke_ffmpeg_livekit.py` provides an async smoke runner that mints a short-lived LiveKit publish token locally, builds the real FFmpeg-to-LiveKit pipeline, runs for a bounded duration, and reports structured results
+- `--smoke-ffmpeg-livekit` CLI flag bypasses backend config requirements and runs the real media path against explicit local services
+- standalone HS256 JWT token minting avoids requiring PyJWT on the edge agent
+- smoke config validates LiveKit URL scheme, RTSP URL scheme/credentials, API secret minimum length, FFmpeg binary PATH presence, and duration bounds
+- 20 smoke config validation tests and 9 smoke runner tests use fake SDK/FFmpeg objects
+- no real credentials, real LiveKit Cloud accounts, or real cameras are committed to the repo
+
+Not included:
+
+- making FFmpeg-backed publishing the default edge-agent controller path
+- real LiveKit Cloud smoke testing
+- real RTSP camera credentials
+- production Docker/systemd gateway supervision
+- browser, webcam, phone, or frontend publishing
+- external account setup
+
+### Synthetic FFmpeg-to-LiveKit Local Smoke Wiring
+
+Completed in prior milestone.
 
 Implemented:
 

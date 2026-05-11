@@ -2805,12 +2805,87 @@ This confirms the current backend and edge-agent code is working, typed correctl
 
 ---
 
+## 36. Real Local FFmpeg/LiveKit Smoke Scaffold
+
+### What was implemented
+
+The edge agent CLI now has a `--smoke-ffmpeg-livekit` flag that runs the real FFmpeg-to-LiveKit media pipeline against local services for a bounded duration:
+
+```text
+apps/cctv-edge/agent/src/panoptix_edge_agent/smoke_config.py
+apps/cctv-edge/agent/src/panoptix_edge_agent/smoke_ffmpeg_livekit.py
+```
+
+Config module (`smoke_config.py`):
+
+- reads explicit `PANOPTIX_SMOKE_*` environment variables
+- validates LiveKit URL scheme (`ws://` or `wss://`), RTSP URL scheme, API secret minimum length (32 chars), FFmpeg binary PATH presence, duration bounds (3-120s)
+- rejects placeholder values, embedded credentials, and empty/missing required vars
+- returns a frozen `SmokeConfig` dataclass
+
+Smoke runner (`smoke_ffmpeg_livekit.py`):
+
+- mints a short-lived LiveKit publish-only token locally using a standalone HS256 JWT encoder (no PyJWT required)
+- builds the real `FfmpegRtspFrameSource` + `LiveKitVideoTrackMediaSession` pipeline
+- connects to the real LiveKit server, publishes frames for the configured duration, then disconnects
+- reports a structured `SmokeResult` with OK/error, frames published, duration, and cleanup status
+- all errors are caught and reported -- never crashes with a raw traceback
+
+CLI (`cli.py`):
+
+- `--smoke-ffmpeg-livekit` bypasses the normal `load_config_from_env()` call
+- prints structured pass/fail output
+- returns exit code 0 (pass), 1 (fail), or 2 (config error)
+
+### How it works
+
+1. Developer sets `PANOPTIX_SMOKE_LIVEKIT_URL`, `PANOPTIX_SMOKE_LIVEKIT_API_KEY`, and `PANOPTIX_SMOKE_LIVEKIT_API_SECRET` in their shell
+2. `--smoke-ffmpeg-livekit` validates all env vars via `smoke_config.py`
+3. The runner mints a local HS256 JWT with publish-only grants for the configured room
+4. The runner builds the real FFmpeg-to-LiveKit pipeline and publishes frames for the configured duration
+5. The runner disconnects, kills FFmpeg, and reports results
+
+### Why it matters
+
+This is the first milestone that can exercise the full real media path (FFmpeg -> RTSP -> raw frames -> LiveKit video track) without requiring the backend API server. It is strictly opt-in, manual-only, and does not commit any real credentials.
+
+---
+
+## 37. Live Media Controller Wiring
+
+### What was implemented
+
+The edge agent now selects its media controller based on the `PANOPTIX_MEDIA_PUBLISHER_MODE` environment variable:
+
+```text
+apps/cctv-edge/agent/src/panoptix_edge_agent/media_factory.py
+```
+
+- `stub` (default): No-op `StubMediaController` -- commands are accepted but no real media is published
+- `livekit-ffmpeg`: Real `LiveKitMediaController` backed by `LiveKitSdkPublisherClient` and `FfmpegVideoTrackMediaSessionFactory`
+
+The CLI (`cli.py`) now builds the media controller once from config and passes a shared `CommandExecutor` to both `HeartbeatRunner` and `GatewayControlClient`, ensuring all command paths use the same controller.
+
+### How it works
+
+1. On startup, `cli.py` calls `build_media_controller(config)`
+2. The factory checks `config.media_publisher_mode`
+3. For `stub` mode: returns `StubMediaController()`
+4. For `livekit-ffmpeg` mode: lazy-loads the LiveKit SDK, builds `FfmpegVideoTrackMediaSessionFactory` with config dimensions, builds `LiveKitSdkPublisherClient`, and wraps it in `LiveKitMediaController` with the configured `source_url`
+5. If the LiveKit SDK is unavailable, the factory falls back to `StubMediaController` with an error marker (warning printed to stderr)
+6. A single `CommandExecutor` is created with the chosen controller and shared across all command paths
+
+### Why it matters
+
+This closes the loop between the backend command flow and real media publishing. When the backend sends a `start_publish` command, the edge agent can now actually start FFmpeg, read RTSP frames, and publish them to a LiveKit server -- all controlled by a single opt-in environment variable.
+
+---
+
 ## What Is Not Implemented Yet
 
 The following are intentionally not done yet:
 
 - frontend UI
-- real FFmpeg execution
 - real LiveKit Cloud smoke testing
 - production Docker/systemd gateway supervision
 
@@ -2822,7 +2897,7 @@ The following are intentionally not done yet:
 
 Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
 
-Possible candidates: real local FFmpeg/LiveKit smoke test, production Docker/systemd gateway supervision, Cloudflare production setup prep.
+Possible candidates: real LiveKit Cloud smoke checklist, production Docker/systemd gateway supervision, Cloudflare production setup prep.
 
 ---
 
@@ -2867,6 +2942,7 @@ The system now has:
 - local-only mediamtx runtime config scaffold
 - mediamtx process-management scaffold
 - LiveKit publisher/controller foundation
+- live media controller wiring with opt-in livekit-ffmpeg mode
 - synthetic end-to-end publish dry-run harness
 - passing backend and edge-agent tests, type checks, and lint checks
 
