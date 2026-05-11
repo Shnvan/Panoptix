@@ -80,8 +80,15 @@ def test_security_headers_are_added_to_success_response() -> None:
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["referrer-policy"] == "no-referrer"
     assert response.headers["x-frame-options"] == "DENY"
-    assert response.headers["permissions-policy"] == "camera=(), microphone=(), geolocation=()"
+    assert "camera=()" in response.headers["permissions-policy"]
+    assert "microphone=()" in response.headers["permissions-policy"]
+    assert "display-capture=()" in response.headers["permissions-policy"]
     assert "default-src 'none'" in response.headers["content-security-policy"]
+    assert "connect-src 'self'" in response.headers["content-security-policy"]
+    assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+    assert response.headers["strict-transport-security"] == "max-age=63072000; includeSubDomains; preload"
+    assert response.headers["cross-origin-opener-policy"] == "same-origin"
+    assert response.headers["cross-origin-resource-policy"] == "same-origin"
 
 
 def test_security_headers_are_added_to_problem_response(client: TestClient) -> None:
@@ -91,6 +98,117 @@ def test_security_headers_are_added_to_problem_response(client: TestClient) -> N
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["referrer-policy"] == "no-referrer"
     assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["strict-transport-security"] == "max-age=63072000; includeSubDomains; preload"
+    assert response.headers["cross-origin-opener-policy"] == "same-origin"
+
+
+def test_csp_includes_livekit_connect_src_when_configured() -> None:
+    app = create_app(
+        settings=Settings(
+            APP_ENV="development",
+            ALLOW_DEV_AUTH=True,
+            LIVEKIT_CONNECT_SRC="wss://my-project.livekit.cloud",
+        )
+    )
+    client = TestClient(app)
+
+    response = client.get("/api/v1/me", headers={"x-panoptix-dev-auth": "1"})
+
+    csp = response.headers["content-security-policy"]
+    assert "connect-src 'self' wss://my-project.livekit.cloud" in csp
+
+
+def test_csp_omits_placeholder_livekit_connect_src() -> None:
+    app = create_app(
+        settings=Settings(
+            APP_ENV="development",
+            ALLOW_DEV_AUTH=True,
+            LIVEKIT_CONNECT_SRC="wss://replace-me.livekit.cloud",
+        )
+    )
+    client = TestClient(app)
+
+    response = client.get("/api/v1/me", headers={"x-panoptix-dev-auth": "1"})
+
+    csp = response.headers["content-security-policy"]
+    assert "replace-me" not in csp
+    assert "connect-src 'self'" in csp
+
+
+def test_csp_uses_fallback_livekit_url_when_mode_is_fallback() -> None:
+    app = create_app(
+        settings=Settings(
+            APP_ENV="development",
+            ALLOW_DEV_AUTH=True,
+            LIVEKIT_MODE="fallback",
+            LIVEKIT_FALLBACK_URL="wss://livekit.mysite.test",
+        )
+    )
+    client = TestClient(app)
+
+    response = client.get("/api/v1/me", headers={"x-panoptix-dev-auth": "1"})
+
+    csp = response.headers["content-security-policy"]
+    assert "wss://livekit.mysite.test" in csp
+
+
+def test_cors_not_emitted_for_gateway_routes() -> None:
+    app = create_app(
+        settings=Settings(
+            APP_ENV="development",
+            ALLOW_DEV_AUTH=True,
+            APP_PUBLIC_BASE_URL="https://cctv.real-domain.test",
+        )
+    )
+    client = TestClient(app)
+
+    response = client.get(
+        "/api/v1/gateways/00000000-0000-0000-0000-000000000001/heartbeat",
+        headers={"x-panoptix-dev-gateway-id": "00000000-0000-0000-0000-000000000001"},
+    )
+
+    assert "access-control-allow-origin" not in response.headers
+
+
+def test_cors_emitted_for_browser_routes_with_real_origin() -> None:
+    app = create_app(
+        settings=Settings(
+            APP_ENV="development",
+            ALLOW_DEV_AUTH=True,
+            APP_PUBLIC_BASE_URL="https://cctv.real-domain.test",
+        )
+    )
+    client = TestClient(app)
+
+    response = client.get("/api/v1/me", headers={"x-panoptix-dev-auth": "1"})
+
+    assert response.headers["access-control-allow-origin"] == "https://cctv.real-domain.test"
+    assert response.headers["access-control-allow-credentials"] == "true"
+
+
+def test_cors_not_emitted_with_placeholder_origin() -> None:
+    app = create_app(
+        settings=Settings(
+            APP_ENV="development",
+            ALLOW_DEV_AUTH=True,
+            APP_PUBLIC_BASE_URL="https://cctv.example.test",
+        )
+    )
+    client = TestClient(app)
+
+    response = client.get("/api/v1/me", headers={"x-panoptix-dev-auth": "1"})
+
+    assert "access-control-allow-origin" not in response.headers
+
+
+def test_csp_includes_media_src_blob() -> None:
+    app = create_app(settings=Settings(APP_ENV="development", ALLOW_DEV_AUTH=True))
+    client = TestClient(app)
+
+    response = client.get("/api/v1/me", headers={"x-panoptix-dev-auth": "1"})
+
+    csp = response.headers["content-security-policy"]
+    assert "media-src blob:" in csp
 
 
 def test_dev_auth_header_fails_when_disabled(client: TestClient) -> None:

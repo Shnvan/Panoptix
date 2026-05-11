@@ -485,6 +485,19 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Default behavior unchanged: `stub` mode is the default, no real services required
 - [x] Preserved CCTV-only invariant: browser/viewer clients still never publish media
 
+### CSP, CORS, and Security Headers Hardening
+- [x] Expanded `headers.py` with full v4-plan security headers per sections 16.5 and 16.13
+- [x] Added `Strict-Transport-Security` with HSTS preload (2-year max-age, includeSubDomains)
+- [x] Added `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Resource-Policy: same-origin`
+- [x] Expanded `Permissions-Policy` to include all five directives: `camera=(), microphone=(), geolocation=(), autoplay=(self), display-capture=()`
+- [x] Added dynamic CSP `connect-src` that includes the active LiveKit origin based on `LIVEKIT_MODE` (cloud or fallback)
+- [x] CSP includes `media-src blob:` for LiveKit SDK, `form-action 'self'`, and omits placeholder LiveKit URLs
+- [x] Added per-route CORS policy: browser routes get exact origin + credentials; gateway and webhook routes get NO CORS headers
+- [x] Server and X-Powered-By banners stripped from all responses
+- [x] Added 8 new security tests for HSTS, COOP/CORP, dynamic CSP, CORS per-route policy, and media-src
+- [x] All 315 backend tests passing; existing tests updated for expanded header assertions
+- [x] Preserved CCTV-only invariant: `Permissions-Policy: camera=(), microphone=()` is the technical enforcement of Inv 5
+
 ---
 
 ## Next Steps (In Order)

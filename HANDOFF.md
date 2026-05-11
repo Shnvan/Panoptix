@@ -133,9 +133,30 @@ Current state:
 
 ## Recently Completed Milestones
 
-### Live Media Controller Wiring
+### CSP, CORS, and Security Headers Hardening
 
 Completed in this milestone.
+
+Implemented:
+
+- Full v4-plan security headers per sections 16.5 and 16.13
+- HSTS preload, COOP `same-origin`, CORP `same-origin`
+- Dynamic CSP `connect-src` that includes the active LiveKit origin based on `LIVEKIT_MODE`
+- `media-src blob:` for LiveKit SDK video playback
+- Expanded `Permissions-Policy` with all five directives (Inv 5 defence in depth)
+- Per-route CORS policy: browser routes get exact origin, gateway/webhook routes denied
+- Server/X-Powered-By banner stripping
+- 8 new security tests; 315 total backend tests passing
+
+Not included:
+
+- CSP nonces (requires Next.js frontend integration — frontend coworker)
+- Trusted Types (requires frontend integration)
+- COEP `require-corp` (deferred until LiveKit SDK compatibility is verified)
+
+### Live Media Controller Wiring
+
+Completed in prior milestone.
 
 Implemented:
 
@@ -145,14 +166,6 @@ Implemented:
 - when `livekit-ffmpeg` mode is set, the factory builds the real `LiveKitMediaController` backed by `LiveKitSdkPublisherClient` and `FfmpegVideoTrackMediaSessionFactory`
 - when the LiveKit SDK is unavailable, the factory falls back to `StubMediaController` with an error marker
 - default behavior is unchanged: `stub` mode, no real services required
-
-Not included:
-
-- making `livekit-ffmpeg` the default mode
-- real LiveKit Cloud smoke testing
-- production Docker/systemd gateway supervision
-- browser, webcam, phone, or frontend publishing
-- external account setup
 
 ### Real Local FFmpeg/LiveKit Smoke Scaffold
 

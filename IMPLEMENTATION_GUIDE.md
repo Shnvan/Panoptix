@@ -2851,6 +2851,31 @@ This is the first milestone that can exercise the full real media path (FFmpeg -
 
 ---
 
+## 38. CSP, CORS, and Security Headers Hardening
+
+### What was implemented
+
+The backend security headers middleware was expanded to implement the full v4-plan requirements from sections 16.5 and 16.13.
+
+### Headers applied to all responses
+
+- Strict-Transport-Security with HSTS preload
+- Cross-Origin-Opener-Policy same-origin
+- Cross-Origin-Resource-Policy same-origin
+- X-Content-Type-Options nosniff
+- Referrer-Policy no-referrer
+- X-Frame-Options DENY
+- Permissions-Policy with all five directives
+- Dynamic Content-Security-Policy with connect-src for active LiveKit origin
+
+### Per-route CORS policy
+
+- Browser-facing routes: exact origin + credentials
+- Gateway routes: NO CORS headers (not browser-callable)
+- Webhook route: NO CORS headers (server-to-server only)
+
+---
+
 ## 37. Live Media Controller Wiring
 
 ### What was implemented
