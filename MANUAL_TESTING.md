@@ -2676,6 +2676,38 @@ Security expectations:
 
 For host service operation guidance, see `docs/runbooks/edge-gateway-service.md`. That runbook covers Linux systemd, Docker, and Windows/NSSM service shapes without installing services or committing secrets.
 
+### Review Cloudflare production setup prep
+
+The docs-only Cloudflare production setup checklist is available at `docs/runbooks/cloudflare-production-setup.md`.
+
+To review the Cloudflare prep locally:
+
+```powershell
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\cloudflare-production-setup.md
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\cf-access-rollback.md
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\.env.example
+```
+
+Verification checks:
+
+- The runbook contains only placeholder Cloudflare values, not real account IDs, audience IDs, JWTs, or secrets.
+- Production environments must set `APP_ENV=production` and `ALLOW_DEV_AUTH=0`.
+- `CF_ACCESS_ISSUER`, `CF_ACCESS_JWKS_URL`, `CF_ACCESS_AUD_DASHBOARD`, `CF_ACCESS_AUD_ADMIN`, and `CF_ACCESS_AUD_GATEWAY` must be provisioned from the deployment secret store.
+- Browser/admin traffic uses `cf-access-jwt-assertion`; gateway HTTP traffic uses `x-panoptix-gateway-id` plus `Authorization: Bearer <gateway-service-token>`.
+- Gateway routes must not accept browser JWTs as gateway credentials.
+- Same-domain routing must send UI, API, health, gateway HTTP, and gateway WebSocket paths to the correct services.
+- Rollback steps are documented in `docs/runbooks/cf-access-rollback.md`.
+
+Optional backend test reference:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_cloudflare_access.py -v
+```
+
+These steps do not modify Cloudflare, DNS, Railway, Neon, or backend auth code. They are preparation checks only.
+
 ### Review production service templates
 
 Reviewed service templates are available in `docs/runbooks/templates/`:

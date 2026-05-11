@@ -590,12 +590,28 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Updated template review section in `MANUAL_TESTING.md` with Docker and Windows verification checks
 - [x] All templates contain only placeholder values; no real secrets committed
 
+### Cloudflare Production Setup Prep
+- [x] Added docs-only `docs/runbooks/cloudflare-production-setup.md`
+- [x] Documented required Access application boundaries for dashboard, admin, and gateway audiences
+- [x] Documented required production environment variables and placeholder-only secret handling
+- [x] Captured JWT verification expectations for issuer, audiences, JWKS, required claims, and clock skew
+- [x] Preserved browser/admin versus gateway identity split and fail-closed gateway credential rules
+- [x] Documented origin-binding, trusted-header, same-domain routing, manual validation, approval, and rollback gates
+- [x] Linked the runbook from `docs/index.md`
+- [x] Added Cloudflare prep review checks to `MANUAL_TESTING.md`
+
 ---
 
 ## Next Steps (In Order)
 
-### 1. Later production integration milestones
-Cloudflare production setup prep, Railway/Neon staging deployment, and real RTSP camera credential handling remain future work.
+### 1. Production auth guardrail validation
+Review whether production config should fail fast when Cloudflare Access values remain placeholders or dev-auth settings are unsafe outside development.
+
+### 2. Railway/Neon staging deployment prep
+Prepare staging deployment variables, database provisioning checklist, and release gates without committing secrets.
+
+### 3. Real RTSP camera credential handling
+Define secure camera credential storage, rotation, and edge deployment handling before real camera onboarding.
 
 ---
 

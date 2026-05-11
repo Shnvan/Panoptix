@@ -101,6 +101,7 @@ All diagrams are in Mermaid format (`.mmd`).
 |---------|-------------|
 | [Gateway Control Channel](runbooks/gateway-control-channel.md) | Outbound WebSocket command channel and heartbeat fallback |
 | [Edge Gateway Service](runbooks/edge-gateway-service.md) | Docs-only host/service runbook for Docker, Linux systemd, and Windows/NSSM edge supervisor operation |
+| [Cloudflare Production Setup](runbooks/cloudflare-production-setup.md) | Docs-only Cloudflare Access, routing, JWT, and rollback preparation checklist |
 | [CF Access Rollback](runbooks/cf-access-rollback.md) | Provider-console/Terraform recovery for CF Access/DNS policy issues |
 | [Deploy and Rollback](runbooks/deploy-rollback.md) | Railway deploy, rollback triggers, and post-rollback checks |
 | [Backup and Restore](runbooks/backup-restore.md) | Backup, restore, and restore-drill procedure |
