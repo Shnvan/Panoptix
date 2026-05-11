@@ -32,7 +32,15 @@ def _client_with_test_key(
         CF_ACCESS_ISSUER="https://team.cloudflareaccess.com",
         CF_ACCESS_AUD_DASHBOARD="dashboard-aud",
         CF_ACCESS_AUD_ADMIN="admin-aud",
+        CF_ACCESS_AUD_GATEWAY="gateway-aud",
         CF_ACCESS_JWKS_URL="https://team.cloudflareaccess.com/cdn-cgi/access/certs",
+        SESSION_SIGNING_KEY="test-session-key",
+        CSRF_SIGNING_KEY="test-csrf-key",
+        AUDIT_HMAC_KEY="test-audit-key",
+        DATABASE_URL="postgresql+psycopg://user:pass@db:5432/panoptix",
+        MIGRATION_DATABASE_URL="postgresql+psycopg://migrator:pass@db:5432/panoptix",
+        GATEWAY_SERVICE_TOKEN="test-gateway-token",
+        GATEWAY_COMMAND_SIGNING_KEY="test-signing-key",
         **settings_overrides,
     )
 

@@ -85,6 +85,42 @@ class Settings(BaseSettings):
             self.CF_ACCESS_AUD_ADMIN,
         ]
 
+    def validate_production_guardrails(self) -> None:
+        if self.APP_ENV == "development":
+            return
+
+        unsafe: list[str] = []
+
+        if self.ALLOW_DEV_AUTH:
+            unsafe.append("ALLOW_DEV_AUTH")
+
+        _PLACEHOLDER_MARKERS = ("replace-me", "example.cloudflareaccess.com")
+
+        _GUARDED_FIELDS = [
+            "CF_ACCESS_ISSUER",
+            "CF_ACCESS_AUD_DASHBOARD",
+            "CF_ACCESS_AUD_ADMIN",
+            "CF_ACCESS_AUD_GATEWAY",
+            "CF_ACCESS_JWKS_URL",
+            "SESSION_SIGNING_KEY",
+            "CSRF_SIGNING_KEY",
+            "AUDIT_HMAC_KEY",
+            "DATABASE_URL",
+            "MIGRATION_DATABASE_URL",
+            "GATEWAY_SERVICE_TOKEN",
+            "GATEWAY_COMMAND_SIGNING_KEY",
+        ]
+
+        for field_name in _GUARDED_FIELDS:
+            value = getattr(self, field_name, "")
+            if any(marker in value for marker in _PLACEHOLDER_MARKERS):
+                unsafe.append(field_name)
+
+        if unsafe:
+            raise ValueError(
+                f"unsafe-production-config: {', '.join(unsafe)}"
+            )
+
 
 _settings: Settings | None = None
 

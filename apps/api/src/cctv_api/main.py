@@ -16,6 +16,7 @@ from cctv_api.security.headers import add_security_headers
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     resolved_settings = settings or get_settings()
+    resolved_settings.validate_production_guardrails()
 
     def override_settings() -> Settings:
         return resolved_settings

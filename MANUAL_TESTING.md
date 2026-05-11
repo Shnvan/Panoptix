@@ -2703,10 +2703,16 @@ Optional backend test reference:
 ```powershell
 Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
 $env:PYTHONPATH = "src"
-python -m pytest tests/test_cloudflare_access.py -v
+python -m pytest tests/test_config.py tests/test_cloudflare_access.py -v
 ```
 
-These steps do not modify Cloudflare, DNS, Railway, Neon, or backend auth code. They are preparation checks only.
+Expected validation behavior:
+
+- Development defaults remain allowed for local work.
+- Staging/production startup fails with `unsafe-production-config` if guarded values still contain placeholders.
+- `ALLOW_DEV_AUTH=true` is rejected before app startup outside development.
+
+These steps do not modify Cloudflare, DNS, Railway, or Neon. They validate local backend guardrails only.
 
 ### Review production service templates
 

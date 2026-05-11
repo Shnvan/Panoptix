@@ -59,6 +59,7 @@ Rules:
 - `ALLOW_DEV_AUTH` must be disabled outside local development.
 - `APP_ENV` must not be `development` in production or staging.
 - Cloudflare Access JWT verification depends on `CF_ACCESS_ISSUER`, `CF_ACCESS_JWKS_URL`, and the configured audience values matching Cloudflare.
+- The backend fails fast during app startup for staging/production if guarded auth, Cloudflare, database, session, audit, or gateway values still contain placeholders.
 
 ## JWT Verification Expectations
 
@@ -74,6 +75,7 @@ The backend Cloudflare Access verifier expects:
 
 Expected fail-closed behavior:
 
+- Unsafe staging/production configuration raises `unsafe-production-config` before the FastAPI app starts.
 - Missing Cloudflare Access JWT returns `cf-access-token-required`.
 - Invalid issuer, audience, signature, or expired token returns `cf-access-token-invalid`.
 - Development auth headers are rejected when `APP_ENV` is not `development` or `ALLOW_DEV_AUTH` is false.
@@ -160,7 +162,7 @@ Backend test references:
 ```powershell
 Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
 $env:PYTHONPATH = "src"
-python -m pytest tests/test_cloudflare_access.py -v
+python -m pytest tests/test_config.py tests/test_cloudflare_access.py -v
 ```
 
 Expected review results:

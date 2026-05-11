@@ -600,17 +600,24 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Linked the runbook from `docs/index.md`
 - [x] Added Cloudflare prep review checks to `MANUAL_TESTING.md`
 
+### Production Auth Guardrail Validation
+- [x] Added `Settings.validate_production_guardrails()` for staging/production fail-fast validation
+- [x] App startup now rejects unsafe staging/production config before FastAPI starts
+- [x] Guardrails reject `ALLOW_DEV_AUTH=True` outside development
+- [x] Guardrails reject placeholder Cloudflare Access, session, audit, database, gateway token, and command signing values
+- [x] Added focused config tests for development defaults, unsafe production/staging defaults, safe populated config, and app startup failure
+- [x] Updated existing auth/security tests to supply safe non-placeholder production settings where needed
+- [x] Updated Cloudflare setup and manual testing docs with guardrail validation expectations
+- [x] Verified focused tests, ruff, and mypy pass
+
 ---
 
 ## Next Steps (In Order)
 
-### 1. Production auth guardrail validation
-Review whether production config should fail fast when Cloudflare Access values remain placeholders or dev-auth settings are unsafe outside development.
-
-### 2. Railway/Neon staging deployment prep
+### 1. Railway/Neon staging deployment prep
 Prepare staging deployment variables, database provisioning checklist, and release gates without committing secrets.
 
-### 3. Real RTSP camera credential handling
+### 2. Real RTSP camera credential handling
 Define secure camera credential storage, rotation, and edge deployment handling before real camera onboarding.
 
 ---

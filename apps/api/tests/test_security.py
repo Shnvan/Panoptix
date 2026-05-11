@@ -29,6 +29,19 @@ class _StubVerifier:
         )
 
 
+_SAFE_PRODUCTION_OVERRIDES = {
+    "CF_ACCESS_ISSUER": "https://team.cloudflareaccess.com",
+    "CF_ACCESS_AUD_DASHBOARD": "dashboard-aud",
+    "CF_ACCESS_AUD_ADMIN": "admin-aud",
+    "CF_ACCESS_AUD_GATEWAY": "gateway-aud",
+    "CF_ACCESS_JWKS_URL": "https://team.cloudflareaccess.com/cdn-cgi/access/certs",
+    "DATABASE_URL": "postgresql+psycopg://user:pass@db:5432/panoptix",
+    "MIGRATION_DATABASE_URL": "postgresql+psycopg://migrator:pass@db:5432/panoptix",
+    "GATEWAY_SERVICE_TOKEN": "real-gateway-token",
+    "GATEWAY_COMMAND_SIGNING_KEY": "real-signing-key",
+}
+
+
 def _browser_client(test_db_session: DbSession, monkeypatch) -> TestClient:  # type: ignore[no-untyped-def]
     monkeypatch.setattr(dependencies, "CloudflareAccessVerifier", _StubVerifier)
     app = create_app(
@@ -38,6 +51,7 @@ def _browser_client(test_db_session: DbSession, monkeypatch) -> TestClient:  # t
             CSRF_SIGNING_KEY=CSRF_SIGNING_KEY,
             AUDIT_HMAC_KEY_VERSION=1,
             AUDIT_HMAC_KEY="test-audit-key-with-enough-entropy",
+            **_SAFE_PRODUCTION_OVERRIDES,
         )
     )
 
@@ -245,13 +259,17 @@ def test_dev_auth_returns_principal_when_enabled() -> None:
 
 
 def test_dev_auth_forbidden_outside_development() -> None:
-    app = create_app(settings=Settings(APP_ENV="staging", ALLOW_DEV_AUTH=True))
-    client = TestClient(app)
+    import pytest
 
-    response = client.get("/api/v1/me", headers={"x-panoptix-dev-auth": "1"})
-
-    assert response.status_code == 401
-    assert response.json()["detail"] == "dev-auth-forbidden-outside-development"
+    with pytest.raises(ValueError, match="ALLOW_DEV_AUTH"):
+        create_app(settings=Settings(
+            APP_ENV="staging",
+            ALLOW_DEV_AUTH=True,
+            SESSION_SIGNING_KEY=SESSION_SIGNING_KEY,
+            CSRF_SIGNING_KEY=CSRF_SIGNING_KEY,
+            AUDIT_HMAC_KEY="test-audit-key",
+            **_SAFE_PRODUCTION_OVERRIDES,
+        ))
 
 
 def test_browser_get_sets_session_and_csrf_cookies(test_db_session: DbSession, monkeypatch) -> None:  # type: ignore[no-untyped-def]
