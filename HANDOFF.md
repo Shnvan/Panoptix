@@ -133,6 +133,27 @@ Current state:
 
 ## Recently Completed Milestones
 
+### Frame-to-LiveKit Track Bridge
+
+Completed in this milestone.
+
+Implemented:
+
+- `LiveKitVideoFrame` and fakeable video frame-source abstractions for CCTV media frames
+- `LiveKitVideoTrackMediaSession` creates a LiveKit video source, local video track, and publish options
+- async frame pump captures injected frames into the SDK video source
+- stop cleanup cancels frame pumping, unpublishes the local track when available, closes the video source, and closes the frame source
+- fake SDK/frame-source tests cover track publishing, frame capture, source URL handoff, cleanup, failure containment, and token non-disclosure
+
+Not included:
+
+- FFmpeg RTSP frame extraction
+- real RTSP camera credentials
+- real LiveKit Cloud smoke testing
+- real FFmpeg, mediamtx, WHIP, RTMP, or LiveKit Ingress execution
+- browser, webcam, phone, or frontend publishing
+- external account setup
+
 ### Real LiveKit SDK Media Adapter
 
 Completed in this milestone.
@@ -148,7 +169,7 @@ Implemented:
 
 Not included:
 
-- RTSP frame decode or LiveKit local video-track publishing
+- FFmpeg RTSP frame extraction
 - real RTSP camera credentials
 - real FFmpeg, mediamtx, WHIP, RTMP, or LiveKit Ingress execution
 - browser, webcam, phone, or frontend publishing
@@ -1051,7 +1072,7 @@ $env:PYTHONPATH = "src"; python -m compileall src tests
 Latest result:
 
 ```text
-pytest: 134 passed
+pytest: 139 passed
 ruff: all checks passed
 mypy: no issues found in 15 source files
 compileall: passed

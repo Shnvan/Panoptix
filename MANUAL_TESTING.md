@@ -1332,6 +1332,8 @@ Expected behavior:
 - optional SDK adapter tests use fake SDK room/session objects, so no real LiveKit account or SDK package is required
 - SDK adapter start connects a fake room with `auto_subscribe=False` and passes the CCTV source URL into the media-session seam
 - SDK adapter stop disconnects the fake room, keeps sessions on stop failure for retry, and returns token-safe error codes
+- video-track media-session tests publish fake CCTV frames into fake LiveKit video sources without real RTSP decoding
+- frame-source cleanup, track unpublish, frame-pump failure containment, and token non-disclosure are covered by fake-only tests
 - command-executor integration remains fail-closed and idempotent
 - no browser, webcam, phone, or frontend publishing path is introduced
 
@@ -1342,7 +1344,7 @@ Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
 python -m pip install -e ".[livekit]"
 ```
 
-This install is not required for automated tests. The current SDK adapter milestone verifies only room/session lifecycle with fakes; RTSP frame decode, LiveKit local video-track publishing, WHIP/RTMP, and LiveKit Ingress remain separate future work.
+This install is not required for automated tests. The current media bridge verifies LiveKit local video-track publishing with fake SDK objects; FFmpeg RTSP frame extraction, real LiveKit Cloud smoke testing, WHIP/RTMP, and LiveKit Ingress remain separate future work.
 
 Synthetic end-to-end publish dry-run check:
 

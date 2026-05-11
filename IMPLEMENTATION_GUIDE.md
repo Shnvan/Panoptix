@@ -2640,7 +2640,47 @@ The SDK adapter includes an injectable media-session factory that receives the v
 
 ---
 
-## 72. Current Verification Status
+## 72. Frame-to-LiveKit Track Bridge
+
+### What was implemented
+
+The edge agent now has a fakeable video frame-to-LiveKit-track bridge behind the SDK media-session seam.
+
+### Frame and session behavior
+
+`panoptix_edge_agent.livekit_publisher` now includes:
+
+- `LiveKitVideoFrame`, a small RGBA frame model with width, height, timestamp, and data-length validation
+- `LiveKitVideoFrameSource`, an async iterable source protocol for future CCTV frame producers
+- `LiveKitVideoTrackMediaSession`, an opt-in media session that creates a LiveKit `VideoSource`, creates a `LocalVideoTrack`, publishes it through `room.local_participant.publish_track`, and pumps frames into `VideoSource.capture_frame`
+
+Stop behavior cancels the frame pump, unpublishes the local track when a publication SID is available, closes the SDK video source, and closes the frame source when it supports close/aclose.
+
+### Safety behavior
+
+The default `LiveKitSdkPublisherClient` still uses a no-op media session unless a video-track media-session factory is explicitly provided. Tests use fake SDK objects and fake frame sources only. No real LiveKit account, real camera, FFmpeg process, mediamtx process, or credentials are required.
+
+### Tests cover
+
+- SDK video source, local video track, publish options, and local participant publish calls
+- frame capture into the fake SDK video source
+- `source_url` handoff into the frame-source factory
+- start failure cleanup without storing active sessions
+- frame-pump failure containment without token disclosure
+- stop cleanup for frame pump, unpublish, video source, and frame source
+
+### What remains out of scope
+
+- FFmpeg RTSP frame extraction
+- real RTSP camera credentials
+- real LiveKit Cloud smoke testing
+- real FFmpeg, mediamtx, WHIP, RTMP, or LiveKit Ingress execution
+- browser, webcam, phone, or frontend publishing
+- external account setup
+
+---
+
+## 73. Current Verification Status
 
 ### What passed
 
@@ -2651,7 +2691,7 @@ backend pytest: 308 passed
 backend mypy: no issues found in 37 source files
 backend ruff: all checks passed
 backend compileall: passed
-edge agent pytest: 134 passed
+edge agent pytest: 139 passed
 edge agent mypy: no issues found in 15 source files
 edge agent ruff: all checks passed
 edge agent compileall: passed

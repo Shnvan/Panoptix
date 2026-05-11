@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import importlib
+import asyncio
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Protocol, cast
+from typing import Literal, Protocol, cast
 from urllib.parse import urlsplit
 
 from panoptix_edge_agent.media import PublishResult, StopResult
@@ -34,6 +36,28 @@ class LiveKitPublisherResult:
     error: str | None = None
 
 
+@dataclass(frozen=True)
+class LiveKitVideoFrame:
+    data: bytes
+    width: int
+    height: int
+    timestamp_us: int
+    pixel_format: Literal["RGBA"] = "RGBA"
+
+    def validate(self) -> None:
+        if self.width <= 0:
+            raise LiveKitPublisherError("video frame width must be positive")
+        if self.height <= 0:
+            raise LiveKitPublisherError("video frame height must be positive")
+        if self.timestamp_us < 0:
+            raise LiveKitPublisherError("video frame timestamp_us must be non-negative")
+        if self.pixel_format != "RGBA":
+            raise LiveKitPublisherError("video frame pixel_format must be RGBA")
+        expected_bytes = self.width * self.height * 4
+        if len(self.data) != expected_bytes:
+            raise LiveKitPublisherError("video frame data length does not match RGBA dimensions")
+
+
 class LiveKitPublisherClient(Protocol):
     async def start_publish(self, request: LiveKitPublishRequest) -> LiveKitPublisherResult:
         raise NotImplementedError
@@ -43,10 +67,35 @@ class LiveKitPublisherClient(Protocol):
 
 
 class LiveKitSdkRoom(Protocol):
+    @property
+    def local_participant(self) -> LiveKitLocalParticipant:
+        raise NotImplementedError
+
     async def connect(self, url: str, token: str, options: object) -> None:
         raise NotImplementedError
 
     async def disconnect(self) -> None:
+        raise NotImplementedError
+
+
+class LiveKitLocalParticipant(Protocol):
+    async def publish_track(self, track: object, options: object) -> object:
+        raise NotImplementedError
+
+    async def unpublish_track(self, track_sid: str) -> None:
+        raise NotImplementedError
+
+
+class LiveKitVideoSource(Protocol):
+    def capture_frame(self, frame: object, *, timestamp_us: int = 0) -> None:
+        raise NotImplementedError
+
+    async def aclose(self) -> None:
+        raise NotImplementedError
+
+
+class LiveKitLocalVideoTrackFactory(Protocol):
+    def create_video_track(self, name: str, source: LiveKitVideoSource) -> object:
         raise NotImplementedError
 
 
@@ -55,6 +104,27 @@ class LiveKitRtcModule(Protocol):
         raise NotImplementedError
 
     def RoomOptions(self, *, auto_subscribe: bool) -> object:
+        raise NotImplementedError
+
+    def VideoSource(self, width: int, height: int, *, is_screencast: bool = False) -> LiveKitVideoSource:
+        raise NotImplementedError
+
+    def VideoFrame(self, *, width: int, height: int, type: object, data: bytes) -> object:
+        raise NotImplementedError
+
+    def TrackPublishOptions(self, *, source: object) -> object:
+        raise NotImplementedError
+
+    @property
+    def LocalVideoTrack(self) -> LiveKitLocalVideoTrackFactory:
+        raise NotImplementedError
+
+    @property
+    def TrackSource(self) -> object:
+        raise NotImplementedError
+
+    @property
+    def VideoBufferType(self) -> object:
         raise NotImplementedError
 
 
@@ -81,6 +151,16 @@ class LiveKitMediaSessionFactory(Protocol):
         raise NotImplementedError
 
 
+class LiveKitVideoFrameSource(Protocol):
+    def __aiter__(self) -> AsyncIterator[LiveKitVideoFrame]:
+        raise NotImplementedError
+
+
+class LiveKitVideoFrameSourceFactory(Protocol):
+    def __call__(self, request: LiveKitPublishRequest) -> LiveKitVideoFrameSource:
+        raise NotImplementedError
+
+
 class SdkUnavailableLiveKitPublisherClient:
     async def start_publish(self, request: LiveKitPublishRequest) -> LiveKitPublisherResult:
         return LiveKitPublisherResult(ok=False, error="livekit-sdk-unavailable")
@@ -95,6 +175,117 @@ class NoopLiveKitMediaSession:
 
     async def stop(self) -> None:
         return None
+
+
+class LiveKitVideoTrackMediaSession:
+    def __init__(
+        self,
+        *,
+        request: LiveKitPublishRequest,
+        room: LiveKitSdkRoom,
+        rtc_module: LiveKitRtcModule,
+        frame_source: LiveKitVideoFrameSource,
+        track_name: str | None = None,
+    ) -> None:
+        self.request = request
+        self.room = room
+        self.rtc_module = rtc_module
+        self.frame_source = frame_source
+        self.track_name = track_name or f"camera-{request.camera_id}-video"
+        self.video_source: LiveKitVideoSource | None = None
+        self.track: object | None = None
+        self.publication: object | None = None
+        self.frame_task: asyncio.Task[None] | None = None
+        self.frame_pump_error: str | None = None
+        self._stopped = False
+
+    async def start(self) -> None:
+        first_frame = await self._read_first_frame()
+        self.video_source = self.rtc_module.VideoSource(first_frame.width, first_frame.height)
+        self.track = self.rtc_module.LocalVideoTrack.create_video_track(
+            self.track_name,
+            self.video_source,
+        )
+        options = self.rtc_module.TrackPublishOptions(source=_track_source_camera(self.rtc_module))
+        try:
+            self.publication = await self.room.local_participant.publish_track(
+                self.track,
+                options,
+            )
+            self._capture_frame(first_frame)
+            self.frame_task = asyncio.create_task(self._pump_frames())
+        except Exception:
+            await self._cleanup_after_start_failure()
+            raise
+
+    async def stop(self) -> None:
+        errors: list[BaseException] = []
+        self._stopped = True
+        if self.frame_task is not None:
+            self.frame_task.cancel()
+            try:
+                await self.frame_task
+            except asyncio.CancelledError:
+                pass
+            except Exception as exc:
+                errors.append(exc)
+            self.frame_task = None
+
+        track_sid = _publication_sid(self.publication)
+        if track_sid is not None:
+            try:
+                await self.room.local_participant.unpublish_track(track_sid)
+            except Exception as exc:
+                errors.append(exc)
+
+        try:
+            await _safe_aclose(self.video_source)
+        except Exception as exc:
+            errors.append(exc)
+        try:
+            await _safe_aclose(self.frame_source)
+        except Exception as exc:
+            errors.append(exc)
+
+        if errors:
+            raise LiveKitPublisherError("livekit video track stop failed")
+
+    async def _read_first_frame(self) -> LiveKitVideoFrame:
+        iterator = self.frame_source.__aiter__()
+        try:
+            first_frame = await anext(iterator)
+        except StopAsyncIteration as exc:
+            await _safe_aclose(self.frame_source)
+            raise LiveKitPublisherError("video frame source produced no frames") from exc
+        first_frame.validate()
+        return first_frame
+
+    async def _pump_frames(self) -> None:
+        try:
+            async for frame in self.frame_source:
+                if self._stopped:
+                    return
+                self._capture_frame(frame)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            self.frame_pump_error = "livekit-frame-pump-failed"
+
+    def _capture_frame(self, frame: LiveKitVideoFrame) -> None:
+        if self.video_source is None:
+            raise LiveKitPublisherError("video source is not initialized")
+        frame.validate()
+        sdk_frame = self.rtc_module.VideoFrame(
+            width=frame.width,
+            height=frame.height,
+            type=_video_buffer_type_rgba(self.rtc_module),
+            data=frame.data,
+        )
+        self.video_source.capture_frame(sdk_frame, timestamp_us=frame.timestamp_us)
+
+    async def _cleanup_after_start_failure(self) -> None:
+        await _safe_aclose(self.video_source)
+        await _safe_aclose(self.frame_source)
 
 
 @dataclass
@@ -177,6 +368,24 @@ class LiveKitSdkPublisherClient:
         if self._rtc_module is None:
             self._rtc_module = self._rtc_module_resolver()
         return self._rtc_module
+
+    def build_video_track_media_session_factory(
+        self,
+        frame_source_factory: LiveKitVideoFrameSourceFactory,
+    ) -> LiveKitMediaSessionFactory:
+        def factory(
+            *,
+            request: LiveKitPublishRequest,
+            room: LiveKitSdkRoom,
+        ) -> LiveKitMediaSession:
+            return LiveKitVideoTrackMediaSession(
+                request=request,
+                room=room,
+                rtc_module=self._resolve_rtc_module(),
+                frame_source=frame_source_factory(request),
+            )
+
+        return factory
 
 
 class LiveKitMediaController:
@@ -295,3 +504,39 @@ async def _safe_disconnect_room(room: LiveKitSdkRoom | None) -> None:
         await room.disconnect()
     except Exception:
         return
+
+
+async def _safe_aclose(target: object | None) -> None:
+    if target is None:
+        return
+    close = getattr(target, "aclose", None)
+    if close is not None:
+        await close()
+        return
+    close = getattr(target, "close", None)
+    if close is not None:
+        result = close()
+        if result is not None:
+            await result
+
+
+def _track_source_camera(rtc_module: LiveKitRtcModule) -> object:
+    track_source = rtc_module.TrackSource
+    camera = getattr(track_source, "SOURCE_CAMERA", None)
+    if camera is not None:
+        return camera
+    return getattr(track_source, "CAMERA")
+
+
+def _video_buffer_type_rgba(rtc_module: LiveKitRtcModule) -> object:
+    video_buffer_type = rtc_module.VideoBufferType
+    return getattr(video_buffer_type, "RGBA")
+
+
+def _publication_sid(publication: object | None) -> str | None:
+    if publication is None:
+        return None
+    sid = getattr(publication, "sid", None)
+    if isinstance(sid, str) and sid:
+        return sid
+    return None

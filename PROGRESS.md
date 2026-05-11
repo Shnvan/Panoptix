@@ -437,12 +437,20 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Added fake SDK/session tests for start, stop, cleanup, failure, idempotent unknown stop, and token non-disclosure
 - [x] Preserved CCTV-only invariant: no browser, webcam, phone, frontend, real camera, or external-account publishing path was introduced
 
+### Frame-to-LiveKit Track Bridge
+- [x] Added `LiveKitVideoFrame` and fakeable video frame-source abstractions for CCTV media frames
+- [x] Added `LiveKitVideoTrackMediaSession` that creates a LiveKit video source, local video track, and publish options
+- [x] Added async frame pumping from injected frame sources into the SDK video source
+- [x] Added cleanup for frame-pump cancellation, track unpublish, video-source close, and frame-source close
+- [x] Added fake SDK/frame-source tests for track publish, frame capture, source URL handoff, cleanup, failure containment, and token non-disclosure
+- [x] Preserved no-real-services invariant: FFmpeg RTSP decoding, real LiveKit Cloud smoke testing, real cameras, and credentials remain future work
+
 ---
 
 ## Next Steps (In Order)
 
 ### 1. TBD — Next milestone to be determined
-Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone. RTSP-to-LiveKit media packet publishing remains future work.
+Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone. FFmpeg RTSP frame extraction remains future work.
 
 ---
 
