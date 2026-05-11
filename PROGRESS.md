@@ -445,12 +445,21 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Added fake SDK/frame-source tests for track publish, frame capture, source URL handoff, cleanup, failure containment, and token non-disclosure
 - [x] Preserved no-real-services invariant: FFmpeg RTSP decoding, real LiveKit Cloud smoke testing, real cameras, and credentials remain future work
 
+### FFmpeg RTSP Frame Source
+- [x] Added `FfmpegRtspFrameSource` behind the existing `LiveKitVideoFrameSource` protocol
+- [x] Added safe FFmpeg argument builder for RTSP/RTSPS input to raw RGBA stdout output
+- [x] Validates source URL scheme, URL credentials, dimensions, frame rate, binary name, and stop timeout
+- [x] Added async frame iteration that reads exact RGBA frames and assigns timestamps from configured FPS
+- [x] Added idempotent cleanup with terminate and timeout-kill behavior
+- [x] Added fake-process tests for args, validation, frame yield, EOF, short reads, missing stdout, close, and timeout kill
+- [x] Preserved no-real-services invariant: no real FFmpeg, camera, LiveKit SDK, credentials, or browser publishing required
+
 ---
 
 ## Next Steps (In Order)
 
 ### 1. TBD — Next milestone to be determined
-Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone. FFmpeg RTSP frame extraction remains future work.
+Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone. Wiring the FFmpeg frame source into the LiveKit SDK publisher for a synthetic local smoke remains future work.
 
 ---
 

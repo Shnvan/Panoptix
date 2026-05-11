@@ -133,6 +133,28 @@ Current state:
 
 ## Recently Completed Milestones
 
+### FFmpeg RTSP Frame Source
+
+Completed in this milestone.
+
+Implemented:
+
+- `ffmpeg_rtsp_frame_source.py` provides `FfmpegRtspFrameSource` behind the existing `LiveKitVideoFrameSource` protocol
+- safe FFmpeg argument builder reads RTSP/RTSPS input and writes raw RGBA video frames to stdout
+- validation rejects invalid URL schemes, RTSP URLs with credentials, invalid dimensions, invalid frame rates, invalid binary names, and invalid stop timeouts
+- async frame iteration reads exact `width * height * 4` byte frames and assigns timestamps from configured FPS
+- cleanup is idempotent and terminates or timeout-kills the fake/real process
+- fake-process tests cover command args, validation, frame reads, EOF, short reads, missing stdout, close, and timeout kill without launching FFmpeg
+
+Not included:
+
+- wiring this frame source into `LiveKitSdkPublisherClient` by default
+- real FFmpeg execution
+- real RTSP camera credentials
+- real LiveKit Cloud smoke testing
+- browser, webcam, phone, or frontend publishing
+- external account setup
+
 ### Frame-to-LiveKit Track Bridge
 
 Completed in this milestone.
@@ -147,7 +169,7 @@ Implemented:
 
 Not included:
 
-- FFmpeg RTSP frame extraction
+- wiring the FFmpeg frame source into the LiveKit SDK publisher for a synthetic local smoke
 - real RTSP camera credentials
 - real LiveKit Cloud smoke testing
 - real FFmpeg, mediamtx, WHIP, RTMP, or LiveKit Ingress execution
@@ -169,7 +191,7 @@ Implemented:
 
 Not included:
 
-- FFmpeg RTSP frame extraction
+- wiring the FFmpeg frame source into the LiveKit SDK publisher for a synthetic local smoke
 - real RTSP camera credentials
 - real FFmpeg, mediamtx, WHIP, RTMP, or LiveKit Ingress execution
 - browser, webcam, phone, or frontend publishing
@@ -1072,9 +1094,9 @@ $env:PYTHONPATH = "src"; python -m compileall src tests
 Latest result:
 
 ```text
-pytest: 139 passed
+pytest: 155 passed
 ruff: all checks passed
-mypy: no issues found in 15 source files
+mypy: no issues found in 16 source files
 compileall: passed
 ```
 
@@ -1090,7 +1112,7 @@ Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementat
 
 ## Not Implemented Yet
 
-- RTSP-to-LiveKit frame/track publishing
+- wiring FFmpeg frame source into LiveKit SDK publisher for a synthetic local smoke
 - real RTSP camera credentials
 - frontend UI
 - production Docker/systemd gateway supervision
@@ -1217,6 +1239,7 @@ Use local/dev placeholders and fail-closed behavior. Do not ask the user to set 
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/executor.py`: verified command dispatcher
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/media.py`: media controller protocol and stub/failing controllers
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/livekit_publisher.py`: fakeable LiveKit publisher controller boundary
+- `apps/cctv-edge/agent/src/panoptix_edge_agent/ffmpeg_rtsp_frame_source.py`: fakeable FFmpeg RTSP raw-frame source
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/publish_dry_run.py`: fake-only synthetic publish dry-run harness
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/mediamtx_process.py`: local mediamtx process command/lifecycle scaffold
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/publish_state.py`: in-memory publish session tracker
@@ -1231,6 +1254,7 @@ Use local/dev placeholders and fail-closed behavior. Do not ask the user to set 
 - `apps/cctv-edge/agent/tests/test_control.py`: WebSocket control client tests
 - `apps/cctv-edge/agent/tests/test_executor.py`: command executor tests
 - `apps/cctv-edge/agent/tests/test_livekit_publisher.py`: fakeable LiveKit publisher controller tests
+- `apps/cctv-edge/agent/tests/test_ffmpeg_rtsp_frame_source.py`: FFmpeg frame-source command/process/frame tests
 - `apps/cctv-edge/agent/tests/test_publish_dry_run.py`: synthetic publish dry-run tests
 - `apps/cctv-edge/agent/tests/test_mediamtx_process.py`: mediamtx process lifecycle tests
 

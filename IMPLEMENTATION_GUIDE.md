@@ -2671,7 +2671,7 @@ The default `LiveKitSdkPublisherClient` still uses a no-op media session unless 
 
 ### What remains out of scope
 
-- FFmpeg RTSP frame extraction
+- wiring the FFmpeg frame source into the LiveKit SDK publisher for a synthetic local smoke
 - real RTSP camera credentials
 - real LiveKit Cloud smoke testing
 - real FFmpeg, mediamtx, WHIP, RTMP, or LiveKit Ingress execution
@@ -2680,7 +2680,42 @@ The default `LiveKitSdkPublisherClient` still uses a no-op media session unless 
 
 ---
 
-## 73. Current Verification Status
+## 73. FFmpeg RTSP Frame Source
+
+### What was implemented
+
+The edge agent now has a fake-tested FFmpeg RTSP frame source that yields `LiveKitVideoFrame` objects for the existing video-track media session.
+
+### Frame-source behavior
+
+`panoptix_edge_agent.ffmpeg_rtsp_frame_source` defines:
+
+- `FfmpegRtspFrameSourceConfig`
+- `FfmpegRtspFrameSource`
+- `build_ffmpeg_rtsp_frame_source_args`
+
+The command builder uses an argument list, not a shell string. It reads RTSP/RTSPS input and writes raw RGBA frames to stdout with `-f rawvideo`, `-pix_fmt rgba`, and `pipe:1`.
+
+### Safety behavior
+
+The frame source validates URL scheme, rejects credentials in RTSP URLs, validates dimensions and frame rate, rejects unsafe binary names, and keeps process startup injectable. Tests use fake process/stdout objects only and do not launch FFmpeg.
+
+### Runtime behavior
+
+Frame iteration reads exact `width * height * 4` byte frames, yields `LiveKitVideoFrame(pixel_format="RGBA")`, and assigns timestamps from the configured FPS. Clean EOF stops iteration; short reads fail without yielding partial frames. Close is idempotent, terminates the process, and kills it after the configured timeout.
+
+### What remains out of scope
+
+- wiring this frame source into `LiveKitSdkPublisherClient` by default
+- real FFmpeg execution
+- real RTSP camera credentials
+- real LiveKit Cloud smoke testing
+- browser, webcam, phone, or frontend publishing
+- external account setup
+
+---
+
+## 74. Current Verification Status
 
 ### What passed
 
@@ -2691,8 +2726,8 @@ backend pytest: 308 passed
 backend mypy: no issues found in 37 source files
 backend ruff: all checks passed
 backend compileall: passed
-edge agent pytest: 139 passed
-edge agent mypy: no issues found in 15 source files
+edge agent pytest: 155 passed
+edge agent mypy: no issues found in 16 source files
 edge agent ruff: all checks passed
 edge agent compileall: passed
 ```
@@ -2740,7 +2775,7 @@ This confirms the current backend and edge-agent code is working, typed correctl
 The following are intentionally not done yet:
 
 - frontend UI
-- RTSP-to-LiveKit frame/track publishing
+- wiring FFmpeg frame source into LiveKit SDK publisher for a synthetic local smoke
 - production Docker/systemd gateway supervision
 
 ---
@@ -2751,7 +2786,7 @@ The following are intentionally not done yet:
 
 Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
 
-Possible candidates: RTSP-to-LiveKit frame/track publishing, production Docker/systemd gateway supervision, Cloudflare production setup prep.
+Possible candidates: synthetic FFmpeg-to-LiveKit local smoke, production Docker/systemd gateway supervision, Cloudflare production setup prep.
 
 ---
 

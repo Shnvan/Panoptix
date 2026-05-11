@@ -1337,6 +1337,22 @@ Expected behavior:
 - command-executor integration remains fail-closed and idempotent
 - no browser, webcam, phone, or frontend publishing path is introduced
 
+Local FFmpeg RTSP frame-source check:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_ffmpeg_rtsp_frame_source.py -v
+```
+
+Expected behavior:
+
+- FFmpeg commands are safe argument lists that read RTSP/RTSPS input and write raw RGBA frames to stdout
+- invalid source URLs, RTSP URLs with credentials, invalid dimensions/FPS, invalid binary names, and invalid stop timeouts are rejected
+- fake stdout frames yield `LiveKitVideoFrame` objects with deterministic timestamps
+- EOF, short reads, missing stdout, idempotent close, and timeout-kill cleanup are covered without launching FFmpeg
+- this milestone extracts raw frames only; wiring the source into the LiveKit SDK publisher for a synthetic local smoke remains future work
+
 Optional LiveKit SDK package install check:
 
 ```powershell
@@ -1344,7 +1360,7 @@ Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
 python -m pip install -e ".[livekit]"
 ```
 
-This install is not required for automated tests. The current media bridge verifies LiveKit local video-track publishing with fake SDK objects; FFmpeg RTSP frame extraction, real LiveKit Cloud smoke testing, WHIP/RTMP, and LiveKit Ingress remain separate future work.
+This install is not required for automated tests. The current media bridge verifies LiveKit local video-track publishing with fake SDK objects, and the FFmpeg frame source uses fake processes in tests; real LiveKit Cloud smoke testing, WHIP/RTMP, and LiveKit Ingress remain separate future work.
 
 Synthetic end-to-end publish dry-run check:
 
