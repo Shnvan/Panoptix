@@ -1,0 +1,54 @@
+# Panoptix Edge Gateway — systemd unit template
+#
+# This is a docs-only template. Do not install it directly without
+# operator review, credential provisioning, and network security gates.
+#
+# Copy this file to /etc/systemd/system/cctv-gateway.service on the
+# target gateway host and adjust paths, user, and environment file
+# location to match the local deployment.
+#
+# See docs/runbooks/edge-gateway-service.md for the full operational
+# runbook including startup, shutdown, rollback, and incident checklists.
+
+[Unit]
+Description=Panoptix Edge Gateway Supervisor
+Documentation=https://github.com/Shnvan/Panoptix
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# --- identity ---
+User=cctv-gateway
+Group=cctv-gateway
+
+# --- paths ---
+WorkingDirectory=/opt/panoptix/edge-agent
+EnvironmentFile=/etc/cctv-gateway/gateway.env
+
+# --- command ---
+ExecStart=/usr/bin/python3 -m panoptix_edge_agent.cli --supervise
+
+# --- restart policy ---
+Restart=always
+RestartSec=5
+
+# --- resource and security hardening ---
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/cctv-gateway
+
+# --- logging ---
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cctv-gateway
+
+# --- timeouts ---
+TimeoutStartSec=30
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

@@ -2676,6 +2676,30 @@ Security expectations:
 
 For host service operation guidance, see `docs/runbooks/edge-gateway-service.md`. That runbook covers Linux systemd, Docker, and Windows/NSSM service shapes without installing services or committing secrets.
 
+### Review production service templates
+
+Reviewed Linux systemd service templates are available in `docs/runbooks/templates/`:
+
+- `cctv-gateway.service.example` — systemd unit file with hardening settings
+- `gateway.env.example` — environment file with placeholder-only values
+
+To review the templates locally:
+
+```powershell
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\templates\cctv-gateway.service.example
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\templates\gateway.env.example
+```
+
+Verification checks:
+
+- Templates contain only placeholder values (no real secrets, API keys, or credentials).
+- The systemd unit uses `NoNewPrivileges=yes`, `ProtectSystem=strict`, and a dedicated service user.
+- The environment file defaults to `PANOPTIX_MEDIA_PUBLISHER_MODE=stub` and `PANOPTIX_SUPERVISE_MEDIAMTX=false`.
+- Real media publishing lines are commented out.
+- No WAN-facing port exposure is configured.
+
+These templates are not installed or enabled by any automated process. They are reference artifacts for future operator review.
+
 ### Run smoke config validation tests
 
 ```powershell

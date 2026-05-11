@@ -131,6 +131,13 @@ ExecStart=python -m panoptix_edge_agent.cli --supervise
 
 Do not install this from the development machine without a separate reviewed deployment milestone.
 
+Reviewed templates are available in [`docs/runbooks/templates/`](templates/):
+
+- [`cctv-gateway.service.example`](templates/cctv-gateway.service.example) — systemd unit file with hardening settings
+- [`gateway.env.example`](templates/gateway.env.example) — environment file with placeholder-only values
+
+Copy and adapt these templates to the target host. Do not use them without completing the network security gates.
+
 Health checks:
 
 ```bash

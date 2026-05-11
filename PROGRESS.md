@@ -571,12 +571,21 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Preserved zero-inbound-WAN-port invariant and banned WAN exposure for RTSP, HLS, WebRTC, RTMP, and mediamtx API listeners
 - [x] Linked the runbook from the docs index and manual testing docs
 
+### Linux Systemd Service Templates
+- [x] Added `docs/runbooks/templates/cctv-gateway.service.example` systemd unit file with hardening settings
+- [x] Added `docs/runbooks/templates/gateway.env.example` environment file with placeholder-only values
+- [x] Added `docs/runbooks/templates/README.md` with usage, security rules, and scope
+- [x] Linked templates from `docs/runbooks/edge-gateway-service.md` Linux systemd section
+- [x] Added template review section to `MANUAL_TESTING.md`
+- [x] Templates contain only placeholder values; no real secrets committed
+- [x] Docker Compose, Dockerfile, and Windows/NSSM templates remain deferred
+
 ---
 
 ## Next Steps (In Order)
 
-### 1. Production service templates
-Convert the approved host/service runbook into reviewed service templates, likely Linux systemd first, without installing services or committing secrets.
+### 1. Docker and Windows service templates
+Add Docker Compose / Dockerfile and Windows/NSSM service templates as docs-only reference artifacts, without building images or installing services.
 
 ### 2. Later production integration milestones
 Cloudflare production setup prep, Railway/Neon staging deployment, and real RTSP camera credential handling remain future work.
