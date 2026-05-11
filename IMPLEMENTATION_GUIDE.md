@@ -2715,7 +2715,42 @@ Frame iteration reads exact `width * height * 4` byte frames, yields `LiveKitVid
 
 ---
 
-## 74. Current Verification Status
+## 74. Synthetic FFmpeg-to-LiveKit Local Smoke Wiring
+
+### What was implemented
+
+The edge agent now has an opt-in, fake-tested local smoke path that composes the FFmpeg RTSP frame source with the LiveKit SDK video-track media session.
+
+### Smoke wiring behavior
+
+`panoptix_edge_agent.ffmpeg_livekit_smoke` defines:
+
+- `FfmpegVideoTrackSettings`
+- `FfmpegVideoTrackMediaSessionFactory`
+- `build_ffmpeg_video_track_media_session_factory`
+- `build_ffmpeg_livekit_publisher`
+- `run_synthetic_ffmpeg_to_livekit_smoke`
+
+The factory receives the validated `LiveKitPublishRequest`, builds `FfmpegRtspFrameSourceConfig` from `request.source_url`, creates `FfmpegRtspFrameSource`, and returns `LiveKitVideoTrackMediaSession`.
+
+### Test behavior
+
+The synthetic smoke helper composes signed synthetic start/stop commands, `LiveKitSdkPublisherClient`, fake SDK room/track objects, and fake FFmpeg stdout. Tests prove fake raw RGBA frames are captured by the fake LiveKit video source, then stop cleanup disconnects the room, unpublishes the track, closes stdout, and terminates the fake process.
+
+This remains opt-in. The default `LiveKitMediaController` and default SDK publisher behavior do not launch FFmpeg or require LiveKit credentials.
+
+### What remains out of scope
+
+- making FFmpeg-backed publishing the default edge-agent controller path
+- real FFmpeg execution
+- real RTSP camera credentials
+- real LiveKit Cloud smoke testing
+- browser, webcam, phone, or frontend publishing
+- external account setup
+
+---
+
+## 75. Current Verification Status
 
 ### What passed
 
@@ -2726,8 +2761,8 @@ backend pytest: 308 passed
 backend mypy: no issues found in 37 source files
 backend ruff: all checks passed
 backend compileall: passed
-edge agent pytest: 155 passed
-edge agent mypy: no issues found in 16 source files
+edge agent pytest: 159 passed
+edge agent mypy: no issues found in 17 source files
 edge agent ruff: all checks passed
 edge agent compileall: passed
 ```
@@ -2775,18 +2810,19 @@ This confirms the current backend and edge-agent code is working, typed correctl
 The following are intentionally not done yet:
 
 - frontend UI
-- wiring FFmpeg frame source into LiveKit SDK publisher for a synthetic local smoke
+- real FFmpeg execution
+- real LiveKit Cloud smoke testing
 - production Docker/systemd gateway supervision
 
 ---
 
 ## Next Recommended Implementation Order
 
-### 1. TBD — Next milestone to be determined
+### 1. TBD - Next milestone to be determined
 
 Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
 
-Possible candidates: synthetic FFmpeg-to-LiveKit local smoke, production Docker/systemd gateway supervision, Cloudflare production setup prep.
+Possible candidates: real local FFmpeg/LiveKit smoke test, production Docker/systemd gateway supervision, Cloudflare production setup prep.
 
 ---
 

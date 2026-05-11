@@ -133,6 +133,27 @@ Current state:
 
 ## Recently Completed Milestones
 
+### Synthetic FFmpeg-to-LiveKit Local Smoke Wiring
+
+Completed in this milestone.
+
+Implemented:
+
+- `ffmpeg_livekit_smoke.py` provides opt-in factory helpers that compose `FfmpegRtspFrameSource` with `LiveKitVideoTrackMediaSession`
+- the factory builds `FfmpegRtspFrameSourceConfig` from the validated `LiveKitPublishRequest.source_url`
+- synthetic smoke helper composes signed start/stop commands, `LiveKitSdkPublisherClient`, fake SDK room/track objects, and fake FFmpeg stdout
+- tests prove fake RTSP frames flow into the fake LiveKit video source and stop cleanup disconnects/unpublishes/closes the fake process
+- start failures remain token-safe and do not require real LiveKit, real FFmpeg, real cameras, or credentials
+
+Not included:
+
+- making FFmpeg-backed publishing the default edge-agent controller path
+- real FFmpeg execution
+- real RTSP camera credentials
+- real LiveKit Cloud smoke testing
+- browser, webcam, phone, or frontend publishing
+- external account setup
+
 ### FFmpeg RTSP Frame Source
 
 Completed in this milestone.
@@ -169,7 +190,6 @@ Implemented:
 
 Not included:
 
-- wiring the FFmpeg frame source into the LiveKit SDK publisher for a synthetic local smoke
 - real RTSP camera credentials
 - real LiveKit Cloud smoke testing
 - real FFmpeg, mediamtx, WHIP, RTMP, or LiveKit Ingress execution
@@ -191,7 +211,6 @@ Implemented:
 
 Not included:
 
-- wiring the FFmpeg frame source into the LiveKit SDK publisher for a synthetic local smoke
 - real RTSP camera credentials
 - real FFmpeg, mediamtx, WHIP, RTMP, or LiveKit Ingress execution
 - browser, webcam, phone, or frontend publishing
@@ -1094,9 +1113,9 @@ $env:PYTHONPATH = "src"; python -m compileall src tests
 Latest result:
 
 ```text
-pytest: 155 passed
+pytest: 159 passed
 ruff: all checks passed
-mypy: no issues found in 16 source files
+mypy: no issues found in 17 source files
 compileall: passed
 ```
 
@@ -1105,14 +1124,15 @@ compileall: passed
 Recommended next task:
 
 ```text
-TBD — Next milestone to be determined
+TBD - Next milestone to be determined
 ```
 
 Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone.
 
 ## Not Implemented Yet
 
-- wiring FFmpeg frame source into LiveKit SDK publisher for a synthetic local smoke
+- real FFmpeg execution
+- real LiveKit Cloud smoke testing
 - real RTSP camera credentials
 - frontend UI
 - production Docker/systemd gateway supervision
@@ -1240,6 +1260,7 @@ Use local/dev placeholders and fail-closed behavior. Do not ask the user to set 
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/media.py`: media controller protocol and stub/failing controllers
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/livekit_publisher.py`: fakeable LiveKit publisher controller boundary
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/ffmpeg_rtsp_frame_source.py`: fakeable FFmpeg RTSP raw-frame source
+- `apps/cctv-edge/agent/src/panoptix_edge_agent/ffmpeg_livekit_smoke.py`: opt-in synthetic FFmpeg-to-LiveKit smoke wiring
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/publish_dry_run.py`: fake-only synthetic publish dry-run harness
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/mediamtx_process.py`: local mediamtx process command/lifecycle scaffold
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/publish_state.py`: in-memory publish session tracker
@@ -1255,6 +1276,7 @@ Use local/dev placeholders and fail-closed behavior. Do not ask the user to set 
 - `apps/cctv-edge/agent/tests/test_executor.py`: command executor tests
 - `apps/cctv-edge/agent/tests/test_livekit_publisher.py`: fakeable LiveKit publisher controller tests
 - `apps/cctv-edge/agent/tests/test_ffmpeg_rtsp_frame_source.py`: FFmpeg frame-source command/process/frame tests
+- `apps/cctv-edge/agent/tests/test_ffmpeg_livekit_smoke.py`: synthetic FFmpeg-to-LiveKit smoke wiring tests
 - `apps/cctv-edge/agent/tests/test_publish_dry_run.py`: synthetic publish dry-run tests
 - `apps/cctv-edge/agent/tests/test_mediamtx_process.py`: mediamtx process lifecycle tests
 

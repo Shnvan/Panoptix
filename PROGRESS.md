@@ -454,12 +454,19 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Added fake-process tests for args, validation, frame yield, EOF, short reads, missing stdout, close, and timeout kill
 - [x] Preserved no-real-services invariant: no real FFmpeg, camera, LiveKit SDK, credentials, or browser publishing required
 
+### Synthetic FFmpeg-to-LiveKit Local Smoke Wiring
+- [x] Added opt-in factory wiring from validated `LiveKitPublishRequest.source_url` to `FfmpegRtspFrameSourceConfig`
+- [x] Added helper that builds a `FfmpegRtspFrameSource` and `LiveKitVideoTrackMediaSession` for the SDK publisher media-session seam
+- [x] Added fake-only synthetic smoke helper composing signed start/stop commands, `LiveKitSdkPublisherClient`, fake SDK room/track objects, and fake FFmpeg stdout
+- [x] Added tests for config handoff, opt-in publisher construction, fake frame publish, cleanup, and token-safe start failure
+- [x] Preserved opt-in behavior: default controller/publisher behavior still does not launch FFmpeg or require LiveKit credentials
+
 ---
 
 ## Next Steps (In Order)
 
-### 1. TBD — Next milestone to be determined
-Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone. Wiring the FFmpeg frame source into the LiveKit SDK publisher for a synthetic local smoke remains future work.
+### 1. TBD - Next milestone to be determined
+Review `docs/planning/secure-cctv-monitoring-system-v4.md` and `docs/implementation/api-reference.md` for the next logical milestone. Real FFmpeg execution, real LiveKit Cloud smoke testing, real camera credentials, and production gateway supervision remain future work.
 
 ---
 

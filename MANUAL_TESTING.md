@@ -1351,7 +1351,23 @@ Expected behavior:
 - invalid source URLs, RTSP URLs with credentials, invalid dimensions/FPS, invalid binary names, and invalid stop timeouts are rejected
 - fake stdout frames yield `LiveKitVideoFrame` objects with deterministic timestamps
 - EOF, short reads, missing stdout, idempotent close, and timeout-kill cleanup are covered without launching FFmpeg
-- this milestone extracts raw frames only; wiring the source into the LiveKit SDK publisher for a synthetic local smoke remains future work
+- this source remains opt-in; tests do not launch real FFmpeg or require camera credentials
+
+Synthetic FFmpeg-to-LiveKit local smoke wiring check:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_ffmpeg_livekit_smoke.py -v
+```
+
+Expected behavior:
+
+- the opt-in factory builds `FfmpegRtspFrameSourceConfig` from the signed synthetic publish request source URL
+- fake FFmpeg stdout frames are published through fake LiveKit SDK video source/track objects
+- stop cleanup disconnects the fake room, unpublishes the fake track, closes fake stdout, and terminates the fake process
+- missing or invalid frame-source reads return token-safe SDK start errors
+- no real LiveKit SDK, LiveKit Cloud account, FFmpeg process, camera, RTSP credentials, or browser publisher is required
 
 Optional LiveKit SDK package install check:
 
@@ -1360,7 +1376,7 @@ Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
 python -m pip install -e ".[livekit]"
 ```
 
-This install is not required for automated tests. The current media bridge verifies LiveKit local video-track publishing with fake SDK objects, and the FFmpeg frame source uses fake processes in tests; real LiveKit Cloud smoke testing, WHIP/RTMP, and LiveKit Ingress remain separate future work.
+This install is not required for automated tests. The current media bridge and synthetic FFmpeg-to-LiveKit smoke use fake SDK objects and fake FFmpeg processes; real LiveKit Cloud smoke testing, WHIP/RTMP, and LiveKit Ingress remain separate future work.
 
 Synthetic end-to-end publish dry-run check:
 
