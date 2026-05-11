@@ -2846,8 +2846,8 @@ backend pytest: 341 passed
 backend mypy: no issues found in 39 source files
 backend ruff: all checks passed
 backend compileall: passed
-edge agent pytest: 159 passed
-edge agent mypy: no issues found in 17 source files
+edge agent pytest: 210 passed
+edge agent mypy: no issues found in 21 source files
 edge agent ruff: all checks passed
 edge agent compileall: passed
 ```
@@ -2887,6 +2887,50 @@ python -m compileall src tests
 ### Why it matters
 
 This confirms the current backend and edge-agent code is working, typed correctly, and lint-clean.
+
+---
+
+## 79. Production Gateway Supervision
+
+### What was implemented
+
+The edge agent now has a production-oriented, testable supervisor entrypoint:
+
+```powershell
+python -m panoptix_edge_agent.cli --supervise
+```
+
+The supervisor coordinates:
+
+- gateway heartbeat fallback
+- outbound gateway-control WebSocket supervision
+- shared command executor and media controller construction
+- optional local `mediamtx` process startup and cleanup
+
+### Configuration
+
+Safe defaults remain unchanged:
+
+```env
+PANOPTIX_MEDIA_PUBLISHER_MODE=stub
+PANOPTIX_SUPERVISE_MEDIAMTX=false
+```
+
+Optional local `mediamtx` supervision can be enabled with:
+
+```env
+PANOPTIX_SUPERVISE_MEDIAMTX=true
+PANOPTIX_MEDIAMTX_BINARY=mediamtx
+PANOPTIX_MEDIAMTX_CONFIG_PATH=apps/cctv-edge/mediamtx/mediamtx.local.yml
+```
+
+### Security invariants
+
+The supervisor does not install services and does not open inbound WAN paths. `mediamtx.local.yml` remains loopback-only, and real FFmpeg/LiveKit publishing remains opt-in through `PANOPTIX_MEDIA_PUBLISHER_MODE=livekit-ffmpeg`.
+
+### Tests
+
+The new tests use fake heartbeat/control loops and fake mediamtx managers. They do not launch real `mediamtx`, FFmpeg, LiveKit SDK connections, or backend network connections.
 
 ---
 

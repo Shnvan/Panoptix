@@ -35,6 +35,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="run a real FFmpeg-to-LiveKit smoke test (requires PANOPTIX_SMOKE_* env vars, FFmpeg, and LiveKit SDK)",
     )
+    parser.add_argument(
+        "--supervise",
+        action="store_true",
+        help="run the edge gateway runtime supervisor",
+    )
     return parser
 
 
@@ -61,6 +66,9 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
     executor = CommandExecutor(factory_result.controller)
+
+    if args.supervise:
+        return _run_supervisor(config, executor)
 
     if args.control_once:
         try:
@@ -143,6 +151,31 @@ def _run_smoke_ffmpeg_livekit() -> int:
 
     print(f"smoke: FAILED — {result.error}", file=sys.stderr)
     return 1
+
+
+def _run_supervisor(config: object, executor: object) -> int:
+    from typing import cast
+
+    from panoptix_edge_agent.config import AgentConfig
+    from panoptix_edge_agent.executor import CommandExecutor
+    from panoptix_edge_agent.supervisor import build_gateway_runtime_supervisor
+
+    typed_config = cast(AgentConfig, config)
+    typed_executor = cast(CommandExecutor, executor)
+    try:
+        asyncio.run(
+            build_gateway_runtime_supervisor(
+                typed_config,
+                executor=typed_executor,
+            ).run_forever()
+        )
+    except KeyboardInterrupt:
+        print("gateway supervisor stopped")
+        return 0
+    except RuntimeError as exc:
+        print(f"gateway supervisor failed: {exc}", file=sys.stderr)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

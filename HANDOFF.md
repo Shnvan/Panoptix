@@ -133,6 +133,34 @@ Current state:
 
 ## Recently Completed Milestones
 
+### Production Gateway Supervision
+
+Completed in this milestone.
+
+Implemented:
+
+- Added edge-agent `--supervise` CLI mode
+- Added `GatewayRuntimeSupervisor` for a long-running gateway runtime loop
+- Supervisor coordinates heartbeat fallback, outbound gateway-control supervision, optional local `mediamtx` process startup, and cleanup on shutdown
+- Added config toggles for `PANOPTIX_SUPERVISE_MEDIAMTX`, `PANOPTIX_MEDIAMTX_BINARY`, and `PANOPTIX_MEDIAMTX_CONFIG_PATH`
+- Preserved default `PANOPTIX_MEDIA_PUBLISHER_MODE=stub`; real FFmpeg/LiveKit publishing remains opt-in
+- Added fake-based tests for supervisor success/failure paths, mediamtx start/stop cleanup, config parsing, and CLI dispatch
+- Updated `.env.example`, manual testing docs, edge README, and mediamtx README with safe local-only usage
+
+Verification:
+
+- `python -m pytest tests/ -v`: 210 passed
+- `python -m ruff check src tests`: all checks passed
+- `python -m mypy src/panoptix_edge_agent --ignore-missing-imports`: no issues found in 21 source files
+- `python -m compileall src tests`: passed
+
+Not included:
+
+- Installing systemd units, Windows services, or Docker production deployment
+- Exposing RTSP, HLS, WebRTC, RTMP, mediamtx API, or backend ports to WAN
+- Making real media publishing the default
+- Storing LiveKit API credentials or RTSP camera credentials in committed files
+
 ### Real LiveKit Cloud Smoke Execution
 
 Completed in this milestone.

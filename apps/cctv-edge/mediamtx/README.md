@@ -40,7 +40,7 @@ Default local output:
 rtsp://127.0.0.1:8554/synthetic-camera-1
 ```
 
-For manual testing, run `mediamtx` separately with `mediamtx.local.yml` and keep its HTTP API disabled or bound to loopback only.
+For manual testing, run `mediamtx` separately with `mediamtx.local.yml` or enable edge-agent supervisor startup with `PANOPTIX_SUPERVISE_MEDIAMTX=true`. Keep its HTTP API disabled or bound to loopback only.
 
 Security expectations:
 
@@ -49,4 +49,4 @@ Security expectations:
 - do not put camera credentials in synthetic RTSP URLs
 - do not use browser, webcam, or phone publishing paths
 
-Production Docker/systemd supervision remains a later milestone.
+Production host/service installation remains a later milestone. The edge agent now has a testable process supervisor entrypoint, but it does not install systemd units, Windows services, or WAN-facing media listeners.

@@ -556,12 +556,20 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Cleared LiveKit Cloud smoke secrets from the shell after the run
 - [x] No API key, API secret, generated JWT, or credential material committed
 
+### Production Gateway Supervision
+- [x] Added `python -m panoptix_edge_agent.cli --supervise` supervisor entrypoint
+- [x] Added `GatewayRuntimeSupervisor` to coordinate heartbeat, outbound gateway-control supervision, optional local `mediamtx` startup, and cleanup
+- [x] Added safe config toggles: `PANOPTIX_SUPERVISE_MEDIAMTX`, `PANOPTIX_MEDIAMTX_BINARY`, and `PANOPTIX_MEDIAMTX_CONFIG_PATH`
+- [x] Preserved safe defaults: media publisher mode remains `stub`, and `mediamtx` supervision remains disabled unless explicitly enabled
+- [x] Added fake-based tests for supervisor success/failure, mediamtx cleanup, config parsing, and CLI dispatch
+- [x] Edge verification passed: `210 passed`, ruff clean, mypy clean, compileall passed
+
 ---
 
 ## Next Steps (In Order)
 
-### 1. Production Gateway Supervision
-Plan and implement Docker/systemd-style gateway and mediamtx supervision so the edge runtime can restart safely, expose useful health/status signals, and preserve the zero-inbound-WAN-port invariant.
+### 1. Production host/service packaging
+Prepare deployment packaging for the edge gateway runtime, such as Docker/systemd or Windows service runbooks, without installing services or exposing WAN media ports on this development machine.
 
 ### 2. Later production integration milestones
 Cloudflare production setup prep, Railway/Neon staging deployment, and real RTSP camera credential handling remain future work.

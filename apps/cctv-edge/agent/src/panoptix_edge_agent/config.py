@@ -6,6 +6,11 @@ from dataclasses import dataclass
 from urllib.parse import urlsplit
 
 from panoptix_edge_agent import __version__
+from panoptix_edge_agent.mediamtx_process import (
+    DEFAULT_MEDIAMTX_CONFIG_PATH,
+    MediamtxProcessCommand,
+    MediamtxProcessError,
+)
 
 
 class ConfigError(ValueError):
@@ -35,6 +40,9 @@ class AgentConfig:
     media_height: int = 480
     media_frame_rate: int = 15
     media_ffmpeg_binary: str = "ffmpeg"
+    supervise_mediamtx: bool = False
+    mediamtx_binary: str = "mediamtx"
+    mediamtx_config_path: str = str(DEFAULT_MEDIAMTX_CONFIG_PATH)
 
     @property
     def normalized_api_base_url(self) -> str:
@@ -74,6 +82,12 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
     media_height = _int_value(env, "PANOPTIX_MEDIA_HEIGHT", 480)
     media_frame_rate = _int_value(env, "PANOPTIX_MEDIA_FRAME_RATE", 15)
     media_ffmpeg_binary = env.get("PANOPTIX_MEDIA_FFMPEG_BINARY", "ffmpeg").strip() or "ffmpeg"
+    supervise_mediamtx = _bool_value(env.get("PANOPTIX_SUPERVISE_MEDIAMTX", "false"))
+    mediamtx_binary = env.get("PANOPTIX_MEDIAMTX_BINARY", "mediamtx").strip() or "mediamtx"
+    mediamtx_config_path = env.get(
+        "PANOPTIX_MEDIAMTX_CONFIG_PATH",
+        str(DEFAULT_MEDIAMTX_CONFIG_PATH),
+    ).strip() or str(DEFAULT_MEDIAMTX_CONFIG_PATH)
 
     if heartbeat_interval_seconds < 5:
         raise ConfigError("PANOPTIX_HEARTBEAT_INTERVAL_SECONDS must be at least 5")
@@ -105,6 +119,14 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
             raise ConfigError("PANOPTIX_MEDIA_FRAME_RATE must be at least 1")
         if not media_ffmpeg_binary:
             raise ConfigError("PANOPTIX_MEDIA_FFMPEG_BINARY is required")
+    if supervise_mediamtx:
+        try:
+            MediamtxProcessCommand(
+                binary=mediamtx_binary,
+                config_path=mediamtx_config_path,
+            ).args()
+        except MediamtxProcessError as exc:
+            raise ConfigError(f"PANOPTIX_MEDIAMTX_CONFIG invalid: {exc}") from exc
 
     return AgentConfig(
         api_base_url=api_base_url,
@@ -128,6 +150,9 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
         media_height=media_height,
         media_frame_rate=media_frame_rate,
         media_ffmpeg_binary=media_ffmpeg_binary,
+        supervise_mediamtx=supervise_mediamtx,
+        mediamtx_binary=mediamtx_binary,
+        mediamtx_config_path=mediamtx_config_path,
     )
 
 

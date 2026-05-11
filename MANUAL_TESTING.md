@@ -2647,6 +2647,33 @@ This is separate from the `--smoke-ffmpeg-livekit` manual smoke test. The media 
 
 Default mode is `stub` -- commands are accepted but no real media is published.
 
+### Edge gateway supervisor mode
+
+The edge agent can run the heartbeat and outbound gateway-control loops under a single supervisor entrypoint:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+$env:PANOPTIX_API_BASE_URL = "http://127.0.0.1:8000"
+$env:PANOPTIX_GATEWAY_ID = "11111111-1111-1111-1111-111111111111"
+python -m panoptix_edge_agent.cli --supervise
+```
+
+By default, supervisor mode does not start real media infrastructure and keeps media publishing in `stub` mode. To include local `mediamtx` process supervision for local-only testing:
+
+```powershell
+$env:PANOPTIX_SUPERVISE_MEDIAMTX = "true"
+$env:PANOPTIX_MEDIAMTX_BINARY = "mediamtx"
+$env:PANOPTIX_MEDIAMTX_CONFIG_PATH = "C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\mediamtx\mediamtx.local.yml"
+```
+
+Security expectations:
+
+- Do not put LiveKit secrets, RTSP camera credentials, or generated JWTs in committed files.
+- Keep `PANOPTIX_MEDIA_PUBLISHER_MODE=stub` unless intentionally testing real FFmpeg/LiveKit publishing.
+- Keep `mediamtx.local.yml` loopback-only and do not expose RTSP, HLS, WebRTC, RTMP, or mediamtx API listeners to WAN.
+- Stop the supervisor with `Ctrl+C`; it will attempt to stop supervised `mediamtx` before exit.
+
 ### Run smoke config validation tests
 
 ```powershell

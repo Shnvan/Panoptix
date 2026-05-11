@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from panoptix_edge_agent.config import ConfigError, load_config_from_env
+
+
+MEDIAMTX_CONFIG_PATH = Path(__file__).resolve().parents[2] / "mediamtx" / "mediamtx.local.yml"
 
 
 def test_load_config_from_env_requires_api_base_url() -> None:
@@ -33,6 +38,9 @@ def test_load_config_from_env_parses_values() -> None:
             "PANOPTIX_SYNTHETIC_VIDEO_SIZE": "640x360",
             "PANOPTIX_SYNTHETIC_FRAME_RATE": "15",
             "PANOPTIX_SYNTHETIC_AUDIO_FREQUENCY": "440",
+            "PANOPTIX_SUPERVISE_MEDIAMTX": "true",
+            "PANOPTIX_MEDIAMTX_BINARY": "mediamtx.exe",
+            "PANOPTIX_MEDIAMTX_CONFIG_PATH": str(MEDIAMTX_CONFIG_PATH),
         }
     )
 
@@ -51,6 +59,9 @@ def test_load_config_from_env_parses_values() -> None:
     assert config.synthetic_video_size == "640x360"
     assert config.synthetic_frame_rate == 15
     assert config.synthetic_audio_frequency == 440
+    assert config.supervise_mediamtx is True
+    assert config.mediamtx_binary == "mediamtx.exe"
+    assert config.mediamtx_config_path == str(MEDIAMTX_CONFIG_PATH)
 
 
 def test_load_config_from_env_rejects_short_heartbeat_interval() -> None:
@@ -150,3 +161,24 @@ def test_load_config_from_env_rejects_invalid_synthetic_audio_frequency() -> Non
                 "PANOPTIX_SYNTHETIC_AUDIO_FREQUENCY": "0",
             }
         )
+
+
+def test_load_config_from_env_defaults_supervisor_settings_to_safe_values() -> None:
+    config = load_config_from_env({
+        "PANOPTIX_API_BASE_URL": "http://api.example.test",
+        "PANOPTIX_GATEWAY_ID": "gateway-1",
+    })
+
+    assert config.supervise_mediamtx is False
+    assert config.mediamtx_binary == "mediamtx"
+    assert config.mediamtx_config_path.endswith("mediamtx.local.yml")
+
+
+def test_load_config_from_env_rejects_bad_mediamtx_config_when_supervised() -> None:
+    with pytest.raises(ConfigError, match="PANOPTIX_MEDIAMTX_CONFIG"):
+        load_config_from_env({
+            "PANOPTIX_API_BASE_URL": "http://api.example.test",
+            "PANOPTIX_GATEWAY_ID": "gateway-1",
+            "PANOPTIX_SUPERVISE_MEDIAMTX": "true",
+            "PANOPTIX_MEDIAMTX_BINARY": "--mediamtx",
+        })

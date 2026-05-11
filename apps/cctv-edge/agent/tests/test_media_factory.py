@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any
 
 import pytest
 
@@ -201,7 +202,13 @@ def test_build_media_controller_livekit_ffmpeg_with_fake_rtc() -> None:
     assert isinstance(result.controller, LiveKitMediaController)
 
 
-def test_build_media_controller_livekit_ffmpeg_without_sdk_falls_back_to_stub() -> None:
+def test_build_media_controller_livekit_ffmpeg_without_sdk_falls_back_to_stub(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unavailable_import(name: str) -> Any:
+        raise ImportError(name)
+
+    monkeypatch.setattr("panoptix_edge_agent.media_factory.importlib.import_module", unavailable_import)
     config = _config(media_publisher_mode="livekit-ffmpeg")
 
     result = build_media_controller(config)
