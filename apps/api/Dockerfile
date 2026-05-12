@@ -22,6 +22,6 @@ ENV PYTHONPATH=/app/src \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-EXPOSE 8000
+EXPOSE 8080
 
-CMD ["uvicorn", "cctv_api.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
+CMD ["uvicorn", "cctv_api.main:app", "--host", "0.0.0.0", "--port", "8080", "--no-access-log"]
