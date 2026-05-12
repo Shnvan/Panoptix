@@ -24,6 +24,10 @@ class MediaController(Protocol):
         room: str,
         livekit_url: str,
         token: str,
+        source_url: str | None = None,
+        rtsp_username: str | None = None,
+        rtsp_password: str | None = None,
+        rtsp_transport: str | None = None,
     ) -> PublishResult:
         raise NotImplementedError
 
@@ -48,10 +52,20 @@ class StubMediaController:
         room: str,
         livekit_url: str,
         token: str,
+        source_url: str | None = None,
+        rtsp_username: str | None = None,
+        rtsp_password: str | None = None,
+        rtsp_transport: str | None = None,
     ) -> PublishResult:
-        self.start_calls.append(
-            {"camera_id": camera_id, "room": room, "livekit_url": livekit_url, "token": token}
-        )
+        call: dict[str, str] = {
+            "camera_id": camera_id,
+            "room": room,
+            "livekit_url": livekit_url,
+            "token": token,
+        }
+        if source_url is not None:
+            call["source_url"] = source_url
+        self.start_calls.append(call)
         return PublishResult(ok=True)
 
     async def stop_publish(
@@ -75,6 +89,10 @@ class FailingMediaController:
         room: str,
         livekit_url: str,
         token: str,
+        source_url: str | None = None,
+        rtsp_username: str | None = None,
+        rtsp_password: str | None = None,
+        rtsp_transport: str | None = None,
     ) -> PublishResult:
         return PublishResult(ok=False, error=self._error)
 

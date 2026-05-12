@@ -133,6 +133,38 @@ Current state:
 
 ## Recently Completed Milestones
 
+### Per-Camera RTSP Credential Handling
+
+Completed in this milestone.
+
+Implemented:
+
+- `camera_credentials.py` with `CameraCredential`, `CameraCredentialStore`, `load_camera_credentials()`, `build_rtsp_url()`, `build_authenticated_rtsp_url()`, `check_credential_file_permissions()`, and `CredentialFileError`
+- `PANOPTIX_CAMERA_CREDENTIALS_PATH` env var in `AgentConfig` (empty = backward compatible)
+- `MediaController` protocol extended with optional `source_url`, `rtsp_username`, `rtsp_password`, `rtsp_transport` params
+- `CommandExecutor` resolves per-camera credential store before calling media controller; missing camera rejects with `camera-credentials-not-found`
+- `FfmpegRtspFrameSourceConfig` composes authenticated URL only in `args()` subprocess boundary
+- Credentials wired through `LiveKitPublishRequest`, `LiveKitMediaController`, and `FfmpegVideoTrackMediaSessionFactory`
+- CLI loads and validates credential file at startup (fail-closed)
+- `__repr__` redacts passwords in `CameraCredential`, `FfmpegRtspFrameSourceConfig`, and `LiveKitPublishRequest`
+- File permission check (0600 on Linux, skip on Windows)
+- `cameras.json.example` template, `gateway.env.example` updated, agent README updated
+- 28 new tests in `test_camera_credentials.py`, 3 new tests in `test_executor.py`
+- All 239 edge-agent tests passing; ruff, mypy, and compileall clean
+
+Not included:
+
+- real camera onboarding
+- credential rotation tooling
+- encrypted credential file at rest
+
+Verification:
+
+- `python -m pytest tests/ -v`: 239 passed, 2 skipped
+- `python -m ruff check src tests`: all checks passed
+- `python -m mypy src/panoptix_edge_agent --ignore-missing-imports`: no issues found in 22 source files
+- `python -m compileall src tests`: passed
+
 ### Production Gateway Supervision
 
 Completed in this milestone.
@@ -1290,9 +1322,9 @@ $env:PYTHONPATH = "src"; python -m compileall src tests
 Latest result:
 
 ```text
-pytest: 159 passed
+pytest: 239 passed, 2 skipped
 ruff: all checks passed
-mypy: no issues found in 17 source files
+mypy: no issues found in 22 source files
 compileall: passed
 ```
 
@@ -1301,36 +1333,34 @@ compileall: passed
 Recommended next task:
 
 ```text
-Production Gateway Supervision
+Real Camera Onboarding
 ```
 
-Plan and implement Docker/systemd-style gateway and mediamtx supervision so the edge runtime can restart safely, expose useful health/status signals, and preserve the zero-inbound-WAN-port invariant.
+Connect a real CCTV camera to the gateway using the per-camera credential file and test live FFmpeg-to-LiveKit publishing end-to-end.
 
 ## Not Implemented Yet
 
-- real FFmpeg execution
-- real RTSP camera credentials
+- real camera onboarding (credential file exists, needs real hardware)
 - frontend UI
 - production Docker/systemd gateway supervision
-- real Cloudflare Access setup
 - Google Workspace setup
-- Railway deployment
 - Neon production database setup
 
 ## External Accounts Status
 
-Do not require these yet for current local work:
+### Active
+- **Cloudflare** — `panoptix.site` domain active, Zero Trust org `panoptix-netad`, GitHub OAuth IdP, Access application for `staging.panoptix.site`
+- **Railway** — `panoptix-control` service deployed from `backend` branch, custom domain `staging.panoptix.site`
+- **Neon** — staging database `neondb` (ap-southeast-1), 23 tables, migrations at `0004_constraints_and_indexes`
 
+### Not Yet Required
 - Google Workspace
-- Cloudflare Access
-- Railway
-- Neon
 - R2
 - Sentry/Better Stack/UptimeRobot
 
 LiveKit Cloud was used for a bounded smoke test only. No LiveKit API key, API secret, generated JWT, or credential material should be committed.
 
-Use local/dev placeholders and fail-closed behavior. Do not ask the user to set up external accounts until local protocol foundations are ready.
+Use local/dev placeholders and fail-closed behavior for services not yet active.
 
 ## Development Rules
 
@@ -1443,6 +1473,7 @@ Use local/dev placeholders and fail-closed behavior. Do not ask the user to set 
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/publish_dry_run.py`: fake-only synthetic publish dry-run harness
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/mediamtx_process.py`: local mediamtx process command/lifecycle scaffold
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/publish_state.py`: in-memory publish session tracker
+- `apps/cctv-edge/agent/src/panoptix_edge_agent/camera_credentials.py`: per-camera RTSP credential store, loader, URL builders, and permission checks
 - `apps/cctv-edge/agent/src/panoptix_edge_agent/cli.py`: CLI entrypoint for heartbeat/control checks
 
 ### Edge Agent Tests
@@ -1456,6 +1487,7 @@ Use local/dev placeholders and fail-closed behavior. Do not ask the user to set 
 - `apps/cctv-edge/agent/tests/test_livekit_publisher.py`: fakeable LiveKit publisher controller tests
 - `apps/cctv-edge/agent/tests/test_ffmpeg_rtsp_frame_source.py`: FFmpeg frame-source command/process/frame tests
 - `apps/cctv-edge/agent/tests/test_ffmpeg_livekit_smoke.py`: synthetic FFmpeg-to-LiveKit smoke wiring tests
+- `apps/cctv-edge/agent/tests/test_camera_credentials.py`: per-camera credential loader, URL builder, validation, and permission tests
 - `apps/cctv-edge/agent/tests/test_publish_dry_run.py`: synthetic publish dry-run tests
 - `apps/cctv-edge/agent/tests/test_mediamtx_process.py`: mediamtx process lifecycle tests
 

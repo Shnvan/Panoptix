@@ -626,15 +626,54 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 
 ## Next Steps (In Order)
 
-### 1. Real RTSP camera credential handling
-Define secure camera credential storage, rotation, and edge deployment handling before real camera onboarding.
+### 1. Real camera onboarding
+Connect a real CCTV camera to the gateway using the per-camera credential file and test live FFmpeg-to-LiveKit publishing end-to-end.
 
-### 2. Cloudflare Access + custom domain setup
-Register a domain, configure Cloudflare Access policies (dashboard, admin, gateway audiences), and update Railway CF_ACCESS_* env vars with real values.
+### 2. Admin dashboard frontend
+Work with the frontend coworker to build the admin camera management and user management UI.
 
 ---
 
 ## Completed Milestones
+
+### Per-Camera RTSP Credential Handling ✅
+- [x] Created `camera_credentials.py` with `CameraCredential` frozen dataclass, `CameraCredentialStore`, `load_camera_credentials()`, `build_rtsp_url()`, `build_authenticated_rtsp_url()`, `check_credential_file_permissions()`, and `CredentialFileError`
+- [x] Added `PANOPTIX_CAMERA_CREDENTIALS_PATH` env var to `AgentConfig`
+- [x] Extended `MediaController` protocol with optional `source_url`, `rtsp_username`, `rtsp_password`, `rtsp_transport` parameters
+- [x] Added per-camera credential resolution to `CommandExecutor` — resolves URL from credential store before calling media controller
+- [x] Missing camera in credential store rejects with `camera-credentials-not-found`; no credential store = backward compatible
+- [x] Extended `FfmpegRtspFrameSourceConfig` with optional `rtsp_username`/`rtsp_password`/`rtsp_transport` — authenticated URL composed only in `args()` subprocess boundary
+- [x] Wired credentials through `LiveKitPublishRequest`, `LiveKitMediaController`, and `FfmpegVideoTrackMediaSessionFactory`
+- [x] CLI loads and validates credential file at startup (fail-closed: agent refuses to start if file is missing/unreadable/invalid)
+- [x] `__repr__` redacts passwords in `CameraCredential`, `FfmpegRtspFrameSourceConfig`, and `LiveKitPublishRequest`
+- [x] File permission check (0600 on Linux, skip on Windows)
+- [x] Created `cameras.json.example` template, updated `gateway.env.example`, agent README, and project docs
+- [x] 28 new tests in `test_camera_credentials.py` covering load, resolve, URL assembly, validation, repr redaction, permissions, and config integration
+- [x] 3 new tests in `test_executor.py` for credential store resolution, missing camera rejection, and backward compatibility
+- [x] All 239 edge-agent tests passing; ruff, mypy, and compileall clean
+- [x] Credential threat model preserved: camera RTSP credentials live ONLY on the gateway and never reach the backend API, browser, or audit logs
+
+### Admin Role Bootstrap ✅
+- [x] Seeded `admin` and `viewer` roles into the Neon `roles` table (seed migration `0005` had not been applied)
+- [x] Assigned both `admin` and `viewer` roles to `ivanliao41@gmail.com` via `user_roles` table
+- [x] Verified `/api/v1/me` returns `"roles":["admin","viewer"]` after fresh GitHub OAuth login
+- [x] Verified `/api/v1/admin/health/deep` returns `{"status":"ok","db":"connected"}` (admin access works)
+
+### Cloudflare Access + Custom Domain Setup ✅
+- [x] Added `panoptix.site` domain to Cloudflare (Free plan)
+- [x] Changed Namecheap nameservers to Cloudflare (`courtney.ns.cloudflare.com`, `hal.ns.cloudflare.com`)
+- [x] Domain active and protected by Cloudflare
+- [x] Added CNAME `staging` → Railway service (proxied through Cloudflare)
+- [x] Configured Railway custom domain `staging.panoptix.site` with DNS verification
+- [x] Created Cloudflare Zero Trust organization (`panoptix-netad`)
+- [x] Added GitHub OAuth as identity provider (GitHub OAuth App → Cloudflare Access callback)
+- [x] Created `Panoptix Staging` Access application covering `staging.panoptix.site`
+- [x] Access policy: Allow GitHub Users (GitHub login method)
+- [x] Updated Railway CF_ACCESS_* env vars with real Cloudflare values
+- [x] Verified `/health` returns `{"status":"ok"}` through `staging.panoptix.site`
+- [x] Verified `/api/v1/me` returns authenticated user principal after GitHub OAuth login
+- [x] Verified user identity: `ivanliao41@gmail.com`, `is_dev: false`, roles/permissions empty (expected for new user)
+- [x] No code changes required — existing Cloudflare Access JWT verification worked out of the box
 
 ### Railway/Neon Staging Deployment ✅
 - [x] Connected private GitHub repo (`Shnvan/Panoptix`) to Railway via GitHub App

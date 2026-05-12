@@ -43,6 +43,7 @@ class AgentConfig:
     supervise_mediamtx: bool = False
     mediamtx_binary: str = "mediamtx"
     mediamtx_config_path: str = str(DEFAULT_MEDIAMTX_CONFIG_PATH)
+    camera_credentials_path: str = ""
 
     @property
     def normalized_api_base_url(self) -> str:
@@ -88,6 +89,7 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
         "PANOPTIX_MEDIAMTX_CONFIG_PATH",
         str(DEFAULT_MEDIAMTX_CONFIG_PATH),
     ).strip() or str(DEFAULT_MEDIAMTX_CONFIG_PATH)
+    camera_credentials_path = env.get("PANOPTIX_CAMERA_CREDENTIALS_PATH", "").strip()
 
     if heartbeat_interval_seconds < 5:
         raise ConfigError("PANOPTIX_HEARTBEAT_INTERVAL_SECONDS must be at least 5")
@@ -153,6 +155,7 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
         supervise_mediamtx=supervise_mediamtx,
         mediamtx_binary=mediamtx_binary,
         mediamtx_config_path=mediamtx_config_path,
+        camera_credentials_path=camera_credentials_path,
     )
 
 

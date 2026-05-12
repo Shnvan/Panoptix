@@ -19,6 +19,7 @@ Set these environment variables before running:
 | `PANOPTIX_DEV_GATEWAY_IDENTITY` | no | `false` | Sends the backend dev gateway identity header for local development |
 | `PANOPTIX_GATEWAY_COMMAND_SIGNING_KEY` | no | empty | HMAC key used to verify future gateway control command envelopes |
 | `PANOPTIX_GATEWAY_CONTROL_WS_PATH` | no | `/api/v1/gateway-control/ws` | Gateway control WebSocket path |
+| `PANOPTIX_CAMERA_CREDENTIALS_PATH` | no | empty | Path to a JSON file with per-camera RTSP credentials (see below) |
 
 ## Run once
 
@@ -56,6 +57,14 @@ python -m ruff check src tests
 python -m mypy src/panoptix_edge_agent --ignore-missing-imports
 python -m compileall src tests
 ```
+
+## Per-camera RTSP credentials
+
+When `PANOPTIX_CAMERA_CREDENTIALS_PATH` is set, the agent loads per-camera RTSP connection details from a local JSON file. Camera credentials live exclusively on the gateway and never reach the backend API, browser, or audit logs.
+
+The file must have `0600` permissions on Linux. See `docs/runbooks/templates/cameras.json.example` for the file format.
+
+When the credential file is configured, the executor resolves per-camera RTSP URLs at publish time. If a camera ID is not found in the credential file, the publish command is rejected with `camera-credentials-not-found`. When no credential file is configured, the agent falls back to the global `PANOPTIX_MEDIA_SOURCE_URL`.
 
 ## Not included yet
 

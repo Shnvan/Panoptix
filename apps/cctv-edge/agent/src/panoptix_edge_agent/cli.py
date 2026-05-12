@@ -55,8 +55,23 @@ def main(argv: list[str] | None = None) -> int:
         print(f"configuration error: {exc}", file=sys.stderr)
         return 2
 
+    from panoptix_edge_agent.camera_credentials import (
+        CameraCredentialStore,
+        CredentialFileError,
+        check_credential_file_permissions,
+        load_camera_credentials,
+    )
     from panoptix_edge_agent.executor import CommandExecutor
     from panoptix_edge_agent.media_factory import build_media_controller
+
+    credential_store: CameraCredentialStore | None = None
+    if config.camera_credentials_path:
+        try:
+            check_credential_file_permissions(config.camera_credentials_path)
+            credential_store = load_camera_credentials(config.camera_credentials_path)
+        except CredentialFileError as exc:
+            print(f"credential file error: {exc}", file=sys.stderr)
+            return 2
 
     factory_result = build_media_controller(config)
     if factory_result.error is not None:
@@ -65,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
             f"(falling back to stub)",
             file=sys.stderr,
         )
-    executor = CommandExecutor(factory_result.controller)
+    executor = CommandExecutor(factory_result.controller, credential_store=credential_store)
 
     if args.supervise:
         return _run_supervisor(config, executor)

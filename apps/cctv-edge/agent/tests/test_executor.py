@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 
+from panoptix_edge_agent.camera_credentials import CameraCredential, CameraCredentialStore
 from panoptix_edge_agent.commands import GatewayCommand
 from panoptix_edge_agent.executor import CommandExecutor
 from panoptix_edge_agent.media import FailingMediaController, StubMediaController
@@ -218,3 +219,55 @@ def test_stop_publish_media_controller_failure_is_rejected() -> None:
     assert result.accepted is False
     assert result.error == "mediamtx-stop-failed"
     assert state.is_publishing("camera-1")
+
+
+def _make_credential_store() -> CameraCredentialStore:
+    cred = CameraCredential(
+        camera_id="camera-1",
+        rtsp_host="192.168.10.50",
+        rtsp_port=554,
+        rtsp_path="/stream1",
+        rtsp_transport="tcp",
+        username="cam-admin",
+        password="cam-secret",
+    )
+    return CameraCredentialStore({"camera-1": cred})
+
+
+def test_start_publish_with_credential_store_resolves_source_url() -> None:
+    controller = StubMediaController()
+    executor = CommandExecutor(
+        controller,
+        credential_store=_make_credential_store(),
+    )
+
+    result = asyncio.run(executor.execute(_start_command()))
+
+    assert result.accepted is True
+    assert len(controller.start_calls) == 1
+    assert controller.start_calls[0]["source_url"] == "rtsp://192.168.10.50/stream1"
+
+
+def test_start_publish_with_credential_store_missing_camera_rejects() -> None:
+    controller = StubMediaController()
+    executor = CommandExecutor(
+        controller,
+        credential_store=_make_credential_store(),
+    )
+
+    result = asyncio.run(executor.execute(_start_command(camera_id="unknown-camera")))
+
+    assert result.accepted is False
+    assert result.error == "camera-credentials-not-found"
+    assert len(controller.start_calls) == 0
+
+
+def test_start_publish_without_credential_store_uses_default() -> None:
+    controller = StubMediaController()
+    executor = CommandExecutor(controller)
+
+    result = asyncio.run(executor.execute(_start_command()))
+
+    assert result.accepted is True
+    assert len(controller.start_calls) == 1
+    assert "source_url" not in controller.start_calls[0]

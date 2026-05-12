@@ -3150,6 +3150,9 @@ The system now has:
 - synthetic end-to-end publish dry-run harness
 - successful real LiveKit Cloud smoke test with synthetic RTSP source
 - passing backend and edge-agent tests, type checks, and lint checks
+- live Cloudflare Access with GitHub OAuth on staging.panoptix.site
+- Railway staging deployment with custom domain and Cloudflare proxy
+- per-camera RTSP credential handling with gateway-local credential file, fail-closed validation, and repr-safe password redaction
 
 The most important security idea so far is:
 

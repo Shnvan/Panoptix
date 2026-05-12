@@ -21,6 +21,20 @@ class LiveKitPublishRequest:
     livekit_url: str
     token: str
     source_url: str
+    rtsp_username: str | None = None
+    rtsp_password: str | None = None
+    rtsp_transport: str = "tcp"
+
+    def __repr__(self) -> str:
+        cred = ""
+        if self.rtsp_username is not None:
+            cred = ", rtsp_username='***', rtsp_password='***'"
+        return (
+            f"LiveKitPublishRequest(camera_id={self.camera_id!r}, "
+            f"room={self.room!r}, livekit_url={self.livekit_url!r}, "
+            f"token='***', source_url={self.source_url!r}, "
+            f"rtsp_transport={self.rtsp_transport!r}{cred})"
+        )
 
     def validate(self) -> None:
         _validate_non_empty(self.camera_id, "camera_id")
@@ -405,13 +419,21 @@ class LiveKitMediaController:
         room: str,
         livekit_url: str,
         token: str,
+        source_url: str | None = None,
+        rtsp_username: str | None = None,
+        rtsp_password: str | None = None,
+        rtsp_transport: str | None = None,
     ) -> PublishResult:
+        resolved_source = source_url if source_url is not None else self.source_url
         request = LiveKitPublishRequest(
             camera_id=camera_id,
             room=room,
             livekit_url=livekit_url,
             token=token,
-            source_url=self.source_url,
+            source_url=resolved_source,
+            rtsp_username=rtsp_username,
+            rtsp_password=rtsp_password,
+            rtsp_transport=rtsp_transport or "tcp",
         )
         try:
             request.validate()

@@ -3,6 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from panoptix_edge_agent.camera_credentials import (
+    CameraCredentialStore,
+    build_rtsp_url,
+)
 from panoptix_edge_agent.commands import GatewayCommand
 from panoptix_edge_agent.media import MediaController
 from panoptix_edge_agent.publish_state import PublishState
@@ -19,9 +23,11 @@ class CommandExecutor:
         self,
         media_controller: MediaController,
         publish_state: PublishState | None = None,
+        credential_store: CameraCredentialStore | None = None,
     ) -> None:
         self.media_controller = media_controller
         self.publish_state = publish_state if publish_state is not None else PublishState()
+        self.credential_store = credential_store
 
     async def execute(self, command: GatewayCommand) -> CommandExecutionResult:
         if command.kind == "gateway.command.start_publish":
@@ -49,11 +55,31 @@ class CommandExecutor:
         if self.publish_state.is_publishing(camera_id):
             return CommandExecutionResult(accepted=True)
 
+        source_url: str | None = None
+        rtsp_username: str | None = None
+        rtsp_password: str | None = None
+        rtsp_transport: str | None = None
+        if self.credential_store is not None:
+            credential = self.credential_store.resolve(camera_id)
+            if credential is None:
+                return CommandExecutionResult(
+                    accepted=False,
+                    error="camera-credentials-not-found",
+                )
+            source_url = build_rtsp_url(credential)
+            rtsp_username = credential.username
+            rtsp_password = credential.password
+            rtsp_transport = credential.rtsp_transport
+
         result = await self.media_controller.start_publish(
             camera_id=camera_id,
             room=room,
             livekit_url=livekit_url,
             token=token,
+            source_url=source_url,
+            rtsp_username=rtsp_username,
+            rtsp_password=rtsp_password,
+            rtsp_transport=rtsp_transport,
         )
         if not result.ok:
             return CommandExecutionResult(accepted=False, error=result.error)

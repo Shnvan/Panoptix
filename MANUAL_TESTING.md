@@ -2782,3 +2782,117 @@ Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_smoke_config.py tests/test_smoke_ffmpeg_livekit.py -v
 ```
+
+## Staging Cloudflare Access Verification
+
+These checks verify the live staging deployment at `staging.panoptix.site` through Cloudflare Access with GitHub OAuth.
+
+### Health endpoint (through Cloudflare)
+
+Open in browser or run:
+
+```powershell
+curl.exe -s "https://staging.panoptix.site/health"
+```
+
+Expected: Cloudflare Access login page (entire subdomain is protected). After GitHub login, returns:
+
+```json
+{"status":"ok"}
+```
+
+### Authenticated user identity
+
+After GitHub OAuth login, open in browser:
+
+```text
+https://staging.panoptix.site/api/v1/me
+```
+
+Expected response:
+
+```json
+{"kind":"user","subject":"<uuid>","email":"ivanliao41@gmail.com","roles":[],"permissions":[],"gateway_id":null,"is_dev":false}
+```
+
+Verification checks:
+
+- `kind` is `user` (not `gateway` or `dev`)
+- `is_dev` is `false` (dev auth is disabled in staging)
+- `email` matches the GitHub account used for OAuth
+- `roles` is empty for new users (admin role must be assigned via database)
+- `subject` is a stable UUID derived from the Cloudflare Access `sub` claim
+
+### Protected admin route (requires admin role)
+
+After GitHub login, open in browser:
+
+```text
+https://staging.panoptix.site/api/v1/admin/health/deep
+```
+
+Expected: `403` if user has no admin role; deep health JSON if admin role is assigned.
+
+### Cloudflare Access configuration reference
+
+- **Domain:** `panoptix.site` (Cloudflare, Free plan)
+- **Zero Trust org:** `panoptix-netad`
+- **IdP:** GitHub OAuth
+- **Access app:** `Panoptix Staging` covering `staging.panoptix.site`
+- **Policy:** Allow GitHub Users
+- **Issuer:** `https://panoptix-netad.cloudflareaccess.com`
+- **JWKS:** `https://panoptix-netad.cloudflareaccess.com/cdn-cgi/access/certs`
+- **Railway custom domain:** `staging.panoptix.site` → Railway `panoptix-control` service
+
+---
+
+## Per-Camera Credential Resolution Testing
+
+### Automated tests
+
+From `apps/cctv-edge/agent/`:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_camera_credentials.py tests/test_executor.py -v
+```
+
+Expected: all tests pass (POSIX permission tests skip on Windows).
+
+### Manual credential file validation
+
+Create a test `cameras.json`:
+
+```json
+{
+  "version": 1,
+  "cameras": {
+    "test-camera-1": {
+      "rtsp_host": "192.168.10.50",
+      "rtsp_port": 554,
+      "rtsp_path": "/stream1",
+      "rtsp_transport": "tcp",
+      "username": "admin",
+      "password": "test-password",
+      "tls": false
+    }
+  }
+}
+```
+
+Verify the agent loads it without errors:
+
+```powershell
+$env:PYTHONPATH = "src"
+$env:PANOPTIX_API_BASE_URL = "http://localhost:8000"
+$env:PANOPTIX_GATEWAY_ID = "gateway-1"
+$env:PANOPTIX_CAMERA_CREDENTIALS_PATH = "path/to/cameras.json"
+python -m panoptix_edge_agent.cli --once
+```
+
+Verification checks:
+
+- Agent starts without `credential file error` output
+- If the file is missing or invalid, agent exits with code 2 and prints `credential file error: ...`
+- Passwords never appear in log output or `repr()` strings
+- On Linux, file with permissions wider than `0600` is rejected

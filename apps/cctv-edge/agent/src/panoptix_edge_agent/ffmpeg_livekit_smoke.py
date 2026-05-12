@@ -57,6 +57,9 @@ class FfmpegVideoTrackMediaSessionFactory:
             frame_rate=self.settings.frame_rate,
             ffmpeg_binary=self.settings.ffmpeg_binary,
             stop_timeout_seconds=self.settings.stop_timeout_seconds,
+            rtsp_username=request.rtsp_username,
+            rtsp_password=request.rtsp_password,
+            rtsp_transport=request.rtsp_transport,
         )
         self.created_configs.append(config)
         frame_source = FfmpegRtspFrameSource(

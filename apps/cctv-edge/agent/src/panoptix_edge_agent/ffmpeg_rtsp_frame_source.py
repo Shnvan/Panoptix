@@ -5,7 +5,7 @@ import subprocess
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Protocol, cast
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 from panoptix_edge_agent.livekit_publisher import LiveKitVideoFrame
 
@@ -41,6 +41,22 @@ class FfmpegRtspFrameSourceConfig:
     frame_rate: int
     ffmpeg_binary: str = "ffmpeg"
     stop_timeout_seconds: float = 5.0
+    rtsp_username: str | None = None
+    rtsp_password: str | None = None
+    rtsp_transport: str = "tcp"
+
+    def __repr__(self) -> str:
+        cred = ""
+        if self.rtsp_username is not None:
+            cred = ", rtsp_username='***', rtsp_password='***'"
+        return (
+            f"FfmpegRtspFrameSourceConfig(rtsp_url={self.rtsp_url!r}, "
+            f"width={self.width}, height={self.height}, "
+            f"frame_rate={self.frame_rate}, "
+            f"ffmpeg_binary={self.ffmpeg_binary!r}, "
+            f"stop_timeout_seconds={self.stop_timeout_seconds}, "
+            f"rtsp_transport={self.rtsp_transport!r}{cred})"
+        )
 
     @property
     def frame_size_bytes(self) -> int:
@@ -52,6 +68,12 @@ class FfmpegRtspFrameSourceConfig:
 
     def args(self) -> list[str]:
         _validate_config(self)
+        input_url = self.rtsp_url
+        if self.rtsp_username is not None and self.rtsp_password is not None:
+            parsed = urlsplit(self.rtsp_url)
+            user = quote(self.rtsp_username, safe="")
+            pwd = quote(self.rtsp_password, safe="")
+            input_url = parsed._replace(netloc=f"{user}:{pwd}@{parsed.hostname or ''}" + (f":{parsed.port}" if parsed.port else "")).geturl()
         return [
             self.ffmpeg_binary,
             "-hide_banner",
@@ -59,9 +81,9 @@ class FfmpegRtspFrameSourceConfig:
             "error",
             "-nostdin",
             "-rtsp_transport",
-            "tcp",
+            self.rtsp_transport,
             "-i",
-            self.rtsp_url,
+            input_url,
             "-an",
             "-vf",
             f"scale={self.width}:{self.height}",
