@@ -629,8 +629,24 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 ### 1. Real RTSP camera credential handling
 Define secure camera credential storage, rotation, and edge deployment handling before real camera onboarding.
 
-### 2. Actual staging account setup
-Create Railway services, Neon databases, and Cloudflare Access policies using the staging prep runbook.
+### 2. Cloudflare Access + custom domain setup
+Register a domain, configure Cloudflare Access policies (dashboard, admin, gateway audiences), and update Railway CF_ACCESS_* env vars with real values.
+
+---
+
+## Completed Milestones
+
+### Railway/Neon Staging Deployment ✅
+- [x] Connected private GitHub repo (`Shnvan/Panoptix`) to Railway via GitHub App
+- [x] Configured Railway service to deploy from `backend` branch, `apps/api/` root
+- [x] Set Railway Networking custom port to `8080`
+- [x] Fixed `ModuleNotFoundError: No module named 'httpx'` by moving `httpx` to main deps in `pyproject.toml`
+- [x] Aligned Uvicorn port (`8000` → `8080`) in Dockerfile and updated `PORT` env var
+- [x] Set all required staging environment variables (Neon DB URLs, session/CSRF/audit keys, gateway tokens)
+- [x] Verified staging deploy: `/health` returns `{"status":"ok"}`
+- [x] Verified protected routes fail-closed: `/api/v1/cameras` and `/api/v1/me` return `401 Unauthorized`
+- [x] Verified Neon database schema already migrated (23 tables present, alembic_version at `0004_constraints_and_indexes`)
+- [x] Updated docs: `railway-neon-staging-prep.md` port reference `8000` → `8080`
 
 ---
 

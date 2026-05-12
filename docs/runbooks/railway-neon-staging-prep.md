@@ -29,8 +29,8 @@ Before staging setup begins, confirm:
 | Setting | Value |
 |---------|-------|
 | Source | `apps/api` (Dockerfile build) |
-| Start command | `uvicorn cctv_api.main:app --host 0.0.0.0 --port 8000` |
-| Port | `8000` |
+| Start command | `uvicorn cctv_api.main:app --host 0.0.0.0 --port 8080` |
+| Port | `8080` |
 | Region | Choose region closest to expected users |
 | Environment | `staging` |
 | Health check path | `/health` |
