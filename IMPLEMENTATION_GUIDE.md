@@ -3354,21 +3354,79 @@ Endpoint for an admin to record that a user's MFA device was reset through a ver
 
 ---
 
+## 53. Security Hardening: Admin Rate Limits + Exponential Backoff
+
+### What was implemented
+
+Two security hardening improvements: sliding-window rate limiting on admin mutation endpoints, and exponential backoff with jitter for edge agent WebSocket reconnects.
+
+### Admin Mutation Rate Limiter
+
+The existing in-memory sliding-window `RateLimiter` (introduced in the App-Level Rate Limiting milestone) was extended to protect admin mutation endpoints.
+
+**Settings added** (`apps/api/src/cctv_api/core/config.py`):
+
+```python
+RATE_LIMIT_ADMIN_MUTATION_MAX: int = 10
+RATE_LIMIT_ADMIN_MUTATION_WINDOW: int = 60
+```
+
+**Protected endpoints** (`apps/api/src/cctv_api/api/router.py`):
+
+| Endpoint | Rate limit key |
+|----------|----------------|
+| `POST /admin/gateways/{id}/rotate-credential` | `admin-mutation:{actor_id}` |
+| `POST /admin/users/{id}/role` | `admin-mutation:{actor_id}` |
+| `POST /admin/break-glass/open` | `admin-mutation:{actor_id}` |
+| `POST /admin/gateways/{id}/commands` | `admin-mutation:{actor_id}` |
+
+**Response on limit exceeded:**
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: <seconds>
+
+{"type": "...", "title": "Too Many Requests", ...}
+```
+
+The rate limit key format is `admin-mutation:{actor_id}` where `actor_id` is the authenticated principal's subject. The window is sliding (per RFC 6585). The 11th request within any 60-second window returns 429.
+
+### Exponential Backoff for Edge Agent Reconnects
+
+`apps/cctv-edge/agent/src/panoptix_edge_agent/control.py` now uses exponential backoff with jitter on WebSocket reconnect attempts instead of a fixed delay.
+
+**Formula:**
+
+```
+sleep = min(base * 2^attempt, cap) + uniform_jitter(0, base)
+```
+
+Where `base` = `PANOPTIX_GATEWAY_CONTROL_RECONNECT_BACKOFF_SECONDS` (default 2s) and `cap` is 60s.
+
+This prevents thundering-herd reconnect storms when the backend restarts.
+
+### Test coverage added
+
+- `apps/api/tests/test_rate_limit_admin.py`: 6 new tests — allow under limit, block at limit+1, Retry-After header present, separate actors have independent counters, window reset after expiry, non-mutation admin endpoints not affected
+- `apps/cctv-edge/agent/tests/test_control.py`: 3 new backoff tests — first attempt uses base delay, subsequent attempts double, jitter is non-negative and bounded
+
+---
+
 ## Verification (current state)
 
 Backend (`apps/api/`):
 
 ```text
-pytest: 454 passed
+pytest: 466 passed
 ruff: all checks passed
-mypy: no issues found in 39 source files
+mypy: no issues found in 41 source files
 compileall: passed
 ```
 
 Edge agent (`apps/cctv-edge/agent/`):
 
 ```text
-pytest: 239 passed, 2 skipped
+pytest: 245 passed, 2 skipped
 ruff: all checks passed
 mypy: no issues found in 22 source files
 compileall: passed
@@ -3384,6 +3442,7 @@ The following are intentionally not done yet:
 - real camera onboarding (credential file exists; needs real hardware)
 - production Docker/systemd gateway supervision (runbook templates exist)
 - Google Workspace IdP setup (GitHub OAuth is currently deployed on staging)
+- WARP device posture production activation (checklist documented)
 
 ---
 
@@ -3455,6 +3514,22 @@ The system now has:
 - LiveKit fallback toggle between cloud and self-hosted mode
 - DPA artifact export and bystander signage attestation for privacy compliance
 - admin-mediated MFA reset endpoint with self-reset prevention
+- sliding-window rate limiting on admin mutation endpoints (rotate-credential, user-role, break-glass-open, enqueue-commands) with per-actor 429 + Retry-After responses
+- exponential backoff with jitter for edge agent WebSocket reconnects
+- edge agent CI job in GitHub Actions (ruff, mypy, pytest, compileall, osv-scanner) with pinned action versions
+- Dependabot pip scope for edge agent added
+- mediamtx threat model documenting 6 threats across the RTSP/API surface
+- CI script for mediamtx YAML config validation
+- uptime monitoring runbook for staging alert response
+- DR testing schedule appended to backup-restore runbook
+- WARP device posture checklist appended to Cloudflare production setup runbook
+- Terraform state security requirements doc
+- Cloudflare R2 backup bucket Terraform module
+- DR restore drill automation script
+- CT-log monitoring script
+- mTLS cert bootstrap scaffold for edge agent
+- staging auto-deploy workflow with post-push health checks
+- Dependabot auto-merge workflow (minor/patch auto, major requires manual approval)
 
 The most important security idea so far is:
 

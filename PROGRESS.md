@@ -4,20 +4,20 @@ Current status and next steps for any session continuing this project.
 
 ---
 
-## Overall Progress: ~70% to MVP
+## Overall Progress: ~85% to MVP
 
 Last updated: 2026-05-13
 
 | Area | Progress | Status | Notes |
 |------|----------|--------|-------|
 | **Backend API** | 99% | 🟢 Strong | Auth, RBAC, audit, health, gateway, camera, command, webhook, session, admin, break-glass, search/filter, enrichment, LiveKit fallback, DPA export, signage attestation, credential rotation, MFA reset, 501 stubs all done. 460 tests passing. |
-| **Edge Agent** | 75% | 🟡 Good | Heartbeat, command signing, WebSocket control, FFmpeg frame source, LiveKit SDK bridge, per-camera credentials, supervisor, real FFmpeg integration tests all done. Missing: real camera-to-LiveKit publishing in production, mTLS bootstrap. |
+| **Edge Agent** | 80% | 🟡 Good | Heartbeat, command signing, WebSocket control, FFmpeg frame source, LiveKit SDK bridge, per-camera credentials, supervisor, real FFmpeg integration tests, exponential backoff + jitter for reconnects, mTLS cert bootstrap scaffold, cryptography dep all done. Missing: real camera-to-LiveKit publishing in production. |
 | **Frontend** | 0% | 🔴 Not started | Placeholder only. Owned by frontend coworker. Blocked until admin UI, camera grid viewer, and privacy notice flow are built. |
 | **Database** | 95% | 🟢 Strong | 23 tables, 5 migrations deployed to Neon staging. Missing: backup verification schema, retention policy tables (pilot+). |
-| **Infrastructure** | 70% | 🟡 Partial | Cloudflare Access, Railway, Neon staging all live. Staging health check cron running (15 min). 7-day uptime clock started. Missing: LiveKit Cloud provisioning, paid Neon tier, disaster recovery testing. |
-| **Security** | 85% | 🟢 Strong | CF Access JWT, CSRF, HMAC audit chain, rate limiting, security headers, service tokens, RBAC, break-glass, SCA/SAST CI all done. Missing: device posture, lost-MFA recovery. |
-| **Documentation** | 97% | 🟢 Strong | Full system plan, API reference, 51 docs, runbooks (incl. break-glass, lost-MFA, IdP-outage, bus-factor), templates, IMPLEMENTATION_GUIDE fully up-to-date. |
-| **DevOps/CI** | 95% | 🟢 Strong | GitHub Actions CI covers both `main` and `backend` branches. Edge agent CI added. Staging health check cron active. Production deploy workflow (manual) ready. |
+| **Infrastructure** | 80% | 🟡 Partial | Cloudflare Access, Railway, Neon staging all live. Staging health check cron running (15 min). 7-day uptime clock started. R2 Terraform module, Terraform state security doc, restore drill script all done. Missing: LiveKit Cloud provisioning, paid Neon tier. |
+| **Security** | 90% | 🟢 Strong | CF Access JWT, CSRF, HMAC audit chain, rate limiting (including admin mutations), security headers, service tokens, RBAC, break-glass, SCA/SAST CI, mediamtx threat model, mTLS cert bootstrap scaffold, CT-log monitoring all done. Missing: device posture enforcement (checklist done), WARP posture production activation. |
+| **Documentation** | 95% | 🟢 Strong | Full system plan, API reference, 51+ docs, all runbooks done (incl. break-glass, lost-MFA, IdP-outage, bus-factor, uptime monitoring, backup-restore DR schedule, Cloudflare WARP posture), mediamtx threat model, Terraform state security doc, IMPLEMENTATION_GUIDE fully up-to-date. |
+| **DevOps/CI** | 98% | 🟢 Strong | GitHub Actions CI covers both `main` and `backend` branches. Edge agent CI added (ruff, mypy, pytest, compileall, osv-scanner). Staging health check cron active. Production deploy workflow (manual) ready. Staging auto-deploy workflow added. Dependabot auto-merge workflow added (minor/patch auto, major manual). |
 
 ### Critical Path to MVP
 
@@ -34,7 +34,7 @@ Last updated: 2026-05-13
 ### What We Control vs What's Blocked
 
 **Can do now (no external dependencies):**
-- Nothing significant — all unblocked backend/CI work is done
+- Nothing significant — all non-hardware work is complete. Remaining work requires: (1) camera hardware for LiveKit publish testing, (2) Railway/Cloudflare production env for staging deployment, (3) Frontend coworker for web UI.
 
 **Blocked on external dependencies:**
 - Frontend UI → frontend coworker

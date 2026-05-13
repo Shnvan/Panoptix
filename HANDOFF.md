@@ -142,6 +142,53 @@ Current state:
 
 ## Recently Completed Milestones
 
+### Rounds 1–4: Security Hardening, CI/CD, Infrastructure & Docs (2026-05-13)
+
+Completed in this batch:
+
+**Round 1 — Rate limiting + edge backoff + CI hardening:**
+
+- `config.py`: Added `RATE_LIMIT_ADMIN_MUTATION_MAX=10` and `RATE_LIMIT_ADMIN_MUTATION_WINDOW=60`
+- `api/router.py`: Sliding-window rate limiting on admin mutations (`rotate-credential`, `user-role`, `break-glass-open`, `enqueue-commands`) — returns 429 + Retry-After; key format `admin-mutation:{actor_id}`
+- `tests/test_rate_limit_admin.py`: 6 new tests for admin rate limiting
+- `control.py`: Exponential backoff + jitter for WebSocket reconnect (`base * 2^attempt + jitter`)
+- `tests/test_control.py`: 3 new backoff tests (27 total)
+- `.github/workflows/ci.yml`: Pinned action versions, added edge-agent CI job (ruff, mypy, pytest, compileall, osv-scanner), triggered on backend branch
+- `.github/dependabot.yml`: Added pip scope for `apps/cctv-edge/agent`
+
+**Round 2 — Threat models + runbooks:**
+
+- `docs/security/mediamtx-threat-model.md`: New mediamtx threat model (6 threats)
+- `scripts/check_mediamtx_config.py`: CI script to validate mediamtx YAML configs
+- `docs/runbooks/uptime-monitoring.md`: New runbook for staging monitoring alert response
+- `docs/runbooks/backup-restore.md`: DR testing schedule section appended
+- `docs/runbooks/cloudflare-production-setup.md`: WARP device posture checklist appended
+- `infra/terraform/STATE_SECURITY.md`: New doc on Terraform state security requirements
+
+**Round 3 — Infrastructure + mTLS scaffold:**
+
+- `infra/terraform/modules/backup-r2/`: New Terraform module for Cloudflare R2 backup bucket (main.tf, variables.tf, outputs.tf)
+- `scripts/restore-drill.sh`: New DR restore drill automation script
+- `scripts/ct-log-check.sh`: New CT-log monitoring script
+- `apps/cctv-edge/agent/src/panoptix_edge_agent/mtls_bootstrap.py`: New mTLS cert bootstrap scaffold
+- `apps/cctv-edge/agent/pyproject.toml`: Added `cryptography>=42.0` dependency
+
+**Round 4 — Staging deploy + Dependabot automation:**
+
+- `.github/workflows/deploy-staging.yml`: New staging auto-deploy workflow with post-push health checks
+- `.github/workflows/dependabot-auto-merge.yml`: New Dependabot auto-merge workflow (minor/patch auto, major requires manual approval)
+
+Verification after Rounds 1–4:
+
+```text
+backend pytest: 466 passed (was 460; +6 admin rate-limit tests)
+edge agent pytest: 245 passed (was 242; +3 backoff tests)
+ruff: all checks passed
+mypy: no issues found
+```
+
+---
+
 ### LiveKit Fallback, DPA Export, Signage Attestation & Bus-Factor Doc
 
 Completed in this milestone.
@@ -1527,7 +1574,7 @@ $env:PYTHONPATH = "src"; python -m compileall src alembic scripts
 Latest result:
 
 ```text
-pytest: 460 passed
+pytest: 466 passed
 ruff: all checks passed
 mypy: no issues found in 41 source files
 compileall: passed
@@ -1545,7 +1592,7 @@ $env:PYTHONPATH = "src"; python -m compileall src tests
 Latest result:
 
 ```text
-pytest: 242 passed, 2 skipped (includes 3 real FFmpeg integration tests)
+pytest: 245 passed, 2 skipped (includes 3 real FFmpeg integration tests)
 ruff: all checks passed
 mypy: no issues found in 22 source files
 compileall: passed
@@ -1561,7 +1608,7 @@ Real Camera Onboarding
 
 Connect a real CCTV camera to the gateway using the per-camera credential file and test live FFmpeg-to-LiveKit publishing end-to-end. Requires real camera hardware and a LiveKit Cloud account.
 
-**Note**: The 7-day staging uptime clock started 2026-05-13. The staging health check cron runs every 15 minutes at `.github/workflows/staging-healthcheck.yml`. Production deployment is gated on 7-day uptime >= 99% (v4 plan T-20). The production deploy workflow is ready at `.github/workflows/deploy-production.yml`.
+**Note**: The 7-day staging uptime clock started 2026-05-13; expected clear 2026-05-20. The staging health check cron runs every 15 minutes at `.github/workflows/staging-healthcheck.yml`. Production deployment is gated on 7-day uptime >= 99% (v4 plan T-20). The production deploy workflow is ready at `.github/workflows/deploy-production.yml`. Staging auto-deploy workflow added at `.github/workflows/deploy-staging.yml`.
 
 ## Not Implemented Yet
 
@@ -1570,6 +1617,16 @@ Connect a real CCTV camera to the gateway using the per-camera credential file a
 - production Docker/systemd gateway supervision (runbook templates exist)
 - Google Workspace IdP setup (GitHub OAuth currently deployed on staging)
 - Neon production database setup (staging Neon active; production tier requires procurement)
+- WARP device posture production activation (checklist done in `cloudflare-production-setup.md`)
+
+All non-hardware, non-frontend, non-procurement work is now complete.
+
+## 7-Day Staging Gate
+
+The 7-day staging uptime gate started 2026-05-13. Expected clear date: 2026-05-20.
+Staging health check cron runs every 15 minutes at `.github/workflows/staging-healthcheck.yml`.
+Production deployment is gated on 7-day uptime >= 99% (v4 plan T-20).
+The production deploy workflow is at `.github/workflows/deploy-production.yml`.
 
 ## External Accounts Status
 

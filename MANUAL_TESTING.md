@@ -3495,3 +3495,68 @@ Notes:
 - This records an audit trail; actual MFA reset must be completed in the IdP admin console
 - Returns `recovery_note` with instructions
 - Audit event: `admin.user.mfa_reset`
+
+## Admin Rate Limit Testing
+
+### Automated tests
+
+From `apps/api/`:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_rate_limit_admin.py -v
+```
+
+Expected: all 6 tests pass.
+
+### Manual verification
+
+The rate limit allows 10 admin mutation requests per actor per 60-second sliding window. The 11th request in that window returns 429.
+
+**Trigger the limit** by sending the same admin mutation more than 10 times in 60 seconds with the same actor identity:
+
+```powershell
+# Run this loop 12 times — first 10 should succeed (or fail with business logic errors),
+# requests 11 and 12 should return 429
+1..12 | ForEach-Object {
+  try {
+    $response = Invoke-RestMethod -Method POST `
+      -Uri "$BaseUrl/api/v1/admin/gateways/$GatewayId/rotate-credential" `
+      -Headers $AdminHeaders `
+      -ContentType "application/json" -Body '{"reason": "rate-limit test"}'
+    Write-Host "Request $_`: 200 OK"
+  } catch {
+    Write-Host "Request $_`: $($_.Exception.Response.StatusCode.value__)"
+  }
+}
+```
+
+**Expected behavior:**
+
+- Requests 1–10: succeed (or fail with a business-logic error such as 409), no rate limit
+- Request 11+: `429 Too Many Requests` with a `Retry-After` header indicating seconds until the window resets
+
+**Check the Retry-After header:**
+
+```powershell
+try {
+  Invoke-WebRequest -Method POST `
+    -Uri "$BaseUrl/api/v1/admin/gateways/$GatewayId/rotate-credential" `
+    -Headers $AdminHeaders `
+    -ContentType "application/json" -Body '{"reason": "rate-limit test"}'
+} catch {
+  $_.Exception.Response.Headers["Retry-After"]
+}
+```
+
+**Notes:**
+
+- Rate limit key format: `admin-mutation:{actor_id}` — one counter per authenticated actor subject
+- Different actors (different `x-panoptix-dev-subject` values in dev mode) have independent counters
+- The window is sliding — each allowed request sets its own 60-second expiry slot
+- All four protected admin mutations share the same per-actor counter:
+  - `POST /api/v1/admin/gateways/{id}/rotate-credential`
+  - `POST /api/v1/admin/users/{id}/role`
+  - `POST /api/v1/admin/break-glass/open`
+  - `POST /api/v1/admin/gateways/{id}/commands`
+- Read-only admin endpoints (GET) are not rate-limited by this limiter
