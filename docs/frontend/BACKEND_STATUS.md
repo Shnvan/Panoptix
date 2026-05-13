@@ -2,7 +2,7 @@
 
 This document lists every implemented backend API endpoint, what the frontend can build against today, what is not ready yet, and local dev setup instructions.
 
-Last updated: 2026-05-10
+Last updated: 2026-05-13
 
 ---
 
@@ -339,10 +339,10 @@ Do not build against or depend on these:
 |---|---|
 | Real LiveKit Cloud video playback | LiveKit tokens are mintable but no gateway is publishing real streams yet |
 | Real camera streams | Edge agent has stub media controller only |
-| Full admin user management | role update, disable, MFA reset, and IdP invite flow are not implemented |
-| Gateway credential rotation | `POST /api/v1/admin/gateways/{id}/rotate-credential` is not implemented |
-| DPA/signage export | `POST /api/v1/admin/dpa/export` and signage attestation are not implemented |
-| LiveKit fallback mode | `POST /api/v1/admin/livekit/fallback` is not implemented |
+| Full admin user management | role update, disable, MFA reset implemented. IdP invite flow not implemented. |
+| Gateway credential rotation | `POST /api/v1/admin/gateways/{id}/rotate-credential` is **implemented** (generates new service token, revokes old hash, audit-logged) |
+| DPA/signage export | `POST /api/v1/admin/dpa/export` and `POST /api/v1/admin/sites/:id/signage-attest` are **implemented** (JSONL bundle with kind filter, audit-logged) |
+| LiveKit fallback mode | `POST /api/v1/admin/livekit/fallback` is **implemented** (DB flag flip between `cloud`/`fallback`, audit-logged) |
 | Production Cloudflare Access | Use dev-auth locally; real CF Access is not configured yet |
 | Production scheduler | Due publish stop processing requires scheduler wiring |
 

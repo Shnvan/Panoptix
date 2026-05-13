@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     GATEWAY_CONTROL_WS_PATH: str = "/api/v1/gateway-control/ws"
     GATEWAY_COMMAND_SIGNING_KEY: str = "replace-me"
     GATEWAY_HEARTBEAT_INTERVAL_SECONDS: int = Field(default=10, ge=5)
+    GATEWAY_STALE_THRESHOLD_SECONDS: int = Field(default=60, ge=10)
 
     # ── Maintenance scheduler ──
     ENABLE_MAINTENANCE_SCHEDULER: bool = False

@@ -74,6 +74,15 @@ FastAPI backend currently implements:
 - admin audit row listing endpoint with cursor pagination
 - LiveKit webhook receiver with Authorization JWT validation, replay cache, audit, and camera event persistence
 - room-presence-driven gateway publish command enqueue from LiveKit webhooks
+- break-glass emergency access (open/close/status endpoints + request-time enforcement gate)
+- admin camera search/filter (`search`, `source_type`, `gateway_id` params)
+- admin gateway search (`search` param)
+- admin camera list enrichment (`gateway_id`, `acl_count`)
+- admin gateway list enrichment (`camera_count`)
+- LiveKit fallback toggle (`POST /admin/livekit/fallback` with `SystemConfig` DB flag)
+- DPA artifact export (`POST /admin/dpa/export` with kind filter)
+- bystander signage attestation (`POST /admin/sites/:id/signage-attest`)
+- admin-mediated MFA reset (`POST /admin/users/:id/mfa/reset` with self-reset prevention)
 
 ### Edge / Camera Plane
 
@@ -133,9 +142,223 @@ Current state:
 
 ## Recently Completed Milestones
 
-### Per-Camera RTSP Credential Handling
+### LiveKit Fallback, DPA Export, Signage Attestation & Bus-Factor Doc
 
 Completed in this milestone.
+
+Implemented:
+
+- `POST /api/v1/admin/livekit/fallback` — flips `system_config.media_plane_mode` between `cloud` and `fallback`; audit-logged
+- `security/media_plane.py` helper module with `get_media_plane_mode`, `set_media_plane_mode`
+- `POST /api/v1/admin/dpa/export` — returns DPA artifact bundle with optional `kinds` filter; audit-logged
+- `POST /api/v1/admin/sites/{site_id}/signage-attest` — records bystander signage attestation as `DpaArtifact`; audit-logged
+- `docs/runbooks/bus-factor.md` — emergency recovery runbook for sole-operator unavailability
+- `POST /api/v1/admin/users/{user_id}/mfa/reset` — admin-mediated MFA reset with self-reset prevention; audit-logged
+- 21 new tests (`test_livekit_fallback.py` + `test_dpa.py` + `test_mfa_reset.py`)
+- All 454 backend tests passing; ruff, mypy clean
+
+Not included:
+
+- Dynamic CSP middleware reading `media_plane_mode` (frontend/middleware work)
+- Automated failover (deferred to pilot+ per ADR 0004)
+- R2 upload for DPA artifacts (requires Cloudflare R2 provisioning)
+
+Verification:
+
+- `python -m pytest tests/ -v`: 454 passed
+- `python -m ruff check src/ tests/`: all checks passed
+- `python -m mypy src/cctv_api/ --ignore-missing-imports`: no issues found
+
+### Operational Runbooks, SCA/SAST CI, Search/Filter & Enrichment
+
+Completed in this milestone.
+
+Implemented:
+
+- 3 operational runbooks: `break-glass-runbook.md`, `lost-mfa-recovery.md`, `idp-outage-recovery.md`
+- SCA/SAST CI: Semgrep SAST, osv-scanner dependency scan, Trivy container image scan added to GitHub Actions
+- Admin gateway list: `search` (name substring) param + `camera_count` enrichment
+- Admin camera list: `search` (display_name), `source_type` (validated enum), `gateway_id` filter params + `gateway_id`, `acl_count` enrichment
+- 12 new tests in `test_admin_search_enrichment.py`
+- All 428 backend tests passing; ruff, mypy clean
+
+Not included:
+
+- Full-text search (deferred — substring ilike is sufficient for current scale)
+- Sorting params (deferred — default `created_at DESC` is sufficient)
+
+Verification:
+
+- `python -m pytest tests/ -v`: 428 passed
+- `python -m ruff check src/ tests/`: all checks passed
+- `python -m mypy src/cctv_api/ --ignore-missing-imports`: no issues found
+
+### Break-Glass Emergency Access
+
+Completed in this milestone.
+
+Implemented:
+
+- `POST /api/v1/admin/break-glass/open` — opens a 90-minute emergency admin window; rejects if active window already exists (409)
+- `POST /api/v1/admin/break-glass/close` — closes an active or expired-but-unclosed window; returns mandatory rotation checklist
+- `GET /api/v1/admin/internal/break-glass-status` — unauthenticated external-monitor endpoint; returns `{"active": false}` or `{"active": true, "auto_disable_at": "..."}`
+- `security/break_glass.py` helper module: `open_break_glass_window`, `close_break_glass_window`, `get_break_glass_status`, `assert_break_glass_active`, `get_active_window`
+- Request-time enforcement per ADR 0005 — no scheduler, no cron; `now >= auto_disable_at` is the authoritative gate
+- Audit events: `system.break_glass.opened` and `system.break_glass.closed` (fail-closed via `_record_user_audit_required`)
+- T-52 simulated clock advance test: access denied after 91 minutes
+- 12 new tests in `test_break_glass.py`
+- All 416 backend tests passing; ruff, mypy clean
+
+Not included:
+
+- CF Access App C (Cloudflare infra config, not application code)
+- Post-close rotation automation (operational runbook, not automated)
+- Rate limiting on break-glass open (deferred to rate-limit milestone)
+
+Verification:
+
+- `python -m pytest tests/ -v`: 416 passed
+- `python -m ruff check src/ tests/`: all checks passed
+- `python -m mypy src/cctv_api/ --ignore-missing-imports`: no issues found
+
+### Admin Health Probes
+
+Completed in this milestone.
+
+Implemented:
+
+- `GET /api/v1/admin/health/deep` now returns real LiveKit connectivity and gateway heartbeat-age status instead of hardcoded `"not_connected"`
+- `_probe_livekit(settings)` calls `POST /twirp/livekit.RoomService/ListRooms` with 5s timeout; returns `connected`, `not_configured` (placeholder creds), or `error`
+- `_probe_gateways(db, settings)` queries enabled gateways and checks `last_seen_at` against `GATEWAY_STALE_THRESHOLD_SECONDS` (default 60s, 6× heartbeat interval)
+- Gateway probe returns `connected` (recent heartbeat), `no_gateways` (none enabled), `stale` (all old/null `last_seen_at`), or `error`
+- Overall status: `"ok"` only when DB connected AND (LiveKit connected/not_configured) AND (gateway connected/no_gateways); otherwise `"degraded"`
+- Added `GATEWAY_STALE_THRESHOLD_SECONDS` to `Settings` with `Field(default=60, ge=10)`
+- Fixed gap: gateway heartbeat endpoint now updates `EdgeGateway.last_seen_at` via `_update_gateway_last_seen()` (fail-open)
+- Fixed SQLite/PostgreSQL datetime comparison: `_as_naive_utc()` normalizes timezone-aware/naive datetimes for cross-DB compatibility
+- 8 new health tests in `test_health.py` + 1 new gateway test in `test_gateway.py`
+- All 404 backend tests passing; ruff, mypy clean
+
+Not included:
+
+- Auth requirement for deep health (monitoring systems need unauthenticated access)
+- Gateway mTLS certificate expiry checks
+- Historical health status tracking
+
+Verification:
+
+- `python -m pytest tests/ -v`: 404 passed
+- `python -m ruff check src/ tests/`: all checks passed
+- `python -m mypy src/cctv_api/ --ignore-missing-imports`: no issues found
+
+### Admin Dashboard Summary Endpoint
+
+Completed in this milestone.
+
+Implemented:
+
+- `GET /api/v1/admin/dashboard` returns aggregated system counts in a single admin call
+- Response shape: `{ "cameras": { "total", "active", "retired" }, "gateways": { "total", "enabled", "disabled" }, "users": { "total", "active", "disabled" }, "commands": { "pending" }, "publishing": { "active" } }`
+- Admin-role enforcement via `require_role(principal, "admin")`
+- Uses `select(func.count()).select_from(Model).where(...)` for efficient DB aggregation
+- Added `CameraPublishState` and `CameraPublishStatus` imports to router
+- 6 new tests in `test_admin_dashboard.py` covering auth, empty counts, cameras, gateways, users, and commands/publishing
+- All 395 backend tests passing; ruff, mypy clean
+
+Not included:
+
+- Historical trend data or time-series counts
+- Real-time streaming dashboard updates
+- Per-gateway or per-camera breakdown endpoints
+
+Verification:
+
+- `python -m pytest tests/ -v`: 395 passed
+- `python -m ruff check src/ tests/`: all checks passed
+- `python -m mypy src/cctv_api/ --ignore-missing-imports`: no issues found
+
+### Admin Camera & Gateway Listing Endpoints
+
+Completed in previous milestone.
+
+Implemented:
+
+- `GET /api/v1/admin/gateways` — list all gateways (enabled + disabled) with cursor pagination, optional `status` filter (validated against `GatewayStatus` enum)
+- `GET /api/v1/admin/gateways/{gateway_id}` — gateway detail with `camera_count` from active `GatewayCameraAssignment` rows, plus `mtls_fingerprint` and `cert_expires_at`
+- `GET /api/v1/admin/cameras` — list all cameras with cursor pagination, optional `include_retired` filter (default excludes retired)
+- `GET /api/v1/admin/cameras/{camera_id}` — camera detail with `acl_count` from active `CameraAcl` rows, plus `room_uuid`, `gateway_id`, `site_id`
+- All four endpoints require admin role and use cursor-based pagination on `created_at DESC, id DESC`
+- Sensitive fields (`service_token_hash`) excluded from gateway responses
+- 8 new gateway list+detail tests in `test_admin_gateways.py`
+- 8 new camera list+detail tests in `test_cameras.py`
+- All 389 backend tests passing; ruff, mypy clean
+
+Not included:
+
+- admin camera/gateway search or full-text filtering
+- admin camera/gateway update/rename endpoints
+- bulk operations
+
+Verification:
+
+- `python -m pytest tests/ -v`: 389 passed
+- `python -m ruff check src/ tests/`: all checks passed
+- `python -m mypy src/cctv_api/ --ignore-missing-imports`: no issues found
+
+### Camera Disable → Kill Viewer Participants
+
+Completed in this milestone.
+
+Implemented:
+
+- `remove_room_viewers()` added to `security/livekit_rooms.py` — removes all `viewer:*` participants from a camera's single LiveKit room when it is retired
+- Unlike user/gateway removal (which filter by entity prefix across multiple rooms), this removes all viewers from one room
+- Same fail-open pattern: errors collected, never raised; placeholder credential skip
+- `DisableCameraResponse` Pydantic model with `participants_removed` and `participant_errors` fields
+- `disable_camera()` handler calls `remove_room_viewers()` with `camera.livekit_room_name`
+- Audit event `camera.disable` payload includes `participants_removed` and `participant_errors`
+- 7 new unit tests in `test_livekit_rooms.py`, 3 new integration tests + 1 updated test in `test_cameras.py`
+- All 373 backend tests passing; ruff, mypy clean
+
+Not included:
+
+- camera re-enable/un-retire flow
+- bulk camera disable
+
+Verification:
+
+- `python -m pytest tests/ -v`: 373 passed
+- `python -m ruff check src/ tests/`: all checks passed
+- `python -m mypy src/cctv_api/ --ignore-missing-imports`: no issues found
+
+### Gateway Disable → Kill Publisher Participants
+
+Completed in previous milestone.
+
+Implemented:
+
+- `remove_gateway_participants()` added to `security/livekit_rooms.py` — mirrors `remove_user_participants()` for gateway publisher identity prefix `gateway:{gateway_id}:`
+- Same fail-open pattern: errors collected, never raised; placeholder credential skip
+- `DisableGatewayResponse` Pydantic model with `participants_removed` and `participant_errors` fields
+- `disable_gateway()` handler queries assigned camera rooms via `GatewayCameraAssignment` join and calls `remove_gateway_participants()`
+- Audit event `gateway.disable` payload includes `participants_removed` and `participant_errors`
+- 7 new unit tests in `test_livekit_rooms.py`, 3 new integration tests + 1 updated test in `test_admin_gateways.py`
+- All 363 backend tests passing; ruff, mypy clean
+
+Not included:
+
+- gateway re-enable flow
+- bulk gateway disable
+- WebSocket connection termination on disable (only LiveKit participants removed)
+
+Verification:
+
+- `python -m pytest tests/ -v`: 363 passed
+- `python -m ruff check src/ tests/`: all checks passed
+- `python -m mypy src/cctv_api/ --ignore-missing-imports`: no issues found
+
+### Per-Camera RTSP Credential Handling
+
+Completed in previous milestone.
 
 Implemented:
 
@@ -243,7 +466,7 @@ Implemented:
 - Fail-open: errors collected and audited but don't block the disable
 - Graceful placeholder detection — skips when LiveKit creds are `replace-me`
 - `DisableUserResponse` now includes `participants_removed` and `participant_errors`
-- tests cover LiveKit room API behavior and router ACL-room integration; 341 total backend tests passing
+- tests cover LiveKit room API behavior and router ACL-room integration; 373 total backend tests passing
 
 Not included:
 
@@ -908,16 +1131,16 @@ Implemented:
 
 ### Deep Health Check Implementation
 
-Completed in prior milestone.
+Completed in prior milestone, updated by Admin Health Probes milestone.
 
 Implemented:
 
 - `/api/v1/admin/health/deep` wired to real `SELECT 1` database connectivity probe
-- Returns `"connected"` when DB is reachable, `"error"` on failure
-- Overall status `"ok"` when DB connected, `"degraded"` otherwise
-- `livekit` and `gateway` remain `"not_connected"` (deferred)
+- Real LiveKit probe via `ListRooms` Twirp API (5s timeout)
+- Real gateway probe checking `last_seen_at` freshness against configurable threshold
+- Overall status `"ok"` when all subsystems healthy, `"degraded"` otherwise
 - No auth required — monitoring systems need unauthenticated access
-- 2 tests covering connected and error states
+- 11 tests covering DB, LiveKit, gateway, and overall status combinations
 
 ### Gateway Command Audit Logging
 
@@ -1304,7 +1527,7 @@ $env:PYTHONPATH = "src"; python -m compileall src alembic scripts
 Latest result:
 
 ```text
-pytest: 341 passed
+pytest: 404 passed
 ruff: all checks passed
 mypy: no issues found in 39 source files
 compileall: passed

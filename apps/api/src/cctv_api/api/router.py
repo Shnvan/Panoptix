@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 from starlette.responses import StreamingResponse
 
@@ -20,18 +20,21 @@ from cctv_api.core.config import Settings, get_settings
 from cctv_api.db import db_session
 from cctv_api.gateway.command_queue import enqueue_command, expire_stale_commands
 from cctv_api.jobs.maintenance import run_admin_maintenance_job
-from cctv_api.models.enums import ActorType, CameraSourceType, CommandStatus, GatewayStatus, StreamKind
+from cctv_api.models.enums import ActorType, CameraPublishStatus, CameraSourceType, CommandStatus, DpaKind, GatewayStatus, StreamKind
 from cctv_api.models.tables import (
     AuditHmacKey,
     AuditLog,
     Camera,
     CameraAcl,
     CameraEvent,
+    CameraPublishState,
+    DpaArtifact,
     EdgeGateway,
     GatewayCameraAssignment,
     GatewayCommandQueue,
     PrivacyNoticeAcceptance,
     Role,
+    Site,
     User,
     UserRole,
 )
@@ -42,7 +45,7 @@ from cctv_api.security.audit import (
 )
 from cctv_api.security.dependencies import require_authenticated_user
 from cctv_api.security.identity import Principal
-from cctv_api.security.livekit_rooms import remove_user_participants
+from cctv_api.security.livekit_rooms import remove_gateway_participants, remove_room_viewers, remove_user_participants
 from cctv_api.security.livekit_tokens import LiveKitTokenConfigError, mint_viewer_subscribe_token
 from cctv_api.security.policy import require_role
 from cctv_api.security.rate_limit import RateLimitConfig, get_rate_limiter
@@ -53,6 +56,13 @@ from cctv_api.security.stream_access import (
     record_stream_grant,
     user_has_active_camera_acl,
 )
+from cctv_api.security.break_glass import (
+    ROTATION_CHECKLIST,
+    close_break_glass_window,
+    get_break_glass_status,
+    open_break_glass_window,
+)
+from cctv_api.security.media_plane import set_media_plane_mode
 from cctv_api.security.users import get_or_create_user, get_user_roles
 
 v1_router = APIRouter(prefix="/api/v1")
@@ -277,6 +287,23 @@ class DisableUserResponse(BaseModel):
     user_id: str
     disabled_at: str
     sessions_revoked: int
+    participants_removed: int = 0
+    participant_errors: list[str] = Field(default_factory=list)
+
+
+class DisableGatewayResponse(BaseModel):
+    gateway_id: str
+    name: str
+    status: str
+    disabled_at: str
+    participants_removed: int = 0
+    participant_errors: list[str] = Field(default_factory=list)
+
+
+class DisableCameraResponse(BaseModel):
+    camera_id: str
+    display_name: str
+    retired_at: str
     participants_removed: int = 0
     participant_errors: list[str] = Field(default_factory=list)
 
@@ -1210,6 +1237,150 @@ class GatewayCameraAssignmentRequest(BaseModel):
     camera_id: str
 
 
+@v1_router.get("/admin/dashboard")
+def admin_dashboard(
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+
+    cameras_total = db.execute(select(func.count()).select_from(Camera)).scalar_one()
+    cameras_active = db.execute(
+        select(func.count()).select_from(Camera).where(Camera.retired_at.is_(None))
+    ).scalar_one()
+
+    gateways_total = db.execute(select(func.count()).select_from(EdgeGateway)).scalar_one()
+    gateways_enabled = db.execute(
+        select(func.count()).select_from(EdgeGateway).where(EdgeGateway.status == GatewayStatus.enabled)
+    ).scalar_one()
+
+    users_total = db.execute(select(func.count()).select_from(User)).scalar_one()
+    users_active = db.execute(
+        select(func.count()).select_from(User).where(User.disabled_at.is_(None))
+    ).scalar_one()
+
+    commands_pending = db.execute(
+        select(func.count()).select_from(GatewayCommandQueue).where(GatewayCommandQueue.status == CommandStatus.pending)
+    ).scalar_one()
+
+    publishing_active = db.execute(
+        select(func.count()).select_from(CameraPublishState).where(CameraPublishState.status == CameraPublishStatus.publishing)
+    ).scalar_one()
+
+    return {
+        "cameras": {
+            "total": cameras_total,
+            "active": cameras_active,
+            "retired": cameras_total - cameras_active,
+        },
+        "gateways": {
+            "total": gateways_total,
+            "enabled": gateways_enabled,
+            "disabled": gateways_total - gateways_enabled,
+        },
+        "users": {
+            "total": users_total,
+            "active": users_active,
+            "disabled": users_total - users_active,
+        },
+        "commands": {
+            "pending": commands_pending,
+        },
+        "publishing": {
+            "active": publishing_active,
+        },
+    }
+
+
+@v1_router.get("/admin/gateways")
+def list_admin_gateways(
+    cursor: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    status: str | None = Query(default=None),
+    search: str | None = Query(default=None, max_length=255),
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    query = select(EdgeGateway).order_by(EdgeGateway.created_at.desc(), EdgeGateway.id.desc())
+    if status is not None:
+        try:
+            status_enum = GatewayStatus(status)
+        except ValueError:
+            raise ProblemDetail(
+                status=400,
+                title="Bad Request",
+                detail="status-invalid",
+                type_uri="https://panoptix.local/problems/bad-request",
+            )
+        query = query.where(EdgeGateway.status == status_enum)
+    if search is not None:
+        query = query.where(EdgeGateway.name.ilike(f"%{search}%"))
+    if cursor is not None:
+        cursor_uuid = _parse_uuid(cursor, "cursor-invalid")
+        cursor_row = db.execute(select(EdgeGateway).where(EdgeGateway.id == str(cursor_uuid))).scalar_one_or_none()
+        if cursor_row is not None:
+            query = query.where(EdgeGateway.created_at < cursor_row.created_at)
+    rows = list(db.execute(query.limit(limit + 1)).scalars().all())
+    has_more = len(rows) > limit
+    if has_more:
+        rows = rows[:limit]
+    next_cursor: str | None = str(rows[-1].id) if has_more and rows else None
+    items = []
+    for row in rows:
+        camera_count = db.execute(
+            select(func.count())
+            .select_from(GatewayCameraAssignment)
+            .where(GatewayCameraAssignment.gateway_id == str(row.id))
+            .where(GatewayCameraAssignment.revoked_at.is_(None))
+        ).scalar_one()
+        items.append({
+            "gateway_id": str(row.id),
+            "name": row.name,
+            "status": row.status.value,
+            "last_seen_at": row.last_seen_at.isoformat() if row.last_seen_at else None,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "disabled_at": row.disabled_at.isoformat() if row.disabled_at else None,
+            "camera_count": camera_count,
+        })
+    return {"items": items, "next_cursor": next_cursor}
+
+
+@v1_router.get("/admin/gateways/{gateway_id}")
+def get_admin_gateway(
+    gateway_id: str,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    gw_uuid = _parse_uuid(gateway_id, "gateway-id-invalid")
+    gateway = db.execute(select(EdgeGateway).where(EdgeGateway.id == str(gw_uuid))).scalar_one_or_none()
+    if gateway is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="gateway-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+    camera_count = db.execute(
+        select(func.count())
+        .select_from(GatewayCameraAssignment)
+        .where(GatewayCameraAssignment.gateway_id == str(gw_uuid))
+        .where(GatewayCameraAssignment.revoked_at.is_(None))
+    ).scalar_one()
+    return {
+        "gateway_id": str(gateway.id),
+        "name": gateway.name,
+        "status": gateway.status.value,
+        "mtls_fingerprint": gateway.mtls_fingerprint,
+        "cert_expires_at": gateway.cert_expires_at.isoformat() if gateway.cert_expires_at else None,
+        "last_seen_at": gateway.last_seen_at.isoformat() if gateway.last_seen_at else None,
+        "created_at": gateway.created_at.isoformat() if gateway.created_at else None,
+        "disabled_at": gateway.disabled_at.isoformat() if gateway.disabled_at else None,
+        "camera_count": camera_count,
+    }
+
+
 @v1_router.post("/admin/gateways", status_code=201)
 def create_gateway(
     body: CreateGatewayRequest,
@@ -1259,7 +1430,7 @@ def disable_gateway(
     principal: Principal = Depends(require_authenticated_user),
     db: DbSession = Depends(db_session),
     settings: Settings = Depends(get_settings),
-) -> dict[str, object]:
+) -> DisableGatewayResponse:
     require_role(principal, "admin")
     gateway_uuid = _parse_uuid(gateway_id, "gateway-id-invalid")
     gateway = db.execute(select(EdgeGateway).where(EdgeGateway.id == str(gateway_uuid))).scalar_one_or_none()
@@ -1281,6 +1452,21 @@ def disable_gateway(
     now = datetime.now(timezone.utc)
     gateway.status = GatewayStatus.disabled
     gateway.disabled_at = now
+    db.flush()
+
+    assignment_rooms = (
+        db.execute(
+            select(Camera.livekit_room_name)
+            .join(GatewayCameraAssignment, GatewayCameraAssignment.camera_id == Camera.id)
+            .where(GatewayCameraAssignment.gateway_id == str(gateway_uuid))
+            .where(GatewayCameraAssignment.revoked_at.is_(None))
+            .where(Camera.retired_at.is_(None))
+        )
+        .scalars()
+        .all()
+    )
+    removal = remove_gateway_participants(settings, gateway_id=gateway_uuid, room_names=list(assignment_rooms))
+
     actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
     _record_user_audit_required(
         db,
@@ -1289,15 +1475,22 @@ def disable_gateway(
         actor_id=actor.id,
         action="gateway.disable",
         resource=f"gateway:{gateway_uuid}",
-        payload={"gateway_id": str(gateway_uuid), "reason": body.reason},
+        payload={
+            "gateway_id": str(gateway_uuid),
+            "reason": body.reason,
+            "participants_removed": removal.participants_removed,
+            "participant_errors": removal.errors,
+        },
     )
     db.commit()
-    return {
-        "gateway_id": str(gateway_uuid),
-        "name": gateway.name,
-        "status": gateway.status.value,
-        "disabled_at": gateway.disabled_at.isoformat(),
-    }
+    return DisableGatewayResponse(
+        gateway_id=str(gateway_uuid),
+        name=gateway.name,
+        status=gateway.status.value,
+        disabled_at=gateway.disabled_at.isoformat(),
+        participants_removed=removal.participants_removed,
+        participant_errors=removal.errors,
+    )
 
 
 class RotateCredentialRequest(BaseModel):
@@ -1439,6 +1632,104 @@ def manage_gateway_camera_assignment(
         "camera_id": str(camera_uuid),
         "action": body.action,
         "status": "applied",
+    }
+
+
+@v1_router.get("/admin/cameras")
+def list_admin_cameras(
+    cursor: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    include_retired: bool = Query(default=False),
+    search: str | None = Query(default=None, max_length=255),
+    source_type: str | None = Query(default=None),
+    gateway_id: str | None = Query(default=None),
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    query = select(Camera).order_by(Camera.created_at.desc(), Camera.id.desc())
+    if not include_retired:
+        query = query.where(Camera.retired_at.is_(None))
+    if search is not None:
+        query = query.where(Camera.display_name.ilike(f"%{search}%"))
+    if source_type is not None:
+        try:
+            st_enum = CameraSourceType(source_type)
+        except ValueError:
+            raise ProblemDetail(
+                status=400,
+                title="Bad Request",
+                detail="source-type-invalid",
+                type_uri="https://panoptix.local/problems/bad-request",
+            )
+        query = query.where(Camera.source_type == st_enum)
+    if gateway_id is not None:
+        gw_uuid = _parse_uuid(gateway_id, "gateway-id-invalid")
+        query = query.where(Camera.gateway_id == str(gw_uuid))
+    if cursor is not None:
+        cursor_uuid = _parse_uuid(cursor, "cursor-invalid")
+        cursor_row = db.execute(select(Camera).where(Camera.id == str(cursor_uuid))).scalar_one_or_none()
+        if cursor_row is not None:
+            query = query.where(Camera.created_at < cursor_row.created_at)
+    rows = list(db.execute(query.limit(limit + 1)).scalars().all())
+    has_more = len(rows) > limit
+    if has_more:
+        rows = rows[:limit]
+    next_cursor: str | None = str(rows[-1].id) if has_more and rows else None
+    items = []
+    for row in rows:
+        acl_count = db.execute(
+            select(func.count())
+            .select_from(CameraAcl)
+            .where(CameraAcl.camera_id == str(row.id))
+            .where(CameraAcl.revoked_at.is_(None))
+        ).scalar_one()
+        items.append({
+            "camera_id": str(row.id),
+            "display_name": row.display_name,
+            "source_type": row.source_type.value if row.source_type else None,
+            "livekit_room_name": row.livekit_room_name,
+            "gateway_id": str(row.gateway_id) if row.gateway_id else None,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "retired_at": row.retired_at.isoformat() if row.retired_at else None,
+            "acl_count": acl_count,
+        })
+    return {"items": items, "next_cursor": next_cursor}
+
+
+@v1_router.get("/admin/cameras/{camera_id}")
+def get_admin_camera(
+    camera_id: str,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    cam_uuid = _parse_uuid(camera_id, "camera-id-invalid")
+    camera = db.execute(select(Camera).where(Camera.id == str(cam_uuid))).scalar_one_or_none()
+    if camera is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="camera-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+    acl_count = db.execute(
+        select(func.count())
+        .select_from(CameraAcl)
+        .where(CameraAcl.camera_id == str(cam_uuid))
+        .where(CameraAcl.revoked_at.is_(None))
+    ).scalar_one()
+    return {
+        "camera_id": str(camera.id),
+        "display_name": camera.display_name,
+        "source_type": camera.source_type.value if camera.source_type else None,
+        "livekit_room_name": camera.livekit_room_name,
+        "room_uuid": str(camera.room_uuid) if camera.room_uuid else None,
+        "gateway_id": str(camera.gateway_id) if camera.gateway_id else None,
+        "site_id": camera.site_id,
+        "created_at": camera.created_at.isoformat() if camera.created_at else None,
+        "retired_at": camera.retired_at.isoformat() if camera.retired_at else None,
+        "acl_count": acl_count,
     }
 
 
@@ -1602,7 +1893,7 @@ def disable_camera(
     principal: Principal = Depends(require_authenticated_user),
     db: DbSession = Depends(db_session),
     settings: Settings = Depends(get_settings),
-) -> dict[str, object]:
+) -> DisableCameraResponse:
     require_role(principal, "admin")
     cam_uuid = _parse_uuid(camera_id, "camera-id-invalid")
 
@@ -1623,6 +1914,9 @@ def disable_camera(
         )
 
     camera.retired_at = datetime.now(timezone.utc)
+    db.flush()
+
+    removal = remove_room_viewers(settings, room_name=camera.livekit_room_name)
 
     user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
     _record_user_audit_required(
@@ -1632,12 +1926,323 @@ def disable_camera(
         actor_id=user.id,
         action="camera.disable",
         resource=f"camera:{cam_uuid}",
-        payload={"camera_id": str(cam_uuid), "reason": body.reason},
+        payload={
+            "camera_id": str(cam_uuid),
+            "reason": body.reason,
+            "participants_removed": removal.participants_removed,
+            "participant_errors": removal.errors,
+        },
     )
     db.commit()
 
+    return DisableCameraResponse(
+        camera_id=str(cam_uuid),
+        display_name=camera.display_name,
+        retired_at=camera.retired_at.isoformat(),
+        participants_removed=removal.participants_removed,
+        participant_errors=removal.errors,
+    )
+
+
+# ── Break-glass emergency access ─────────────────────────────────────────
+
+
+class BreakGlassOpenRequest(BaseModel):
+    reason: str = Field(..., min_length=1, max_length=512)
+
+
+class BreakGlassCloseRequest(BaseModel):
+    reason: str = Field(..., min_length=1, max_length=512)
+
+
+@v1_router.post("/admin/break-glass/open")
+def admin_break_glass_open(
+    body: BreakGlassOpenRequest,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    usage = open_break_glass_window(
+        db,
+        reason=body.reason,
+        window_minutes=settings.BREAK_GLASS_WINDOW_MINUTES,
+    )
+    user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=user.id,
+        action="system.break_glass.opened",
+        resource=f"break-glass:{usage.id}",
+        payload={
+            "window_id": str(usage.id),
+            "reason": body.reason,
+            "auto_disable_at": usage.auto_disable_at.isoformat(),
+        },
+    )
+    db.commit()
     return {
-        "camera_id": str(cam_uuid),
-        "display_name": camera.display_name,
-        "retired_at": camera.retired_at.isoformat(),
+        "window_id": str(usage.id),
+        "opened_at": usage.opened_at.isoformat(),
+        "auto_disable_at": usage.auto_disable_at.isoformat(),
+    }
+
+
+@v1_router.post("/admin/break-glass/close")
+def admin_break_glass_close(
+    body: BreakGlassCloseRequest,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    usage = close_break_glass_window(db, reason=body.reason)
+    user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=user.id,
+        action="system.break_glass.closed",
+        resource=f"break-glass:{usage.id}",
+        payload={
+            "window_id": str(usage.id),
+            "reason": body.reason,
+            "rotation_required": ROTATION_CHECKLIST,
+        },
+    )
+    db.commit()
+    return {
+        "window_id": str(usage.id),
+        "opened_at": usage.opened_at.isoformat(),
+        "closed_at": usage.closed_at.isoformat() if usage.closed_at else None,
+        "rotation_required": ROTATION_CHECKLIST,
+    }
+
+
+@v1_router.get("/admin/internal/break-glass-status")
+def admin_break_glass_status(
+    db: DbSession = Depends(db_session),
+) -> dict[str, object]:
+    return get_break_glass_status(db)
+
+
+# ── LiveKit fallback toggle ──
+
+
+class MediaPlaneModeRequest(BaseModel):
+    mode: str = Field(pattern="^(cloud|fallback)$")
+    reason: str = Field(min_length=1, max_length=500)
+
+
+@v1_router.post("/admin/livekit/fallback")
+def admin_livekit_fallback(
+    body: MediaPlaneModeRequest,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    previous, current = set_media_plane_mode(db, mode=body.mode, actor_id=user.id)
+    action = (
+        "system.media_plane.switched_to_fallback"
+        if current == "fallback"
+        else "system.media_plane.switched_to_primary"
+    )
+    now = datetime.now(timezone.utc)
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=user.id,
+        action=action,
+        resource="system-config:media_plane_mode",
+        payload={
+            "previous_mode": previous,
+            "current_mode": current,
+            "reason": body.reason,
+        },
+    )
+    db.commit()
+    return {
+        "media_plane_mode": current,
+        "previous_mode": previous,
+        "switched_at": now.isoformat(),
+    }
+
+
+# ── DPA export ──
+
+
+class DpaExportRequest(BaseModel):
+    kinds: list[str] | None = None
+
+
+@v1_router.post("/admin/dpa/export")
+def admin_dpa_export(
+    body: DpaExportRequest,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    query = select(DpaArtifact).order_by(DpaArtifact.id)
+    if body.kinds is not None:
+        valid_kinds: list[DpaKind] = []
+        for k in body.kinds:
+            try:
+                valid_kinds.append(DpaKind(k))
+            except ValueError:
+                raise ProblemDetail(
+                    status=400,
+                    title="Bad Request",
+                    detail=f"dpa-kind-invalid:{k}",
+                    type_uri="https://panoptix.local/problems/bad-request",
+                )
+        query = query.where(DpaArtifact.kind.in_(valid_kinds))
+    rows = list(db.execute(query).scalars().all())
+    user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=user.id,
+        action="admin.dpa.export",
+        resource="dpa-artifacts",
+        payload={"count": len(rows), "kinds_filter": body.kinds},
+    )
+    db.commit()
+    items = [
+        {
+            "artifact_id": str(row.id),
+            "kind": row.kind.value if row.kind else None,
+            "path_to_r2": row.path_to_r2,
+            "signed_hash": row.signed_hash,
+            "effective_at": row.effective_at.isoformat() if row.effective_at else None,
+            "superseded_at": row.superseded_at.isoformat() if row.superseded_at else None,
+        }
+        for row in rows
+    ]
+    return {"artifacts": items, "count": len(items)}
+
+
+# ── Signage attestation ──
+
+
+class SignageAttestRequest(BaseModel):
+    notes: str = Field(min_length=1, max_length=1000)
+
+
+@v1_router.post("/admin/sites/{site_id}/signage-attest", status_code=201)
+def admin_signage_attest(
+    site_id: str,
+    body: SignageAttestRequest,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    site_uuid = _parse_uuid(site_id, "site-id-invalid")
+    site = db.execute(select(Site).where(Site.id == str(site_uuid))).scalar_one_or_none()
+    if site is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="site-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+    now = datetime.now(timezone.utc)
+    artifact = DpaArtifact(
+        id=uuid.uuid4(),
+        kind=DpaKind.bystander_signage_attestation,
+        signed_hash=hashlib.sha256(body.notes.encode()).hexdigest(),
+        effective_at=now,
+    )
+    db.add(artifact)
+    user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=user.id,
+        action="admin.signage.attest",
+        resource=f"site:{site_uuid}",
+        payload={
+            "artifact_id": str(artifact.id),
+            "site_id": str(site_uuid),
+            "notes": body.notes,
+        },
+    )
+    db.commit()
+    return {
+        "artifact_id": str(artifact.id),
+        "kind": artifact.kind.value,
+        "site_id": str(site_uuid),
+        "effective_at": artifact.effective_at.isoformat() if artifact.effective_at else None,
+    }
+
+
+# ── User MFA reset ──
+
+
+class MfaResetRequest(BaseModel):
+    verification_evidence: str = Field(min_length=1, max_length=1000)
+    reason: str = Field(min_length=1, max_length=512)
+
+
+@v1_router.post("/admin/users/{user_id}/mfa/reset")
+def admin_mfa_reset(
+    user_id: str,
+    body: MfaResetRequest,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    target_uuid = _parse_uuid(user_id, "user-not-found")
+    target_user = db.execute(select(User).where(User.id == str(target_uuid))).scalar_one_or_none()
+    if target_user is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="user-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    if str(actor.id) == str(target_uuid):
+        raise ProblemDetail(
+            status=409,
+            title="Conflict",
+            detail="cannot-reset-own-mfa",
+            type_uri="https://panoptix.local/problems/conflict",
+        )
+    now = datetime.now(timezone.utc)
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=actor.id,
+        action="admin.user.mfa_reset",
+        resource=f"user:{target_uuid}",
+        payload={
+            "target_user_id": str(target_uuid),
+            "target_email": target_user.email,
+            "verification_evidence": body.verification_evidence,
+            "reason": body.reason,
+        },
+    )
+    db.commit()
+    return {
+        "user_id": str(target_uuid),
+        "mfa_reset_recorded_at": now.isoformat(),
+        "recovery_note": "MFA reset recorded. Complete the reset in the IdP admin console.",
     }

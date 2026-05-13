@@ -521,6 +521,22 @@ def test_gateway_camera_status_event_is_visible_to_acl_viewer(test_db_session: D
     assert events[0]["source"] == "heartbeat"
 
 
+def test_gateway_heartbeat_updates_last_seen_at(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(test_db_session)
+    assert gateway.last_seen_at is None
+
+    client = _dev_gateway_client_with_db(test_db_session)
+    response = client.post(
+        f"/api/v1/gateways/{gateway.id}/heartbeat",
+        headers=_gateway_headers(str(gateway.id)),
+        json={"status": "online", "agent_version": "0.1.0", "cameras": []},
+    )
+
+    assert response.status_code == 200
+    test_db_session.refresh(gateway)
+    assert gateway.last_seen_at is not None
+
+
 def test_gateway_control_ws_rejects_unauthenticated() -> None:
     client = _dev_gateway_client()
 

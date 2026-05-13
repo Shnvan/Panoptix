@@ -157,3 +157,154 @@ def remove_user_participants(
         participants_removed=participants_removed,
         errors=errors,
     )
+
+
+def remove_gateway_participants(
+    settings: Settings,
+    *,
+    gateway_id: uuid.UUID,
+    room_names: list[str],
+) -> ParticipantRemovalResult:
+    """Remove all publisher participants belonging to ``gateway_id`` from the given rooms.
+
+    The gateway publisher identity format is ``gateway:{gateway_id}:{camera_id}``
+    so we match any identity starting with ``gateway:{gateway_id}:``.
+
+    Fail-open: errors are collected but do not raise.
+    """
+    api_key, api_secret = _livekit_credentials(settings)
+
+    if _is_placeholder(api_key) or _is_placeholder(api_secret):
+        logger.warning("LiveKit credentials are placeholders — skipping participant removal")
+        return ParticipantRemovalResult(rooms_checked=0, participants_removed=0, errors=["livekit-credentials-placeholder"])
+
+    base_url = _livekit_http_url(settings)
+    token = _livekit_admin_token(api_key, api_secret)
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+    identity_prefix = f"gateway:{gateway_id}:"
+    rooms_checked = 0
+    participants_removed = 0
+    errors: list[str] = []
+
+    for room_name in room_names:
+        rooms_checked += 1
+        try:
+            resp = httpx.post(
+                f"{base_url}{_LIST_PARTICIPANTS_PATH}",
+                headers=headers,
+                json={"room": room_name},
+                timeout=10.0,
+            )
+            if resp.status_code != 200:
+                errors.append(f"list-participants-failed:{room_name}:{resp.status_code}")
+                continue
+
+            data = resp.json()
+            participants = data.get("participants", [])
+
+            for participant in participants:
+                identity = participant.get("identity", "")
+                if identity.startswith(identity_prefix):
+                    try:
+                        rm_resp = httpx.post(
+                            f"{base_url}{_REMOVE_PARTICIPANT_PATH}",
+                            headers=headers,
+                            json={"room": room_name, "identity": identity},
+                            timeout=10.0,
+                        )
+                        if rm_resp.status_code == 200:
+                            participants_removed += 1
+                            logger.info(
+                                "Removed gateway participant %s from room %s",
+                                identity,
+                                room_name,
+                            )
+                        else:
+                            errors.append(f"remove-failed:{room_name}:{identity}:{rm_resp.status_code}")
+                    except httpx.HTTPError as exc:
+                        errors.append(f"remove-error:{room_name}:{identity}:{exc}")
+        except httpx.HTTPError as exc:
+            errors.append(f"list-error:{room_name}:{exc}")
+
+    return ParticipantRemovalResult(
+        rooms_checked=rooms_checked,
+        participants_removed=participants_removed,
+        errors=errors,
+    )
+
+
+def remove_room_viewers(
+    settings: Settings,
+    *,
+    room_name: str,
+) -> ParticipantRemovalResult:
+    """Remove all viewer participants from a single room.
+
+    Used when a camera is retired — every viewer in the camera's room
+    should be disconnected.  Matches any identity starting with ``viewer:``.
+
+    Fail-open: errors are collected but do not raise.
+    """
+    api_key, api_secret = _livekit_credentials(settings)
+
+    if _is_placeholder(api_key) or _is_placeholder(api_secret):
+        logger.warning("LiveKit credentials are placeholders — skipping participant removal")
+        return ParticipantRemovalResult(rooms_checked=0, participants_removed=0, errors=["livekit-credentials-placeholder"])
+
+    base_url = _livekit_http_url(settings)
+    token = _livekit_admin_token(api_key, api_secret)
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+    participants_removed = 0
+    errors: list[str] = []
+
+    try:
+        resp = httpx.post(
+            f"{base_url}{_LIST_PARTICIPANTS_PATH}",
+            headers=headers,
+            json={"room": room_name},
+            timeout=10.0,
+        )
+        if resp.status_code != 200:
+            errors.append(f"list-participants-failed:{room_name}:{resp.status_code}")
+            return ParticipantRemovalResult(rooms_checked=1, participants_removed=0, errors=errors)
+
+        data = resp.json()
+        participants = data.get("participants", [])
+
+        for participant in participants:
+            identity = participant.get("identity", "")
+            if identity.startswith("viewer:"):
+                try:
+                    rm_resp = httpx.post(
+                        f"{base_url}{_REMOVE_PARTICIPANT_PATH}",
+                        headers=headers,
+                        json={"room": room_name, "identity": identity},
+                        timeout=10.0,
+                    )
+                    if rm_resp.status_code == 200:
+                        participants_removed += 1
+                        logger.info(
+                            "Removed viewer %s from room %s",
+                            identity,
+                            room_name,
+                        )
+                    else:
+                        errors.append(f"remove-failed:{room_name}:{identity}:{rm_resp.status_code}")
+                except httpx.HTTPError as exc:
+                    errors.append(f"remove-error:{room_name}:{identity}:{exc}")
+    except httpx.HTTPError as exc:
+        errors.append(f"list-error:{room_name}:{exc}")
+
+    return ParticipantRemovalResult(
+        rooms_checked=1,
+        participants_removed=participants_removed,
+        errors=errors,
+    )

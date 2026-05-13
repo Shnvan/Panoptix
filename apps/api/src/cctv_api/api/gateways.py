@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request, WebSocket
 from pydantic import ValidationError
 from starlette.websockets import WebSocketDisconnect
+from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
 from cctv_api.api.errors import ProblemDetail
@@ -26,7 +27,7 @@ from cctv_api.gateway.models import (
     GatewayIngestTokenResponse,
 )
 from cctv_api.models.enums import ActorType, CameraEventKind, EventSource, StreamKind
-from cctv_api.models.tables import CameraEvent
+from cctv_api.models.tables import CameraEvent, EdgeGateway
 from cctv_api.security.audit import AuditLogError, record_audit_event
 from cctv_api.security.dependencies import require_gateway_identity, verify_gateway_identity_ws
 from cctv_api.security.identity import Principal
@@ -52,6 +53,18 @@ def _require_matching_gateway(gateway_id: str, principal: Principal) -> None:
         )
 
 
+def _update_gateway_last_seen(db: DbSession, gateway_id: str) -> None:
+    gw_uuid = _parse_uuid_or_none(gateway_id)
+    if gw_uuid is None:
+        return
+    row = db.execute(
+        select(EdgeGateway).where(EdgeGateway.id == str(gw_uuid))
+    ).scalar_one_or_none()
+    if row is not None:
+        row.last_seen_at = datetime.now(timezone.utc)
+        db.commit()
+
+
 @router.post("/gateways/{gateway_id}/heartbeat")
 def gateway_heartbeat(
     gateway_id: str,
@@ -72,6 +85,10 @@ def gateway_heartbeat(
             payload={"route_gateway_id": gateway_id, "principal_gateway_id": principal.gateway_id},
         )
     _require_matching_gateway(gateway_id, principal)
+    try:
+        _update_gateway_last_seen(db, gateway_id)
+    except Exception:
+        pass
     try:
         pending_commands = _signed_gateway_commands(
             request.app.state,

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -60,8 +61,16 @@ def _gateway_headers(gateway_id: uuid.UUID) -> dict[str, str]:
     return {"x-panoptix-dev-gateway-id": str(gateway_id)}
 
 
-def _seed_gateway(db: DbSession, *, status: GatewayStatus = GatewayStatus.enabled) -> EdgeGateway:
-    gateway = EdgeGateway(id=uuid.uuid4(), name="Test Gateway", status=status)
+def _seed_gateway(
+    db: DbSession,
+    *,
+    status: GatewayStatus = GatewayStatus.enabled,
+    name: str = "Test Gateway",
+    created_at: datetime | None = None,
+) -> EdgeGateway:
+    gateway = EdgeGateway(id=uuid.uuid4(), name=name, status=status)
+    if created_at is not None:
+        gateway.created_at = created_at
     db.add(gateway)
     db.commit()
     db.refresh(gateway)
@@ -179,6 +188,8 @@ def test_disable_gateway_succeeds_and_prevents_enabled_lookup(test_db_session: D
     assert body["gateway_id"] == str(gateway.id)
     assert body["status"] == "disabled"
     assert body["disabled_at"] is not None
+    assert body["participants_removed"] == 0
+    assert isinstance(body["participant_errors"], list)
 
     test_db_session.refresh(gateway)
     assert gateway.status == GatewayStatus.disabled
@@ -381,3 +392,185 @@ def test_gateway_assignment_revoke_missing_assignment_returns_404(test_db_sessio
     )
     assert response.status_code == 404
     assert response.json()["detail"] == "gateway-camera-assignment-not-found"
+
+
+# ── Gateway disable → kill publisher participants ──
+
+
+def _client_with_placeholder_livekit(test_db_session: DbSession) -> TestClient:
+    app = create_app(
+        settings=Settings(
+            APP_ENV="development",
+            ALLOW_DEV_AUTH=True,
+            LIVEKIT_CLOUD_URL="wss://livekit.example.test",
+            LIVEKIT_CLOUD_API_KEY="replace-me",
+            LIVEKIT_CLOUD_API_SECRET="replace-me",
+            AUDIT_HMAC_KEY_VERSION=1,
+            AUDIT_HMAC_KEY="test-audit-key-with-enough-entropy",
+        )
+    )
+
+    def _override_db() -> DbSession:
+        return test_db_session
+
+    app.dependency_overrides[db_session] = _override_db
+    return TestClient(app)
+
+
+def test_disable_gateway_with_placeholder_creds_returns_placeholder_error(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(test_db_session)
+    camera = _seed_camera(test_db_session)
+    _seed_assignment(test_db_session, gateway_id=gateway.id, camera_id=camera.id)
+    client = _client_with_placeholder_livekit(test_db_session)
+    response = client.post(
+        f"/api/v1/admin/gateways/{gateway.id}/disable",
+        headers=_admin_headers(),
+        json={"reason": "placeholder test"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["participants_removed"] == 0
+    assert "livekit-credentials-placeholder" in body["participant_errors"]
+
+
+def test_disable_gateway_removes_participants_from_assigned_rooms(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(test_db_session)
+    camera = _seed_camera(test_db_session)
+    _seed_assignment(test_db_session, gateway_id=gateway.id, camera_id=camera.id)
+
+    list_response = MagicMock()
+    list_response.status_code = 200
+    list_response.json.return_value = {
+        "participants": [
+            {"identity": f"gateway:{gateway.id}:{camera.id}", "sid": "PA_gw"},
+        ]
+    }
+    remove_response = MagicMock()
+    remove_response.status_code = 200
+
+    client = _client(test_db_session)
+    with patch("cctv_api.security.livekit_rooms.httpx.post") as mock_post:
+        mock_post.side_effect = [list_response, remove_response]
+        response = client.post(
+            f"/api/v1/admin/gateways/{gateway.id}/disable",
+            headers=_admin_headers(),
+            json={"reason": "compromised"},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["participants_removed"] == 1
+    assert body["participant_errors"] == []
+
+    audit = test_db_session.execute(select(AuditLog)).scalars().all()
+    disable_audit = [a for a in audit if a.action == "gateway.disable"][0]
+    assert disable_audit.payload["participants_removed"] == 1
+
+
+def test_disable_gateway_no_assignments_removes_zero(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(test_db_session)
+    client = _client(test_db_session)
+    response = client.post(
+        f"/api/v1/admin/gateways/{gateway.id}/disable",
+        headers=_admin_headers(),
+        json={"reason": "no cameras"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["participants_removed"] == 0
+    assert body["participant_errors"] == []
+
+
+# ── Admin gateway listing tests ──
+
+
+def test_list_gateways_requires_admin(test_db_session: DbSession) -> None:
+    client = _client(test_db_session)
+    response = client.get("/api/v1/admin/gateways", headers=_viewer_headers())
+    assert response.status_code == 403
+    assert response.json()["detail"] == "role-required"
+
+
+def test_list_gateways_returns_empty(test_db_session: DbSession) -> None:
+    client = _client(test_db_session)
+    response = client.get("/api/v1/admin/gateways", headers=_admin_headers())
+    assert response.status_code == 200
+    data = response.json()
+    assert data["items"] == []
+    assert data["next_cursor"] is None
+
+
+def test_list_gateways_returns_all_including_disabled(test_db_session: DbSession) -> None:
+    now = datetime.now(timezone.utc)
+    _seed_gateway(test_db_session, name="Enabled GW", status=GatewayStatus.enabled, created_at=now)
+    _seed_gateway(test_db_session, name="Disabled GW", status=GatewayStatus.disabled, created_at=now - timedelta(seconds=1))
+    client = _client(test_db_session)
+    response = client.get("/api/v1/admin/gateways", headers=_admin_headers())
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 2
+    names = [item["name"] for item in data["items"]]
+    assert "Enabled GW" in names
+    assert "Disabled GW" in names
+
+
+def test_list_gateways_filters_by_status(test_db_session: DbSession) -> None:
+    now = datetime.now(timezone.utc)
+    _seed_gateway(test_db_session, name="Enabled GW", status=GatewayStatus.enabled, created_at=now)
+    _seed_gateway(test_db_session, name="Disabled GW", status=GatewayStatus.disabled, created_at=now - timedelta(seconds=1))
+    client = _client(test_db_session)
+    response = client.get("/api/v1/admin/gateways?status=enabled", headers=_admin_headers())
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 1
+    assert data["items"][0]["name"] == "Enabled GW"
+
+
+def test_list_gateways_paginates(test_db_session: DbSession) -> None:
+    now = datetime.now(timezone.utc)
+    for i in range(3):
+        _seed_gateway(test_db_session, name=f"GW {i}", created_at=now - timedelta(seconds=i))
+    client = _client(test_db_session)
+    response = client.get("/api/v1/admin/gateways?limit=2", headers=_admin_headers())
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 2
+    assert data["next_cursor"] is not None
+
+    response2 = client.get(f"/api/v1/admin/gateways?limit=2&cursor={data['next_cursor']}", headers=_admin_headers())
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert len(data2["items"]) == 1
+    assert data2["next_cursor"] is None
+
+
+def test_get_gateway_detail_requires_admin(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(test_db_session)
+    client = _client(test_db_session)
+    response = client.get(f"/api/v1/admin/gateways/{gateway.id}", headers=_viewer_headers())
+    assert response.status_code == 403
+    assert response.json()["detail"] == "role-required"
+
+
+def test_get_gateway_detail_returns_fields(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(test_db_session, name="Detail GW")
+    camera = _seed_camera(test_db_session)
+    _seed_assignment(test_db_session, gateway_id=gateway.id, camera_id=camera.id)
+    client = _client(test_db_session)
+    response = client.get(f"/api/v1/admin/gateways/{gateway.id}", headers=_admin_headers())
+    assert response.status_code == 200
+    data = response.json()
+    assert data["gateway_id"] == str(gateway.id)
+    assert data["name"] == "Detail GW"
+    assert data["status"] == "enabled"
+    assert data["camera_count"] == 1
+    assert "mtls_fingerprint" in data
+    assert "cert_expires_at" in data
+    assert "service_token_hash" not in data
+
+
+def test_get_gateway_detail_not_found(test_db_session: DbSession) -> None:
+    client = _client(test_db_session)
+    response = client.get(f"/api/v1/admin/gateways/{uuid.uuid4()}", headers=_admin_headers())
+    assert response.status_code == 404
+    assert response.json()["detail"] == "gateway-not-found"

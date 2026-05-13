@@ -3,15 +3,17 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
 from cctv_api.core.config import Settings
 from cctv_api.db import db_session
 from cctv_api.main import create_app
 from cctv_api.models.enums import CameraEventKind, CameraSourceType, EventSource
-from cctv_api.models.tables import Camera, CameraAcl, CameraEvent, User
+from cctv_api.models.tables import AuditLog, Camera, CameraAcl, CameraEvent, User
 
 
 _ADMIN_HEADERS = {
@@ -501,6 +503,8 @@ def test_disable_camera_succeeds(test_db_session: DbSession) -> None:
     assert data["camera_id"] == str(camera.id)
     assert data["display_name"] == camera.display_name
     assert "retired_at" in data
+    assert data["participants_removed"] == 0
+    assert isinstance(data["participant_errors"], list)
 
 
 def test_disable_camera_already_retired_returns_409(test_db_session: DbSession) -> None:
@@ -522,5 +526,195 @@ def test_disable_camera_not_found_returns_404(test_db_session: DbSession) -> Non
         headers=_ADMIN_HEADERS,
         json={"reason": "Does not exist"},
     )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "camera-not-found"
+
+
+# ── Camera disable → kill viewer participants ──
+
+LIVEKIT_SECRET = "test-livekit-secret-with-at-least-32-bytes"
+
+
+def _client_with_livekit(test_db_session: DbSession) -> TestClient:
+    app = create_app(
+        settings=Settings(
+            APP_ENV="development",
+            ALLOW_DEV_AUTH=True,
+            LIVEKIT_CLOUD_URL="wss://livekit.example.test",
+            LIVEKIT_CLOUD_API_KEY="test-livekit-key",
+            LIVEKIT_CLOUD_API_SECRET=LIVEKIT_SECRET,
+            AUDIT_HMAC_KEY_VERSION=1,
+            AUDIT_HMAC_KEY="test-audit-key-with-enough-entropy",
+        )
+    )
+
+    def _override_db() -> DbSession:
+        return test_db_session
+
+    app.dependency_overrides[db_session] = _override_db
+    return TestClient(app)
+
+
+def test_disable_camera_with_placeholder_creds_returns_placeholder_error(test_db_session: DbSession) -> None:
+    camera = _seed_camera(test_db_session)
+    client = _client(test_db_session)
+    response = client.post(
+        f"/api/v1/admin/cameras/{camera.id}/disable",
+        headers=_ADMIN_HEADERS,
+        json={"reason": "placeholder test"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["participants_removed"] == 0
+    assert "livekit-credentials-placeholder" in body["participant_errors"]
+
+
+def test_disable_camera_removes_viewer_participants(test_db_session: DbSession) -> None:
+    camera = _seed_camera(test_db_session)
+    viewer_id = uuid.uuid4()
+
+    list_response = MagicMock()
+    list_response.status_code = 200
+    list_response.json.return_value = {
+        "participants": [
+            {"identity": f"viewer:{viewer_id}:{camera.id}", "sid": "PA_v1"},
+        ]
+    }
+    remove_response = MagicMock()
+    remove_response.status_code = 200
+
+    client = _client_with_livekit(test_db_session)
+    with patch("cctv_api.security.livekit_rooms.httpx.post") as mock_post:
+        mock_post.side_effect = [list_response, remove_response]
+        response = client.post(
+            f"/api/v1/admin/cameras/{camera.id}/disable",
+            headers=_ADMIN_HEADERS,
+            json={"reason": "decommissioned"},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["participants_removed"] == 1
+    assert body["participant_errors"] == []
+
+    audit = test_db_session.execute(select(AuditLog)).scalars().all()
+    disable_audit = [a for a in audit if a.action == "camera.disable"][0]
+    assert disable_audit.payload["participants_removed"] == 1
+
+
+def test_disable_camera_no_viewers_removes_zero(test_db_session: DbSession) -> None:
+    camera = _seed_camera(test_db_session)
+
+    list_response = MagicMock()
+    list_response.status_code = 200
+    list_response.json.return_value = {"participants": []}
+
+    client = _client_with_livekit(test_db_session)
+    with patch("cctv_api.security.livekit_rooms.httpx.post") as mock_post:
+        mock_post.return_value = list_response
+        response = client.post(
+            f"/api/v1/admin/cameras/{camera.id}/disable",
+            headers=_ADMIN_HEADERS,
+            json={"reason": "no viewers"},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["participants_removed"] == 0
+    assert body["participant_errors"] == []
+
+
+# ── Admin camera listing tests ──
+
+
+def test_list_admin_cameras_requires_admin(test_db_session: DbSession) -> None:
+    client = _client(test_db_session)
+    response = client.get("/api/v1/admin/cameras", headers=_VIEWER_HEADERS)
+    assert response.status_code == 403
+    assert response.json()["detail"] == "role-required"
+
+
+def test_list_admin_cameras_returns_empty(test_db_session: DbSession) -> None:
+    client = _client(test_db_session)
+    response = client.get("/api/v1/admin/cameras", headers=_ADMIN_HEADERS)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["items"] == []
+    assert data["next_cursor"] is None
+
+
+def test_list_admin_cameras_returns_active_only_by_default(test_db_session: DbSession) -> None:
+    now = datetime.now(timezone.utc)
+    _seed_camera(test_db_session, display_name="Active Cam", created_at=now)
+    _seed_camera(test_db_session, display_name="Retired Cam", created_at=now - timedelta(seconds=1), retired=True)
+    client = _client(test_db_session)
+    response = client.get("/api/v1/admin/cameras", headers=_ADMIN_HEADERS)
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 1
+    assert data["items"][0]["display_name"] == "Active Cam"
+
+
+def test_list_admin_cameras_includes_retired_when_requested(test_db_session: DbSession) -> None:
+    now = datetime.now(timezone.utc)
+    _seed_camera(test_db_session, display_name="Active Cam", created_at=now)
+    _seed_camera(test_db_session, display_name="Retired Cam", created_at=now - timedelta(seconds=1), retired=True)
+    client = _client(test_db_session)
+    response = client.get("/api/v1/admin/cameras?include_retired=true", headers=_ADMIN_HEADERS)
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 2
+    names = [item["display_name"] for item in data["items"]]
+    assert "Active Cam" in names
+    assert "Retired Cam" in names
+
+
+def test_list_admin_cameras_paginates(test_db_session: DbSession) -> None:
+    now = datetime.now(timezone.utc)
+    for i in range(3):
+        _seed_camera(test_db_session, display_name=f"Cam {i}", created_at=now - timedelta(seconds=i))
+    client = _client(test_db_session)
+    response = client.get("/api/v1/admin/cameras?limit=2", headers=_ADMIN_HEADERS)
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 2
+    assert data["next_cursor"] is not None
+
+    response2 = client.get(f"/api/v1/admin/cameras?limit=2&cursor={data['next_cursor']}", headers=_ADMIN_HEADERS)
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert len(data2["items"]) == 1
+    assert data2["next_cursor"] is None
+
+
+def test_get_admin_camera_detail_requires_admin(test_db_session: DbSession) -> None:
+    camera = _seed_camera(test_db_session)
+    client = _client(test_db_session)
+    response = client.get(f"/api/v1/admin/cameras/{camera.id}", headers=_VIEWER_HEADERS)
+    assert response.status_code == 403
+    assert response.json()["detail"] == "role-required"
+
+
+def test_get_admin_camera_detail_returns_fields(test_db_session: DbSession) -> None:
+    camera = _seed_camera(test_db_session, display_name="Detail Cam")
+    user = _seed_user(test_db_session)
+    _grant_acl(test_db_session, user_id=user.id, camera_id=camera.id)
+    client = _client(test_db_session)
+    response = client.get(f"/api/v1/admin/cameras/{camera.id}", headers=_ADMIN_HEADERS)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["camera_id"] == str(camera.id)
+    assert data["display_name"] == "Detail Cam"
+    assert data["source_type"] == "rtsp"
+    assert data["livekit_room_name"] == camera.livekit_room_name
+    assert data["acl_count"] == 1
+    assert "room_uuid" in data
+    assert "gateway_id" in data
+    assert "site_id" in data
+
+
+def test_get_admin_camera_detail_not_found(test_db_session: DbSession) -> None:
+    client = _client(test_db_session)
+    response = client.get(f"/api/v1/admin/cameras/{uuid.uuid4()}", headers=_ADMIN_HEADERS)
     assert response.status_code == 404
     assert response.json()["detail"] == "camera-not-found"
