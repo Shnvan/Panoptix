@@ -105,8 +105,9 @@ jobs:
         uses: google/osv-scanner-action/osv-scanner-action@v2.3.8
         with:
           scan-args: |-
-            --lockfile=apps/api/pyproject.toml
             --recursive
+            --skip-git
+            apps/api/
 
   trivy:
     name: Container Image Scan
@@ -165,4 +166,6 @@ jobs:
         uses: google/osv-scanner-action/osv-scanner-action@v2.3.8
         with:
           scan-args: |-
-            --lockfile=apps/cctv-edge/agent/pyproject.toml
+            --recursive
+            --skip-git
+            apps/cctv-edge/agent/

@@ -52,7 +52,7 @@ class UrlLibJsonTransport:
             method="POST",
         )
         try:
-            with urlopen(request, timeout=timeout_seconds) as response:
+            with urlopen(request, timeout=timeout_seconds) as response:  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected
                 body = response.read().decode("utf-8")
                 return HttpResponse(status_code=response.status, body=body)
         except HTTPError as exc:

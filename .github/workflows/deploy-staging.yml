@@ -18,11 +18,15 @@ jobs:
 
     steps:
       - name: Deployment notice
+        env:
+          SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+          BRANCH: ${{ github.ref_name }}
         run: |
           echo "Railway auto-deploys from the \`backend\` branch to the staging service."
-          echo "Commit SHA : ${{ github.sha }}"
-          echo "Actor      : ${{ github.actor }}"
-          echo "Branch     : ${{ github.ref_name }}"
+          echo "Commit SHA : $SHA"
+          echo "Actor      : $ACTOR"
+          echo "Branch     : $BRANCH"
 
       - name: Wait for Railway deploy
         run: sleep 45
@@ -41,6 +45,10 @@ jobs:
           fi
 
       - name: Write job summary
+        env:
+          SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+          BRANCH: ${{ github.ref_name }}
         run: |
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           cat >> "$GITHUB_STEP_SUMMARY" << EOF
@@ -48,9 +56,9 @@ jobs:
 
           | Field | Value |
           |---|---|
-          | **Commit SHA** | ${{ github.sha }} |
-          | **Branch** | ${{ github.ref_name }} |
-          | **Actor** | ${{ github.actor }} |
+          | **Commit SHA** | $SHA |
+          | **Branch** | $BRANCH |
+          | **Actor** | $ACTOR |
           | **Timestamp** | $TIMESTAMP |
           | **Status** | Success |
           EOF
