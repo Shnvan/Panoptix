@@ -122,17 +122,35 @@ Expected response:
 {"status":"ok"}
 ```
 
-### Deep health placeholder
+### Deep health
 
 ```powershell
 curl.exe -s "$BaseUrl/api/v1/admin/health/deep"
 ```
 
-Expected response for the current placeholder:
+Expected response when DB is connected, LiveKit credentials are placeholders, and no gateways exist:
 
 ```json
-{"status":"ok","db":"not_connected","livekit":"not_connected","gateway":"not_connected"}
+{"status":"ok","db":"connected","livekit":"not_configured","gateway":"no_gateways"}
 ```
+
+Possible subsystem values:
+
+| Subsystem | Values | "ok" conditions |
+|-----------|--------|-----------------|
+| `db` | `connected`, `error` | `connected` |
+| `livekit` | `connected`, `not_configured`, `error` | `connected` or `not_configured` |
+| `gateway` | `connected`, `no_gateways`, `stale`, `error` | `connected` or `no_gateways` |
+
+Overall status is `"ok"` when all subsystems are in their "ok" conditions; otherwise `"degraded"`.
+
+Notes:
+
+- LiveKit probe calls `POST /twirp/livekit.RoomService/ListRooms` with a 5s timeout
+- LiveKit returns `not_configured` when API key/secret are placeholder values
+- Gateway probe checks enabled gateways' `last_seen_at` against `GATEWAY_STALE_THRESHOLD_SECONDS` (default 60s)
+- Gateway returns `stale` when all enabled gateways have old or null `last_seen_at`
+- Gateway returns `no_gateways` when no enabled gateways exist
 
 ## 5. Browser/User API Endpoints
 
@@ -683,6 +701,42 @@ Expected failure if required config is missing:
 configuration error: PANOPTIX_API_BASE_URL is required
 ```
 
+### 8a. Optional: Per-Camera Credential File
+
+If you have a real camera or want to test credential loading, create a `cameras.json` file (see `apps/cctv-edge/agent/cameras.json.example` for the full template):
+
+```json
+{
+  "version": 1,
+  "cameras": {
+    "22222222-2222-2222-2222-222222222222": {
+      "rtsp_host": "192.168.10.50",
+      "rtsp_port": 554,
+      "rtsp_path": "/stream1",
+      "rtsp_transport": "tcp",
+      "username": "admin",
+      "password": "your-camera-password",
+      "tls": false
+    }
+  }
+}
+```
+
+Then pass it to the agent:
+
+```powershell
+$env:PANOPTIX_CAMERA_CREDENTIALS_PATH = "C:\path\to\cameras.json"
+python -m panoptix_edge_agent.cli --once
+```
+
+Verification:
+- Agent starts without `credential file error` output
+- Missing or invalid file exits with code 2: `credential file error: ...`
+- Passwords never appear in log output (`__repr__` redacts them)
+- On Linux, file permissions wider than `0600` are rejected at startup
+
+For full automated tests see: [Per-Camera Credential Resolution Testing](#per-camera-credential-resolution-testing)
+
 ## 9. Optional Seed Data For Token Success Paths
 
 Use this section only against a local development database.
@@ -968,6 +1022,14 @@ livekit.webhook.replay_rejected
 livekit.publish.start_enqueued
 livekit.publish.stop_enqueued
 livekit.publish.command_skipped
+system.break_glass.opened
+system.break_glass.closed
+system.media_plane.switched_to_fallback
+system.media_plane.switched_to_primary
+admin.dpa.export
+admin.signage.attest
+gateway.credential.rotated
+admin.user.mfa_reset
 ```
 
 Sensitive payload values such as tokens, JWTs, secrets, cookies, credentials, passwords, API keys, and encrypted keys should be redacted before insertion.
@@ -2097,11 +2159,11 @@ python -m pytest tests/test_audit.py -k "audit_export" -v
 
 ## 18. Deep Health Check
 
-The `/api/v1/admin/health/deep` endpoint performs a real database connectivity check using `SELECT 1`.
+The `/api/v1/admin/health/deep` endpoint probes database connectivity, LiveKit reachability, and gateway heartbeat freshness.
 
-### Test deep health (DB connected)
+### Test deep health (all subsystems healthy)
 
-When the backend can reach the database:
+When the backend can reach the database, LiveKit credentials are configured and reachable, and at least one enabled gateway has a recent heartbeat:
 
 ```powershell
 Invoke-RestMethod -Uri http://127.0.0.1:8000/api/v1/admin/health/deep -Method GET
@@ -2110,15 +2172,39 @@ Invoke-RestMethod -Uri http://127.0.0.1:8000/api/v1/admin/health/deep -Method GE
 Expected response:
 
 ```json
-{"status": "ok", "db": "connected", "livekit": "not_connected", "gateway": "not_connected"}
+{"status": "ok", "db": "connected", "livekit": "connected", "gateway": "connected"}
+```
+
+### Test deep health (placeholder LiveKit, no gateways)
+
+With default placeholder LiveKit credentials and no enabled gateways:
+
+```json
+{"status": "ok", "db": "connected", "livekit": "not_configured", "gateway": "no_gateways"}
 ```
 
 ### Test deep health (DB unreachable)
 
-If the backend cannot reach the database (e.g., wrong `DATABASE_URL`), the response will be:
+If the backend cannot reach the database (e.g., wrong `DATABASE_URL`):
 
 ```json
-{"status": "degraded", "db": "error", "livekit": "not_connected", "gateway": "not_connected"}
+{"status": "degraded", "db": "error", "livekit": "not_configured", "gateway": "error"}
+```
+
+### Test deep health (LiveKit error)
+
+With non-placeholder LiveKit credentials that fail to connect:
+
+```json
+{"status": "degraded", "db": "connected", "livekit": "error", "gateway": "no_gateways"}
+```
+
+### Test deep health (gateway stale)
+
+When all enabled gateways have `last_seen_at` older than `GATEWAY_STALE_THRESHOLD_SECONDS` (default 60s):
+
+```json
+{"status": "degraded", "db": "connected", "livekit": "not_configured", "gateway": "stale"}
 ```
 
 ### Run deep health tests
@@ -2783,6 +2869,139 @@ $env:PYTHONPATH = "src"
 python -m pytest tests/test_smoke_config.py tests/test_smoke_ffmpeg_livekit.py -v
 ```
 
+## Admin Camera & Gateway Listing Endpoints
+
+Admin-only read endpoints for listing and viewing cameras and gateways.
+
+### List all gateways
+
+```powershell
+Invoke-RestMethod -Method GET -Uri "$BaseUrl/api/v1/admin/gateways" -Headers $AdminHeaders
+```
+
+With optional status filter:
+
+```powershell
+Invoke-RestMethod -Method GET -Uri "$BaseUrl/api/v1/admin/gateways?status=enabled" -Headers $AdminHeaders
+```
+
+Expected response:
+
+```json
+{
+  "items": [
+    {
+      "gateway_id": "<uuid>",
+      "name": "East Wing Gateway",
+      "status": "enabled",
+      "last_seen_at": null,
+      "created_at": "2026-05-12T...",
+      "disabled_at": null
+    }
+  ],
+  "next_cursor": null
+}
+```
+
+### Get gateway detail
+
+```powershell
+Invoke-RestMethod -Method GET -Uri "$BaseUrl/api/v1/admin/gateways/<gateway-uuid>" -Headers $AdminHeaders
+```
+
+Expected response includes `camera_count`, `mtls_fingerprint`, `cert_expires_at`. Does NOT include `service_token_hash`.
+
+### List all cameras
+
+```powershell
+Invoke-RestMethod -Method GET -Uri "$BaseUrl/api/v1/admin/cameras" -Headers $AdminHeaders
+```
+
+Include retired cameras:
+
+```powershell
+Invoke-RestMethod -Method GET -Uri "$BaseUrl/api/v1/admin/cameras?include_retired=true" -Headers $AdminHeaders
+```
+
+### Get camera detail
+
+```powershell
+Invoke-RestMethod -Method GET -Uri "$BaseUrl/api/v1/admin/cameras/<camera-uuid>" -Headers $AdminHeaders
+```
+
+Expected response includes `acl_count`, `room_uuid`, `gateway_id`, `site_id`.
+
+### Notes
+
+- All four endpoints require admin role; non-admin callers receive `403 role-required`.
+- Cursor pagination via `?cursor=<uuid>&limit=<n>` (default limit 50, max 200).
+- Gateway list supports optional `status` filter (`enabled` or `disabled`).
+- Camera list excludes retired cameras by default; use `?include_retired=true` to include them.
+- Gateway detail returns `camera_count` (active, non-revoked assignments).
+- Camera detail returns `acl_count` (active, non-revoked ACLs).
+
+### Run admin listing tests
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_admin_gateways.py tests/test_cameras.py -v
+```
+
+---
+
+## Admin Dashboard Summary Endpoint
+
+The `GET /api/v1/admin/dashboard` endpoint returns aggregated system-wide counts for the admin dashboard overview.
+
+### Fetch dashboard summary
+
+```powershell
+Invoke-RestMethod -Method GET -Uri "$BaseUrl/api/v1/admin/dashboard" -Headers $AdminHeaders
+```
+
+curl:
+
+```powershell
+curl.exe -s "$BaseUrl/api/v1/admin/dashboard" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-subject: admin@example.test" `
+  -H "x-panoptix-dev-email: admin@example.test" `
+  -H "x-panoptix-dev-roles: admin"
+```
+
+Expected response:
+
+```json
+{
+  "cameras": { "total": 0, "active": 0, "retired": 0 },
+  "gateways": { "total": 0, "enabled": 0, "disabled": 0 },
+  "users": { "total": 1, "active": 1, "disabled": 0 },
+  "commands": { "pending": 0 },
+  "publishing": { "active": 0 }
+}
+```
+
+### Notes
+
+- Requires admin role; non-admin callers receive `403 role-required`.
+- `cameras.active` = cameras where `retired_at IS NULL`; `cameras.retired` = `total - active`.
+- `gateways.enabled` = gateways where `status = 'enabled'`; `gateways.disabled` = `total - enabled`.
+- `users.active` = users where `disabled_at IS NULL`; `users.disabled` = `total - active`.
+- `commands.pending` = gateway command queue rows where `status = 'pending'`.
+- `publishing.active` = camera publish state rows where `status = 'publishing'`.
+- Dev auth creates an implicit admin user, so `users.total` may be ≥ 1 even with no seeded data.
+
+### Run admin dashboard tests
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_admin_dashboard.py -v
+```
+
+---
+
 ## Staging Cloudflare Access Verification
 
 These checks verify the live staging deployment at `staging.panoptix.site` through Cloudflare Access with GitHub OAuth.
@@ -2896,3 +3115,383 @@ Verification checks:
 - If the file is missing or invalid, agent exits with code 2 and prints `credential file error: ...`
 - Passwords never appear in log output or `repr()` strings
 - On Linux, file with permissions wider than `0600` is rejected
+
+## Gateway Disable → Kill Publisher Participants Testing
+
+### Automated tests
+
+From `apps/api/`:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_livekit_rooms.py tests/test_admin_gateways.py -v
+```
+
+Expected: all tests pass (41 tests).
+
+### Manual verification
+
+With the backend running and dev auth enabled:
+
+1. Create a gateway and assign a camera:
+
+```powershell
+# Create gateway
+Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:8000/api/v1/admin/gateways" `
+  -Headers @{"x-panoptix-dev-auth"="1"; "x-panoptix-dev-email"="admin@example.test"; "x-panoptix-dev-subject"="admin@example.test"; "x-panoptix-dev-roles"="admin"} `
+  -ContentType "application/json" -Body '{"name": "Test Gateway"}'
+```
+
+2. Disable the gateway:
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:8000/api/v1/admin/gateways/{gateway_id}/disable" `
+  -Headers @{"x-panoptix-dev-auth"="1"; "x-panoptix-dev-email"="admin@example.test"; "x-panoptix-dev-subject"="admin@example.test"; "x-panoptix-dev-roles"="admin"} `
+  -ContentType "application/json" -Body '{"reason": "test disable"}'
+```
+
+Verification checks:
+
+- Response includes `participants_removed` (0 with placeholder LiveKit creds or no assignments)
+- Response includes `participant_errors` (may contain `livekit-credentials-placeholder` with placeholder creds, or empty list with no assignments)
+- `status` is `disabled`
+- `disabled_at` is set
+- Audit log contains `gateway.disable` action with `participants_removed` and `participant_errors` in payload
+
+## Camera Disable → Kill Viewer Participants Testing
+
+### Automated tests
+
+From `apps/api/`:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_livekit_rooms.py tests/test_cameras.py -v
+```
+
+Expected: all tests pass (57 tests).
+
+### Manual verification
+
+With the backend running and dev auth enabled:
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:8000/api/v1/admin/cameras/{camera_id}/disable" `
+  -Headers @{"x-panoptix-dev-auth"="1"; "x-panoptix-dev-email"="admin@example.test"; "x-panoptix-dev-subject"="admin@example.test"; "x-panoptix-dev-roles"="admin"} `
+  -ContentType "application/json" -Body '{"reason": "decommissioned"}'
+```
+
+Verification checks:
+
+- Response includes `participants_removed` (0 with placeholder LiveKit creds or no active viewers)
+- Response includes `participant_errors` (may contain `livekit-credentials-placeholder` with placeholder creds, or empty list)
+- `retired_at` is set
+- Audit log contains `camera.disable` action with `participants_removed` and `participant_errors` in payload
+
+## Break-Glass Emergency Access Testing
+
+### Automated tests
+
+From `apps/api/`:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_break_glass.py -v
+```
+
+Expected: all 12 tests pass.
+
+### Manual verification
+
+With the backend running and dev auth enabled:
+
+#### Open a break-glass window
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "$BaseUrl/api/v1/admin/break-glass/open" `
+  -Headers $AdminHeaders `
+  -ContentType "application/json" -Body '{"reason": "IdP outage test"}'
+```
+
+Expected response:
+
+```json
+{
+  "window_id": "uuid",
+  "opened_at": "2026-05-13T...",
+  "auto_disable_at": "2026-05-13T..."
+}
+```
+
+Notes:
+
+- `auto_disable_at` is 90 minutes after `opened_at`
+- Opening a second window while one is active returns `409 break-glass-already-active`
+- Viewer role returns `403 role-required`
+- Unauthenticated returns `401`
+- Audit log contains `system.break_glass.opened`
+
+#### Close a break-glass window
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "$BaseUrl/api/v1/admin/break-glass/close" `
+  -Headers $AdminHeaders `
+  -ContentType "application/json" -Body '{"reason": "incident resolved"}'
+```
+
+Expected response:
+
+```json
+{
+  "window_id": "uuid",
+  "opened_at": "2026-05-13T...",
+  "closed_at": "2026-05-13T...",
+  "rotation_required": [
+    "Audit HMAC key (new version)",
+    "LiveKit API keys",
+    "CF Access service tokens",
+    "All gateway credentials"
+  ]
+}
+```
+
+Notes:
+
+- Closing when no window exists returns `404 no-active-break-glass-window`
+- Expired-but-unclosed windows can still be closed (cleanup)
+- Audit log contains `system.break_glass.closed` with `rotation_required` in payload
+
+#### Check break-glass status (external monitor)
+
+```powershell
+curl.exe -s "$BaseUrl/api/v1/admin/internal/break-glass-status"
+```
+
+Expected response when no active window:
+
+```json
+{"active": false}
+```
+
+Expected response when a window is active:
+
+```json
+{"active": true, "auto_disable_at": "2026-05-13T..."}
+```
+
+Notes:
+
+- This endpoint requires no authentication (designed for external monitors like UptimeRobot)
+- After `auto_disable_at` passes, the endpoint returns `{"active": false}` even if `closed_at` is NULL (request-time enforcement per ADR 0005)
+
+## Admin Search/Filter & List Enrichment Testing
+
+### Automated tests
+
+From `apps/api/`:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_admin_search_enrichment.py -v
+```
+
+Expected: all 12 tests pass.
+
+### Manual gateway search
+
+```powershell
+Invoke-RestMethod -Method GET `
+  -Uri "$BaseUrl/api/v1/admin/gateways?search=warehouse" `
+  -Headers $AdminHeaders
+```
+
+Notes:
+
+- `search` is case-insensitive substring match on gateway `name`
+- Can combine with `status` filter: `?search=warehouse&status=enabled`
+- Gateway list items now include `camera_count` (active assignment count)
+
+### Manual camera search/filter
+
+```powershell
+Invoke-RestMethod -Method GET `
+  -Uri "$BaseUrl/api/v1/admin/cameras?search=front" `
+  -Headers $AdminHeaders
+```
+
+Filter by source type:
+
+```powershell
+Invoke-RestMethod -Method GET `
+  -Uri "$BaseUrl/api/v1/admin/cameras?source_type=rtsp" `
+  -Headers $AdminHeaders
+```
+
+Filter by gateway:
+
+```powershell
+Invoke-RestMethod -Method GET `
+  -Uri "$BaseUrl/api/v1/admin/cameras?gateway_id=$GatewayId" `
+  -Headers $AdminHeaders
+```
+
+Notes:
+
+- `search` is case-insensitive substring match on `display_name`
+- `source_type` validates against `CameraSourceType` enum; invalid values return `400 source-type-invalid`
+- `gateway_id` filters cameras assigned to a specific gateway
+- All filters can be combined: `?search=front&source_type=rtsp&gateway_id=...`
+- Camera list items now include `gateway_id` and `acl_count` (active ACL count)
+
+## LiveKit Fallback Toggle Testing
+
+### Automated tests
+
+From `apps/api/`:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_livekit_fallback.py -v
+```
+
+Expected: all 6 tests pass.
+
+### Manual verification
+
+With the backend running and dev auth enabled:
+
+#### Switch to fallback mode
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "$BaseUrl/api/v1/admin/livekit/fallback" `
+  -Headers $AdminHeaders `
+  -ContentType "application/json" -Body '{"mode": "fallback", "reason": "LiveKit Cloud quota exhausted"}'
+```
+
+Expected response:
+
+```json
+{"media_plane_mode": "fallback", "previous_mode": "cloud", "switched_at": "..."}
+```
+
+#### Switch back to cloud
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "$BaseUrl/api/v1/admin/livekit/fallback" `
+  -Headers $AdminHeaders `
+  -ContentType "application/json" -Body '{"mode": "cloud", "reason": "LiveKit Cloud restored"}'
+```
+
+Notes:
+
+- Same-mode switch returns `409 mode-already-active`
+- Default mode (no `SystemConfig` row) is `cloud`
+- Audit events: `system.media_plane.switched_to_fallback` / `system.media_plane.switched_to_primary`
+
+## DPA Export & Signage Attestation Testing
+
+### Automated tests
+
+From `apps/api/`:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_dpa.py -v
+```
+
+Expected: all 10 tests pass.
+
+### Manual DPA export
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "$BaseUrl/api/v1/admin/dpa/export" `
+  -Headers $AdminHeaders `
+  -ContentType "application/json" -Body '{}'
+```
+
+With kind filter:
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "$BaseUrl/api/v1/admin/dpa/export" `
+  -Headers $AdminHeaders `
+  -ContentType "application/json" -Body '{"kinds": ["ropa", "processor_dpa"]}'
+```
+
+Notes:
+
+- Empty DB returns `{"artifacts": [], "count": 0}`
+- Invalid kind returns `400 dpa-kind-invalid:<kind>`
+- Audit event: `admin.dpa.export`
+
+### Manual signage attestation
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "$BaseUrl/api/v1/admin/sites/{site_id}/signage-attest" `
+  -Headers $AdminHeaders `
+  -ContentType "application/json" -Body '{"notes": "signage posted at main entrance"}'
+```
+
+Notes:
+
+- Requires valid `site_id` (404 if not found)
+- Creates `DpaArtifact` with kind `bystander_signage_attestation`
+- Returns `201` with `artifact_id`, `kind`, `site_id`, `effective_at`
+- Audit event: `admin.signage.attest`
+
+## Gateway Credential Rotation Testing
+
+### Automated tests
+
+From `apps/api/`:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_gateway_rotation.py -v
+```
+
+Expected: all 5 tests pass.
+
+### Manual verification
+
+```powershell
+Invoke-RestMethod -Method POST `
+  -Uri "$BaseUrl/api/v1/admin/gateways/$GatewayId/rotate-credential" `
+  -Headers $AdminHeaders `
+  -ContentType "application/json" -Body '{"reason": "routine rotation"}'
+```
+
+Notes:
+
+- Returns one-time raw `service_token` — save it immediately, it cannot be retrieved again
+- Old token hash is replaced; old tokens stop working immediately
+- Disabled gateways return `409 gateway-disabled`
+- Audit event: `gateway.credential.rotated`
+
+## User MFA Reset Testing
+
+### Automated tests
+
+From `apps/api/`:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_mfa_reset.py -v
+```
+
+Expected: all 5 tests pass.
+
+### Manual verification
+
+```powershell
+Invoke-RestMethod -Method POST `
+  -Uri "$BaseUrl/api/v1/admin/users/$UserId/mfa/reset" `
+  -Headers $AdminHeaders `
+  -ContentType "application/json" -Body '{"verification_evidence": "video call confirmed identity", "reason": "lost hardware key"}'
+```
+
+Notes:
+
+- Admin cannot reset their own MFA (409 `cannot-reset-own-mfa`)
+- This records an audit trail; actual MFA reset must be completed in the IdP admin console
+- Returns `recovery_note` with instructions
+- Audit event: `admin.user.mfa_reset`

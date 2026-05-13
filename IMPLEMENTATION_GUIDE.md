@@ -3086,22 +3086,312 @@ This closes the loop between the backend command flow and real media publishing.
 
 ---
 
+## 41. User Disable → LiveKit Participant Kill
+
+### What was implemented
+
+When an admin disables a user, their active LiveKit viewer sessions are terminated in real time.
+
+### New files
+
+- `security/livekit_rooms.py`: `remove_user_participants()` — calls LiveKit Twirp API via httpx to remove `viewer:{user_id}:*` participants across all camera rooms the user has ACL for
+
+### Modified files
+
+- `api/router.py`: `admin_disable_user` now calls `remove_user_participants()` after session revocation
+- `gateway/models.py`: `DisableUserResponse` gains `participants_removed` and `participant_errors` fields
+
+### How it works
+
+1. Admin calls `POST /api/v1/admin/users/{user_id}/disable`
+2. All active sessions are revoked
+3. For each camera ACL the user holds, the Twirp `RemoveParticipant` API is called for the camera's LiveKit room
+4. Errors are collected but never raised (fail-open): the disable always succeeds even if LiveKit is unreachable
+5. Placeholder credentials (`replace-me`) are detected and skipped gracefully
+
+### Why it matters
+
+Without this, a disabled user's browser tab would continue receiving a live CCTV stream until their LiveKit token expired. This closes that window immediately.
+
+---
+
+## 42. Gateway Disable → Kill Publisher Participants
+
+### What was implemented
+
+When an admin disables a gateway, its active LiveKit publisher sessions are terminated in real time.
+
+### New files / modified files
+
+- `security/livekit_rooms.py`: Added `remove_gateway_participants()` — mirrors `remove_user_participants()` for gateway publisher identity prefix `gateway:{gateway_id}:`
+- `gateway/models.py`: `DisableGatewayResponse` gains `participants_removed` and `participant_errors` fields
+- `api/router.py`: `disable_gateway` handler queries assigned camera rooms and calls `remove_gateway_participants()`
+
+### How it works
+
+Same fail-open pattern as user disable. Gateway publisher participants matching `gateway:{gateway_id}:*` are removed from all rooms assigned to the gateway.
+
+---
+
+## 43. Camera Disable → Kill Viewer Participants
+
+### What was implemented
+
+When an admin retires a camera, all active viewer participants in the camera's LiveKit room are terminated.
+
+### New files / modified files
+
+- `security/livekit_rooms.py`: Added `remove_room_viewers()` — removes all `viewer:*` participants from a single camera room
+- `gateway/models.py`: `DisableCameraResponse` gains `participants_removed` and `participant_errors` fields
+- `api/router.py`: `disable_camera` handler calls `remove_room_viewers()` with the camera's `livekit_room_name`
+
+### Why it matters
+
+Completes the disable-kills-participants symmetry: users, gateways, and cameras each terminate their respective LiveKit participants on disable.
+
+---
+
+## 44. Admin Camera & Gateway Listing Endpoints
+
+### What was implemented
+
+Admin read endpoints for browsing the full gateway and camera registry.
+
+### Endpoints added
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/v1/admin/gateways` | List all gateways (enabled + disabled) with cursor pagination and optional `status` filter |
+| `GET /api/v1/admin/gateways/{gateway_id}` | Gateway detail with `camera_count` and `mtls_fingerprint` |
+| `GET /api/v1/admin/cameras` | List all cameras with cursor pagination and optional `include_retired` filter |
+| `GET /api/v1/admin/cameras/{camera_id}` | Camera detail with `acl_count`, `room_uuid`, `gateway_id`, `site_id` |
+
+### Security
+
+- All four require admin role
+- `service_token_hash` excluded from all gateway responses
+- Cursor pagination on `created_at DESC, id DESC`
+
+---
+
+## 45. Admin Dashboard Summary Endpoint
+
+### What was implemented
+
+A single aggregated admin endpoint for system-wide counts.
+
+### Endpoint
+
+`GET /api/v1/admin/dashboard`
+
+Response shape:
+
+```json
+{
+  "cameras": {"total": 0, "active": 0, "retired": 0},
+  "gateways": {"total": 0, "enabled": 0, "disabled": 0},
+  "users": {"total": 0, "active": 0, "disabled": 0},
+  "commands": {"pending": 0},
+  "publishing": {"active": 0}
+}
+```
+
+Uses `select(func.count()).select_from(Model).where(...)` for efficient DB aggregation without fetching rows.
+
+---
+
+## 46. Admin Health Probes
+
+### What was implemented
+
+`GET /api/v1/admin/health/deep` upgraded from stub to real probes.
+
+### Probes
+
+- **DB**: `SELECT 1` — returns `connected` or `error`
+- **LiveKit**: `POST /twirp/livekit.RoomService/ListRooms` with 5 s timeout — returns `connected`, `not_configured` (placeholder creds), or `error`
+- **Gateway**: queries enabled gateways and checks `last_seen_at` against `GATEWAY_STALE_THRESHOLD_SECONDS` (default 60 s) — returns `connected`, `no_gateways`, `stale`, or `error`
+
+Overall `"ok"` only when DB connected AND (LiveKit connected/not_configured) AND (gateway connected/no_gateways).
+
+### New files
+
+- `core/config.py`: Added `GATEWAY_STALE_THRESHOLD_SECONDS` setting
+
+### Side fix
+
+Gateway heartbeat endpoint now updates `EdgeGateway.last_seen_at` via `_update_gateway_last_seen()` (fail-open).
+
+---
+
+## 47. Break-Glass Emergency Access
+
+### What was implemented
+
+A time-bounded emergency admin access window for when normal IdP login is unavailable.
+
+### New files
+
+- `security/break_glass.py`: `open_break_glass_window`, `close_break_glass_window`, `get_break_glass_status`, `assert_break_glass_active`, `get_active_window`
+
+### Endpoints added
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/v1/admin/break-glass/open` | Opens a 90-minute window; rejects if one already exists (409) |
+| `POST /api/v1/admin/break-glass/close` | Closes an active/expired window; returns mandatory rotation checklist |
+| `GET /api/v1/admin/internal/break-glass-status` | Unauthenticated external-monitor endpoint |
+
+### Key design decisions
+
+- Request-time enforcement only (no scheduler): `now >= auto_disable_at` is the gate
+- Audit events: `system.break_glass.opened` and `system.break_glass.closed` (fail-closed)
+- Each window is independently time-bounded; exceeding 90 min requires opening a new audited window
+
+### Runbook
+
+`docs/runbooks/break-glass-runbook.md`
+
+---
+
+## 48. Operational Runbooks + SCA/SAST CI
+
+### What was implemented
+
+**Runbooks** added to `docs/runbooks/`:
+
+- `break-glass-runbook.md` — full break-glass lifecycle
+- `lost-mfa-recovery.md` — admin-mediated MFA reset with optional break-glass path
+- `idp-outage-recovery.md` — IdP outage (GitHub OAuth) detection, break-glass, recovery, post-incident
+
+**SCA/SAST CI** jobs added to `.github/workflows/ci.yml`:
+
+- Semgrep SAST (`p/python`, `p/security-audit`, `p/owasp-top-ten`)
+- osv-scanner dependency vulnerability scan
+- Trivy container image scan (CRITICAL + HIGH severity, fail build)
+
+All three CI jobs run in parallel; Trivy depends on Docker build.
+
+---
+
+## 49. Admin Search/Filter & List Enrichment
+
+### What was implemented
+
+Search and filter parameters for admin listing endpoints, plus relationship-count enrichment.
+
+### Gateway list enhancements
+
+- `search` param: case-insensitive name substring filter
+- `camera_count` field: active assignment count per gateway
+
+### Camera list enhancements
+
+- `search` param: display_name substring filter
+- `source_type` param: validated enum filter (400 `source-type-invalid` on invalid value)
+- `gateway_id` param: filter by assigned gateway
+- `gateway_id` field: included in list response
+- `acl_count` field: active ACL count per camera
+
+---
+
+## 50. LiveKit Fallback Toggle
+
+### What was implemented
+
+Admin endpoint to switch between LiveKit Cloud and self-hosted LiveKit fallback.
+
+### New files
+
+- `security/media_plane.py`: `get_media_plane_mode()`, `set_media_plane_mode()` — reads/writes `system_config.media_plane_mode`
+
+### Endpoint
+
+`POST /api/v1/admin/livekit/fallback`
+
+- Accepts `{"mode": "cloud"}` or `{"mode": "fallback"}`
+- Rejects no-op same-mode change (409)
+- Audit events: `system.media_plane.switched_to_fallback` / `system.media_plane.switched_to_primary`
+
+---
+
+## 51. DPA Export & Bystander Signage Attestation
+
+### What was implemented
+
+Two privacy-compliance endpoints.
+
+### Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/v1/admin/dpa/export` | Returns DPA artifact bundle with optional `kinds` filter |
+| `POST /api/v1/admin/sites/{site_id}/signage-attest` | Records bystander signage attestation as `DpaArtifact` |
+
+- `DpaKind` enum validated (400 on invalid)
+- Signage attestation creates `DpaArtifact` row with `bystander_signage_attestation` kind and SHA-256 hash
+- Audit events: `admin.dpa.export`, `admin.signage.attest`
+
+### Runbook reference
+
+`docs/runbooks/bus-factor.md` — emergency recovery if sole system owner is unavailable.
+
+---
+
+## 52. Admin-Mediated MFA Reset
+
+### What was implemented
+
+Endpoint for an admin to record that a user's MFA device was reset through a verified out-of-band process.
+
+### Endpoint
+
+`POST /api/v1/admin/users/{user_id}/mfa/reset`
+
+- Self-reset blocked (409 `cannot-reset-own-mfa`)
+- Audit event: `admin.user.mfa_reset` with verification evidence
+- Does not touch the IdP directly — records the admin action for audit
+
+---
+
+## Verification (current state)
+
+Backend (`apps/api/`):
+
+```text
+pytest: 454 passed
+ruff: all checks passed
+mypy: no issues found in 39 source files
+compileall: passed
+```
+
+Edge agent (`apps/cctv-edge/agent/`):
+
+```text
+pytest: 239 passed, 2 skipped
+ruff: all checks passed
+mypy: no issues found in 22 source files
+compileall: passed
+```
+
+---
+
 ## What Is Not Implemented Yet
 
 The following are intentionally not done yet:
 
 - frontend UI
-- production Docker/systemd gateway supervision
+- real camera onboarding (credential file exists; needs real hardware)
+- production Docker/systemd gateway supervision (runbook templates exist)
+- Google Workspace IdP setup (GitHub OAuth is currently deployed on staging)
 
 ---
 
 ## Next Recommended Implementation Order
 
-### 1. Production Gateway Supervision
+### 1. Real Camera Onboarding
 
-Plan and implement Docker/systemd-style gateway and mediamtx supervision so the edge runtime can restart safely, expose useful health/status signals, and preserve the zero-inbound-WAN-port invariant.
-
-Later candidates: Cloudflare production setup prep, Railway/Neon staging deployment, and real RTSP camera credential handling.
+Connect a real CCTV camera to the gateway using the per-camera credential file (`cameras.json`) and test live FFmpeg-to-LiveKit publishing end-to-end. Requires real camera hardware and a LiveKit Cloud account.
 
 ---
 
@@ -3153,6 +3443,18 @@ The system now has:
 - live Cloudflare Access with GitHub OAuth on staging.panoptix.site
 - Railway staging deployment with custom domain and Cloudflare proxy
 - per-camera RTSP credential handling with gateway-local credential file, fail-closed validation, and repr-safe password redaction
+- gateway disable kills active LiveKit publisher participants via Twirp API, mirroring user-disable viewer kill with fail-open error collection
+- camera disable kills all active viewer participants from the camera's LiveKit room, completing the disable-kills-participants symmetry across users, gateways, and cameras
+- admin camera and gateway listing endpoints with cursor pagination, status/retired filtering, and detail views with relationship counts
+- admin dashboard summary endpoint with aggregated system counts
+- real LiveKit + gateway health probes on the deep health endpoint
+- break-glass emergency access with 90-minute time-bounded windows, request-time enforcement, and mandatory rotation checklists
+- operational runbooks for break-glass, lost-MFA recovery, and IdP outage (GitHub OAuth)
+- Semgrep SAST, osv-scanner, and Trivy CI jobs for supply-chain and container security
+- admin search/filter on gateway and camera listing endpoints plus relationship-count enrichment
+- LiveKit fallback toggle between cloud and self-hosted mode
+- DPA artifact export and bystander signage attestation for privacy compliance
+- admin-mediated MFA reset endpoint with self-reset prevention
 
 The most important security idea so far is:
 

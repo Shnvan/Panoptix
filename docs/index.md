@@ -34,7 +34,7 @@ Navigation map for the Panoptix CCTV monitoring system documentation.
 | ADR | Title | Status |
 |-----|-------|--------|
 | [0001](adrs/0001-plane-separation.md) | Control-Plane / Media-Plane / Camera-Plane Separation | Accepted |
-| [0002](adrs/0002-idp-selection.md) | Primary Identity Provider Selection (Google Workspace) | Accepted |
+| [0002](adrs/0002-idp-selection.md) | Primary Identity Provider Selection (Google Workspace planned; GitHub OAuth deployed) | Superseded in practice |
 | [0003](adrs/0003-postgres-tier.md) | Postgres Provider and Tier Strategy (Neon-first) | Accepted |
 | [0004](adrs/0004-livekit-fallback.md) | LiveKit Fallback Strategy | Accepted |
 | [0005](adrs/0005-break-glass.md) | Break-Glass Emergency Access Pattern | Accepted |
@@ -106,6 +106,10 @@ All diagrams are in Mermaid format (`.mmd`).
 | [Railway/Neon Staging Prep](runbooks/railway-neon-staging-prep.md) | Docs-only staging deployment prep for Railway compute and Neon Postgres |
 | [Deploy and Rollback](runbooks/deploy-rollback.md) | Railway deploy, rollback triggers, and post-rollback checks |
 | [Backup and Restore](runbooks/backup-restore.md) | Backup, restore, and restore-drill procedure |
+| [Break-Glass Runbook](runbooks/break-glass-runbook.md) | Break-glass lifecycle: open, perform critical actions, close, mandatory rotation checklist |
+| [Lost-MFA Recovery](runbooks/lost-mfa-recovery.md) | Admin-mediated MFA device reset with optional break-glass escalation path |
+| [IdP Outage Recovery](runbooks/idp-outage-recovery.md) | GitHub OAuth outage detection, break-glass escalation, restoration verification, and post-incident review |
+| [Bus Factor Recovery](runbooks/bus-factor.md) | Emergency recovery procedure if the sole system owner is unavailable |
 
 ---
 

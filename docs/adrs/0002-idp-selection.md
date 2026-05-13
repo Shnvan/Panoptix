@@ -1,11 +1,13 @@
 # ADR 0002 — Primary Identity Provider Selection
 
-- **Status**: Accepted
+- **Status**: Superseded in practice — see note below
 - **Date**: 2026-05-07
 - **Decision-makers**: System Owner, Software Architect
-- **Decision**: Google Workspace as primary IdP
+- **Decision**: Google Workspace as primary IdP (original decision)
 - **Supersedes**: None
 - **Plan references**: §11.1–§11.4; §16.2; §16.7; §20.11; Invariant 11
+
+> **Deployment note (2026-05-13):** The staging environment at `staging.panoptix.site` was deployed with **GitHub OAuth** as the Cloudflare Access IdP instead of Google Workspace. Google Workspace provisioning was not yet available at the time of staging setup. The rationale and security requirements in this ADR remain valid; the IdP choice may be revisited when the school Google Workspace account is provisioned. The `idp-outage-recovery.md` runbook reflects the currently deployed GitHub OAuth IdP.
 
 ## Context
 
