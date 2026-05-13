@@ -15,7 +15,10 @@ Break-glass covers IdP/user/MFA failures only. It does **not** recover from:
 
 ## Prerequisites
 
-- Hardware security key for `break-glass-prime@<domain>`
+- Hardware security key (FIDO2) for `break-glass-prime@<domain>`
+  - Recommended: YubiKey 5 NFC or YubiKey 5 Nano
+  - Order at least one key before production go-live
+  - Consider a second key stored in a separate physical location for bus-factor resilience
 - Password from password manager or sealed offline copy (§20.19 bus-factor)
 - Cloudflare Access App C configured at `/admin-emergency`
 - Backend API running and database reachable

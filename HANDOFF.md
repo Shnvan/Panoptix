@@ -189,6 +189,56 @@ mypy: no issues found
 
 ---
 
+### CI Pipeline Finalization, External Service Provisioning & Security Tooling (2026-05-13)
+
+Completed in this session.
+
+**CI pipeline hardening (runs #4–#10):**
+
+- `.github/workflows/ci.yml`: Migrated osv-scanner from v1 to v2.3.8 (`--recursive` instead of `--lockfile`); removed nonexistent `--skip-git` flag
+- `.github/workflows/ci.yml`: Updated trivy-action from 0.28.0 to v0.36.0; added `ignore-unfixed: true` and `trivyignores: apps/api/.trivyignore` for Debian 12 CVEs with no available patch
+- `.github/workflows/ci.yml`: Updated semgrep-action from `returntocorp` to `semgrep` org
+- `.github/workflows/ci.yml` + `deploy-staging.yml` + `deploy-production.yml`: Fixed Semgrep shell injection findings — moved all `${{ github.* }}` expressions from `run:` blocks to `env:` intermediary variables
+- `apps/api/Dockerfile`: Upgraded base image to `python:3.12-slim-bookworm` + `apt-get upgrade` to reduce OS-level CVEs
+- `apps/api/.trivyignore`: Created with 13 Debian 12 CVE IDs (zlib1g, libcap2, libsystemd0, ncurses, libgcrypt20, libc-bin/libc6, libgnutls30 x5, libsqlite3-0)
+- `.semgrepignore`: Created to suppress urllib false positive in `apps/cctv-edge/agent/src/panoptix_edge_agent/client.py`
+- `deploy-staging.yml`: Changed post-deploy health check from hard-fail to informational (Cloudflare Access returns 302 for unauthenticated probes)
+
+**External service provisioning:**
+
+- LiveKit Cloud account created at livekit.io (APAC region)
+- Project `panoptix` provisioned with WebSocket URL, API key, API secret, and webhook secret
+- All 4 LiveKit values set as Railway staging env vars (`LIVEKIT_CLOUD_URL`, `LIVEKIT_CLOUD_API_KEY`, `LIVEKIT_CLOUD_API_SECRET`, `LIVEKIT_WEBHOOK_SECRET`)
+- Semgrep CI token (`SEMGREP_APP_TOKEN`) configured as GitHub repository secret
+- Cloudflare R2 backup bucket `panoptix-backups` provisioned via Terraform Cloud workspace `panoptix-backup-r2`
+- Terraform Cloud backend added to `infra/terraform/modules/backup-r2/main.tf`
+- R2 scoped API token created (Object Read & Write, `panoptix-backups` bucket only)
+- R2 env vars set in Railway staging (`R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`)
+- Staging health verified: `https://staging.panoptix.site/health` returns `{"status":"ok"}` behind Cloudflare Access
+
+Verification:
+
+```text
+CI run #10: ALL 8 JOBS GREEN
+- Lint & Test
+- Secret Scan
+- Semgrep SAST
+- Dependency Vulnerability Scan
+- Edge Agent Lint & Test
+- Docker Build Check
+- Container Image Scan
+- Deploy-Staging
+```
+
+Not included:
+
+- Gitleaks license (optional; public repo gets free license, but CI passes without it)
+- Production Cloudflare Access apps (waits for 7-day gate)
+- Production Railway/Neon environments (waits for 7-day gate)
+- Break-glass hardware key procurement
+
+---
+
 ### LiveKit Fallback, DPA Export, Signage Attestation & Bus-Factor Doc
 
 Completed in this milestone.

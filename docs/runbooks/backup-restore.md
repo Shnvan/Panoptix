@@ -59,7 +59,14 @@ The `scripts/restore-drill.sh` script (created in Round 3A) automates the quarte
 
 | Drill Type | Frequency | Owner | Last Completed | Next Due |
 | --- | --- | --- | --- | --- |
-| Restore drill (automated) | Quarterly | On-call / DevOps | — | — |
-| Full DR test (manual) | Annually | Engineering lead | — | — |
+| Restore drill (automated) | Quarterly | On-call / DevOps | — | 2026-08-01 |
+| Full DR test (manual) | Annually | Engineering lead | — | 2027-05-20 |
+
+## Infrastructure status
+
+- Cloudflare R2 bucket `panoptix-backups` is provisioned and active.
+- Terraform Cloud workspace `panoptix-backup-r2` manages bucket state remotely.
+- R2 API tokens with Object Read & Write scope (bucket-only) are configured in Railway staging.
+- `scripts/restore-drill.sh` is available for automated quarterly drills.
 
 Record completion dates and any anomalies found as a DPA/security artifact alongside the standard restore evidence.

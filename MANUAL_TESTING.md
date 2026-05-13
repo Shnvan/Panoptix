@@ -3052,6 +3052,26 @@ https://staging.panoptix.site/api/v1/admin/health/deep
 
 Expected: `403` if user has no admin role; deep health JSON if admin role is assigned.
 
+### Staging deep health check
+
+After GitHub login, open in browser:
+
+```text
+https://staging.panoptix.site/api/v1/admin/health/deep
+```
+
+Expected (with LiveKit Cloud provisioned and database connected):
+
+```json
+{"status":"ok","db":"connected","livekit":"connected","gateway":"no_gateways"}
+```
+
+Notes:
+
+- `livekit: connected` confirms the backend can reach the provisioned LiveKit Cloud project.
+- `gateway: no_gateways` is expected when no gateways are registered in staging.
+- This endpoint requires no authentication (designed for monitoring systems).
+
 ### Cloudflare Access configuration reference
 
 - **Domain:** `panoptix.site` (Cloudflare, Free plan)
@@ -3560,3 +3580,53 @@ try {
   - `POST /api/v1/admin/break-glass/open`
   - `POST /api/v1/admin/gateways/{id}/commands`
 - Read-only admin endpoints (GET) are not rate-limited by this limiter
+
+---
+
+## R2 Backup Bucket Verification
+
+The Cloudflare R2 bucket `panoptix-backups` is provisioned via Terraform Cloud. Use these checks to verify bucket accessibility.
+
+### Verify bucket exists (AWS CLI compatible)
+
+```powershell
+$env:AWS_ACCESS_KEY_ID = "<r2-access-key-id>"
+$env:AWS_SECRET_ACCESS_KEY = "<r2-secret-access-key>"
+$env:AWS_DEFAULT_REGION = "auto"
+
+aws s3 ls --endpoint-url "https://<account-id>.r2.cloudflarestorage.com"
+```
+
+Expected: bucket `panoptix-backups` appears in the list.
+
+### Verify bucket write/read
+
+```powershell
+# Write a test object
+aws s3 cp test.txt s3://panoptix-backups/verify/test.txt --endpoint-url "https://<account-id>.r2.cloudflarestorage.com"
+
+# Read it back
+aws s3 cp s3://panoptix-backups/verify/test.txt - --endpoint-url "https://<account-id>.r2.cloudflarestorage.com"
+
+# Clean up
+aws s3 rm s3://panoptix-backups/verify/test.txt --endpoint-url "https://<account-id>.r2.cloudflarestorage.com"
+```
+
+### Verify Railway staging env vars are set
+
+From the Railway dashboard for `cctv-api`:
+
+- `R2_ACCOUNT_ID` — matches Cloudflare account ID
+- `R2_BUCKET` — `panoptix-backups`
+- `R2_ACCESS_KEY_ID` — R2 API token access key
+- `R2_SECRET_ACCESS_KEY` — R2 API token secret
+
+All four must be present for the backup job to function. Do not verify values by printing them; only confirm their presence in the Railway environment variable list.
+
+### Notes
+
+- R2 uses the S3-compatible API; `aws s3` CLI works with `--endpoint-url`.
+- The scoped API token has Object Read & Write permissions limited to the `panoptix-backups` bucket only.
+- R2 free tier: 10 GB storage + 10 million requests/month.
+- Production decryption keys for backup restore must not be stored on the backup job host.
+- Never commit R2 credentials to the repository.

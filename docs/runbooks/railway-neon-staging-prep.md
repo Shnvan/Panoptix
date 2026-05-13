@@ -98,6 +98,7 @@ Key groups:
 - **Audit**: HMAC key and version
 - **Database**: runtime and migration connection strings
 - **LiveKit**: cloud URL, API key, API secret, webhook secret
+- **R2 Backup**: account ID, bucket name, access key, secret key
 - **Gateway**: service token, command signing key
 - **Security headers**: CSP report URI, LiveKit connect-src
 

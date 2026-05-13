@@ -4,6 +4,14 @@
 # expiry or bucket deletion is managed here to prevent accidental data loss.
 
 terraform {
+  cloud {
+    organization = "panoptix-backup-r2"
+
+    workspaces {
+      name = "panoptix-backup-r2"
+    }
+  }
+
   required_providers {
     cloudflare = {
       source  = "cloudflare/cloudflare"
