@@ -7,16 +7,8 @@ permissions:
 on:
   push:
     branches: [main, backend]
-    paths:
-      - "apps/api/**"
-      - "apps/cctv-edge/**"
-      - ".github/workflows/ci.yml"
   pull_request:
     branches: [main, backend]
-    paths:
-      - "apps/api/**"
-      - "apps/cctv-edge/**"
-      - ".github/workflows/ci.yml"
 
 jobs:
   lint-and-test:
