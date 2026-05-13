@@ -1,0 +1,80 @@
+name: Deploy — Staging
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [backend]
+    paths:
+      - "apps/api/**"
+      - "apps/cctv-edge/**"
+  workflow_dispatch:
+
+jobs:
+  notify-and-verify:
+    name: Notify and Verify
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deployment notice
+        run: |
+          echo "Railway auto-deploys from the \`backend\` branch to the staging service."
+          echo "Commit SHA : ${{ github.sha }}"
+          echo "Actor      : ${{ github.actor }}"
+          echo "Branch     : ${{ github.ref_name }}"
+
+      - name: Wait for Railway deploy
+        run: sleep 45
+
+      - name: Post-deploy health check — /health
+        run: |
+          echo "Checking staging /health endpoint..."
+          RESPONSE=$(curl --silent --write-out "\n%{http_code}" https://staging.panoptix.site/health)
+          HTTP_BODY=$(echo "$RESPONSE" | head -n -1)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n 1)
+
+          echo "HTTP status: $HTTP_CODE"
+          echo "Response body: $HTTP_BODY"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Health check failed — expected HTTP 200, got $HTTP_CODE"
+            exit 1
+          fi
+
+          STATUS=$(echo "$HTTP_BODY" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('status',''))" 2>/dev/null || echo "")
+          if [ "$STATUS" != "ok" ]; then
+            echo "::error::Health check failed — expected {\"status\":\"ok\"}, got: $HTTP_BODY"
+            exit 1
+          fi
+
+          echo "Staging /health OK."
+
+      - name: Post-deploy health check — /api/v1/admin/health/deep
+        run: |
+          echo "Checking staging /api/v1/admin/health/deep endpoint..."
+          HTTP_CODE=$(curl --silent --output /dev/null --write-out "%{http_code}" https://staging.panoptix.site/api/v1/admin/health/deep)
+
+          echo "HTTP status: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Deep health check failed — expected HTTP 200, got $HTTP_CODE"
+            exit 1
+          fi
+
+          echo "Staging /api/v1/admin/health/deep OK."
+
+      - name: Write job summary
+        run: |
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          cat >> "$GITHUB_STEP_SUMMARY" << EOF
+          ## Staging Deployment Summary
+
+          | Field | Value |
+          |---|---|
+          | **Commit SHA** | ${{ github.sha }} |
+          | **Branch** | ${{ github.ref_name }} |
+          | **Actor** | ${{ github.actor }} |
+          | **Timestamp** | $TIMESTAMP |
+          | **Status** | Success |
+          EOF
