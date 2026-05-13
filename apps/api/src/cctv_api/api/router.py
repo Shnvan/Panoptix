@@ -2246,3 +2246,32 @@ def admin_mfa_reset(
         "mfa_reset_recorded_at": now.isoformat(),
         "recovery_note": "MFA reset recorded. Complete the reset in the IdP admin console.",
     }
+
+
+# ── Stub endpoints (501 Not Implemented) ──
+
+
+@v1_router.post("/admin/users/invite")
+def admin_invite_user(
+    principal: Principal = Depends(require_authenticated_user),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    raise ProblemDetail(
+        status=501,
+        title="Not Implemented",
+        detail="idp-invite-not-implemented",
+        type_uri="about:blank",
+    )
+
+
+@v1_router.get("/admin/backups/status")
+def admin_backups_status(
+    principal: Principal = Depends(require_authenticated_user),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    raise ProblemDetail(
+        status=501,
+        title="Not Implemented",
+        detail="backup-status-not-implemented",
+        type_uri="about:blank",
+    )

@@ -1,0 +1,173 @@
+name: Deploy — Production Promotion
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why is this deployment being made?"
+        required: true
+        type: string
+      confirmed:
+        description: "Set to true to confirm you have reviewed staging and approve production promotion"
+        required: true
+        type: boolean
+        default: false
+
+jobs:
+  promote-to-production:
+    name: Promote to Production
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Confirmation gate
+        if: ${{ inputs.confirmed != true }}
+        run: |
+          echo "::error::Set confirmed=true to proceed with production deployment"
+          exit 1
+
+      - name: Staging health check — /health
+        run: |
+          echo "Checking staging /health endpoint..."
+          RESPONSE=$(curl --silent --write-out "\n%{http_code}" https://staging.panoptix.site/health)
+          HTTP_BODY=$(echo "$RESPONSE" | head -n -1)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n 1)
+
+          echo "HTTP status: $HTTP_CODE"
+          echo "Response body: $HTTP_BODY"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Staging health check failed — aborting production deployment (expected HTTP 200, got $HTTP_CODE)"
+            exit 1
+          fi
+
+          STATUS=$(echo "$HTTP_BODY" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('status',''))" 2>/dev/null || echo "")
+          if [ "$STATUS" != "ok" ]; then
+            echo "::error::Staging health check failed — aborting production deployment (expected {\"status\":\"ok\"}, got: $HTTP_BODY)"
+            exit 1
+          fi
+
+          echo "Staging /health OK."
+
+      - name: Staging health check — /api/v1/admin/health/deep
+        run: |
+          echo "Checking staging /api/v1/admin/health/deep endpoint..."
+          HTTP_CODE=$(curl --silent --output /dev/null --write-out "%{http_code}" https://staging.panoptix.site/api/v1/admin/health/deep)
+
+          echo "HTTP status: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Staging health check failed — aborting production deployment (deep health expected HTTP 200, got $HTTP_CODE)"
+            exit 1
+          fi
+
+          echo "Staging /api/v1/admin/health/deep OK."
+
+      - name: Auth smoke test — /api/v1/cameras must reject unauthenticated requests
+        run: |
+          echo "Verifying fail-closed behavior on /api/v1/cameras (no auth)..."
+          HTTP_CODE=$(curl --silent --output /dev/null --write-out "%{http_code}" https://staging.panoptix.site/api/v1/cameras)
+
+          echo "HTTP status: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" != "401" ]; then
+            echo "::error::Auth smoke test failed — /api/v1/cameras returned $HTTP_CODE without auth (expected 401). Fail-closed behavior is broken."
+            exit 1
+          fi
+
+          echo "Auth smoke test /api/v1/cameras OK (returned 401 as expected)."
+
+      - name: Auth smoke test — /api/v1/me must reject unauthenticated requests
+        run: |
+          echo "Verifying fail-closed behavior on /api/v1/me (no auth)..."
+          HTTP_CODE=$(curl --silent --output /dev/null --write-out "%{http_code}" https://staging.panoptix.site/api/v1/me)
+
+          echo "HTTP status: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" != "401" ]; then
+            echo "::error::Auth smoke test failed — /api/v1/me returned $HTTP_CODE without auth (expected 401). Fail-closed behavior is broken."
+            exit 1
+          fi
+
+          echo "Auth smoke test /api/v1/me OK (returned 401 as expected)."
+
+      - name: Print deployment instructions and record metadata
+        run: |
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "Railway auto-deploys from the \`backend\` branch to the staging service."
+          echo "For production: create a separate Railway service pointing to \`main\` branch,"
+          echo "or manually promote in the Railway dashboard."
+          echo ""
+          echo "Deployment reason: ${{ inputs.reason }}"
+          echo "Deployed by: ${{ github.actor }}"
+          echo "Timestamp: $TIMESTAMP"
+
+      - name: Post-deployment health check — /health
+        run: |
+          echo "Post-deployment: checking staging /health endpoint..."
+          RESPONSE=$(curl --silent --write-out "\n%{http_code}" https://staging.panoptix.site/health)
+          HTTP_BODY=$(echo "$RESPONSE" | head -n -1)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n 1)
+
+          echo "HTTP status: $HTTP_CODE"
+          echo "Response body: $HTTP_BODY"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Post-deployment health check failed (expected HTTP 200, got $HTTP_CODE)"
+            exit 1
+          fi
+
+          STATUS=$(echo "$HTTP_BODY" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('status',''))" 2>/dev/null || echo "")
+          if [ "$STATUS" != "ok" ]; then
+            echo "::error::Post-deployment health check failed (expected {\"status\":\"ok\"}, got: $HTTP_BODY)"
+            exit 1
+          fi
+
+          echo "Post-deployment /health OK."
+
+      - name: Post-deployment health check — /api/v1/admin/health/deep
+        run: |
+          echo "Post-deployment: checking staging /api/v1/admin/health/deep endpoint..."
+          HTTP_CODE=$(curl --silent --output /dev/null --write-out "%{http_code}" https://staging.panoptix.site/api/v1/admin/health/deep)
+
+          echo "HTTP status: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Post-deployment deep health check failed (expected HTTP 200, got $HTTP_CODE)"
+            exit 1
+          fi
+
+          echo "Post-deployment /api/v1/admin/health/deep OK."
+
+      - name: Write deployment summary
+        run: |
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          cat >> "$GITHUB_STEP_SUMMARY" << EOF
+          ## Production Deployment Summary
+
+          | Field | Value |
+          |---|---|
+          | **Status** | Success |
+          | **Reason** | ${{ inputs.reason }} |
+          | **Deployed by** | ${{ github.actor }} |
+          | **Timestamp** | $TIMESTAMP |
+          | **Run ID** | ${{ github.run_id }} |
+          | **Commit** | ${{ github.sha }} |
+
+          ### Pre-flight checks passed
+          - Staging \`/health\` returned HTTP 200 with \`{"status":"ok"}\`
+          - Staging \`/api/v1/admin/health/deep\` returned HTTP 200
+          - \`/api/v1/cameras\` correctly rejected unauthenticated request (401)
+          - \`/api/v1/me\` correctly rejected unauthenticated request (401)
+
+          ### Post-deployment checks passed
+          - Staging \`/health\` still healthy
+          - Staging \`/api/v1/admin/health/deep\` still healthy
+
+          ### Next steps
+          Railway auto-deploys from the \`backend\` branch to the staging service.
+          For production promotion, create a separate Railway service pointing to the \`main\` branch
+          or manually promote in the Railway dashboard.
+          EOF

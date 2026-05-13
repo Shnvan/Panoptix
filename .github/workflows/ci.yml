@@ -6,14 +6,16 @@ permissions:
 
 on:
   push:
-    branches: [main]
+    branches: [main, backend]
     paths:
       - "apps/api/**"
+      - "apps/cctv-edge/**"
       - ".github/workflows/ci.yml"
   pull_request:
-    branches: [main]
+    branches: [main, backend]
     paths:
       - "apps/api/**"
+      - "apps/cctv-edge/**"
       - ".github/workflows/ci.yml"
 
 jobs:
@@ -125,3 +127,36 @@ jobs:
           format: table
           exit-code: 1
           severity: CRITICAL,HIGH
+
+  edge-agent:
+    name: Edge Agent Lint & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/cctv-edge/agent
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install .[dev]
+
+      - name: Lint with ruff
+        run: PYTHONPATH=src python -m ruff check src tests
+
+      - name: Type check with mypy
+        run: PYTHONPATH=src python -m mypy src/panoptix_edge_agent --ignore-missing-imports
+
+      - name: Run tests
+        run: PYTHONPATH=src python -m pytest tests/ -v
+
+      - name: Compile check
+        run: PYTHONPATH=src python -m compileall src tests
