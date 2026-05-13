@@ -196,3 +196,37 @@ Do not proceed from this preparation runbook to production changes until:
 - Rollback access is verified.
 - Manual validation steps are complete.
 - A separate deployment milestone is approved.
+
+## Device Posture (Cloudflare WARP)
+
+Device posture enforcement ensures only managed devices with the Cloudflare WARP client
+enrolled and active can reach Panoptix protected resources. Unmanaged or personal browsers
+are blocked at the Access policy layer before any authentication prompt is shown.
+
+This is a production hardening step. Staging uses GitHub OAuth only; WARP posture is layered
+on top for production. The NUC gateway does NOT use WARP — it authenticates via mTLS gateway
+service tokens and is exempt from device posture requirements.
+
+### Checklist to enable WARP device posture
+
+- [ ] **Step 1 — Enforce WARP enrollment.**
+  In Zero Trust → Settings → WARP Client, enable "Require WARP" / mandatory enrollment for
+  the Panoptix organization. Users must have WARP installed and connected before accessing.
+
+- [ ] **Step 2 — Create a Device Posture rule.**
+  Go to Zero Trust → Settings → Device Posture → Add rule. Select check type
+  "WARP client active". Name it `panoptix-warp-active`. Save.
+
+- [ ] **Step 3 — Add posture requirement to the Panoptix Access application.**
+  Open the Dashboard (and Admin) Access application → Policies. Add a new require rule:
+  `device_posture: warp` (select the `panoptix-warp-active` rule created above).
+  Both the identity (IdP) and device posture conditions must pass for a session to be granted.
+
+- [ ] **Step 4 — Test with a non-WARP browser.**
+  From a browser without WARP enrolled, attempt to reach the Panoptix host.
+  Expected result: Access blocks the request before the login screen appears.
+
+- [ ] **Step 5 — Test with a WARP-enrolled browser.**
+  From a device with WARP connected and enrolled, attempt to reach the Panoptix host.
+  Expected result: passes device posture check, proceeds to Cloudflare Access login (Google
+  Workspace IdP for production), and authenticates normally.

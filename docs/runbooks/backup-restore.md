@@ -46,3 +46,20 @@
 - Production decryption key is not stored on the backup job host.
 - Backup logs must not include data contents.
 - Restore evidence is stored as a DPA/security artifact.
+
+## DR Testing Schedule
+
+Two levels of DR validation are required:
+
+**Quarterly restore drill** — run `scripts/restore-drill.sh` against a copy of the latest encrypted R2 backup in an isolated environment. Confirms the full decrypt → restore → integration-query path works end-to-end. Target completion: within the first two weeks of each quarter.
+
+**Annual full DR test** — bring up a staging-equivalent environment from scratch using only backup data and Terraform. Validates both the infrastructure rebuild path and the data restore path against a clean slate. Target completion: once per calendar year.
+
+The `scripts/restore-drill.sh` script (created in Round 3A) automates the quarterly drill steps. If the script does not yet exist, the drill must be performed manually following the _Weekly restore drill_ section above.
+
+| Drill Type | Frequency | Owner | Last Completed | Next Due |
+| --- | --- | --- | --- | --- |
+| Restore drill (automated) | Quarterly | On-call / DevOps | — | — |
+| Full DR test (manual) | Annually | Engineering lead | — | — |
+
+Record completion dates and any anomalies found as a DPA/security artifact alongside the standard restore evidence.
