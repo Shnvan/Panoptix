@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -314,7 +315,8 @@ def test_run_with_reconnect_retries_after_transient_connection_failure() -> None
         sleep=_sleep_recorder(sleep_delays),
     )
 
-    result = asyncio.run(client.run_with_reconnect())
+    with patch("random.uniform", return_value=0):
+        result = asyncio.run(client.run_with_reconnect())
 
     assert result.connected is True
     assert result.attempts == 2
@@ -334,7 +336,8 @@ def test_run_with_reconnect_stops_after_configured_attempts() -> None:
         sleep=_sleep_recorder(sleep_delays),
     )
 
-    result = asyncio.run(client.run_with_reconnect())
+    with patch("random.uniform", return_value=0):
+        result = asyncio.run(client.run_with_reconnect())
 
     assert result.connected is False
     assert result.attempts == 2
@@ -480,3 +483,73 @@ def test_control_supervisor_propagates_cancellation() -> None:
 
     with pytest.raises(asyncio.CancelledError):
         asyncio.run(supervisor.run_once(cycles=1))
+
+
+def test_reconnect_uses_exponential_backoff() -> None:
+    base = 1.0
+    max_delay = 60.0
+
+    with patch("random.uniform", return_value=0):
+        for attempt_index, expected_delay in [(0, 1.0), (1, 2.0), (2, 4.0)]:
+            connector = FlakyConnector(failures_before_success=attempt_index + 1, messages=[_hello()])
+            sleep_delays: list[float] = []
+            client = GatewayControlClient(
+                _config(
+                    control_reconnect_attempts=attempt_index + 2,
+                    control_reconnect_backoff_seconds=base,
+                ),
+                connector=connector,
+                sleep=_sleep_recorder(sleep_delays),
+            )
+            asyncio.run(client.run_with_reconnect())
+            assert sleep_delays[attempt_index] == min(base * (2 ** attempt_index), max_delay), (
+                f"attempt_index={attempt_index}: expected {expected_delay}, got {sleep_delays[attempt_index]}"
+            )
+
+
+def test_reconnect_backoff_capped_at_max() -> None:
+    base = 1.0
+    max_delay = 60.0
+    large_attempt_index = 10  # base * 2^10 = 1024.0, well above max_delay
+
+    connector = FlakyConnector(failures_before_success=large_attempt_index + 1, messages=[_hello()])
+    sleep_delays: list[float] = []
+    client = GatewayControlClient(
+        _config(
+            control_reconnect_attempts=large_attempt_index + 2,
+            control_reconnect_backoff_seconds=base,
+        ),
+        connector=connector,
+        sleep=_sleep_recorder(sleep_delays),
+    )
+
+    with patch("random.uniform", return_value=0):
+        asyncio.run(client.run_with_reconnect())
+
+    for delay in sleep_delays:
+        assert delay <= max_delay + base, f"delay {delay} exceeds max_delay + base ({max_delay + base})"
+    assert sleep_delays[large_attempt_index] == max_delay
+
+
+def test_reconnect_backoff_has_jitter() -> None:
+    base = 1.0
+
+    observed_delays: list[float] = []
+
+    async def _capture_first_sleep(delay: float) -> None:
+        observed_delays.append(delay)
+        raise asyncio.CancelledError
+
+    for _ in range(10):
+        client = GatewayControlClient(
+            _config(control_reconnect_attempts=3, control_reconnect_backoff_seconds=base),
+            connector=FlakyConnector(failures_before_success=1, messages=[_hello()]),
+            sleep=_capture_first_sleep,
+        )
+        try:
+            asyncio.run(client.run_with_reconnect())
+        except asyncio.CancelledError:
+            pass
+
+    assert len(observed_delays) == 10
+    assert len(set(observed_delays)) > 1, "all backoff delays were identical — jitter not applied"

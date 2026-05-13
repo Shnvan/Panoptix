@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import random
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, AsyncContextManager, Protocol
@@ -141,6 +142,8 @@ class GatewayControlClient:
             )
         return urlunsplit((scheme, parsed.netloc, self.config.control_ws_path, "", ""))
 
+    _RECONNECT_MAX_DELAY: float = 60.0
+
     async def run_with_reconnect(self, *, max_messages: int = 1) -> ControlReconnectResult:
         final_error: str | None = None
         retryable_failures = 0
@@ -161,7 +164,9 @@ class GatewayControlClient:
                         sleep_delays=tuple(sleep_delays),
                         stopped_reason="exhausted-retries" if exc.retryable else "non-retryable-error",
                     )
-                delay = self.config.control_reconnect_backoff_seconds
+                base = self.config.control_reconnect_backoff_seconds
+                attempt_index = attempt - 1
+                delay = min(base * (2 ** attempt_index), self._RECONNECT_MAX_DELAY) + random.uniform(0, base)
                 sleep_delays.append(delay)
                 await self.sleep(delay)
                 continue

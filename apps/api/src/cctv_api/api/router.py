@@ -242,6 +242,18 @@ def admin_user_role(
     settings: Settings = Depends(get_settings),
 ) -> RoleActionResponse:
     require_role(principal, "admin")
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _check_rate_limit(
+        key=f"admin-mutation:{actor.id}",
+        max_requests=settings.RATE_LIMIT_ADMIN_MUTATION_MAX,
+        window_seconds=settings.RATE_LIMIT_ADMIN_MUTATION_WINDOW,
+        audit_action="admin.rate_limited",
+        resource="endpoint:/api/v1/admin/users/{user_id}/role",
+        db=db,
+        settings=settings,
+        request=request,
+        actor_id=actor.id,
+    )
     target_uuid = _parse_uuid(user_id, "user-not-found")
     target_user = db.execute(select(User).where(User.id == str(target_uuid))).scalar_one_or_none()
     if target_user is None:
@@ -249,7 +261,6 @@ def admin_user_role(
     role_row = db.execute(select(Role).where(Role.name == body.role_name)).scalar_one_or_none()
     if role_row is None:
         raise ProblemDetail(status=404, title="Not Found", detail="role-not-found", type_uri="https://panoptix.local/problems/not-found")
-    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
     existing = db.execute(
         select(UserRole).where(UserRole.user_id == str(target_uuid), UserRole.role_id == role_row.id)
     ).scalar_one_or_none()
@@ -972,6 +983,18 @@ def enqueue_gateway_command(
     settings: Settings = Depends(get_settings),
 ) -> EnqueueCommandResponse:
     require_role(principal, "admin")
+    user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _check_rate_limit(
+        key=f"admin-mutation:{user.id}",
+        max_requests=settings.RATE_LIMIT_ADMIN_MUTATION_MAX,
+        window_seconds=settings.RATE_LIMIT_ADMIN_MUTATION_WINDOW,
+        audit_action="admin.rate_limited",
+        resource="endpoint:/api/v1/admin/gateways/{gateway_id}/commands",
+        db=db,
+        settings=settings,
+        request=request,
+        actor_id=user.id,
+    )
     gw_uuid = _parse_uuid(gateway_id, "gateway-id-invalid")
     gw_row = db.execute(
         select(EdgeGateway).where(EdgeGateway.id == str(gw_uuid))
@@ -985,7 +1008,6 @@ def enqueue_gateway_command(
         )
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=body.expires_in_seconds)
     row = enqueue_command(db, gateway_id=gw_uuid, kind=body.kind, payload=body.payload, expires_at=expires_at)
-    user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
     _record_user_audit_required(
         db,
         settings=settings,
@@ -1507,6 +1529,18 @@ def rotate_gateway_credential(
     settings: Settings = Depends(get_settings),
 ) -> dict[str, object]:
     require_role(principal, "admin")
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _check_rate_limit(
+        key=f"admin-mutation:{actor.id}",
+        max_requests=settings.RATE_LIMIT_ADMIN_MUTATION_MAX,
+        window_seconds=settings.RATE_LIMIT_ADMIN_MUTATION_WINDOW,
+        audit_action="admin.rate_limited",
+        resource="endpoint:/api/v1/admin/gateways/{gateway_id}/rotate-credential",
+        db=db,
+        settings=settings,
+        request=request,
+        actor_id=actor.id,
+    )
     gateway_uuid = _parse_uuid(gateway_id, "gateway-id-invalid")
     gateway = db.execute(select(EdgeGateway).where(EdgeGateway.id == str(gateway_uuid))).scalar_one_or_none()
     if gateway is None:
@@ -1526,7 +1560,6 @@ def rotate_gateway_credential(
     raw_token = generate_service_token()
     gateway.service_token_hash = hash_service_token(raw_token)
     now = datetime.now(timezone.utc)
-    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
     _record_user_audit_required(
         db,
         settings=settings,
@@ -1964,12 +1997,23 @@ def admin_break_glass_open(
     settings: Settings = Depends(get_settings),
 ) -> dict[str, object]:
     require_role(principal, "admin")
+    user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _check_rate_limit(
+        key=f"admin-mutation:{user.id}",
+        max_requests=settings.RATE_LIMIT_ADMIN_MUTATION_MAX,
+        window_seconds=settings.RATE_LIMIT_ADMIN_MUTATION_WINDOW,
+        audit_action="admin.rate_limited",
+        resource="endpoint:/api/v1/admin/break-glass/open",
+        db=db,
+        settings=settings,
+        request=request,
+        actor_id=user.id,
+    )
     usage = open_break_glass_window(
         db,
         reason=body.reason,
         window_minutes=settings.BREAK_GLASS_WINDOW_MINUTES,
     )
-    user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
     _record_user_audit_required(
         db,
         settings=settings,

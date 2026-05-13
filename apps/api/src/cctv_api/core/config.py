@@ -78,6 +78,8 @@ class Settings(BaseSettings):
     RATE_LIMIT_VIEWER_TOKEN_WINDOW: int = Field(default=60, ge=10)
     RATE_LIMIT_GATEWAY_INGEST_MAX: int = Field(default=20, ge=1)
     RATE_LIMIT_GATEWAY_INGEST_WINDOW: int = Field(default=60, ge=10)
+    RATE_LIMIT_ADMIN_MUTATION_MAX: int = Field(default=10, ge=1)
+    RATE_LIMIT_ADMIN_MUTATION_WINDOW: int = Field(default=60, ge=10)
 
     @property
     def cf_access_browser_audiences(self) -> list[str]:
