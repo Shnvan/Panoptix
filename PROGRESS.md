@@ -4,20 +4,20 @@ Current status and next steps for any session continuing this project.
 
 ---
 
-## Overall Progress: ~65% to MVP
+## Overall Progress: ~70% to MVP
 
 Last updated: 2026-05-13
 
 | Area | Progress | Status | Notes |
 |------|----------|--------|-------|
-| **Backend API** | 98% | 🟢 Strong | Auth, RBAC, audit, health, gateway, camera, command, webhook, session, admin, break-glass, search/filter, enrichment, LiveKit fallback, DPA export, signage attestation, credential rotation, MFA reset endpoints all implemented. Remaining: IdP invite flow (blocked on IdP). |
-| **Edge Agent** | 70% | 🟡 Good | Heartbeat, command signing, WebSocket control, FFmpeg frame source, LiveKit SDK bridge, per-camera credentials, supervisor all done. Missing: real camera-to-LiveKit publishing in production, mTLS bootstrap. |
+| **Backend API** | 99% | 🟢 Strong | Auth, RBAC, audit, health, gateway, camera, command, webhook, session, admin, break-glass, search/filter, enrichment, LiveKit fallback, DPA export, signage attestation, credential rotation, MFA reset, 501 stubs all done. 460 tests passing. |
+| **Edge Agent** | 75% | 🟡 Good | Heartbeat, command signing, WebSocket control, FFmpeg frame source, LiveKit SDK bridge, per-camera credentials, supervisor, real FFmpeg integration tests all done. Missing: real camera-to-LiveKit publishing in production, mTLS bootstrap. |
 | **Frontend** | 0% | 🔴 Not started | Placeholder only. Owned by frontend coworker. Blocked until admin UI, camera grid viewer, and privacy notice flow are built. |
 | **Database** | 95% | 🟢 Strong | 23 tables, 5 migrations deployed to Neon staging. Missing: backup verification schema, retention policy tables (pilot+). |
-| **Infrastructure** | 60% | 🟡 Partial | Cloudflare Access, Railway, Neon staging all live. Missing: LiveKit Cloud provisioning, paid Neon tier, uptime monitoring, disaster recovery testing. |
+| **Infrastructure** | 70% | 🟡 Partial | Cloudflare Access, Railway, Neon staging all live. Staging health check cron running (15 min). 7-day uptime clock started. Missing: LiveKit Cloud provisioning, paid Neon tier, disaster recovery testing. |
 | **Security** | 85% | 🟢 Strong | CF Access JWT, CSRF, HMAC audit chain, rate limiting, security headers, service tokens, RBAC, break-glass, SCA/SAST CI all done. Missing: device posture, lost-MFA recovery. |
-| **Documentation** | 95% | 🟢 Strong | Full system plan, API reference, 47 docs, runbooks (incl. break-glass, lost-MFA, IdP-outage, bus-factor), templates. |
-| **DevOps/CI** | 80% | � Good | GitHub Actions CI (lint, mypy, pytest, Docker build, gitleaks, Semgrep, Trivy, osv-scanner). Missing: staging auto-deploy, production pipeline. |
+| **Documentation** | 97% | 🟢 Strong | Full system plan, API reference, 51 docs, runbooks (incl. break-glass, lost-MFA, IdP-outage, bus-factor), templates, IMPLEMENTATION_GUIDE fully up-to-date. |
+| **DevOps/CI** | 95% | 🟢 Strong | GitHub Actions CI covers both `main` and `backend` branches. Edge agent CI added. Staging health check cron active. Production deploy workflow (manual) ready. |
 
 ### Critical Path to MVP
 
@@ -29,20 +29,19 @@ Last updated: 2026-05-13
 | 4 | Privacy notice acceptance flow | System owner + Frontend | Database tables (done) |
 | 5 | LiveKit Cloud provisioning (APAC region) | System owner | Account setup |
 | 6 | ~~Break-glass emergency access~~ | System owner | ✅ Done |
-| 7 | Production deployment pipeline | System owner | Railway, Cloudflare (partial) |
+| 7 | ~~Production deployment pipeline~~ | System owner | ✅ Done (manual workflow ready, 7-day staging clock running) |
 
 ### What We Control vs What's Blocked
 
 **Can do now (no external dependencies):**
-- Production deployment pipeline refinement
-- Additional edge agent integration tests
+- Nothing significant — all unblocked backend/CI work is done
 
 **Blocked on external dependencies:**
 - Frontend UI → frontend coworker
-- Real camera onboarding → hardware
-- LiveKit Cloud → account provisioning
+- Real camera onboarding → hardware + LiveKit Cloud account
+- LiveKit Cloud provisioning → account setup
 - Paid Neon tier → procurement
-- Production deployment → staging validation complete
+- Production deployment → 7-day staging uptime gate (clock started 2026-05-13)
 
 ---
 

@@ -1527,9 +1527,9 @@ $env:PYTHONPATH = "src"; python -m compileall src alembic scripts
 Latest result:
 
 ```text
-pytest: 404 passed
+pytest: 460 passed
 ruff: all checks passed
-mypy: no issues found in 39 source files
+mypy: no issues found in 41 source files
 compileall: passed
 ```
 
@@ -1545,7 +1545,7 @@ $env:PYTHONPATH = "src"; python -m compileall src tests
 Latest result:
 
 ```text
-pytest: 239 passed, 2 skipped
+pytest: 242 passed, 2 skipped (includes 3 real FFmpeg integration tests)
 ruff: all checks passed
 mypy: no issues found in 22 source files
 compileall: passed
@@ -1559,15 +1559,17 @@ Recommended next task:
 Real Camera Onboarding
 ```
 
-Connect a real CCTV camera to the gateway using the per-camera credential file and test live FFmpeg-to-LiveKit publishing end-to-end.
+Connect a real CCTV camera to the gateway using the per-camera credential file and test live FFmpeg-to-LiveKit publishing end-to-end. Requires real camera hardware and a LiveKit Cloud account.
+
+**Note**: The 7-day staging uptime clock started 2026-05-13. The staging health check cron runs every 15 minutes at `.github/workflows/staging-healthcheck.yml`. Production deployment is gated on 7-day uptime >= 99% (v4 plan T-20). The production deploy workflow is ready at `.github/workflows/deploy-production.yml`.
 
 ## Not Implemented Yet
 
-- real camera onboarding (credential file exists, needs real hardware)
-- frontend UI
-- production Docker/systemd gateway supervision
-- Google Workspace setup
-- Neon production database setup
+- real camera onboarding (credential file exists, needs real hardware + LiveKit Cloud)
+- frontend UI (owned by frontend coworker)
+- production Docker/systemd gateway supervision (runbook templates exist)
+- Google Workspace IdP setup (GitHub OAuth currently deployed on staging)
+- Neon production database setup (staging Neon active; production tier requires procurement)
 
 ## External Accounts Status
 
