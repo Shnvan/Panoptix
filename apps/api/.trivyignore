@@ -1,0 +1,14 @@
+# zlib1g: Debian marks this will_not_fix — no upstream patch available
+CVE-2023-45853
+
+# libcap2: TOCTOU in cap_set_file — affected status, no fix version in Debian 12
+CVE-2026-4878
+
+# libsystemd0 / libudev1: affected, no fix in Debian 12
+CVE-2026-29111
+
+# ncurses: buffer overflow — affected, no fix in Debian 12
+CVE-2025-69720
+
+# libgcrypt20: DoS — affected, no fix in Debian 12
+CVE-2026-41989

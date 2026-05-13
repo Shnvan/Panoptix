@@ -106,7 +106,6 @@ jobs:
         with:
           scan-args: |-
             --recursive
-            --skip-git
             apps/api/
 
   trivy:
@@ -128,6 +127,7 @@ jobs:
           format: table
           exit-code: 1
           severity: CRITICAL,HIGH
+          trivyignores: apps/api/.trivyignore
 
   edge-agent:
     name: Edge Agent Lint & Test
@@ -167,5 +167,4 @@ jobs:
         with:
           scan-args: |-
             --recursive
-            --skip-git
             apps/cctv-edge/agent/
