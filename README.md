@@ -1,183 +1,122 @@
-# Panoptix — Secure CCTV Web Monitoring System
+# Panoptix - Secure CCTV Web Monitoring System
 
-A live-view CCTV monitoring web application that connects IP cameras to authenticated browser viewers through a security-first, three-plane architecture.
+Panoptix is a live-view CCTV monitoring system that connects IP cameras to authenticated browser viewers through a security-first, three-plane architecture.
 
-> **Status:** Pre-development / documentation phase. No application code has been written yet.
-
----
+> **Status:** Backend control plane, edge-agent foundation, staging deployment, CI/security scans, LiveKit Cloud provisioning, and R2 backup bucket provisioning are in place on the `backend` branch. Frontend UI and real CCTV hardware onboarding are still pending.
 
 ## Architecture
 
-The system is organized into three isolated planes:
+| Plane | Purpose | Current implementation |
+|-------|---------|------------------------|
+| **Control plane** | Login, API, permissions, audit, gateway coordination | FastAPI backend in `apps/api/`, deployed to Railway staging behind Cloudflare Access |
+| **Media plane** | Live video delivery via WebRTC SFU | LiveKit Cloud primary; fallback toggle exists, self-hosted fallback remains future operational work |
+| **Camera plane** | Physical cameras, local gateway, isolated camera network | Edge agent in `apps/cctv-edge/agent/`; real camera onboarding waits for hardware |
 
-| Plane | Purpose | Hosting |
-|-------|---------|---------|
-| **Control plane** | Login, dashboard, API, permissions, audit, database | Railway (Next.js frontend + Python/FastAPI backend) |
-| **Media plane** | Live video delivery via WebRTC SFU | LiveKit Cloud (APAC) + self-hosted fallback |
-| **Camera plane** | Physical cameras, local gateway, isolated camera network | On-site NUC-class mini-PC |
-
-Browsers are **viewers only** — no webcam, phone-camera, or browser-based publishing is supported. This is a permanent product constraint, not a temporary limitation.
-
----
+Browsers are **viewers only**. Browser, phone, and laptop camera publishing are not supported.
 
 ## Tech Stack
 
-- **Frontend:** Next.js / React / Tailwind CSS / LiveKit JS client (viewer only)
-- **Backend:** Python / FastAPI / SQLAlchemy 2.x / Alembic
-- **Database:** Neon Postgres (prototype free tier; paid before pilot)
-- **Identity:** Google Workspace (primary IdP) + Cloudflare Access (IAP)
-- **Media:** LiveKit Cloud (primary) + self-hosted LiveKit (fallback)
-- **Gateway:** Ubuntu Server + Docker + mediamtx on NUC-class mini-PC
-- **Security:** Cloudflare WAF/DNS, RBAC, append-only HMAC-chained audit, break-glass emergency access
-- **Privacy:** Philippine Data Privacy Act (RA 10173) compliant — PIA, DPA, bystander signage
-
----
+- **Backend:** Python 3.12, FastAPI, SQLAlchemy 2.x, Alembic, PyJWT, Pydantic Settings
+- **Gateway agent:** Python 3.12, outbound HTTP/WebSocket control, FFmpeg/LiveKit scaffolds, local mediamtx process scaffolds
+- **Frontend:** placeholder only in `apps/web/`; planned Next.js/React/LiveKit viewer UI owned by the frontend coworker
+- **Database:** Neon Postgres staging, SQLAlchemy models and Alembic migrations
+- **Identity:** Cloudflare Access with GitHub OAuth on staging; Google Workspace planned for production
+- **Media:** LiveKit Cloud APAC primary
+- **Infrastructure:** Railway, Cloudflare, Neon, Terraform Cloud/R2, GitHub Actions
+- **Security:** RBAC, session cookies, CSRF, HMAC-chained audit, branch protection, SCA/SAST/container/secret scans
 
 ## Documentation
 
-All project documentation is in the [`docs/`](docs/) folder. See [`docs/index.md`](docs/index.md) for a full navigation map.
-
-### Key documents
+All project documentation is in [`docs/`](docs/). Start with [`docs/index.md`](docs/index.md).
 
 | Document | Description |
 |----------|-------------|
-| [Main Plan](docs/planning/secure-cctv-monitoring-system-v4.md) | Comprehensive system plan (~2300 lines) |
-| [Core Features](docs/planning/cctv-core-functionality-features.md) | User-facing feature overview |
-| [Tech Stack (Simple)](docs/planning/tech-stack-simple.md) | Plain-language technology guide |
-| [API Reference](docs/implementation/api-reference.md) | Frontend/backend/gateway API contract |
-| [Development Setup](docs/implementation/development-setup.md) | Local development and fake-CF-Access workflow |
-| [Deployment Guide](docs/implementation/deployment-guide.md) | Railway + Cloudflare same-domain deployment model |
-| [Test Plan](docs/implementation/test-plan.md) | QA gates and T-1..T-69 traceability |
-| [UX/Product Spec](docs/frontend/ux-product-spec.md) | Frontend-ready screens, states, accessibility |
-| [Team RACI](docs/implementation/team-raci-checklist.md) | Frontend/database/backend/security ownership |
-| [Architecture Diagrams](docs/architecture/) | Mermaid diagrams for system topology and flows |
-| [ADRs](docs/adrs/) | 14 Architecture Decision Records |
-| [Security](docs/security/) | STRIDE threat model |
-| [Privacy](docs/privacy/) | PIA, DPA, and bystander signage templates |
-| [Compliance Readiness](docs/privacy/compliance-readiness-checklist.md) | Pilot privacy/legal readiness checklist |
-| [Procurement](docs/procurement/) | Vendor selection, camera spec, and hardware procurement guide |
-| [Runbooks](docs/runbooks/) | Operations procedures for deploy, rollback, backup, CF Access, and gateway control |
-| [Glossary](docs/reference/glossary.md) | Domain terminology reference |
-
----
+| [Progress](PROGRESS.md) | Current implementation status and next steps |
+| [Implementation Guide](IMPLEMENTATION_GUIDE.md) | Chronological implementation history |
+| [Manual Testing](MANUAL_TESTING.md) | Local and staging manual test procedures |
+| [API Reference](docs/implementation/api-reference.md) | Current backend/gateway API contract |
+| [Development Setup](docs/implementation/development-setup.md) | Local backend and edge-agent setup |
+| [Frontend Integration Guide](docs/frontend/INTEGRATION_GUIDE.md) | Backend integration notes for the frontend owner |
+| [Runbooks](docs/runbooks/) | Operations, deployment, rollback, backup, and gateway procedures |
+| [ADRs](docs/adrs/) | Architecture decision records |
 
 ## Project Structure
 
-```
-panoptix-main/
-  README.md                  # This file
-  COUNCIL.md                 # AI assistant review instructions
-  execute.md                 # Principal Engineer execution protocol
-  CONTRIBUTING.md            # Contribution rules
-  SECURITY.md                # Security policy
-  LICENSE                    # Proprietary license
-  .env.example               # Environment variable schema
+```text
+Panoptix/
+  .github/
+    CODEOWNERS
+    workflows/
+      ci.yml
+      deploy-staging.yml
+      deploy-production.yml
+      staging-healthcheck.yml
   apps/
-    api/                                  # FastAPI control-plane service owned by system owner
-      README.md
+    api/
+      Dockerfile
       pyproject.toml
+      alembic/
+      scripts/
       src/cctv_api/
-        __init__.py
-        main.py
-    cctv-edge/                            # Gateway/edge workspace owned by system owner
-      README.md
-      agent/README.md
-      mediamtx/README.md
-    media-fallback/                       # Optional LiveKit fallback placeholder
-      README.md
-    web/                                  # Frontend placeholder owned by frontend coworker
-      README.md
-  database/                               # Database placeholder owned by database coworker
-    README.md
-  infra/
-    README.md
-    terraform/README.md
-  scripts/
-    README.md
+      tests/
+    cctv-edge/
+      agent/
+        pyproject.toml
+        src/panoptix_edge_agent/
+        tests/
+      mediamtx/
+    media-fallback/
+    web/
+  database/
   docs/
-    index.md                              # Document navigation map
-    planning/                             # Product and architecture planning docs
-      secure-cctv-monitoring-system-v4.md # Main plan
-      cctv-core-functionality-features.md # User-facing features
-      cctv-future-functionality-features.md # Future feature idea catalog
-      tech-stack-simple.md                # Tech stack guide
-      tech-stack.md                       # Superseded pointer
-    implementation/                       # Implementation-readiness docs
-      api-reference.md                    # API contract
-      development-setup.md                # Local setup
-      deployment-guide.md                 # Deployment model
-      test-plan.md                        # QA strategy
-      team-raci-checklist.md              # Ownership checklist
-    reference/                            # Reference docs
-      glossary.md                         # Domain glossary
-    frontend/                             # Frontend coworker docs
-      README.md                           # Frontend reading guide
-      frontend-guardrails.md              # Frontend guardrails
-      ux-product-spec.md                  # UX/frontend spec
-    database/                             # Database coworker docs
-      README.md                           # Database reading guide
-      database-guardrails.md              # Database guardrails
-    review/                               # Current review/status docs
-      document-review-report-current.md   # Current post-audit status
-    adrs/                                 # Architecture Decision Records
-      0001-plane-separation.md
-      0002-idp-selection.md
-      0003-postgres-tier.md
-      0004-livekit-fallback.md
-      0005-break-glass.md
-      0006-reserved.md
-      0007-version-pinning.md
-      0008-gateway-identity.md
-      0009-cctv-only-ingest.md
-      0010-origin-binding.md
-      0011-bystander-signage-policy.md
-      0012-camera-network-design.md
-      0013-gateway-hardware-standard.md
-      0014-railway-python-control-plane.md
-    architecture/                         # Mermaid diagrams
-      system-overview.mmd
-      request-flow.mmd
-      data-flow.mmd
-      network-security.mmd
-      erd.mmd
-      sequence-viewer-login.mmd
-      sequence-camera-stream.mmd
-      sequence-admin-actions.mmd
-    security/
-      threat-model-stride.md
-    privacy/
-      bystander-signage-template.md
-      pia-template.md
-      vendor-dpa-template.md
-    procurement/
-      procurement-guide.md
-      camera-spec.md
-    runbooks/
-      gateway-control-channel.md
-      cf-access-rollback.md
-      deploy-rollback.md
-      backup-restore.md
+  infra/
+    terraform/modules/backup-r2/
+  scripts/
 ```
 
----
+## Local Backend Checks
 
-## Non-Negotiable Invariants
+From `apps/api/`:
 
-1. Security-first design — every feature evaluated for security impact before convenience
-2. Always-on managed cloud hosting for the control plane
-3. Origin non-exposure — control plane behind Cloudflare Access
-4. Control-plane / media-plane separation
-5. CCTV-only ingest — no browser/phone/laptop camera publishing (permanent)
-6. Edge gateway is MVP-critical
-7. Deny-by-default authorization
-8. Short-lived, kind-distinct stream tokens (≤60 s)
-9. Append-only audit with HMAC chain
-10. No MVP recording — live-view only
-11. No passwords in the application — federated identity only
-12. Stable locked framework versions
-13. Provider-exit boundaries
+```powershell
+$env:PYTHONPATH = "src"
+python -m pytest tests/ -v
+python -m ruff check src tests alembic scripts
+python -m mypy src/cctv_api/ --ignore-missing-imports
+python -m compileall src alembic scripts
+```
 
----
+From `apps/cctv-edge/agent/`:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m pytest tests/ -v
+python -m ruff check src tests
+python -m mypy src/panoptix_edge_agent --ignore-missing-imports
+python -m compileall src tests
+```
+
+## Current Next Steps
+
+Non-frontend and non-hardware work is mostly operational:
+
+- monitor the 7-day staging uptime gate
+- prepare production Cloudflare/Railway/Neon environments after the gate clears
+- configure Google Workspace IdP and WARP/device posture for production
+- verify R2 backup/restore drills
+- procure break-glass hardware keys
+
+Real camera publishing requires physical camera/gateway hardware. Frontend implementation remains owned by the frontend coworker.
+
+## Invariants
+
+1. Browsers never publish media.
+2. Gateway connections are outbound-only.
+3. Camera RTSP credentials stay on the gateway.
+4. Gateway publish tokens are never returned to browsers.
+5. Auth and authorization fail closed.
+6. Security-sensitive actions are audited.
+7. Real secrets are never committed.
 
 ## License
 

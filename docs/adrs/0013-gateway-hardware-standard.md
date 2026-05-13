@@ -1,16 +1,16 @@
-﻿# ADR 0013 â€” Gateway Hardware Standard
+﻿# ADR 0013 - Gateway Hardware Standard
 
 - **Status**: Accepted
 - **Date**: 2026-05-07
 - **Decision-makers**: System Owner, Software Architect, Operations Owner
 - **Supersedes**: None
-- **Plan references**: Â§11.5; Â§12 stack table; Â§13.7; Â§13.8; Â§13.9; Â§20.14; ADR 0001; ADR 0012
+- **Plan references**: Section 11.5; Section 12 stack table; Section 13.7; Section 13.8; Section 13.9; Section 20.14; ADR 0001; ADR 0012
 
 ## Context
 
 The edge gateway is MVP-critical because browser publishing has been permanently removed (ADR 0009). The gateway ingests RTSP from IP cameras or NVRs, manages local camera credentials, and publishes to LiveKit using short-lived gateway-publish tokens.
 
-For production sites, the gateway must sit physically on the same LAN/VLAN as the cameras. A cloud-hosted gateway cannot pull private RTSP streams without opening inbound camera network access, VPNs, or port forwards â€” all of which weaken the camera-plane isolation model.
+For production sites, the gateway must sit physically on the same LAN/VLAN as the cameras. A cloud-hosted gateway cannot pull private RTSP streams without opening inbound camera network access, VPNs, or port forwards - all of which weaken the camera-plane isolation model.
 
 The hardware standard must be simple enough for small-site deployment while strong enough to run `mediamtx`, the gateway agent, Docker, OS hardening, and future pilot features such as mTLS client certificates.
 
@@ -26,7 +26,7 @@ The hardware standard must be simple enough for small-site deployment while stro
 | CPU | x86_64 quad-core, AES-NI | Intel N100/N305 or Ryzen 5xxx U-series | Single architecture, single Docker image |
 | RAM | 8 GB | 16 GB | `mediamtx` + gateway agent + headroom |
 | Storage | 128 GB SSD | 256 GB NVMe | OS + Docker; no recording on box |
-| NIC | 1 Ã— GbE | 2 Ã— GbE | Two NICs preferred for camera VLAN isolation |
+| NIC | 1 x GbE | 2 x GbE | Two NICs preferred for camera VLAN isolation |
 | Power | Standard mains | UPS-backed | UPS recommended for gateway + camera VLAN switch |
 | OS | Ubuntu 22.04 LTS Server x86_64 | Same | No GUI; minimal install |
 | Hostname | `cctv-gw-<site-slug>` | Same | Used as enrolment label |
@@ -65,7 +65,7 @@ The hardware standard must be simple enough for small-site deployment while stro
 
 The cloud-hosted dev/CI gateway, if used, is allowed only for dev/CI/staging with the `synthetic_rtsp_test_source` source type:
 
-- It runs FFmpeg synthetic RTSP â†’ local `mediamtx` â†’ LiveKit.
+- It runs FFmpeg synthetic RTSP -> local `mediamtx` -> LiveKit.
 - It is never connected to real cameras.
 - It is never assigned a production site identity.
 - Gateway boot script refuses to start synthetic FFmpeg when its identity indicates a production site.
@@ -78,7 +78,7 @@ Shortlist devices using this priority order:
 
 1. Beelink Mini S / Intel N100-class or equivalent x86_64 mini-PC as the first procurement candidate.
 2. x86_64 CPU with AES-NI.
-3. 2 Ã— GbE NICs if budget allows.
+3. 2 x GbE NICs if budget allows.
 4. Fanless or low-noise design if installed in occupied areas.
 5. SSD/NVMe storage, not eMMC.
 6. Vendor availability and replacement lead time in the deployment region.
@@ -146,12 +146,12 @@ ARM is not banned. It may be used only if this ADR is reopened and a site-specif
 
 ## References
 
-- v4 plan Â§11.5 (Gateway identity and secret storage)
-- v4 plan Â§12 (Technology Stack â€” edge gateway rows)
-- v4 plan Â§13.7 (Synthetic RTSP test source)
-- v4 plan Â§13.8 (Camera Site Hardware)
-- v4 plan Â§13.9 (Camera Network Design)
-- v4 plan Â§20.14 (Gateway lifecycle runbook)
+- v4 plan Section 11.5 (Gateway identity and secret storage)
+- v4 plan Section 12 (Technology Stack - edge gateway rows)
+- v4 plan Section 13.7 (Synthetic RTSP test source)
+- v4 plan Section 13.8 (Camera Site Hardware)
+- v4 plan Section 13.9 (Camera Network Design)
+- v4 plan Section 20.14 (Gateway lifecycle runbook)
 - ADR 0001 (Plane separation)
 - ADR 0012 (Camera network design)
 

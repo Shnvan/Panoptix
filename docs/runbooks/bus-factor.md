@@ -32,9 +32,9 @@ All secrets are stored in Railway environment variables. The backup person needs
 | `AUDIT_HMAC_KEY` | HMAC key for audit hash chain integrity |
 | `AUDIT_HMAC_KEY_VERSION` | Current HMAC key version number |
 | `SESSION_SIGNING_KEY` | Session cookie signing key |
-| `CSRF_SECRET` | CSRF token secret |
-| `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` | LiveKit Cloud credentials |
-| `CF_ACCESS_TEAM_DOMAIN` / `CF_ACCESS_AUD` | Cloudflare Access JWT verification |
+| `CSRF_SIGNING_KEY` | CSRF token signing key |
+| `LIVEKIT_CLOUD_API_KEY` / `LIVEKIT_CLOUD_API_SECRET` | LiveKit Cloud credentials |
+| `CF_ACCESS_ISSUER` / `CF_ACCESS_AUD_DASHBOARD` / `CF_ACCESS_AUD_ADMIN` / `CF_ACCESS_AUD_GATEWAY` / `CF_ACCESS_JWKS_URL` | Cloudflare Access JWT verification |
 
 ## Recovery Steps
 

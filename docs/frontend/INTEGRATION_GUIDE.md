@@ -10,9 +10,9 @@ This guide explains how the Next.js frontend (`cctv-web`) integrates with the Fa
 
 1. [Authentication Flow](#authentication-flow)
 2. [CSRF Protection](#csrf-protection)
-3. [Camera Grid & Viewer](#camera-grid--viewer)
+3. [Camera Grid & Viewer](#camera-grid-viewer)
 4. [LiveKit JS SDK Integration](#livekit-js-sdk-integration)
-5. [SSE Events](#sse-events)
+5. [Camera Status SSE](#camera-status-sse)
 6. [Admin Screens](#admin-screens)
 7. [Error Handling](#error-handling)
 8. [Environment Variables](#environment-variables)

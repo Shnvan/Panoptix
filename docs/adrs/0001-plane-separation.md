@@ -1,19 +1,19 @@
-﻿# ADR 0001 â€” Control-Plane / Media-Plane / Camera-Plane Separation
+﻿# ADR 0001 - Control-Plane / Media-Plane / Camera-Plane Separation
 
 - **Status**: Accepted
 - **Date**: 2026-05-07
 - **Decision-makers**: Software Architect, System Owner
 - **Supersedes**: None
-- **Amended by**: ADR 0014 â€” Railway + Python Control Plane
-- **Plan references**: Invariants 1, 3, 4; Â§10.1â€“10.4; Â§12 stack table; Â§16.10; Â§20.13
+- **Amended by**: ADR 0014 - Railway + Python Control Plane
+- **Plan references**: Invariants 1, 3, 4; Section 10.1-10.4; Section 12 stack table; Section 16.10; Section 20.13
 
 ## Context
 
 The system is a live-view CCTV monitoring application that connects IP cameras (via edge gateways) to authenticated browser viewers through a WebRTC SFU. This combines three fundamentally different traffic types:
 
-1. **Control-plane traffic** â€” HTTP: authentication, authorization, token minting, audit, admin operations, DB access.
-2. **Media-plane traffic** â€” WebRTC (UDP/TCP): real-time video from cameras to viewers via an SFU (LiveKit).
-3. **Camera-plane traffic** â€” RTSP: on-site camera streams ingested by edge gateways on a local or VLAN-isolated network.
+1. **Control-plane traffic** - HTTP: authentication, authorization, token minting, audit, admin operations, DB access.
+2. **Media-plane traffic** - WebRTC (UDP/TCP): real-time video from cameras to viewers via an SFU (LiveKit).
+3. **Camera-plane traffic** - RTSP: on-site camera streams ingested by edge gateways on a local or VLAN-isolated network.
 
 Running all three through a single network path, a single process, or a shared secret/credential store creates compounding risk:
 
@@ -29,7 +29,7 @@ Running all three through a single network path, a single process, or a shared s
 
 - **Compute**: `cctv-api` on Railway as a Python/FastAPI service.
 - **Network**: supported user entry point is Cloudflare Access in front of the Railway custom domain. Protected routes fail closed without a valid Cloudflare Access JWT. Origin-binding enforced (Inv 14, ADR 0010).
-- **Secrets**: Railway/control-plane secrets scoped to `cctv-api` only â€” DB URL, audit HMAC keys, LiveKit API key/secret, cookie signing key.
+- **Secrets**: Railway/control-plane secrets scoped to `cctv-api` only - DB URL, audit HMAC keys, LiveKit API key/secret, cookie signing key.
 - **DB access**: only the control plane connects to Postgres. No other plane has a DB connection string.
 - **Outbound**: issues viewer-subscribe and gateway-publish tokens to LiveKit; calls LiveKit room API to terminate participants on user/gateway disable.
 
@@ -38,7 +38,7 @@ Running all three through a single network path, a single process, or a shared s
 - **Compute (primary)**: LiveKit Cloud (APAC region). Fully managed SFU.
 - **Compute (fallback)**: self-hosted LiveKit fallback on DigitalOcean Singapore or equivalent UDP-capable APAC host. Only LiveKit media ports exposed; no HTTP app/admin endpoints, no DB access.
 - **Secrets**: LiveKit API key/secret on the managed instance; separate media-plane secret store on the fallback instance. **No DB URL, no audit HMAC key, no cookie signing key.**
-- **Trust boundary**: accepts connections from gateways (publisher tokens) and browsers (subscriber tokens). Tokens are short-lived (â‰¤60 s), kind-distinct, and minted exclusively by the control plane.
+- **Trust boundary**: accepts connections from gateways (publisher tokens) and browsers (subscriber tokens). Tokens are short-lived (<=60 s), kind-distinct, and minted exclusively by the control plane.
 - **Cross-plane communication**: LiveKit fires webhooks (HMAC-signed + replay-protected) to the control plane at `POST /api/v1/webhooks/livekit`. This is the only inbound path from media to control.
 
 ### Camera plane
@@ -52,13 +52,13 @@ Running all three through a single network path, a single process, or a shared s
 
 | From | To | Mechanism | Auth | Direction |
 |---|---|---|---|---|
-| Control â†’ Media | Token mint (viewer-subscribe, gateway-publish) | LiveKit Server SDK | LiveKit API key/secret | Outbound from control |
-| Control â†’ Media | Room API (terminate participant) | LiveKit Server SDK | LiveKit API key/secret | Outbound from control |
-| Media â†’ Control | Webhook (`participant_joined`, `participant_left`, `room_finished`) | HTTPS POST | HMAC-signed + 60-s timestamp | Inbound to control |
-| Camera â†’ Control | Heartbeat, token-mint, camera-status | HTTPS (via CF Access service-token route) | Service-token (MVP) / mTLS (pilot+) | Outbound from camera |
-| Camera â†’ Media | WebRTC publish | LiveKit SDK | Gateway-publish token (â‰¤60 s) | Outbound from camera |
-| Browser â†’ Control | All app HTTP (auth, view-token, admin, audit) | HTTPS (via CF Access â†’ Railway) | CF JWT + session cookie | Inbound to control |
-| Browser â†’ Media | WebRTC subscribe | LiveKit SDK | Viewer-subscribe token (â‰¤60 s) | Direct to media |
+| Control -> Media | Token mint (viewer-subscribe, gateway-publish) | LiveKit Server SDK | LiveKit API key/secret | Outbound from control |
+| Control -> Media | Room API (terminate participant) | LiveKit Server SDK | LiveKit API key/secret | Outbound from control |
+| Media -> Control | Webhook (`participant_joined`, `participant_left`, `room_finished`) | HTTPS POST | HMAC-signed + 60-s timestamp | Inbound to control |
+| Camera -> Control | Heartbeat, token-mint, camera-status | HTTPS (via CF Access service-token route) | Service-token (MVP) / mTLS (pilot+) | Outbound from camera |
+| Camera -> Media | WebRTC publish | LiveKit SDK | Gateway-publish token (<=60 s) | Outbound from camera |
+| Browser -> Control | All app HTTP (auth, view-token, admin, audit) | HTTPS (via CF Access -> Railway) | CF JWT + session cookie | Inbound to control |
+| Browser -> Media | WebRTC subscribe | LiveKit SDK | Viewer-subscribe token (<=60 s) | Direct to media |
 
 No other cross-plane paths exist. Any new cross-plane path requires an update to this ADR and a threat-model review.
 
@@ -68,7 +68,7 @@ No other cross-plane paths exist. Any new cross-plane path requires an update to
 
 - **Blast-radius containment**: compromising one plane does not yield credentials, DB access, or audit-tampering ability in another.
 - **Independent scaling**: media plane can scale viewer capacity (LiveKit Cloud) without touching control-plane compute.
-- **Independent provider-exit**: each plane can be migrated to a different provider independently (Â§20.13). CF can be replaced without touching LiveKit; LiveKit can be replaced without touching CF or Postgres.
+- **Independent provider-exit**: each plane can be migrated to a different provider independently (Section 20.13). CF can be replaced without touching LiveKit; LiveKit can be replaced without touching CF or Postgres.
 - **Audit integrity**: the audit HMAC key never leaves the control plane; even a fully compromised media or camera plane cannot forge audit entries.
 - **Camera credential isolation**: RTSP credentials are confined to the camera plane; a compromised control plane cannot extract them (it never has them).
 
@@ -80,7 +80,7 @@ No other cross-plane paths exist. Any new cross-plane path requires an update to
 
 ### Risks accepted
 
-- The control plane is a single point of failure for token minting; if it is down, no new viewers or gateways can connect. Existing connections with valid tokens continue until token expiry (â‰¤60 s). Mitigated by Railway health checks, external probes, rollback/redeploy, and alternate-host DR path.
+- The control plane is a single point of failure for token minting; if it is down, no new viewers or gateways can connect. Existing connections with valid tokens continue until token expiry (<=60 s). Mitigated by Railway health checks, external probes, rollback/redeploy, and alternate-host DR path.
 
 ## Alternatives considered
 
@@ -110,9 +110,9 @@ No other cross-plane paths exist. Any new cross-plane path requires an update to
 
 ## References
 
-- v4 plan Â§10.1â€“10.4 (System Architecture)
-- v4 plan Â§12 (Technology Stack â€” per-plane rows)
-- v4 plan Â§16.10 (Origin / control-plane exposure controls)
-- v4 plan Â§20.13 (Provider-exit playbook â€” per-plane)
+- v4 plan Section 10.1-10.4 (System Architecture)
+- v4 plan Section 12 (Technology Stack - per-plane rows)
+- v4 plan Section 16.10 (Origin / control-plane exposure controls)
+- v4 plan Section 20.13 (Provider-exit playbook - per-plane)
 - Invariants 1, 3, 4, 6, 14, 15
 

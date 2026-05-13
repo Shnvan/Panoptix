@@ -1,4 +1,4 @@
-﻿# STRIDE Threat Model â€” Secure CCTV Monitoring System
+﻿# STRIDE Threat Model - Secure CCTV Monitoring System
 
 <!-- PE-FIX: Updated Fly.io/Next.js references to Railway/Python per ADR 0014 -->
 
@@ -25,13 +25,13 @@ This document captures the v4.1 STRIDE threat model for the secure CCTV monitori
 
 | Boundary | Description | Primary controls |
 |---|---|---|
-| Public internet â†’ Cloudflare edge | First ingress point for control plane | CF Access, WAF/rate limits, DNS orange-cloud |
-| Cloudflare edge â†’ `cctv-api` | CF Access-protected control-plane ingress | Railway origin-binding (fail-closed CF JWT verification), trusted-header policy |
-| Browser â†’ LiveKit | Viewer media subscription | viewer-subscribe JWT, â‰¤60 s TTL, subscriber-only |
-| Gateway â†’ LiveKit | Camera media publish | gateway-publish JWT, â‰¤60 s TTL, publisher-only |
-| Gateway â†’ Camera VLAN | RTSP pull from local cameras | VLAN isolation, firewall rules, local credentials |
-| Control plane â†’ Postgres | Authoritative app/audit data | least-privilege DB role, audit immutability |
-| Control plane â†’ R2 | Encrypted backups / archive | age encryption, object lock |
+| Public internet -> Cloudflare edge | First ingress point for control plane | CF Access, WAF/rate limits, DNS orange-cloud |
+| Cloudflare edge -> `cctv-api` | CF Access-protected control-plane ingress | Railway origin-binding (fail-closed CF JWT verification), trusted-header policy |
+| Browser -> LiveKit | Viewer media subscription | viewer-subscribe JWT, <=60 s TTL, subscriber-only |
+| Gateway -> LiveKit | Camera media publish | gateway-publish JWT, <=60 s TTL, publisher-only |
+| Gateway -> Camera VLAN | RTSP pull from local cameras | VLAN isolation, firewall rules, local credentials |
+| Control plane -> Postgres | Authoritative app/audit data | least-privilege DB role, audit immutability |
+| Control plane -> R2 | Encrypted backups / archive | age encryption, object lock |
 
 ## Protected assets
 
@@ -114,7 +114,7 @@ This document captures the v4.1 STRIDE threat model for the secure CCTV monitori
 |---|---|---|---|
 | Token mint flood | Attacker or user repeatedly requests view/gateway tokens | CF/app rate limits, `Retry-After`, anomaly alert | T-53 |
 | Gateway offline | Site loses power/WAN or box fails | Gateway offline alert after 2 min, site checklist, UPS recommended | Ops drill |
-| LiveKit Cloud outage/quota | Primary media unavailable | Self-hosted fallback flag, reconnect â‰¤60 s | T-37, Â§20.10 drill |
+| LiveKit Cloud outage/quota | Primary media unavailable | Self-hosted fallback flag, reconnect <=60 s | T-37, Section 20.10 drill |
 | CF Access outage/misconfig | Control plane inaccessible | Rollback runbook, IdP outage fallback policy | Runbook drill |
 | DB outage | Sessions/token grants/audit unavailable | Managed PG, backups, restore drill, fail-closed auth | Restore drill |
 | Webhook flood | LiveKit/webhook endpoint spammed | HMAC validation, rate limit, CORS server-to-server only | T-54/T-63 |
@@ -125,7 +125,7 @@ This document captures the v4.1 STRIDE threat model for the secure CCTV monitori
 |---|---|---|---|
 | Viewer becomes admin | UI/API route misses RBAC check | Deny-by-default policy module, route-level authz tests | Authz tests |
 | Viewer gets publisher token | Browser path shares token-mint logic | Separate endpoints/code paths; token kind distinction | T-60 |
-| Admin deletes/changes high-risk config without re-auth | Stale session used for sensitive mutation | Admin re-auth â‰¤5 min; SuperAdmin gates | Admin tests |
+| Admin deletes/changes high-risk config without re-auth | Stale session used for sensitive mutation | Admin re-auth <=5 min; SuperAdmin gates | Admin tests |
 | Compromised media host reaches DB | LiveKit fallback pivots to Postgres | No DB secret, egress block, separate app | T-45 |
 | Gateway publishes unassigned camera | Gateway token minted outside assignment | `gateway_camera_assignments` sole authority | Integration tests |
 | Break-glass window remains open | Scheduler fails to close emergency access | Request-time 90-min enforcement; external monitor | T-52 |
@@ -142,14 +142,14 @@ This document captures the v4.1 STRIDE threat model for the secure CCTV monitori
 
 ## Required follow-up artefacts
 
-- ADR 0001 â€” Plane separation
-- ADR 0004 â€” LiveKit fallback
-- ADR 0005 â€” Break-glass
-- ADR 0009 â€” CCTV-only ingest
-- ADR 0010 â€” Origin-binding
-- ADR 0011 â€” Bystander signage
-- ADR 0012 â€” Camera network design
-- ADR 0013 â€” Gateway hardware standard
+- ADR 0001 - Plane separation
+- ADR 0004 - LiveKit fallback
+- ADR 0005 - Break-glass
+- ADR 0009 - CCTV-only ingest
+- ADR 0010 - Origin-binding
+- ADR 0011 - Bystander signage
+- ADR 0012 - Camera network design
+- ADR 0013 - Gateway hardware standard
 - PIA template and full PIA before pilot
 - Vendor DPA pack before pilot
 

@@ -1,4 +1,4 @@
-name: CI — Backend API
+name: CI - Backend API
 
 permissions:
   contents: read

@@ -58,9 +58,14 @@ Every release candidate must keep:
 
 - CI run URL.
 - Test report artifact.
-- ZAP report.
-- SBOM artifact.
-- Browser bundle scan artifact.
 - T-30/T-45/T-56 evidence snapshots.
 - Restore drill evidence for pilot.
 - DPA/signage evidence for real-site deployment.
+
+The following evidence items are future/frontend or pilot gates and are not produced by the current backend/edge CI:
+
+- ZAP report.
+- SBOM artifact.
+- Browser bundle scan artifact.
+- Playwright report.
+- k6/load-test report.

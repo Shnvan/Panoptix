@@ -8,6 +8,8 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .venv/
 venv/
 
@@ -31,6 +33,11 @@ Thumbs.db
 coverage/
 .tmp/
 tmp/
+
+# Terraform local state/cache
+.terraform/
+terraform.tfstate
+terraform.tfstate.*
 
 # Local AI/process instructions
 COUNCIL.md
