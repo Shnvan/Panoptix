@@ -90,3 +90,27 @@ class BackupUploadStatus(str, enum.Enum):
     uploaded = "uploaded"
     failed = "failed"
 
+
+class EventSeverity(str, enum.Enum):
+    informational = "informational"
+    low = "low"
+    medium = "medium"
+    high = "high"
+    critical = "critical"
+
+
+class EventOutcome(str, enum.Enum):
+    success = "success"
+    failure = "failure"
+    denied = "denied"
+    error = "error"
+
+
+class EventCategory(str, enum.Enum):
+    authentication = "authentication"
+    authorization = "authorization"
+    data_access = "data_access"
+    admin = "admin"
+    system = "system"
+    compliance = "compliance"
+

@@ -6,16 +6,16 @@ Current status and next steps for any session continuing this project.
 
 ## Overall Progress: ~85% to MVP
 
-Last updated: 2026-05-13
+Last updated: 2026-05-14
 
 | Area | Progress | Status | Notes |
 |------|----------|--------|-------|
-| **Backend API** | 99% | 🟢 Strong | Auth, RBAC, audit, health, gateway, camera, command, webhook, session, admin, break-glass, search/filter, enrichment, LiveKit fallback, DPA export, signage attestation, credential rotation, MFA reset, 501 stubs all done. 460 tests passing. |
+| **Backend API** | 99% | 🟢 Strong | Auth, RBAC, audit, actor investigation profiles/activity timeline, health, gateway, camera, command, webhook, session, admin, break-glass, search/filter, enrichment, LiveKit fallback, DPA export, signage attestation, credential rotation, MFA reset, 501 stubs all done. 532 tests passing. |
 | **Edge Agent** | 80% | 🟡 Good | Heartbeat, command signing, WebSocket control, FFmpeg frame source, LiveKit SDK bridge, per-camera credentials, supervisor, real FFmpeg integration tests, exponential backoff + jitter for reconnects, mTLS cert bootstrap scaffold, cryptography dep all done. Missing: real camera-to-LiveKit publishing in production. |
 | **Frontend** | 0% | 🔴 Not started | Placeholder only. Owned by frontend coworker. Blocked until admin UI, camera grid viewer, and privacy notice flow are built. |
 | **Database** | 95% | 🟢 Strong | 23 tables, 5 migrations deployed to Neon staging. Missing: backup verification schema, retention policy tables (pilot+). |
 | **Infrastructure** | 90% | 🟢 Strong | Cloudflare Access, Railway, Neon staging all live. Staging health check cron running (15 min). 7-day uptime clock started. R2 backup bucket `panoptix-backups` provisioned via Terraform Cloud. LiveKit Cloud account provisioned (APAC). Semgrep CI token configured. Missing: paid Neon tier, production Cloudflare/Railway/Neon environments (waits for 7-day gate). |
-| **Security** | 90% | 🟢 Strong | CF Access JWT, CSRF, HMAC audit chain, rate limiting (including admin mutations), security headers, service tokens, RBAC, break-glass, SCA/SAST CI, mediamtx threat model, mTLS cert bootstrap scaffold, CT-log monitoring all done. Missing: device posture enforcement (checklist done), WARP posture production activation. |
+| **Security** | 90% | 🟢 Strong | CF Access JWT, CSRF, HMAC audit chain, classified audit events with session/IP/UA metadata, audit-of-audit for profile/activity views, rate limiting (including admin mutations), security headers, service tokens, RBAC, break-glass, SCA/SAST CI, mediamtx threat model, mTLS cert bootstrap scaffold, CT-log monitoring all done. Missing: device posture enforcement (checklist done), WARP posture production activation. |
 | **Documentation** | 95% | 🟢 Strong | Full system plan, API reference, 51+ docs, all runbooks done (incl. break-glass, lost-MFA, IdP-outage, bus-factor, uptime monitoring, backup-restore DR schedule, Cloudflare WARP posture), mediamtx threat model, Terraform state security doc, IMPLEMENTATION_GUIDE fully up-to-date. |
 | **DevOps/CI** | 98% | 🟢 Strong | GitHub Actions CI covers both `main` and `backend` branches. Edge agent CI added (ruff, mypy, pytest, compileall, osv-scanner). Staging health check cron active. Production deploy workflow (manual) ready. Staging auto-deploy workflow added. Dependabot auto-merge workflow added (minor/patch auto, major manual). |
 

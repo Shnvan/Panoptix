@@ -105,6 +105,32 @@ def test_security_headers_are_added_to_success_response() -> None:
     assert response.headers["cross-origin-resource-policy"] == "same-origin"
 
 
+def test_development_docs_csp_allows_swagger_ui_assets() -> None:
+    app = create_app(settings=Settings(APP_ENV="development", ALLOW_DEV_AUTH=True))
+    client = TestClient(app)
+
+    response = client.get("/docs")
+
+    assert response.status_code == 200
+    csp = response.headers["content-security-policy"]
+    assert "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net" in csp
+    assert "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net" in csp
+    assert "img-src 'self' data: https://fastapi.tiangolo.com" in csp
+    assert "connect-src 'self'" in csp
+
+
+def test_regular_api_csp_stays_strict_in_development() -> None:
+    app = create_app(settings=Settings(APP_ENV="development", ALLOW_DEV_AUTH=True))
+    client = TestClient(app)
+
+    response = client.get("/api/v1/me", headers={"x-panoptix-dev-auth": "1"})
+
+    csp = response.headers["content-security-policy"]
+    assert "default-src 'none'" in csp
+    assert "script-src" not in csp
+    assert "style-src" not in csp
+
+
 def test_security_headers_are_added_to_problem_response(client: TestClient) -> None:
     response = client.get("/api/v1/me")
 

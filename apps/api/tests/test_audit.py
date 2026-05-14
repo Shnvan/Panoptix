@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session as DbSession
 from cctv_api.core.config import Settings
 from cctv_api.db import db_session
 from cctv_api.main import create_app
-from cctv_api.models.enums import ActorType
+from cctv_api.models.enums import ActorType, EventCategory, EventOutcome, EventSeverity
 from cctv_api.models.tables import AuditHmacKey, AuditLog
 from cctv_api.security.audit import (
     AuditLogError,
@@ -137,7 +137,9 @@ def test_admin_audit_verify_accepts_valid_chain(test_db_session: DbSession) -> N
     assert response.status_code == 200
     assert response.json() == {"valid": True, "checked": 2, "error": None}
     audit_rows = test_db_session.execute(select(AuditLog).order_by(AuditLog.id)).scalars().all()
-    assert [row.action for row in audit_rows] == ["test.audit.first", "test.audit.second"]
+    actions = [row.action for row in audit_rows]
+    assert actions[:2] == ["test.audit.first", "test.audit.second"]
+    assert "audit.log.verified" in actions
 
 
 def test_admin_audit_verify_accepts_inclusive_subrange(test_db_session: DbSession) -> None:
@@ -627,7 +629,7 @@ def test_admin_audit_export_returns_signed_json_rows(test_db_session: DbSession)
     assert len(items) == 2
     first = items[0]
     second = items[1]
-    expected_keys = {"id", "ts", "actor_id", "actor_type", "action", "resource", "payload", "ip", "ua"}
+    expected_keys = {"id", "ts", "actor_id", "actor_type", "action", "resource", "payload", "ip", "ua", "event_severity", "event_outcome", "event_category", "session_id"}
     for row in (first, second):
         assert set(row.keys()) == expected_keys
         assert "hash" not in row
@@ -824,10 +826,563 @@ def test_admin_audit_list_excludes_internal_chain_fields(test_db_session: DbSess
 
     assert response.status_code == 200
     data = response.json()
-    assert len(data["items"]) == 1
+    assert len(data["items"]) >= 1
     item = data["items"][0]
-    expected_keys = {"id", "ts", "actor_id", "actor_type", "action", "resource", "payload", "ip", "ua"}
+    expected_keys = {"id", "ts", "actor_id", "actor_type", "action", "resource", "payload", "ip", "ua", "event_severity", "event_outcome", "event_category", "session_id"}
     assert set(item.keys()) == expected_keys
     assert "hash" not in item
     assert "prev_hash" not in item
     assert "hmac_key_version" not in item
+
+
+# --- Phase 1: Audit log metadata fields ---
+
+
+def test_record_audit_event_stores_severity_outcome_category(test_db_session: DbSession) -> None:
+    audit_log = record_audit_event(
+        test_db_session,
+        actor_type=ActorType.user,
+        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
+        audit_hmac_key=AUDIT_HMAC_KEY,
+        action="test.meta.full",
+        resource="camera:test",
+        event_severity=EventSeverity.high,
+        event_outcome=EventOutcome.success,
+        event_category=EventCategory.admin,
+    )
+
+    assert audit_log.event_severity == EventSeverity.high
+    assert audit_log.event_outcome == EventOutcome.success
+    assert audit_log.event_category == EventCategory.admin
+
+
+def test_record_audit_event_stores_session_id(test_db_session: DbSession) -> None:
+    sid = uuid.uuid4()
+    audit_log = record_audit_event(
+        test_db_session,
+        actor_type=ActorType.user,
+        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
+        audit_hmac_key=AUDIT_HMAC_KEY,
+        action="test.meta.session",
+        resource="camera:test",
+        session_id=sid,
+    )
+
+    assert str(audit_log.session_id) == str(sid)
+
+
+def test_record_audit_event_metadata_fields_default_to_none(test_db_session: DbSession) -> None:
+    audit_log = record_audit_event(
+        test_db_session,
+        actor_type=ActorType.user,
+        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
+        audit_hmac_key=AUDIT_HMAC_KEY,
+        action="test.meta.defaults",
+        resource="camera:test",
+    )
+
+    assert audit_log.event_severity is None
+    assert audit_log.event_outcome is None
+    assert audit_log.event_category is None
+    assert audit_log.session_id is None
+
+
+def test_hmac_chain_valid_with_mixed_old_and_new_style_entries(test_db_session: DbSession) -> None:
+    first = record_audit_event(
+        test_db_session,
+        actor_type=ActorType.user,
+        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
+        audit_hmac_key=AUDIT_HMAC_KEY,
+        action="test.chain.old_style",
+        resource="camera:test",
+    )
+    second = record_audit_event(
+        test_db_session,
+        actor_type=ActorType.user,
+        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
+        audit_hmac_key=AUDIT_HMAC_KEY,
+        action="test.chain.new_style",
+        resource="camera:test",
+        event_severity=EventSeverity.critical,
+        event_outcome=EventOutcome.denied,
+        event_category=EventCategory.authentication,
+        session_id=uuid.uuid4(),
+    )
+    third = record_audit_event(
+        test_db_session,
+        actor_type=ActorType.user,
+        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
+        audit_hmac_key=AUDIT_HMAC_KEY,
+        action="test.chain.old_style_again",
+        resource="camera:test",
+    )
+
+    rows = [first, second, third]
+    result = verify_audit_chain(rows, audit_hmac_key=AUDIT_HMAC_KEY)
+    assert result.valid is True
+    assert result.checked == 3
+
+
+def test_hmac_unchanged_by_metadata_values(test_db_session: DbSession) -> None:
+    from cctv_api.security.audit import build_audit_hmac
+    from datetime import datetime, timezone
+
+    fixed_ts = datetime(2026, 5, 14, 12, 0, 0, tzinfo=timezone.utc)
+    hash_without = build_audit_hmac(
+        ts=fixed_ts,
+        actor_type=ActorType.user,
+        action="test.hmac.same",
+        resource="camera:test",
+        hmac_key_version=AUDIT_HMAC_KEY_VERSION,
+        hmac_key=AUDIT_HMAC_KEY,
+    )
+
+    row_with = record_audit_event(
+        test_db_session,
+        actor_type=ActorType.user,
+        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
+        audit_hmac_key=AUDIT_HMAC_KEY,
+        action="test.hmac.same",
+        resource="camera:test",
+        event_severity=EventSeverity.critical,
+        event_outcome=EventOutcome.failure,
+        event_category=EventCategory.system,
+        session_id=uuid.uuid4(),
+    )
+
+    hash_with = build_audit_hmac(
+        ts=row_with.ts,
+        actor_type=ActorType.user,
+        action="test.hmac.same",
+        resource="camera:test",
+        hmac_key_version=AUDIT_HMAC_KEY_VERSION,
+        hmac_key=AUDIT_HMAC_KEY,
+        prev_hash=row_with.prev_hash,
+    )
+
+    assert row_with.event_severity == EventSeverity.critical
+    assert row_with.hash == hash_with
+    assert hash_without == build_audit_hmac(
+        ts=fixed_ts,
+        actor_type=ActorType.user,
+        action="test.hmac.same",
+        resource="camera:test",
+        hmac_key_version=AUDIT_HMAC_KEY_VERSION,
+        hmac_key=AUDIT_HMAC_KEY,
+    )
+
+
+def test_event_severity_enum_values() -> None:
+    assert set(EventSeverity) == {
+        EventSeverity.informational,
+        EventSeverity.low,
+        EventSeverity.medium,
+        EventSeverity.high,
+        EventSeverity.critical,
+    }
+    for member in EventSeverity:
+        assert member.value == member.name
+
+
+def test_event_outcome_enum_values() -> None:
+    assert set(EventOutcome) == {
+        EventOutcome.success,
+        EventOutcome.failure,
+        EventOutcome.denied,
+        EventOutcome.error,
+    }
+    for member in EventOutcome:
+        assert member.value == member.name
+
+
+def test_event_category_enum_values() -> None:
+    assert set(EventCategory) == {
+        EventCategory.authentication,
+        EventCategory.authorization,
+        EventCategory.data_access,
+        EventCategory.admin,
+        EventCategory.system,
+        EventCategory.compliance,
+    }
+    for member in EventCategory:
+        assert member.value == member.name
+
+
+# --- Phase 3: Auth failure logging, audit-of-audit, before/after ---
+
+
+def test_auth_failure_jwt_missing_generates_audit_event(test_db_session: DbSession) -> None:
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/me")
+    assert response.status_code == 401
+
+    audit_rows = test_db_session.execute(select(AuditLog).order_by(AuditLog.id)).scalars().all()
+    auth_failures = [r for r in audit_rows if r.action == "auth.login.denied.jwt_missing"]
+    assert len(auth_failures) == 1
+    assert auth_failures[0].event_severity == EventSeverity.low
+    assert auth_failures[0].event_outcome == EventOutcome.denied
+    assert auth_failures[0].event_category == EventCategory.authentication
+
+
+def test_auth_failure_audit_does_not_block_error_response(test_db_session: DbSession) -> None:
+    client = _client_with_db(test_db_session, audit_hmac_key="replace-me")
+
+    response = client.get("/api/v1/me")
+    assert response.status_code == 401
+
+
+def test_audit_list_endpoint_generates_audit_of_audit_event(test_db_session: DbSession) -> None:
+    _record_test_audit_row(test_db_session, "test.some.action")
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit", headers=_admin_headers())
+    assert response.status_code == 200
+
+    audit_rows = test_db_session.execute(select(AuditLog).order_by(AuditLog.id)).scalars().all()
+    viewed_events = [r for r in audit_rows if r.action == "audit.log.viewed"]
+    assert len(viewed_events) == 1
+    assert viewed_events[0].event_severity == EventSeverity.medium
+    assert viewed_events[0].event_category == EventCategory.compliance
+
+
+def test_audit_export_endpoint_generates_audit_of_audit_event(test_db_session: DbSession) -> None:
+    _record_test_audit_row(test_db_session, "test.some.action")
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit/export", headers=_admin_headers())
+    assert response.status_code == 200
+
+    audit_rows = test_db_session.execute(select(AuditLog).order_by(AuditLog.id)).scalars().all()
+    exported_events = [r for r in audit_rows if r.action == "audit.log.exported"]
+    assert len(exported_events) == 1
+    assert exported_events[0].event_severity == EventSeverity.high
+    assert exported_events[0].event_category == EventCategory.compliance
+
+
+def test_audit_verify_endpoint_generates_audit_of_audit_event(test_db_session: DbSession) -> None:
+    _record_test_audit_row(test_db_session, "test.some.action")
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit/verify", headers=_admin_headers())
+    assert response.status_code == 200
+
+    audit_rows = test_db_session.execute(select(AuditLog).order_by(AuditLog.id)).scalars().all()
+    verified_events = [r for r in audit_rows if r.action == "audit.log.verified"]
+    assert len(verified_events) == 1
+    assert verified_events[0].event_severity == EventSeverity.high
+    assert verified_events[0].event_category == EventCategory.compliance
+    assert verified_events[0].payload["valid"] is True
+
+
+def test_role_change_includes_before_after_in_payload(test_db_session: DbSession) -> None:
+    from cctv_api.models.tables import Role
+
+    client = _client_with_db(test_db_session)
+
+    get_or_create_user(test_db_session, email="admin@example.test", idp_subject="admin@example.test")
+    target_user = get_or_create_user(test_db_session, email="target@example.test", idp_subject="target@example.test")
+    role = Role(name="viewer")
+    test_db_session.add(role)
+    test_db_session.commit()
+
+    response = client.post(
+        f"/api/v1/admin/users/{target_user.id}/role",
+        json={"action": "grant", "role_name": "viewer"},
+        headers=_admin_headers(),
+    )
+    assert response.status_code == 200
+
+    audit_rows = test_db_session.execute(
+        select(AuditLog).where(AuditLog.action == "admin.user.role.granted")
+    ).scalars().all()
+    assert len(audit_rows) >= 1
+    last = audit_rows[-1]
+    assert "roles_before" in last.payload
+    assert "roles_after" in last.payload
+    assert isinstance(last.payload["roles_before"], list)
+    assert isinstance(last.payload["roles_after"], list)
+
+
+def test_camera_acl_change_includes_before_after_in_payload(test_db_session: DbSession) -> None:
+    from cctv_api.models.tables import Camera
+    from cctv_api.models.enums import CameraSourceType
+
+    client = _client_with_db(test_db_session)
+
+    get_or_create_user(test_db_session, email="admin@example.test", idp_subject="admin@example.test")
+    camera = Camera(
+        id=uuid.uuid4(),
+        display_name="Test Camera",
+        source_type=CameraSourceType.rtsp,
+        livekit_room_name=f"room-{uuid.uuid4().hex[:8]}",
+    )
+    test_db_session.add(camera)
+    test_db_session.commit()
+
+    response = client.post(
+        f"/api/v1/admin/cameras/{camera.id}/acl",
+        json={"action": "grant", "user_email": "grantee@example.test"},
+        headers=_admin_headers(),
+    )
+    assert response.status_code == 200
+
+    audit_rows = test_db_session.execute(
+        select(AuditLog).where(AuditLog.action == "camera.acl.grant")
+    ).scalars().all()
+    assert len(audit_rows) >= 1
+    last = audit_rows[-1]
+    assert last.payload["had_access_before"] is False
+    assert last.payload["has_access_after"] is True
+
+
+def test_list_response_includes_new_metadata_fields(test_db_session: DbSession) -> None:
+    record_audit_event(
+        test_db_session,
+        actor_type=ActorType.user,
+        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
+        audit_hmac_key=AUDIT_HMAC_KEY,
+        action="viewer.token.issued",
+        resource="camera:test",
+    )
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit", headers=_admin_headers())
+    assert response.status_code == 200
+
+    data = response.json()
+    auto_classified_items = [i for i in data["items"] if i["action"] == "viewer.token.issued"]
+    assert len(auto_classified_items) == 1
+    item = auto_classified_items[0]
+    assert item["event_severity"] == "low"
+    assert item["event_outcome"] == "success"
+    assert item["event_category"] == "authentication"
+
+
+def test_export_response_includes_new_metadata_fields(test_db_session: DbSession) -> None:
+    record_audit_event(
+        test_db_session,
+        actor_type=ActorType.user,
+        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
+        audit_hmac_key=AUDIT_HMAC_KEY,
+        action="system.break_glass.opened",
+        resource="break-glass:test",
+        event_severity=EventSeverity.critical,
+        event_outcome=EventOutcome.success,
+        event_category=EventCategory.system,
+        session_id=uuid.uuid4(),
+    )
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit/export", headers=_admin_headers())
+    assert response.status_code == 200
+
+    data = response.json()
+    items = data["items"]
+    bg_items = [i for i in items if i["action"] == "system.break_glass.opened"]
+    assert len(bg_items) == 1
+    item = bg_items[0]
+    assert item["event_severity"] == "critical"
+    assert item["event_outcome"] == "success"
+    assert item["event_category"] == "system"
+    assert item["session_id"] is not None
+
+
+# --- Phase 4: Query & Filter Enhancement ---
+
+
+def _seed_diverse_audit_rows(db: DbSession) -> dict[str, object]:
+    sid = uuid.uuid4()
+    actor_id = uuid.uuid4()
+    r1 = record_audit_event(
+        db,
+        actor_type=ActorType.user,
+        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
+        audit_hmac_key=AUDIT_HMAC_KEY,
+        action="viewer.token.issued",
+        resource="camera:cam-1",
+        actor_id=actor_id,
+        session_id=sid,
+    )
+    r2 = record_audit_event(
+        db,
+        actor_type=ActorType.gateway,
+        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
+        audit_hmac_key=AUDIT_HMAC_KEY,
+        action="gateway.ingest.token.issued",
+        resource="camera:cam-2",
+        event_severity=EventSeverity.low,
+        event_outcome=EventOutcome.success,
+        event_category=EventCategory.system,
+    )
+    r3 = record_audit_event(
+        db,
+        actor_type=ActorType.user,
+        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
+        audit_hmac_key=AUDIT_HMAC_KEY,
+        action="viewer.token.denied.access",
+        resource="camera:cam-1",
+        actor_id=actor_id,
+        event_severity=EventSeverity.medium,
+        event_outcome=EventOutcome.denied,
+        event_category=EventCategory.authentication,
+        session_id=sid,
+    )
+    r4 = record_audit_event(
+        db,
+        actor_type=ActorType.system,
+        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
+        audit_hmac_key=AUDIT_HMAC_KEY,
+        action="system.break_glass.opened",
+        resource="break-glass:test",
+        event_severity=EventSeverity.critical,
+        event_outcome=EventOutcome.success,
+        event_category=EventCategory.system,
+    )
+    return {"actor_id": actor_id, "session_id": sid, "rows": [r1, r2, r3, r4]}
+
+
+def test_filter_by_event_severity(test_db_session: DbSession) -> None:
+    _seed_diverse_audit_rows(test_db_session)
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit?severity=critical", headers=_admin_headers())
+    assert response.status_code == 200
+    data = response.json()
+    assert all(item["event_severity"] == "critical" for item in data["items"])
+    assert any(item["action"] == "system.break_glass.opened" for item in data["items"])
+
+
+def test_filter_by_event_category(test_db_session: DbSession) -> None:
+    _seed_diverse_audit_rows(test_db_session)
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit?category=system", headers=_admin_headers())
+    assert response.status_code == 200
+    data = response.json()
+    assert all(item["event_category"] == "system" for item in data["items"])
+    assert len(data["items"]) >= 2
+
+
+def test_filter_by_event_outcome(test_db_session: DbSession) -> None:
+    _seed_diverse_audit_rows(test_db_session)
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit?outcome=denied", headers=_admin_headers())
+    assert response.status_code == 200
+    data = response.json()
+    assert all(item["event_outcome"] == "denied" for item in data["items"])
+    assert any(item["action"] == "viewer.token.denied.access" for item in data["items"])
+
+
+def test_filter_by_actor_type(test_db_session: DbSession) -> None:
+    _seed_diverse_audit_rows(test_db_session)
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit?actor_type=gateway", headers=_admin_headers())
+    assert response.status_code == 200
+    data = response.json()
+    assert all(item["actor_type"] == "gateway" for item in data["items"])
+    assert len(data["items"]) >= 1
+
+
+def test_filter_by_actor_id(test_db_session: DbSession) -> None:
+    seed = _seed_diverse_audit_rows(test_db_session)
+    client = _client_with_db(test_db_session)
+
+    response = client.get(f"/api/v1/admin/audit?actor_id={seed['actor_id']}", headers=_admin_headers())
+    assert response.status_code == 200
+    data = response.json()
+    assert all(item["actor_id"] == str(seed["actor_id"]) for item in data["items"])
+    assert len(data["items"]) >= 2
+
+
+def test_filter_by_resource(test_db_session: DbSession) -> None:
+    _seed_diverse_audit_rows(test_db_session)
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit?resource=camera:cam-2", headers=_admin_headers())
+    assert response.status_code == 200
+    data = response.json()
+    assert all(item["resource"] == "camera:cam-2" for item in data["items"])
+    assert len(data["items"]) >= 1
+
+
+def test_filter_by_session_id(test_db_session: DbSession) -> None:
+    seed = _seed_diverse_audit_rows(test_db_session)
+    client = _client_with_db(test_db_session)
+
+    response = client.get(f"/api/v1/admin/audit?session_id={seed['session_id']}", headers=_admin_headers())
+    assert response.status_code == 200
+    data = response.json()
+    assert all(item["session_id"] == str(seed["session_id"]) for item in data["items"])
+    assert len(data["items"]) >= 2
+
+
+def test_filter_by_date_range(test_db_session: DbSession) -> None:
+    _seed_diverse_audit_rows(test_db_session)
+    client = _client_with_db(test_db_session)
+
+    response = client.get(
+        "/api/v1/admin/audit?ts_from=2020-01-01T00:00:00Z&ts_to=2099-12-31T23:59:59Z",
+        headers=_admin_headers(),
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) >= 4
+
+    response_empty = client.get(
+        "/api/v1/admin/audit?ts_from=2099-01-01T00:00:00Z",
+        headers=_admin_headers(),
+    )
+    assert response_empty.status_code == 200
+    assert len(response_empty.json()["items"]) == 0
+
+
+def test_combined_filters(test_db_session: DbSession) -> None:
+    seed = _seed_diverse_audit_rows(test_db_session)
+    client = _client_with_db(test_db_session)
+
+    response = client.get(
+        f"/api/v1/admin/audit?actor_type=user&outcome=denied&actor_id={seed['actor_id']}",
+        headers=_admin_headers(),
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) >= 1
+    for item in data["items"]:
+        assert item["actor_type"] == "user"
+        assert item["event_outcome"] == "denied"
+        assert item["actor_id"] == str(seed["actor_id"])
+
+
+def test_invalid_severity_filter_returns_400(test_db_session: DbSession) -> None:
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit?severity=bogus", headers=_admin_headers())
+    assert response.status_code == 400
+    assert response.json()["detail"] == "severity-invalid"
+
+
+def test_invalid_category_filter_returns_400(test_db_session: DbSession) -> None:
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit?category=bogus", headers=_admin_headers())
+    assert response.status_code == 400
+    assert response.json()["detail"] == "category-invalid"
+
+
+def test_invalid_outcome_filter_returns_400(test_db_session: DbSession) -> None:
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit?outcome=bogus", headers=_admin_headers())
+    assert response.status_code == 400
+    assert response.json()["detail"] == "outcome-invalid"
+
+
+def test_invalid_actor_type_filter_returns_400(test_db_session: DbSession) -> None:
+    client = _client_with_db(test_db_session)
+
+    response = client.get("/api/v1/admin/audit?actor_type=bogus", headers=_admin_headers())
+    assert response.status_code == 400
+    assert response.json()["detail"] == "actor-type-invalid"

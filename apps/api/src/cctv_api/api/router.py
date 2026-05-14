@@ -14,13 +14,14 @@ from sqlalchemy.orm import Session as DbSession
 from starlette.responses import StreamingResponse
 
 from cctv_api.api.errors import ProblemDetail
+from cctv_api.api.actor_profile import router as actor_profile_router
 from cctv_api.api.gateways import router as gateway_router
 from cctv_api.api.livekit_webhooks import router as livekit_webhook_router
 from cctv_api.core.config import Settings, get_settings
 from cctv_api.db import db_session
 from cctv_api.gateway.command_queue import enqueue_command, expire_stale_commands
 from cctv_api.jobs.maintenance import run_admin_maintenance_job
-from cctv_api.models.enums import ActorType, CameraPublishStatus, CameraSourceType, CommandStatus, DpaKind, GatewayStatus, StreamKind
+from cctv_api.models.enums import ActorType, CameraPublishStatus, CameraSourceType, CommandStatus, DpaKind, EventCategory, EventOutcome, EventSeverity, GatewayStatus, StreamKind
 from cctv_api.models.tables import (
     AuditHmacKey,
     AuditLog,
@@ -66,6 +67,7 @@ from cctv_api.security.media_plane import set_media_plane_mode
 from cctv_api.security.users import get_or_create_user, get_user_roles
 
 v1_router = APIRouter(prefix="/api/v1")
+v1_router.include_router(actor_profile_router)
 v1_router.include_router(gateway_router)
 v1_router.include_router(livekit_webhook_router)
 
@@ -264,27 +266,30 @@ def admin_user_role(
     existing = db.execute(
         select(UserRole).where(UserRole.user_id == str(target_uuid), UserRole.role_id == role_row.id)
     ).scalar_one_or_none()
+    roles_before = sorted(get_user_roles(db, target_uuid))
     if body.action == "grant":
         if existing is not None:
             raise ProblemDetail(status=409, title="Conflict", detail="role-already-granted", type_uri="https://panoptix.local/problems/conflict")
         db.add(UserRole(user_id=target_uuid, role_id=role_row.id))
         db.flush()
+        roles_after = sorted(get_user_roles(db, target_uuid))
         _record_user_audit_required(
             db, settings=settings, request=request, actor_id=actor.id,
             action="admin.user.role.granted",
             resource=f"user:{target_uuid}",
-            payload={"user_id": str(target_uuid), "role_name": body.role_name},
+            payload={"user_id": str(target_uuid), "role_name": body.role_name, "roles_before": roles_before, "roles_after": roles_after},
         )
     else:
         if existing is None:
             raise ProblemDetail(status=404, title="Not Found", detail="role-not-granted", type_uri="https://panoptix.local/problems/not-found")
         db.delete(existing)
         db.flush()
+        roles_after = sorted(get_user_roles(db, target_uuid))
         _record_user_audit_required(
             db, settings=settings, request=request, actor_id=actor.id,
             action="admin.user.role.revoked",
             resource=f"user:{target_uuid}",
-            payload={"user_id": str(target_uuid), "role_name": body.role_name},
+            payload={"user_id": str(target_uuid), "role_name": body.role_name, "roles_before": roles_before, "roles_after": roles_after},
         )
     db.commit()
     return RoleActionResponse(user_id=str(target_uuid), role_name=body.role_name, action=body.action, status="ok")
@@ -576,6 +581,7 @@ def get_camera_view_token(
 
 @v1_router.get("/admin/audit/verify")
 def verify_admin_audit_chain(
+    request: Request,
     start_id: int | None = Query(default=None, ge=1),
     end_id: int | None = Query(default=None, ge=1),
     principal: Principal = Depends(require_authenticated_user),
@@ -620,11 +626,19 @@ def verify_admin_audit_chain(
         audit_hmac_keys_by_version=key_map,
         start_prev_hash=previous_hash,
     )
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _record_user_audit_safely(
+        db, settings=settings, request=request, actor_id=actor.id,
+        action="audit.log.verified",
+        resource="audit-log",
+        payload={"start_id": start_id, "end_id": end_id, "checked": result.checked, "valid": result.valid},
+    )
     return AuditVerificationResponse(valid=result.valid, checked=result.checked, error=result.error)
 
 
 @v1_router.get("/admin/audit/export")
 def export_admin_audit(
+    request: Request,
     start_id: int | None = Query(default=None, ge=1),
     end_id: int | None = Query(default=None, ge=1),
     principal: Principal = Depends(require_authenticated_user),
@@ -658,14 +672,31 @@ def export_admin_audit(
         signature_key_version=settings.AUDIT_HMAC_KEY_VERSION,
         signature_key=settings.AUDIT_HMAC_KEY,
     )
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _record_user_audit_safely(
+        db, settings=settings, request=request, actor_id=actor.id,
+        action="audit.log.exported",
+        resource="audit-log",
+        payload={"start_id": start_id, "end_id": end_id, "rows_exported": len(items)},
+    )
     return {"format": "audit-export-v1", "manifest": manifest, "items": items}
 
 
 @v1_router.get("/admin/audit")
 def list_admin_audit(
+    request: Request,
     cursor: int | None = Query(default=None, ge=1),
     limit: int = Query(default=50, ge=1, le=200),
     action: str | None = Query(default=None, max_length=128),
+    actor_type: str | None = Query(default=None, max_length=32),
+    actor_id: str | None = Query(default=None, max_length=36),
+    severity: str | None = Query(default=None, max_length=32),
+    category: str | None = Query(default=None, max_length=32),
+    outcome: str | None = Query(default=None, max_length=32),
+    resource: str | None = Query(default=None, max_length=256),
+    session_id: str | None = Query(default=None, max_length=36),
+    ts_from: str | None = Query(default=None),
+    ts_to: str | None = Query(default=None),
     principal: Principal = Depends(require_authenticated_user),
     db: DbSession = Depends(db_session),
     settings: Settings = Depends(get_settings),
@@ -681,6 +712,44 @@ def list_admin_audit(
     query = select(AuditLog)
     if action is not None:
         query = query.where(AuditLog.action == action)
+    if actor_type is not None:
+        try:
+            at_enum = ActorType(actor_type)
+        except ValueError:
+            raise ProblemDetail(status=400, title="Bad Request", detail="actor-type-invalid", type_uri="https://panoptix.local/problems/bad-request")
+        query = query.where(AuditLog.actor_type == at_enum)
+    if actor_id is not None:
+        actor_uuid = _parse_uuid(actor_id, "actor-id-invalid")
+        query = query.where(AuditLog.actor_id == str(actor_uuid))
+    if severity is not None:
+        try:
+            sev_enum = EventSeverity(severity)
+        except ValueError:
+            raise ProblemDetail(status=400, title="Bad Request", detail="severity-invalid", type_uri="https://panoptix.local/problems/bad-request")
+        query = query.where(AuditLog.event_severity == sev_enum)
+    if category is not None:
+        try:
+            cat_enum = EventCategory(category)
+        except ValueError:
+            raise ProblemDetail(status=400, title="Bad Request", detail="category-invalid", type_uri="https://panoptix.local/problems/bad-request")
+        query = query.where(AuditLog.event_category == cat_enum)
+    if outcome is not None:
+        try:
+            out_enum = EventOutcome(outcome)
+        except ValueError:
+            raise ProblemDetail(status=400, title="Bad Request", detail="outcome-invalid", type_uri="https://panoptix.local/problems/bad-request")
+        query = query.where(AuditLog.event_outcome == out_enum)
+    if resource is not None:
+        query = query.where(AuditLog.resource == resource)
+    if session_id is not None:
+        sid_uuid = _parse_uuid(session_id, "session-id-invalid")
+        query = query.where(AuditLog.session_id == str(sid_uuid))
+    if ts_from is not None:
+        ts_from_dt = _parse_datetime(ts_from, "ts-from-invalid")
+        query = query.where(AuditLog.ts >= ts_from_dt)
+    if ts_to is not None:
+        ts_to_dt = _parse_datetime(ts_to, "ts-to-invalid")
+        query = query.where(AuditLog.ts <= ts_to_dt)
     if cursor is not None:
         query = query.where(AuditLog.id < cursor)
     query = query.order_by(AuditLog.id.desc()).limit(limit + 1)
@@ -700,9 +769,20 @@ def list_admin_audit(
             "payload": row.payload,
             "ip": row.ip,
             "ua": row.ua,
+            "event_severity": row.event_severity.value if row.event_severity else None,
+            "event_outcome": row.event_outcome.value if row.event_outcome else None,
+            "event_category": row.event_category.value if row.event_category else None,
+            "session_id": str(row.session_id) if row.session_id else None,
         }
         for row in rows
     ]
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _record_user_audit_safely(
+        db, settings=settings, request=request, actor_id=actor.id,
+        action="audit.log.viewed",
+        resource="audit-log",
+        payload={"action_filter": action, "cursor": cursor, "limit": limit, "rows_returned": len(items)},
+    )
     return {"items": items, "next_cursor": next_cursor}
 
 
@@ -786,6 +866,10 @@ def _audit_export_item(row: AuditLog) -> dict[str, object]:
         "payload": row.payload,
         "ip": row.ip,
         "ua": row.ua,
+        "event_severity": row.event_severity.value if row.event_severity else None,
+        "event_outcome": row.event_outcome.value if row.event_outcome else None,
+        "event_category": row.event_category.value if row.event_category else None,
+        "session_id": str(row.session_id) if row.session_id else None,
     }
 
 
@@ -857,6 +941,10 @@ def _parse_uuid(value: str, detail: str) -> uuid.UUID:
         ) from exc
 
 
+def _audit_session_id(request: Request) -> uuid.UUID | None:
+    return getattr(request.state, "audit_session_id", None)
+
+
 def _record_user_audit_safely(
     db: DbSession,
     *,
@@ -879,6 +967,7 @@ def _record_user_audit_safely(
             payload=payload,
             ip=_request_ip(request),
             ua=_request_ua(request),
+            session_id=_audit_session_id(request),
         )
     except AuditLogError:
         return
@@ -906,6 +995,7 @@ def _record_user_audit_required(
             payload=payload,
             ip=_request_ip(request),
             ua=_request_ua(request),
+            session_id=_audit_session_id(request),
         )
     except AuditLogError as exc:
         raise ProblemDetail(
@@ -1869,15 +1959,16 @@ def manage_camera_acl(
 
     target_user = get_or_create_user(db, email=body.user_email, idp_subject=None)
 
+    had_access_before = db.execute(
+        select(CameraAcl).where(
+            CameraAcl.user_id == str(target_user.id),
+            CameraAcl.camera_id == str(cam_uuid),
+            CameraAcl.revoked_at.is_(None),
+        )
+    ).scalar_one_or_none() is not None
+
     if body.action == "grant":
-        existing_acl = db.execute(
-            select(CameraAcl).where(
-                CameraAcl.user_id == str(target_user.id),
-                CameraAcl.camera_id == str(cam_uuid),
-                CameraAcl.revoked_at.is_(None),
-            )
-        ).scalar_one_or_none()
-        if existing_acl is not None:
+        if had_access_before:
             raise ProblemDetail(
                 status=409,
                 title="Conflict",
@@ -1887,6 +1978,13 @@ def manage_camera_acl(
         acl = CameraAcl(user_id=target_user.id, camera_id=cam_uuid, granted_at=datetime.now(timezone.utc))
         db.add(acl)
     else:
+        if not had_access_before:
+            raise ProblemDetail(
+                status=404,
+                title="Not Found",
+                detail="acl-not-found",
+                type_uri="https://panoptix.local/problems/not-found",
+            )
         existing_acl = db.execute(
             select(CameraAcl).where(
                 CameraAcl.user_id == str(target_user.id),
@@ -1894,14 +1992,8 @@ def manage_camera_acl(
                 CameraAcl.revoked_at.is_(None),
             )
         ).scalar_one_or_none()
-        if existing_acl is None:
-            raise ProblemDetail(
-                status=404,
-                title="Not Found",
-                detail="acl-not-found",
-                type_uri="https://panoptix.local/problems/not-found",
-            )
-        existing_acl.revoked_at = datetime.now(timezone.utc)
+        if existing_acl is not None:
+            existing_acl.revoked_at = datetime.now(timezone.utc)
 
     actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
     _record_user_audit_required(
@@ -1911,7 +2003,13 @@ def manage_camera_acl(
         actor_id=actor.id,
         action=f"camera.acl.{body.action}",
         resource=f"camera:{cam_uuid}",
-        payload={"camera_id": str(cam_uuid), "user_email": body.user_email, "action": body.action},
+        payload={
+            "camera_id": str(cam_uuid),
+            "user_email": body.user_email,
+            "action": body.action,
+            "had_access_before": had_access_before,
+            "has_access_after": body.action == "grant",
+        },
     )
     db.commit()
 

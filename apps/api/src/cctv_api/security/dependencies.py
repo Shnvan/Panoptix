@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session as DbSession
 from cctv_api.api.errors import ProblemDetail
 from cctv_api.core.config import Settings, get_settings
 from cctv_api.db import db_session
+from cctv_api.models.enums import ActorType
+from cctv_api.security.audit import AuditLogError, record_audit_event
 from cctv_api.security.cloudflare_access import AccessVerificationError, CloudflareAccessVerifier
 from cctv_api.security.csrf import (
     CSRF_COOKIE_NAME,
@@ -49,6 +51,12 @@ def require_authenticated_user(
     try:
         principal = verifier.verify_browser_request(request)
     except AccessVerificationError as exc:
+        action = (
+            "auth.login.denied.jwt_missing"
+            if exc.detail == "cf-access-token-required"
+            else "auth.login.denied.jwt_invalid"
+        )
+        _record_auth_audit_safely(db, settings=settings, request=request, action=action, detail=exc.detail)
         raise _auth_problem(exc.detail) from exc
 
     if principal.is_dev:
@@ -64,6 +72,11 @@ def require_authenticated_user(
 
     if session_row is None:
         if _csrf_required(request):
+            _record_auth_audit_safely(
+                db, settings=settings, request=request,
+                action="auth.csrf.denied", detail="csrf-token-required",
+                actor_id=user.id,
+            )
             raise _auth_problem("csrf-token-required", status=403)
         ip = request.client.host if request.client else None
         ua = request.headers.get("user-agent", "")[:255]
@@ -77,6 +90,11 @@ def require_authenticated_user(
             samesite="lax",
             path="/",
         )
+        _record_auth_audit_safely(
+            db, settings=settings, request=request,
+            action="auth.session.created", detail=None,
+            actor_id=user.id, session_id=session_row.id,
+        )
     else:
         # ── Session TTL enforcement (§16.4) ──
         expiry_reason = is_session_expired(
@@ -85,14 +103,20 @@ def require_authenticated_user(
             absolute_timeout_seconds=settings.SESSION_ABSOLUTE_TIMEOUT_SECONDS,
         )
         if expiry_reason is not None:
+            _record_auth_audit_safely(
+                db, settings=settings, request=request,
+                action="auth.session.expired", detail=expiry_reason,
+                actor_id=user.id, session_id=session_row.id,
+            )
             revoke_session(db, session_row.id)
             raise _auth_problem(expiry_reason)
 
         if _csrf_required(request):
-            _verify_request_csrf(request, session_row.id, settings)
+            _verify_request_csrf(request, session_row.id, settings, db=db, user_id=user.id)
         touch_session(db, session_row.id)
 
     _set_csrf_cookie(response, session_row.id, settings)
+    request.state.audit_session_id = session_row.id
     return Principal(
         kind=PrincipalKind.USER,
         subject=principal.subject,
@@ -112,6 +136,19 @@ def require_gateway_identity(
     try:
         return verifier.verify_gateway_request(request, db)
     except AccessVerificationError as exc:
+        _GATEWAY_AUTH_ACTION_MAP = {
+            "gateway-identity-required": "auth.gateway.denied.identity_missing",
+            "gateway-identity-invalid": "auth.gateway.denied.identity_invalid",
+            "gateway-disabled": "auth.gateway.denied.disabled",
+            "gateway-credential-invalid": "auth.gateway.denied.credential_invalid",
+            "gateway-credential-not-configured": "auth.gateway.denied.credential_invalid",
+        }
+        action = _GATEWAY_AUTH_ACTION_MAP.get(exc.detail, "auth.gateway.denied.identity_invalid")
+        _record_auth_audit_safely(
+            db, settings=settings, request=request,
+            action=action, detail=exc.detail,
+            actor_type=ActorType.gateway,
+        )
         raise _auth_problem(exc.detail, status=exc.status) from exc
 
 
@@ -142,16 +179,41 @@ def _csrf_required(request: Request) -> bool:
     }
 
 
-def _verify_request_csrf(request: Request, session_id: uuid.UUID, settings: Settings) -> None:
+def _verify_request_csrf(
+    request: Request,
+    session_id: uuid.UUID,
+    settings: Settings,
+    *,
+    db: DbSession | None = None,
+    user_id: uuid.UUID | None = None,
+) -> None:
     header_token = request.headers.get(CSRF_HEADER_NAME)
     cookie_token = request.cookies.get(CSRF_COOKIE_NAME)
     if not header_token or not cookie_token:
+        if db is not None:
+            _record_auth_audit_safely(
+                db, settings=settings, request=request,
+                action="auth.csrf.denied", detail="csrf-token-required",
+                actor_id=user_id, session_id=session_id,
+            )
         raise _auth_problem("csrf-token-required", status=403)
     if header_token != cookie_token:
+        if db is not None:
+            _record_auth_audit_safely(
+                db, settings=settings, request=request,
+                action="auth.csrf.denied", detail="csrf-token-invalid",
+                actor_id=user_id, session_id=session_id,
+            )
         raise _auth_problem("csrf-token-invalid", status=403)
     try:
         verify_csrf_token(header_token, session_id=session_id, signing_key=settings.CSRF_SIGNING_KEY)
     except CsrfTokenError as exc:
+        if db is not None:
+            _record_auth_audit_safely(
+                db, settings=settings, request=request,
+                action="auth.csrf.denied", detail=exc.detail,
+                actor_id=user_id, session_id=session_id,
+            )
         raise _auth_problem(exc.detail, status=403) from exc
 
 
@@ -168,3 +230,34 @@ def _set_csrf_cookie(response: Response, session_id: uuid.UUID, settings: Settin
         samesite="lax",
         path="/",
     )
+
+
+def _record_auth_audit_safely(
+    db: DbSession,
+    *,
+    settings: Settings,
+    request: Request,
+    action: str,
+    detail: str | None,
+    actor_id: uuid.UUID | None = None,
+    actor_type: ActorType = ActorType.user,
+    session_id: uuid.UUID | None = None,
+) -> None:
+    try:
+        ip = request.client.host if request.client else None
+        ua = request.headers.get("user-agent")
+        record_audit_event(
+            db,
+            actor_type=actor_type,
+            audit_hmac_key_version=settings.AUDIT_HMAC_KEY_VERSION,
+            audit_hmac_key=settings.AUDIT_HMAC_KEY,
+            actor_id=actor_id,
+            action=action,
+            resource=f"auth:{request.url.path}",
+            payload={"detail": detail} if detail else None,
+            ip=ip,
+            ua=ua,
+            session_id=session_id,
+        )
+    except (AuditLogError, Exception):
+        pass

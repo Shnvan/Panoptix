@@ -17,6 +17,7 @@ Navigation map for the Panoptix CCTV monitoring system documentation.
 | [Tech Stack (Superseded)](planning/tech-stack.md) | Pointer to current sources of truth; old Fly.io/Node.js content removed |
 | [Glossary](reference/glossary.md) | Domain terminology reference |
 | [Academic Manual Crosswalk](reference/academic-manual-crosswalk.md) | Maps COMP 012 lab manual concepts to Panoptix production system |
+| [System Analysis Documentation](system-analysis/README.md) | Analyst handoff set covering requirements, rules, data, screens, APIs, reports, QA, gaps, and traceability |
 | [API Reference](implementation/api-reference.md) | Frontend/backend/gateway API contract |
 | [Development Setup](implementation/development-setup.md) | Local development workflow and dev-auth constraints |
 | [Deployment Guide](implementation/deployment-guide.md) | Railway + Cloudflare same-domain routing and release gates |

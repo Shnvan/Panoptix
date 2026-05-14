@@ -3466,9 +3466,9 @@ CI run #10: ALL 8 JOBS GREEN
 Backend (`apps/api/`):
 
 ```text
-pytest: 466 passed
+pytest: 532 passed
 ruff: all checks passed
-mypy: no issues found in 41 source files
+mypy: no issues found in 44 source files
 compileall: passed
 ```
 
@@ -3479,6 +3479,55 @@ pytest: 245 passed, 2 skipped
 ruff: all checks passed
 mypy: no issues found in 22 source files
 compileall: passed
+```
+
+---
+
+## Actor Investigation Profile and Activity API
+
+The backend now exposes an admin-only actor investigation surface for security analysts:
+
+```text
+GET /api/v1/admin/actors/{actor_type}/{actor_id}/profile
+GET /api/v1/admin/actors/{actor_type}/{actor_id}/activity
+```
+
+Supported `actor_type` values are `user`, `gateway`, `system`, `break_glass`, and `service_token_monitor`. User and gateway actors require a UUID path ID and return `404 user-not-found` or `404 gateway-not-found` when the backing row does not exist. System-like actors accept either a UUID or the literal path segment `none`, which maps to audit rows where `actor_id IS NULL`.
+
+The profile endpoint aggregates only existing data:
+
+- users: identity, roles, sessions, camera ACLs, stream grants, audit activity summary, risk indicators, and containment status
+- gateways: identity, camera assignments, stream grants, audit activity summary, risk indicators, and containment status
+- system-like actors: audit activity summary and risk indicators
+- unsupported sections return top-level `null` fields for IP enrichment, device details, MFA details, threat intelligence, alerts, incidents, analyst notes, and behavior baseline
+
+The activity endpoint returns the same safe audit row shape as `GET /api/v1/admin/audit`, pre-filtered by actor. It supports `cursor`, `limit`, `action`, `severity`, `category`, `outcome`, `resource`, `session_id`, `ts_from`, and `ts_to`, using descending `AuditLog.id` cursor pagination.
+
+Both endpoints require an admin role and a configured audit HMAC key. Successful views write audit-of-audit events:
+
+- `admin.actor.profile.viewed`
+- `admin.actor.activity.viewed`
+
+Implementation files:
+
+- `apps/api/src/cctv_api/api/actor_profile.py`
+- `apps/api/src/cctv_api/security/actor_investigation.py`
+- `apps/api/tests/test_actor_profile.py`
+
+Verification:
+
+```text
+python -m pytest tests/test_actor_profile.py -q
+17 passed
+
+python -m pytest tests/ -q
+532 passed
+
+python -m ruff check src/ tests/
+All checks passed
+
+python -m mypy src/cctv_api/ --ignore-missing-imports
+Success: no issues found in 44 source files
 ```
 
 ---
@@ -3537,6 +3586,7 @@ The system now has:
 - gateway service-token verification on HTTP gateway requests
 - gateway command denial audit logging
 - signed JSON audit exports
+- actor investigation profiles and actor-scoped audit timelines
 - browser/admin CSRF protection and baseline security headers
 - disabled-by-default in-process maintenance scheduler
 - gateway control reconnect supervision

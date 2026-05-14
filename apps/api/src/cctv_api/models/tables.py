@@ -29,6 +29,9 @@ from cctv_api.models.enums import (
     CameraSourceType,
     CommandStatus,
     DpaKind,
+    EventCategory,
+    EventOutcome,
+    EventSeverity,
     EventSource,
     GatewayStatus,
     RequestType,
@@ -303,8 +306,24 @@ class AuditLog(Base):
     hash: Mapped[str] = mapped_column(String(128), nullable=False)
     hmac_key_version: Mapped[int] = mapped_column(ForeignKey("audit_hmac_keys.version"), nullable=False)
     payload: Mapped[dict | None] = mapped_column(JSONB)
+    event_severity: Mapped[EventSeverity | None] = mapped_column(
+        Enum(EventSeverity, name="event_severity")
+    )
+    event_outcome: Mapped[EventOutcome | None] = mapped_column(
+        Enum(EventOutcome, name="event_outcome")
+    )
+    event_category: Mapped[EventCategory | None] = mapped_column(
+        Enum(EventCategory, name="event_category")
+    )
+    session_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
 
-    __table_args__ = (Index("ix_audit_log_ts", "ts"),)
+    __table_args__ = (
+        Index("ix_audit_log_ts", "ts"),
+        Index("ix_audit_log_actor_id", "actor_id"),
+        Index("ix_audit_log_action", "action"),
+        Index("ix_audit_log_category_severity", "event_category", "event_severity"),
+        Index("ix_audit_log_session_id", "session_id"),
+    )
 
 
 class BreakGlassUsage(Base):

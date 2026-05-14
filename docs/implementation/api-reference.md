@@ -61,6 +61,8 @@ FastAPI remains the security authority. Browser responses must not expose RTSP U
 | `GET` | `/api/v1/admin/cameras/{camera_id}` | camera detail |
 | `POST` | `/api/v1/admin/cameras/{camera_id}/acl` | grant/revoke user camera ACL |
 | `POST` | `/api/v1/admin/cameras/{camera_id}/disable` | retire camera and remove LiveKit viewer participants |
+| `GET` | `/api/v1/admin/actors/{actor_type}/{actor_id}/profile` | composite actor investigation profile |
+| `GET` | `/api/v1/admin/actors/{actor_type}/{actor_id}/activity` | actor-scoped audit activity timeline |
 | `GET` | `/api/v1/admin/audit` | list scrubbed audit rows |
 | `GET` | `/api/v1/admin/audit/verify` | verify audit HMAC chain |
 | `GET` | `/api/v1/admin/audit/export` | export scrubbed audit JSONL |
@@ -71,6 +73,12 @@ FastAPI remains the security authority. Browser responses must not expose RTSP U
 | `POST` | `/api/v1/admin/break-glass/close` | close emergency access window and return rotation checklist |
 | `GET` | `/api/v1/admin/internal/break-glass-status` | unauthenticated monitor endpoint |
 | `GET` | `/api/v1/admin/backups/status` | stub; returns `501 backup-status-not-implemented` |
+
+Admin audit query filters:
+
+- `/api/v1/admin/audit`: `cursor`, `limit`, `action`, `actor_type`, `actor_id`, `severity`, `category`, `outcome`, `resource`, `session_id`, `ts_from`, `ts_to`.
+- `/api/v1/admin/actors/{actor_type}/{actor_id}/activity`: `cursor`, `limit`, `action`, `severity`, `category`, `outcome`, `resource`, `session_id`, `ts_from`, `ts_to`.
+- Audit timeline cursors are integer audit row IDs; next pages fetch rows with `id < cursor`.
 
 ## Gateway Routes
 
@@ -106,6 +114,63 @@ Admin dashboard:
   "publishing": { "active": 0 }
 }
 ```
+
+Actor investigation profile:
+
+```json
+{
+  "actor_type": "user",
+  "actor_id": "uuid",
+  "identity": {},
+  "roles": ["viewer"],
+  "sessions": {},
+  "camera_access": {},
+  "stream_grants": {},
+  "activity_summary": {},
+  "risk_indicators": {},
+  "containment_status": {},
+  "ip_details": null,
+  "device_details": null,
+  "mfa_details": null,
+  "threat_intelligence": null,
+  "alerts": null,
+  "incidents": null,
+  "analyst_notes": null,
+  "behavior_baseline": null
+}
+```
+
+Actor investigation activity:
+
+```json
+{
+  "items": [
+    {
+      "id": 123,
+      "ts": "2026-05-14T04:00:00Z",
+      "actor_id": "uuid",
+      "actor_type": "user",
+      "action": "viewer.token.issued",
+      "resource": "camera:uuid",
+      "payload": {},
+      "ip": "203.0.113.10",
+      "ua": "browser",
+      "event_severity": "low",
+      "event_outcome": "success",
+      "event_category": "authentication",
+      "session_id": "uuid"
+    }
+  ],
+  "next_cursor": null
+}
+```
+
+Actor notes:
+
+- `actor_type` supports `user`, `gateway`, `system`, `break_glass`, and `service_token_monitor`.
+- `user` and `gateway` require UUID actor IDs and existing backing rows.
+- System-like actors may use `none` as the path actor ID to inspect audit rows where `actor_id` is null.
+- Profile and activity reads write `admin.actor.profile.viewed` and `admin.actor.activity.viewed` audit events.
 
 Gateway command envelope:
 

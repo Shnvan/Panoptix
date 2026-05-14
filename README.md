@@ -8,7 +8,7 @@ Panoptix is a live-view CCTV monitoring system that connects IP cameras to authe
 
 | Plane | Purpose | Current implementation |
 |-------|---------|------------------------|
-| **Control plane** | Login, API, permissions, audit, gateway coordination | FastAPI backend in `apps/api/`, deployed to Railway staging behind Cloudflare Access |
+| **Control plane** | Login, API, permissions, audit, actor investigation, gateway coordination | FastAPI backend in `apps/api/`, deployed to Railway staging behind Cloudflare Access |
 | **Media plane** | Live video delivery via WebRTC SFU | LiveKit Cloud primary; fallback toggle exists, self-hosted fallback remains future operational work |
 | **Camera plane** | Physical cameras, local gateway, isolated camera network | Edge agent in `apps/cctv-edge/agent/`; real camera onboarding waits for hardware |
 

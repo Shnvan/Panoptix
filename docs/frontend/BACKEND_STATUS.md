@@ -214,11 +214,26 @@ The backend also has a disabled-by-default in-process maintenance scheduler cont
 
 | Method | Path | Request | Response |
 |---|---|---|---|
-| `GET` | `/api/v1/admin/audit` | query: `cursor`, `limit`, `action` | paginated audit rows |
+| `GET` | `/api/v1/admin/audit` | query: `cursor`, `limit`, `action`, `actor_type`, `actor_id`, `severity`, `category`, `outcome`, `resource`, `session_id`, `ts_from`, `ts_to` | paginated audit rows |
 | `GET` | `/api/v1/admin/audit/verify` | query: `start_id`, `end_id` | `{ "valid", "checked", "error" }` |
 | `GET` | `/api/v1/admin/audit/export` | query: `start_id`, `end_id` | signed JSON export: `{ "format", "manifest", "items" }` |
 
 - Audit export manifest includes row count, first/last row IDs, canonical content SHA-256, signature algorithm, signature key version, and HMAC-SHA256 signature.
+
+### Actor Investigation
+
+| Method | Path | Request | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/admin/actors/{actor_type}/{actor_id}/profile` | path actor type/id | composite actor profile |
+| `GET` | `/api/v1/admin/actors/{actor_type}/{actor_id}/activity` | query: `cursor`, `limit`, `action`, `severity`, `category`, `outcome`, `resource`, `session_id`, `ts_from`, `ts_to` | actor-scoped audit rows |
+
+- Supported `actor_type` values: `user`, `gateway`, `system`, `break_glass`, `service_token_monitor`.
+- `user` and `gateway` require UUID actor IDs and return `404 user-not-found` or `404 gateway-not-found` when missing.
+- System-like actors can use `none` as the path ID to request rows with null `actor_id`, for example `/api/v1/admin/actors/system/none/profile`.
+- Profile fields include `identity`, `roles`, `sessions`, `camera_access`, `stream_grants`, `activity_summary`, `risk_indicators`, and `containment_status`.
+- Unsupported enrichment sections are present as top-level `null` fields: `ip_details`, `device_details`, `mfa_details`, `threat_intelligence`, `alerts`, `incidents`, `analyst_notes`, and `behavior_baseline`.
+- These are admin-only read endpoints. They are not covered by the admin mutation rate limiter.
+- Successful views create audit events `admin.actor.profile.viewed` and `admin.actor.activity.viewed`.
 
 ---
 

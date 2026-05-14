@@ -12,7 +12,7 @@ from typing import Any, Iterable, Mapping
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
-from cctv_api.models.enums import ActorType
+from cctv_api.models.enums import ActorType, EventCategory, EventOutcome, EventSeverity
 from cctv_api.models.tables import AuditHmacKey, AuditLog
 
 SENSITIVE_PAYLOAD_KEY_FRAGMENTS = (
@@ -52,7 +52,20 @@ def record_audit_event(
     payload: dict[str, Any] | None = None,
     ip: str | None = None,
     ua: str | None = None,
+    event_severity: EventSeverity | None = None,
+    event_outcome: EventOutcome | None = None,
+    event_category: EventCategory | None = None,
+    session_id: uuid.UUID | None = None,
 ) -> AuditLog:
+    if event_severity is None or event_outcome is None or event_category is None:
+        from cctv_api.security.audit_events import classify_audit_event
+
+        defn = classify_audit_event(action)
+        if defn is not None:
+            event_severity = event_severity or defn.severity
+            event_outcome = event_outcome or defn.default_outcome
+            event_category = event_category or defn.category
+
     key_bytes = _validated_hmac_key(audit_hmac_key)
     scrubbed_payload = scrub_audit_payload(payload) if payload is not None else None
     try:
@@ -84,6 +97,10 @@ def record_audit_event(
             hash=audit_hash,
             hmac_key_version=audit_hmac_key_version,
             payload=scrubbed_payload,
+            event_severity=event_severity,
+            event_outcome=event_outcome,
+            event_category=event_category,
+            session_id=session_id,
         )
         _assign_sqlite_audit_id(db, audit_log)
         db.add(audit_log)

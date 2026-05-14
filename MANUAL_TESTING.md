@@ -2,6 +2,92 @@
 
 This guide helps you manually exercise the Panoptix backend API, the minimal gateway heartbeat agent, and the verification commands implemented so far.
 
+## Current Client-Visible Test Coverage
+
+There is no frontend UI yet. Current manual client testing is API-first through FastAPI Swagger UI, PowerShell/curl, and the edge-agent CLI.
+
+Use this quick order before drilling into the detailed examples below:
+
+1. Start the FastAPI backend with Uvicorn.
+2. Set local development auth headers for viewer, admin, and gateway identities.
+3. Test public health.
+4. Test browser/user endpoints.
+5. Test admin CRUD and control endpoints.
+6. Test gateway heartbeat, camera status, ingest token, and control endpoints.
+7. Test expected `501` stubs.
+8. Test audit verification and export.
+9. Test edge-agent CLI modes.
+
+### Public and platform
+
+- `GET /health` - public platform health check.
+- `GET /api/v1/admin/health/deep` - admin deep health check for DB, LiveKit, and gateway freshness.
+
+### Browser/user surfaces
+
+- `GET /api/v1/me` - current user profile, roles, and permissions.
+- `GET /api/v1/cameras` - ACL-filtered camera list.
+- `GET /api/v1/cameras/events` - SSE stream for accessible camera events.
+- `GET /api/v1/cameras/{camera_id}/view-token` - LiveKit viewer-subscribe token for an allowed active camera.
+- `GET /api/v1/privacy/notice` - current privacy notice and acceptance state.
+- `POST /api/v1/privacy/notice/accept` - accept the current privacy notice.
+- `GET /api/v1/sessions/active` - list active app sessions.
+- `POST /api/v1/sessions/revoke` - revoke an owned app session.
+
+### Admin surfaces
+
+- `GET /api/v1/admin/dashboard` - aggregate dashboard counts.
+- `GET /api/v1/admin/users` - list users.
+- `POST /api/v1/admin/users/{user_id}/role` - grant or revoke a role.
+- `POST /api/v1/admin/users/{user_id}/disable` - disable a user, revoke sessions, and remove viewer participants.
+- `POST /api/v1/admin/users/{user_id}/mfa/reset` - audit an admin-mediated MFA reset.
+- `POST /api/v1/admin/users/invite` - expected `501 idp-invite-not-implemented`.
+- `GET /api/v1/admin/gateways` - list gateways with filters and search.
+- `POST /api/v1/admin/gateways` - register a gateway and return a one-time service token.
+- `GET /api/v1/admin/gateways/{gateway_id}` - gateway detail.
+- `POST /api/v1/admin/gateways/{gateway_id}/disable` - disable a gateway and remove publisher participants.
+- `POST /api/v1/admin/gateways/{gateway_id}/rotate-credential` - rotate the gateway service token.
+- `POST /api/v1/admin/gateways/{gateway_id}/cameras` - grant or revoke gateway-camera assignment.
+- `POST /api/v1/admin/gateways/{gateway_id}/commands` - enqueue a gateway command.
+- `GET /api/v1/admin/gateways/{gateway_id}/commands` - list gateway commands.
+- `POST /api/v1/admin/gateways/{gateway_id}/commands/{command_id}/cancel` - cancel a pending command.
+- `POST /api/v1/admin/commands/cleanup` - expire stale pending commands.
+- `POST /api/v1/admin/jobs/run-maintenance` - run maintenance once.
+- `GET /api/v1/admin/cameras` - list cameras with filters and search.
+- `POST /api/v1/admin/cameras` - create a camera.
+- `GET /api/v1/admin/cameras/{camera_id}` - camera detail.
+- `POST /api/v1/admin/cameras/{camera_id}/acl` - grant or revoke user camera ACL.
+- `POST /api/v1/admin/cameras/{camera_id}/disable` - retire a camera and remove viewer participants.
+- `GET /api/v1/admin/audit` - list scrubbed audit rows.
+- `GET /api/v1/admin/audit/verify` - verify the audit HMAC chain.
+- `GET /api/v1/admin/audit/export` - export scrubbed audit JSONL.
+- `POST /api/v1/admin/livekit/fallback` - switch media plane mode between `cloud` and `fallback`.
+- `POST /api/v1/admin/dpa/export` - export DPA artifacts.
+- `POST /api/v1/admin/sites/{site_id}/signage-attest` - record bystander signage attestation.
+- `POST /api/v1/admin/break-glass/open` - open emergency access.
+- `POST /api/v1/admin/break-glass/close` - close emergency access and return rotation checklist.
+- `GET /api/v1/admin/internal/break-glass-status` - unauthenticated monitor endpoint.
+- `GET /api/v1/admin/backups/status` - expected `501 backup-status-not-implemented`.
+
+### Gateway surfaces
+
+- `POST /api/v1/gateways/{gateway_id}/heartbeat` - gateway heartbeat plus pending command fallback.
+- `POST /api/v1/gateways/{gateway_id}/cameras/{camera_id}/status` - persist gateway-reported camera status.
+- `POST /api/v1/gateways/{gateway_id}/ingest-token` - LiveKit gateway-publish token for assigned active cameras.
+- `WEBSOCKET /api/v1/gateway-control/ws` - outbound gateway control channel.
+
+### External system surfaces
+
+- `POST /api/v1/webhooks/livekit` - LiveKit webhook receiver with signed body/timestamp verification.
+
+### Edge-agent CLI surfaces
+
+- `panoptix-edge-agent --once` - send one heartbeat and exit.
+- `panoptix-edge-agent --control-once` - connect to gateway control WebSocket, read one message, and exit.
+- `panoptix-edge-agent --control-loop-once` - run one bounded reconnect loop and exit.
+- `panoptix-edge-agent --supervise` - run the edge gateway runtime supervisor.
+- `panoptix-edge-agent --smoke-ffmpeg-livekit` - run a real FFmpeg-to-LiveKit smoke test with `PANOPTIX_SMOKE_*` variables.
+
 ## 1. Assumptions
 
 - You are running commands on Windows PowerShell.
@@ -3457,6 +3543,81 @@ Notes:
 - Creates `DpaArtifact` with kind `bystander_signage_attestation`
 - Returns `201` with `artifact_id`, `kind`, `site_id`, `effective_at`
 - Audit event: `admin.signage.attest`
+
+## Actor Investigation Testing
+
+### Automated tests
+
+From `apps/api/`:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_actor_profile.py -v
+```
+
+Expected: all 17 tests pass.
+
+### Manual verification
+
+Set a local base URL and admin dev-auth headers:
+
+```powershell
+$BaseUrl = "http://127.0.0.1:8000"
+$AdminHeaders = @{
+  "x-panoptix-dev-auth" = "1"
+  "x-panoptix-dev-email" = "admin@example.test"
+  "x-panoptix-dev-subject" = "admin@example.test"
+  "x-panoptix-dev-roles" = "admin"
+}
+```
+
+Fetch a user actor profile and activity timeline:
+
+```powershell
+Invoke-RestMethod -Method GET `
+  -Uri "$BaseUrl/api/v1/admin/actors/user/<user-uuid>/profile" `
+  -Headers $AdminHeaders
+
+Invoke-RestMethod -Method GET `
+  -Uri "$BaseUrl/api/v1/admin/actors/user/<user-uuid>/activity?limit=50&severity=high" `
+  -Headers $AdminHeaders
+```
+
+Fetch a gateway actor profile and activity timeline:
+
+```powershell
+Invoke-RestMethod -Method GET `
+  -Uri "$BaseUrl/api/v1/admin/actors/gateway/<gateway-uuid>/profile" `
+  -Headers $AdminHeaders
+
+Invoke-RestMethod -Method GET `
+  -Uri "$BaseUrl/api/v1/admin/actors/gateway/<gateway-uuid>/activity?outcome=denied" `
+  -Headers $AdminHeaders
+```
+
+Fetch system and break-glass actors with null actor IDs:
+
+```powershell
+Invoke-RestMethod -Method GET `
+  -Uri "$BaseUrl/api/v1/admin/actors/system/none/profile" `
+  -Headers $AdminHeaders
+
+Invoke-RestMethod -Method GET `
+  -Uri "$BaseUrl/api/v1/admin/actors/break_glass/none/activity?limit=25" `
+  -Headers $AdminHeaders
+```
+
+Expected behavior:
+
+- All actor investigation endpoints require admin role; non-admin callers receive `403 role-required`.
+- `user` and `gateway` actors require UUID actor IDs; invalid IDs return `400 actor-id-invalid`.
+- Missing users return `404 user-not-found`; missing gateways return `404 gateway-not-found`.
+- System-like actors (`system`, `break_glass`, `service_token_monitor`) accept `none` for null `actor_id`.
+- Profile responses aggregate identity, access, sessions where applicable, stream grants, audit summary, risk indicators, and containment status.
+- Unsupported enrichment sections are top-level `null` fields.
+- Activity responses use descending audit ID cursor pagination and support filters: `action`, `severity`, `category`, `outcome`, `resource`, `session_id`, `ts_from`, and `ts_to`.
+- Successful profile views write `admin.actor.profile.viewed`.
+- Successful activity views write `admin.actor.activity.viewed`.
 
 ## Gateway Credential Rotation Testing
 

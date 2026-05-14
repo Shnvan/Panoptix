@@ -36,7 +36,7 @@ def apply_security_headers(
     # ── CSP — strict, no unsafe-inline, no unsafe-eval (§16.5) ──
     response.headers.setdefault(
         "Content-Security-Policy",
-        _content_security_policy(settings),
+        _content_security_policy(settings, path=_request_path(request)),
     )
 
     # ── HSTS preload (§16.5) ──
@@ -59,7 +59,21 @@ def apply_security_headers(
     _apply_cors_headers(response, settings, request)
 
 
-def _content_security_policy(settings: Settings) -> str:
+def _content_security_policy(settings: Settings, path: str = "") -> str:
+    if settings.APP_ENV == "development" and path == "/docs":
+        return "; ".join(
+            [
+                "default-src 'none'",
+                "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+                "img-src 'self' data: https://fastapi.tiangolo.com",
+                "connect-src 'self'",
+                "frame-ancestors 'none'",
+                "base-uri 'none'",
+                "form-action 'self'",
+            ]
+        )
+
     # Dynamic connect-src based on active LiveKit mode (§16.5, M-08)
     livekit_origin = _active_livekit_connect_src(settings)
 
