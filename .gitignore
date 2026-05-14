@@ -35,3 +35,7 @@ tmp/
 # Local AI/process instructions
 COUNCIL.md
 execute.md
+
+# Local AI assistant/process files
+CLAUDE.md
+claude.md
