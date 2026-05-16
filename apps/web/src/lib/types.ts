@@ -229,7 +229,7 @@ export interface ProblemDetail {
   type: string;
   title: string;
   status: number;
-  detail: string;
+  detail: unknown;
   instance?: string;
   trace_id?: string;
 }
@@ -291,12 +291,15 @@ export interface SignageAttestResponse {
 // ── DPA Artifacts (v4 §14.1) ──
 
 export interface DpaExportResponse {
-  format: string;
   artifacts: Array<{
+    artifact_id: string;
     kind: string;
+    path_to_r2: string | null;
     signed_hash: string;
-    effective_at: string;
+    effective_at: string | null;
+    superseded_at: string | null;
   }>;
+  count: number;
 }
 
 // ── Security Check Reports (v4 §15.1) ──
@@ -317,9 +320,9 @@ export interface SecurityFinding {
 // ── LiveKit Fallback (v4 §15.1) ──
 
 export interface LivekitFallbackResponse {
-  mode: 'cloud' | 'fallback';
+  media_plane_mode: 'cloud' | 'fallback';
+  previous_mode: 'cloud' | 'fallback';
   switched_at: string;
-  status: string;
 }
 
 // ── DSR Requests (v4 §14.1) ──

@@ -35,6 +35,14 @@ export class ApiError extends Error {
   }
 }
 
+function normalizeProblemDetail(problem: ProblemDetail | undefined, fallback: string): string {
+  const detail = problem?.detail;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) return 'Request validation failed';
+  if (detail && typeof detail === 'object') return 'Request validation failed';
+  return fallback;
+}
+
 const CSRF_PATHS = [
   '/api/v1/admin/',
   '/api/v1/privacy/notice/accept',
@@ -67,7 +75,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   if (!response.ok) {
     let problem: ProblemDetail | undefined;
     try { problem = await response.json(); } catch { /* non-JSON */ }
-    throw new ApiError(response.status, problem?.detail || response.statusText, problem);
+    throw new ApiError(response.status, normalizeProblemDetail(problem, response.statusText), problem);
   }
 
   const ct = response.headers.get('content-type') || '';
@@ -92,7 +100,8 @@ export const api = {
   getCameraViewToken: (cameraId: string) =>
     apiFetch<import('./types').ViewerTokenResponse>(`/api/v1/cameras/${cameraId}/view-token`),
 
-  subscribeCameraEvents: (since?: string): EventSource => {
+  subscribeCameraEvents: (since?: string): EventSource | null => {
+    if (import.meta.env.VITE_DEV_AUTH === 'true') return null;
     const p = new URLSearchParams();
     if (since) p.set('since', since);
     return new EventSource(`/api/v1/cameras/events${p.toString() ? '?' + p : ''}`);
@@ -253,12 +262,15 @@ export const api = {
 
   // ── Admin: DPA Export (v4 §15.1) ──
   exportDpa: () =>
-    apiFetch<import('./types').DpaExportResponse>('/api/v1/admin/dpa/export', { method: 'POST' }),
+    apiFetch<import('./types').DpaExportResponse>('/api/v1/admin/dpa/export', {
+      method: 'POST', body: JSON.stringify({}),
+    }),
 
   // ── Admin: LiveKit Fallback (v4 §15.1) ──
   toggleLivekitFallback: (mode: 'cloud' | 'fallback') =>
     apiFetch<import('./types').LivekitFallbackResponse>('/api/v1/admin/livekit/fallback', {
-      method: 'POST', body: JSON.stringify({ mode }),
+      method: 'POST',
+      body: JSON.stringify({ mode, reason: `Admin switched media plane to ${mode} from frontend` }),
     }),
 
   // ── Admin: Security Checks (v4 §15.1) ──

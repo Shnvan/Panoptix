@@ -76,6 +76,10 @@ export function useCameraEvents() {
 
   useEffect(() => {
     const es = api.subscribeCameraEvents();
+    if (es === null) {
+      sourceRef.current = null;
+      return;
+    }
     sourceRef.current = es;
 
     es.addEventListener('camera_event', (e) => {
