@@ -12,7 +12,7 @@ import { useState } from 'react';
  * - MFA reset flow (NOT READY → "In Progress")
  * - Disable user action with warning that sessions + LiveKit terminate
  *
- * Per core-functionality: No self-registration. Invite through IdP (Google Workspace).
+ * Per core-functionality: No self-registration. Users are added through the configured identity provider.
  */
 export function UsersSection() {
   const { theme } = useTheme();
@@ -56,7 +56,7 @@ export function UsersSection() {
           <p className={d ? 'text-slate-400' : 'text-slate-500'}>Manage user roles, camera access, and account status</p>
         </div>
         <p className={`text-sm ${d ? 'text-slate-400' : 'text-slate-500'}`}>
-          Users are invited through Google Workspace. No self-registration.
+          Users are added through the configured identity provider. No self-registration.
         </p>
       </div>
 
