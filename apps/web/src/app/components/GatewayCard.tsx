@@ -10,7 +10,7 @@ interface GatewayCardProps {
   lastSeen?: string;
 }
 
-export function GatewayCard({ name, status, gatewayId: _gid, commandCount = 0, lastSeen }: GatewayCardProps) {
+export function GatewayCard({ name, status, gatewayId, commandCount = 0, lastSeen }: GatewayCardProps) {
   const { theme } = useTheme();
 
   const cfg = {
@@ -43,6 +43,9 @@ export function GatewayCard({ name, status, gatewayId: _gid, commandCount = 0, l
               <div className={`w-2 h-2 rounded-full ${cfg.dot} ${status === 'enabled' ? 'animate-pulse' : ''}`} />
               <span className={`text-sm capitalize ${theme === 'dark' ? cfg.text : cfg.lightText}`}>{status}</span>
             </div>
+            <p className={`text-xs font-mono mt-1 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>
+              {gatewayId.slice(0, 8)}
+            </p>
           </div>
         </div>
       </div>

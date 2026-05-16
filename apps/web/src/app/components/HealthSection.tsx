@@ -3,17 +3,8 @@ import { motion } from 'motion/react';
 import { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '../../lib/theme';
 import { api, ApiError } from '../../lib/api';
-import type { SecurityCheckReport, DeepHealthResponse } from '../../lib/types';
+import type { DeepHealthResponse } from '../../lib/types';
 
-/**
- * System Health — v4 §15.1 + core-features §4
- *
- * Required:
- * - Deep health: DB, LiveKit, Gateway, R2
- * - Manual maintenance trigger
- * - Security check reports: T-30, T-45, T-56
- * - LiveKit fallback toggle (SuperAdmin only)
- */
 export function HealthSection() {
   const { theme } = useTheme();
   const d = theme === 'dark';
@@ -23,14 +14,6 @@ export function HealthSection() {
   const [maintenanceResult, setMaintenanceResult] = useState<string | null>(null);
   const [runningMaintenance, setRunningMaintenance] = useState(false);
   const [msg, setMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-
-  // Security checks
-  const [exposureCheck, setExposureCheck] = useState<SecurityCheckReport | null>(null);
-  const [mediaCheck, setMediaCheck] = useState<SecurityCheckReport | null>(null);
-  const [originCheck, setOriginCheck] = useState<SecurityCheckReport | null>(null);
-  const [checksLoading, setChecksLoading] = useState(true);
-
-  // LiveKit fallback
   const [livekitMode, setLivekitMode] = useState<'cloud' | 'fallback'>('cloud');
   const [switchingMode, setSwitchingMode] = useState(false);
 
@@ -40,22 +23,10 @@ export function HealthSection() {
   };
 
   useEffect(() => {
-    // Load deep health
     api.getDeepHealth()
       .then(h => setHealth(h))
       .catch(() => setHealth(null))
       .finally(() => setHealthLoading(false));
-
-    // Load security checks
-    Promise.allSettled([
-      api.getExposureCheck(),
-      api.getMediaIsolationCheck(),
-      api.getOriginBindingCheck(),
-    ]).then(([exp, media, origin]) => {
-      if (exp.status === 'fulfilled') setExposureCheck(exp.value);
-      if (media.status === 'fulfilled') setMediaCheck(media.value);
-      if (origin.status === 'fulfilled') setOriginCheck(origin.value);
-    }).finally(() => setChecksLoading(false));
   }, []);
 
   const handleMaintenance = useCallback(async () => {
@@ -95,47 +66,15 @@ export function HealthSection() {
     return 'bg-red-500/10 border-red-500/20';
   };
 
-  const renderSecurityCheck = (title: string, IconComp: typeof Shield, check: SecurityCheckReport | null, isLoading: boolean) => (
+  const renderSecurityCheck = (title: string, IconComp: typeof Shield) => (
     <div className={`backdrop-blur-xl border rounded-xl p-5 ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
       <div className="flex items-center gap-3 mb-3">
-        <IconComp className={`w-5 h-5 ${check?.status === 'pass' ? 'text-emerald-400' : check ? 'text-amber-400' : 'text-slate-400'}`} />
+        <IconComp className="w-5 h-5 text-slate-400" />
         <h4 className={`font-semibold ${d ? 'text-white' : 'text-slate-900'}`}>{title}</h4>
       </div>
-      {isLoading ? (
-        <p className="text-sm text-slate-400">Loading...</p>
-      ) : check ? (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            {statusIcon(check.status)}
-            <span className={`text-sm font-medium ${check.status === 'pass' ? 'text-emerald-400' : 'text-amber-400'}`}>
-              {check.status.toUpperCase()}
-            </span>
-            {check.last_run_at && (
-              <span className={`text-xs ${d ? 'text-slate-500' : 'text-slate-400'}`}>
-                · Last run: {new Date(check.last_run_at).toLocaleString()}
-              </span>
-            )}
-          </div>
-          {check.findings.length > 0 && (
-            <div className="space-y-1 mt-2">
-              {check.findings.map((f) => (
-                <div key={f.id} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs ${
-                  f.severity === 'critical' ? 'bg-red-500/10 text-red-400' :
-                  f.severity === 'warning' ? 'bg-amber-500/10 text-amber-400' :
-                  'bg-slate-500/10 text-slate-400'
-                }`}>
-                  <span className="font-semibold">[{f.severity.toUpperCase()}]</span>
-                  <span>{f.detail}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : (
-        <p className={`text-sm ${d ? 'text-slate-500' : 'text-slate-400'}`}>
-          Check not available — endpoint may not be configured yet
-        </p>
-      )}
+      <p className={`text-sm ${d ? 'text-slate-500' : 'text-slate-400'}`}>
+        Planned pilot check. Backend endpoint is not implemented in the current branch.
+      </p>
     </div>
   );
 
@@ -143,10 +82,9 @@ export function HealthSection() {
     <div className="space-y-6">
       <div>
         <h2 className={`text-2xl font-bold mb-1 ${d ? 'text-white' : 'text-slate-900'}`}>System Health</h2>
-        <p className={d ? 'text-slate-400' : 'text-slate-500'}>Deep health monitoring, security checks, and maintenance controls</p>
+        <p className={d ? 'text-slate-400' : 'text-slate-500'}>Deep health monitoring and maintenance controls</p>
       </div>
 
-      {/* Status messages */}
       {msg && (
         <div className={`p-3 rounded-xl text-sm flex items-center gap-2 ${
           msg.type === 'error' ? 'bg-red-500/10 border border-red-500/20 text-red-400' : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
@@ -156,7 +94,6 @@ export function HealthSection() {
         </div>
       )}
 
-      {/* Deep Health Status */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
         className={`backdrop-blur-xl border rounded-xl p-6 ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
         <div className="flex items-center gap-3 mb-6">
@@ -165,7 +102,7 @@ export function HealthSection() {
           </div>
           <div>
             <h3 className={`font-semibold ${d ? 'text-white' : 'text-slate-900'}`}>Deep Health Check</h3>
-            <p className={`text-sm ${d ? 'text-slate-400' : 'text-slate-500'}`}>DB · LiveKit · Gateway · R2 reachability</p>
+            <p className={`text-sm ${d ? 'text-slate-400' : 'text-slate-500'}`}>DB, LiveKit, and gateway reachability</p>
           </div>
         </div>
 
@@ -203,19 +140,17 @@ export function HealthSection() {
         )}
       </motion.div>
 
-      {/* Security Check Reports — v4 §15.1 */}
       <div>
         <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${d ? 'text-white' : 'text-slate-900'}`}>
           <Shield className="w-5 h-5 text-cyan-500" /> Security Check Reports
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {renderSecurityCheck('T-30: Exposure Check', Globe, exposureCheck, checksLoading)}
-          {renderSecurityCheck('T-45: Media Isolation', Radio, mediaCheck, checksLoading)}
-          {renderSecurityCheck('T-56: Origin Binding', Lock, originCheck, checksLoading)}
+          {renderSecurityCheck('T-30: Exposure Check', Globe)}
+          {renderSecurityCheck('T-45: Media Isolation', Radio)}
+          {renderSecurityCheck('T-56: Origin Binding', Lock)}
         </div>
       </div>
 
-      {/* LiveKit Fallback Toggle — v4 §15.1, SuperAdmin only */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
         className={`backdrop-blur-xl border rounded-xl p-6 ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
         <div className="flex items-center justify-between">
@@ -231,7 +166,7 @@ export function HealthSection() {
                 </span>
               </p>
               <p className={`text-xs mt-1 ${d ? 'text-slate-500' : 'text-slate-400'}`}>
-                SuperAdmin only. Switches dynamic CSP connect-src on next request. No redeploy needed.
+                Admin only. Switches dynamic CSP connect-src on next request. No redeploy needed.
               </p>
             </div>
           </div>
@@ -246,7 +181,6 @@ export function HealthSection() {
         </div>
       </motion.div>
 
-      {/* Maintenance Controls */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
         className={`backdrop-blur-xl border rounded-xl p-6 ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
         <div className="flex items-center justify-between">

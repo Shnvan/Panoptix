@@ -38,15 +38,16 @@ export function AuditLogTable() {
     setTimeout(() => setMsg(null), 5000);
   };
 
-  // Load sites when compliance tab shown
   useEffect(() => {
     if (tab === 'compliance') {
       setSitesLoading(true);
-      api.listSites().then(r => setSites(r.items)).catch(() => setSites([])).finally(() => setSitesLoading(false));
+      setSites([]);
+      setSitesLoading(false);
     }
     if (tab === 'dsr') {
       setDsrLoading(true);
-      api.listDsrRequests().then(r => setDsrRequests(r.items)).catch(() => setDsrRequests([])).finally(() => setDsrLoading(false));
+      setDsrRequests([]);
+      setDsrLoading(false);
     }
   }, [tab]);
 
@@ -95,8 +96,6 @@ export function AuditLogTable() {
     try {
       await api.attestSignage(siteId);
       showMsg(`Signage attestation recorded for "${siteName}"`, 'success');
-      const r = await api.listSites();
-      setSites(r.items);
     } catch (err) {
       showMsg(err instanceof ApiError ? err.detail : 'Signage attestation failed', 'error');
     }
@@ -280,7 +279,7 @@ export function AuditLogTable() {
             ) : sites.length === 0 ? (
               <div className={`text-center py-8 rounded-xl ${d ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
                 <MapPin className={`w-10 h-10 mx-auto mb-2 ${d ? 'text-slate-600' : 'text-slate-300'}`} />
-                <p className={d ? 'text-slate-400' : 'text-slate-500'}>No sites registered yet</p>
+                <p className={d ? 'text-slate-400' : 'text-slate-500'}>Site listing is not wired to the backend yet</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -337,7 +336,7 @@ export function AuditLogTable() {
                 {dsrLoading ? (
                   <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400">Loading DSR requests...</td></tr>
                 ) : dsrRequests.length === 0 ? (
-                  <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400">No DSR requests found</td></tr>
+                  <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-400">DSR request listing is not wired to the backend yet</td></tr>
                 ) : dsrRequests.map(dsr => (
                   <tr key={dsr.id} className={`transition-colors ${d ? 'hover:bg-slate-800/30' : 'hover:bg-slate-50'}`}>
                     <td className={`px-6 py-4 text-sm ${d ? 'text-slate-300' : 'text-slate-600'}`}>{new Date(dsr.received_at).toLocaleDateString()}</td>

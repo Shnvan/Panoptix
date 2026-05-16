@@ -92,9 +92,9 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
                   transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
                 />
               </div>
-              <div className="absolute top-4 left-4 flex items-center gap-2 bg-red-500/90 backdrop-blur-sm px-3 py-1.5 rounded-lg">
-                <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                <span className="text-xs font-bold text-white">LIVE</span>
+              <div className="absolute top-4 left-4 flex items-center gap-2 bg-amber-500/90 backdrop-blur-sm px-3 py-1.5 rounded-lg">
+                <div className="w-2 h-2 rounded-full bg-white" />
+                <span className="text-xs font-bold text-white">PLAYER PENDING</span>
               </div>
               <div className="absolute bottom-4 left-4 bg-black/70 backdrop-blur-sm px-3 py-1.5 rounded-lg font-mono text-xs text-white">
                 {new Date().toLocaleString('en-US', { hour12: false })}
@@ -110,7 +110,7 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
               >
                 <RefreshCw className={`w-4 h-4 ${tokenStatus === 'loading' ? 'animate-spin' : ''}`} />
                 <span className="text-sm font-medium">
-                  {tokenStatus === 'loading' ? 'Requesting...' : tokenStatus === 'ready' ? 'Token Ready' : 'Request Stream'}
+                  {tokenStatus === 'loading' ? 'Requesting...' : tokenStatus === 'ready' ? 'Token Ready' : 'Request Stream Token'}
                 </span>
               </button>
               <button className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 border rounded-xl transition-colors ${
@@ -140,11 +140,10 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
               </h3>
               <div className="space-y-2">
                 {[
-                  ['Status', tokenStatus === 'ready' ? 'Connected' : 'Awaiting'],
+                  ['Status', tokenStatus === 'ready' ? 'Token ready' : 'Awaiting token'],
                   ['Source', camera.source_type || 'RTSP'],
                   ['Room', camera.livekit_room_name],
-                  ['Resolution', '1920×1080'],
-                  ['FPS', '30'],
+                  ['Playback', 'LiveKit player not wired yet'],
                 ].map(([label, val]) => (
                   <div key={label} className="flex justify-between text-sm">
                     <span className={theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}>{label}</span>
@@ -152,6 +151,12 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
                   </div>
                 ))}
               </div>
+            </div>
+
+            <div className={`border rounded-xl p-4 text-sm ${
+              theme === 'dark' ? 'bg-amber-500/10 border-amber-500/20 text-amber-200' : 'bg-amber-50 border-amber-200 text-amber-800'
+            }`}>
+              This frontend can request a short-lived viewer token, but browser LiveKit playback is still pending integration.
             </div>
 
             <div className={`border rounded-xl p-4 space-y-3 ${

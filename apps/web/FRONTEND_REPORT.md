@@ -25,7 +25,7 @@
 
 ## 1. Architecture Overview
 
-The frontend is a **viewer-only** administrative dashboard. It does not publish media, store credentials, or make authorization decisions — all security logic is handled by the backend (`cctv-api`).
+The frontend is a viewer and admin dashboard shell. It does not publish media, store credentials, or make authorization decisions — all security logic is handled by the backend (`cctv-api`).
 
 ```
 Browser (cctv-web)
@@ -83,7 +83,7 @@ apps/web/
 │   │       ├── GatewaysSection.tsx    # Gateway CRUD + commands
 │   │       ├── Header.tsx            # Top bar with search + alerts
 │   │       ├── HealthSection.tsx     # Deep health + security checks
-│   │       ├── LoginPage.tsx         # SSO login (Google Workspace)
+│   │       ├── LoginPage.tsx         # Cloudflare Access login shell
 │   │       ├── PrivacyNoticeModal.tsx # Privacy notice acceptance gate
 │   │       ├── SettingsSection.tsx   # Profile + sessions + login history
 │   │       ├── Sidebar.tsx           # Navigation sidebar
@@ -138,7 +138,7 @@ apps/web/
 - Same camera grid as Dashboard but without stat cards
 - Layout selector: 1×1 / 2×1 / 2×2
 - Camera tiles show 7 states: loading, online, offline, reconnecting, unavailable, gateway_unavailable, permission_denied
-- Click to expand into detail modal with LiveKit viewer token
+- Click to expand into detail modal with LiveKit viewer token request
 
 #### Camera Management (Admin)
 - **Register Camera** form: display name, source type (5 CCTV-only types), LiveKit room name
@@ -170,7 +170,7 @@ Three tabs:
 |-----|----------|
 | **Audit Logs** | Event timeline, search (actor/action/resource/IP), action filter dropdown (15 actions), risk level badges (HIGH/MEDIUM/LOW), HMAC chain verification, signed JSONL export, cursor pagination |
 | **Compliance & DPA** | DPA artefact bundle export, bystander signage attestation per site, sites list with attestation status |
-| **DSR Ledger** | Data Subject Request table (received, due, type, subject, contact, status, outcome), supports all DSR types: access, correction, deletion, objection, restriction |
+| **DSR Ledger** | Planned DSR request table. The backend listing endpoint is not implemented in the current backend branch. |
 
 #### Alerts (Admin)
 - Camera event notifications derived from SSE events
@@ -353,11 +353,11 @@ Cross-referenced against `docs/frontend/frontend-guardrails.md`:
 
 | Feature | Present | Component |
 |---------|---------|-----------|
-| Live camera viewing | ✅ | `CameraCard` + `CameraDetailModal` |
+| Live camera viewing | Partial | `CameraCard` + `CameraDetailModal`; viewer-token request exists, browser LiveKit playback is not wired yet |
 | Camera grid layouts (1×1, 2×1, 2×2) | ✅ | `App.tsx` layout selector |
 | Fullscreen camera view | ✅ | `CameraDetailModal` |
 | Camera status indicators (7 states) | ✅ | `CameraTileStatus` type |
-| Google Workspace SSO login | ✅ | `LoginPage` (SSO only) |
+| Cloudflare Access login | ✅ | `LoginPage` shell; identity provider is configured in Cloudflare Access |
 | Role-based access control | ✅ | `isAdmin` gating |
 | Per-camera ACL management | ✅ | `CamerasManageSection` |
 | Camera registration | ✅ | `CamerasManageSection` |
@@ -385,7 +385,7 @@ Cross-referenced against `docs/frontend/frontend-guardrails.md`:
 | Rotation checklist on close | §16.6 | ✅ | `BreakGlassSection` |
 | CCTV-only source type enum | §14.4 | ✅ | `CameraSourceType` |
 | DPA artefact export | §14.1 | ✅ | `AuditLogTable` Compliance tab |
-| DSR request ledger | §14.1 | ✅ | `AuditLogTable` DSR tab |
+| DSR request ledger | §14.1 | Planned | UI placeholder only; backend listing endpoint is not implemented in the current branch |
 | Gateway credential rotation | §15.1 | ✅ | `GatewaysSection` |
 | Gateway command queue | §15.1 | ✅ | `GatewaysSection` |
 
@@ -423,9 +423,9 @@ The frontend **requires a running backend** (`cctv-api` on port 8000) for all da
 |---------|----------|--------|
 | MFA Reset | `POST /admin/users/:id/mfa/reset` | Endpoint in API reference but backend not implemented |
 | DPA Export | `POST /admin/dpa/export` | API-ready, backend may not be live |
-| Signage Attestation | `POST /admin/sites/:id/signage-attest` | API-ready, backend may not be live |
+| Signage Attestation | `POST /admin/sites/:id/signage-attest` | Attestation endpoint exists, but site listing is not wired in this frontend integration branch |
 | Break-Glass Open/Close | `POST /admin/break-glass/open|close` | API-ready, backend may not be live |
-| Security Checks | `GET /admin/exposure-check` etc. | API-ready, backend may not be live |
+| Security Checks | `GET /admin/exposure-check` etc. | Planned only; backend endpoints are not implemented in the current branch |
 
 ### Accessibility
 
