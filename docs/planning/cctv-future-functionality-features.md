@@ -112,6 +112,24 @@ Ideas to strengthen security or simplify compliance workflows.
 | IP allowlist for admin actions | Medium | Backend | Restrict sensitive admin endpoints to specific trusted IP ranges. |
 | Secret rotation dashboard | Medium | Frontend + Backend | Track rotation status of all secrets (gateway tokens, HMAC keys, API keys). |
 
+### Actor Investigation Pilot Enhancements
+
+The backend actor profile and activity APIs are implemented for current audit/session/camera/gateway data. Unsupported actor profile sections intentionally return `null` until pilot data sources, database models, and privacy/security review exist.
+
+| Enhancement | Status | Notes |
+|---|---|---|
+| IP enrichment | Pilot | Add geolocation, IP reputation, VPN/Tor flags, and source-risk context for actor profiles. |
+| Device details | Pilot | Add stronger browser/device fingerprinting or Cloudflare device signals beyond raw user-agent strings. |
+| MFA details | Pilot | Ingest Cloudflare Access logs for MFA method, bypass, recovery, and denied MFA visibility. |
+| Threat intelligence | Pilot | Enrich actor activity with approved threat feeds such as abuse.ch or an equivalent source. |
+| Alerts and detections | Pilot | Add detection rules for suspicious actor behavior and create alert records from audit patterns. |
+| Incident tracking | Pilot | Add an incident model linked to actor profiles, audit rows, and containment actions. |
+| Analyst notes | Pilot | Allow authorized admins/security analysts to attach notes to actor profiles and investigation timelines. |
+| Behavior baseline | Pilot | Compute normal-vs-unusual actor behavior from historical audit/session/stream activity. |
+| Persistence and defense-evasion indicators | Pilot | Derive indicators from audit events, service tokens, gateway credentials, break-glass usage, role changes, and policy changes. |
+
+Not applicable for the CCTV pilot unless a future ADR changes scope: email collaboration activity, endpoint/EDR telemetry, broad network monitoring, cloud IAM activity, and business transaction activity.
+
 ---
 
 ## 5. Gateway and Camera Ideas

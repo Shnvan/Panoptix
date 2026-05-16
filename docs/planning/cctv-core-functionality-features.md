@@ -237,6 +237,10 @@ The system is designed to comply with Philippine data privacy law (RA 10173 / NP
 | NVR integration (nvr_rtsp source type) | Planned |
 | Suspicious login detection | Planned |
 | Device posture enforcement for admins (WARP) | Included from MVP |
+| Actor profile enrichment | Planned |
+| Detection and incident workflow | Planned |
+| Analyst notes and investigation timeline | Planned |
+| Behavior baseline and actor risk scoring | Planned |
 
 ### Future (later phases)
 
