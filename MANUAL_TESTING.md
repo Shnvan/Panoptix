@@ -523,11 +523,11 @@ Expected response shape:
 
 Current fallback behavior:
 
-- by default, `pending_commands` remains empty
-- local test scaffolding can attach an in-memory command provider to return signed pending commands
+- when `DATABASE_URL` is configured, the app factory wires the persistent command provider
+- `pending_commands` includes pending, unexpired commands for the authenticated gateway
 - signing failures fail closed instead of returning unsigned commands
-- no public enqueue API exists yet
-- no pending command is executed by the edge agent yet
+- admins can enqueue commands with `POST /api/v1/admin/gateways/{gateway_id}/commands`
+- the edge agent can execute verified `start_publish` / `stop_publish` commands through its configured media controller
 
 ### Gateway ID mismatch test
 
@@ -652,8 +652,7 @@ Expected response:
 }
 ```
 
-This endpoint does not send real camera/media commands yet. Persistent command queues and full production reconnect behavior remain future work.
-By default, a manually started backend still sends only this hello message unless local test code attaches an in-memory command provider hook.
+When `DATABASE_URL` is configured and migrations are current, this endpoint dispatches persistent queued commands from `gateway_command_queue` and records ACK/reject status through the DB-backed ACK sink. A manually started backend sends only the hello message when there are no pending commands for the gateway.
 
 Edge-agent one-shot gateway control check from `apps/cctv-edge/agent`:
 
@@ -705,14 +704,14 @@ Current behavior:
 - the backend sends the connected hello message
 - the agent verifies that the hello message targets its configured gateway ID
 - command envelope parsing and signature verification exist in the agent
-- if the backend sends a test-scaffolded signed command, the agent sends a `command_ack` with `status: accepted`
+- if the backend sends a signed queued command, the agent executes it through the configured media controller and sends a `command_ack`
 - if the backend sends an invalid, unsigned, tampered, expired, or wrong-gateway command, the agent sends a `command_ack` with `status: rejected` and an error code
 - `--control-loop-once` retries temporary connection/run failures using the configured bounded attempts and backoff
 - malformed control messages still fail closed and are not retried
-- no public command enqueue API exists yet
-- no real commands are executed yet
+- persistent command queue dispatch is active when `DATABASE_URL` is configured and migrations are current
+- `start_publish` and `stop_publish` execute through the configured media controller; keep the default `stub` mode unless deliberately running a media smoke
 
-The dispatch and ACK loop is intentionally in-memory/test-scaffolded. Use the automated tests to exercise it locally:
+Use the automated tests to exercise the dispatch and ACK loop locally:
 
 ```powershell
 Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
@@ -746,6 +745,52 @@ Rejected ACKs use:
   "error": "gateway-command-signature-invalid"
 }
 ```
+
+### Backend-controlled synthetic publish smoke
+
+This smoke verifies the full backend-to-edge command path without real CCTV hardware:
+
+1. backend API runs locally with DB, LiveKit Cloud, audit, and gateway command signing settings
+2. `mediamtx` runs from `apps/cctv-edge/mediamtx/mediamtx.local.yml`
+3. FFmpeg publishes a synthetic RTSP source to `rtsp://127.0.0.1:8554/synthetic-camera-1`
+4. admin API creates a gateway, synthetic camera, and active gateway-camera assignment
+5. gateway ingest-token endpoint mints a short-lived gateway-publish token
+6. admin API enqueues `gateway.command.start_publish`
+7. edge agent runs one gateway-control pass in `livekit-ffmpeg` mode
+8. admin command listing shows `status=accepted`, `acked_at` populated, and empty `error`
+
+Schema prerequisite:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:MIGRATION_DATABASE_URL = $env:DATABASE_URL
+python -m alembic upgrade head
+python -m alembic current
+```
+
+Expected migration head:
+
+```text
+0007_gateway_command_tables
+```
+
+Start synthetic RTSP source:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix
+mediamtx apps\cctv-edge\mediamtx\mediamtx.local.yml
+```
+
+In another terminal:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix
+ffmpeg -re -f lavfi -i "testsrc=size=640x480:rate=15" -c:v libx264 -pix_fmt yuv420p -preset veryfast -tune zerolatency -f rtsp rtsp://127.0.0.1:8554/synthetic-camera-1
+```
+
+Run the edge agent command receiver immediately after minting a fresh ingest token and enqueueing `gateway.command.start_publish`; gateway publish tokens expire quickly. A LiveKit `invalid token` rejection usually means the token expired or the backend is using the wrong LiveKit key/secret for the target LiveKit project. Re-mint a fresh ingest token and enqueue a fresh command before retrying.
+
+Never commit LiveKit API keys, generated JWTs, gateway service tokens, or screenshots containing secrets.
 
 ## 8. Minimal Edge Heartbeat Agent
 
@@ -1317,10 +1362,10 @@ $env:PANOPTIX_GATEWAY_COMMAND_SIGNING_KEY = "local-dev-command-signing-key-chang
 Notes:
 
 - The backend signs canonical JSON excluding the `signature` field.
-- The edge agent verifies HMAC-SHA-256 signatures before future command execution.
+- The edge agent verifies HMAC-SHA-256 signatures before command execution.
 - Tampered, expired, wrong-gateway, or unsigned commands fail closed.
-- The WebSocket can send local test-scaffolded signed commands and receive ACK/reject responses.
-- There is no persistent command queue and no real camera/media command execution yet.
+- The WebSocket can send persistent queued commands and receive ACK/reject responses.
+- The synthetic RTSP backend-command smoke proves `gateway.command.start_publish` execution without real CCTV hardware.
 - Do not use real production signing keys in local shell history.
 
 ## 14. Database Validation
@@ -1556,7 +1601,7 @@ Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
 python -m pip install -e ".[livekit]"
 ```
 
-This install is not required for automated tests. The current media bridge and synthetic FFmpeg-to-LiveKit smoke use fake SDK objects and fake FFmpeg processes; real LiveKit Cloud smoke testing, WHIP/RTMP, and LiveKit Ingress remain separate future work.
+This install is not required for automated tests. Fake SDK objects and fake FFmpeg processes are used by unit tests, while manual smoke tests can opt into real LiveKit Cloud and synthetic RTSP. WHIP/RTMP and LiveKit Ingress remain separate future work.
 
 Synthetic end-to-end publish dry-run check:
 

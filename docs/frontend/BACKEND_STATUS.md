@@ -352,8 +352,8 @@ Do not build against or depend on these:
 
 | Feature | Status |
 |---|---|
-| Real LiveKit Cloud video playback | LiveKit Cloud account provisioned (APAC), staging deep health returns `livekit: connected`. Real streams blocked on camera hardware |
-| Real camera streams | Edge agent has stub media controller only; real FFmpeg/LiveKit publishing requires `livekit-ffmpeg` mode and real camera hardware |
+| Real LiveKit Cloud video playback | LiveKit Cloud account provisioned (APAC); direct synthetic FFmpeg-to-LiveKit and backend-controlled synthetic gateway publish smoke passed. Frontend still needs subscriber playback UI. |
+| Real camera streams | Edge agent supports opt-in `livekit-ffmpeg` publishing and synthetic RTSP smoke has passed. Real CCTV hardware validation is still pending. |
 | Full admin user management | role update, disable, MFA reset implemented. IdP invite flow not implemented. |
 | Gateway credential rotation | `POST /api/v1/admin/gateways/{id}/rotate-credential` is **implemented** (generates new service token, revokes old hash, audit-logged) |
 | DPA/signage export | `POST /api/v1/admin/dpa/export` and `POST /api/v1/admin/sites/:id/signage-attest` are **implemented** (JSONL bundle with kind filter, audit-logged) |

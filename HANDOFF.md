@@ -118,7 +118,7 @@ Location: `apps/media-fallback/` and docs
 Current state:
 
 - LiveKit token minting exists in backend tests/source
-- actual LiveKit Cloud account setup is not required yet
+- LiveKit Cloud account is provisioned and synthetic publish smoke has passed
 - fallback LiveKit app remains placeholder
 
 ### Frontend
@@ -139,7 +139,8 @@ Current state:
 
 - Alembic migrations exist
 - SQLAlchemy models exist
-- command queue model exists (`GatewayCommandQueue`) but Alembic migration is DB coworker responsibility
+- command queue model and migration exist (`GatewayCommandQueue`, `0007_gateway_command_tables`)
+- camera publish-state model and migration exist (`CameraPublishState`, `0007_gateway_command_tables`)
 - DB coworker ownership is documented, but backend tests use database helpers where needed
 
 ## Recently Completed Milestones
@@ -558,6 +559,32 @@ Not included:
 - API key, API secret, generated JWT, or credential material in committed files
 - Production deployment readiness
 - Making FFmpeg-backed publishing the default edge-agent runtime path
+
+### Backend-Controlled Gateway Publish Smoke
+
+Completed in this milestone.
+
+Result:
+
+- Added Alembic migration `0007_gateway_command_tables` for `gateway_command_queue` and `camera_publish_states`
+- Applied the migration on the active database and verified both tables exist
+- Ran backend-controlled synthetic RTSP publish through the real control flow:
+  - admin registered gateway and camera
+  - gateway-camera assignment was active
+  - gateway ingest token was minted by the backend
+  - admin enqueued `gateway.command.start_publish`
+  - edge agent received the command over gateway control WebSocket
+  - edge agent published to LiveKit Cloud with `PANOPTIX_MEDIA_PUBLISHER_MODE=livekit-ffmpeg`
+  - edge agent ACKed the command back to the backend
+- Latest command verification: `status=accepted`, `acked_at` present, `error` empty
+- Edge one-shot result included `accepted_commands=1`, `rejected_commands=0`
+- A prior command rejected with LiveKit `invalid token`; re-minting a fresh short-lived ingest token and command resolved it
+
+Not included:
+
+- Real CCTV hardware validation
+- Browser/frontend LiveKit subscriber playback
+- Committed LiveKit API keys, API secrets, generated JWTs, or gateway-publish tokens
 
 ### Real LiveKit Cloud Smoke Checklist
 
@@ -1400,14 +1427,13 @@ Implemented:
 - `GatewayCommandQueue` SQLAlchemy model in `models/tables.py` with FK to `edge_gateways`
 - `gateway/command_queue.py` with `enqueue_command`, `db_command_provider`, and `db_ack_sink`
 - Provider/sink match the existing `app.state` hook protocol
+- Alembic migration `0007_gateway_command_tables` creates `gateway_command_queue` and `camera_publish_states`
 - 9 tests covering enqueue, provider filtering/FIFO, ack acceptance/rejection, idempotency
 
 Not included:
 
-- Alembic migration (DB coworker ownership)
 - Background expired-command cleanup job
-- Command enqueue API endpoint
-- Real camera/media actions
+- Real CCTV hardware execution
 
 ### Audit Row Listing Endpoint
 
@@ -1854,6 +1880,8 @@ Use local/dev placeholders and fail-closed behavior for services not yet active.
 - `apps/api/alembic/versions/0003_roles_and_grants.py`: roles and grants
 - `apps/api/alembic/versions/0004_constraints_and_indexes.py`: constraints/indexes
 - `apps/api/alembic/versions/0005_seed_roles.py`: seed roles
+- `apps/api/alembic/versions/0006_audit_log_metadata.py`: audit severity/outcome/category/session metadata
+- `apps/api/alembic/versions/0007_gateway_command_tables.py`: gateway command queue and camera publish-state tables
 
 ### Planning / Architecture Docs
 

@@ -4,16 +4,16 @@ Current status and next steps for any session continuing this project.
 
 ---
 
-## Overall Progress: ~85% to MVP
+## Overall Progress: ~88% to MVP
 
-Last updated: 2026-05-14
+Last updated: 2026-05-19
 
 | Area | Progress | Status | Notes |
 |------|----------|--------|-------|
-| **Backend API** | 99% | 🟢 Strong | Auth, RBAC, audit, actor investigation profiles/activity timeline, health, gateway, camera, command, webhook, session, admin, break-glass, search/filter, enrichment, LiveKit fallback, DPA export, signage attestation, credential rotation, MFA reset, 501 stubs all done. 532 tests passing. |
-| **Edge Agent** | 80% | 🟡 Good | Heartbeat, command signing, WebSocket control, FFmpeg frame source, LiveKit SDK bridge, per-camera credentials, supervisor, real FFmpeg integration tests, exponential backoff + jitter for reconnects, mTLS cert bootstrap scaffold, cryptography dep all done. Missing: real camera-to-LiveKit publishing in production. |
+| **Backend API** | 99% | 🟢 Strong | Auth, RBAC, audit, actor investigation profiles/activity timeline, health, gateway, camera, command, webhook, session, admin, break-glass, search/filter, enrichment, LiveKit fallback, DPA export, signage attestation, credential rotation, MFA reset, 501 stubs all done. Backend-controlled synthetic gateway publish smoke passed. 532 tests passing. |
+| **Edge Agent** | 88% | 🟢 Strong | Heartbeat, command signing, WebSocket control, FFmpeg frame source, LiveKit SDK bridge, per-camera credentials, supervisor, real FFmpeg integration tests, synthetic RTSP to LiveKit Cloud smoke, backend-command publish ACK, exponential backoff + jitter, mTLS cert bootstrap scaffold, cryptography dep all done. Missing: real CCTV hardware validation and production service deployment. |
 | **Frontend** | 0% | 🔴 Not started | Placeholder only. Owned by frontend coworker. Blocked until admin UI, camera grid viewer, and privacy notice flow are built. |
-| **Database** | 95% | 🟢 Strong | 23 tables, 5 migrations deployed to Neon staging. Missing: backup verification schema, retention policy tables (pilot+). |
+| **Database** | 96% | 🟢 Strong | Core schema plus `0007_gateway_command_tables` migration deployed on active DB; `gateway_command_queue` and `camera_publish_states` verified. Missing: backup verification schema, retention policy tables (pilot+). |
 | **Infrastructure** | 90% | 🟢 Strong | Cloudflare Access, Railway, Neon staging all live. Staging health check cron running (15 min). 7-day uptime clock started. R2 backup bucket `panoptix-backups` provisioned via Terraform Cloud. LiveKit Cloud account provisioned (APAC). Semgrep CI token configured. Missing: paid Neon tier, production Cloudflare/Railway/Neon environments (waits for 7-day gate). |
 | **Security** | 90% | 🟢 Strong | CF Access JWT, CSRF, HMAC audit chain, classified audit events with session/IP/UA metadata, audit-of-audit for profile/activity views, rate limiting (including admin mutations), security headers, service tokens, RBAC, break-glass, SCA/SAST CI, mediamtx threat model, mTLS cert bootstrap scaffold, CT-log monitoring all done. Missing: device posture enforcement (checklist done), WARP posture production activation. |
 | **Documentation** | 95% | 🟢 Strong | Full system plan, API reference, 51+ docs, all runbooks done (incl. break-glass, lost-MFA, IdP-outage, bus-factor, uptime monitoring, backup-restore DR schedule, Cloudflare WARP posture), mediamtx threat model, Terraform state security doc, IMPLEMENTATION_GUIDE fully up-to-date. |
@@ -24,8 +24,8 @@ Last updated: 2026-05-14
 | # | Blocker | Owner | Depends On |
 |---|---------|-------|------------|
 | 1 | Frontend admin UI (camera/gateway/user management) | Frontend coworker | Backend API (done) |
-| 2 | Frontend camera grid viewer + LiveKit JS SDK | Frontend coworker | LiveKit Cloud provisioning ✅ |
-| 3 | Real camera → LiveKit publishing from edge agent | System owner | Real camera hardware |
+| 2 | Frontend camera grid viewer + LiveKit JS SDK | Frontend coworker | LiveKit Cloud provisioning ✅, backend synthetic publish ✅ |
+| 3 | Real camera → LiveKit publishing from edge agent | System owner | Synthetic backend path ✅, needs real camera hardware |
 | 4 | Privacy notice acceptance flow | System owner + Frontend | Database tables (done) |
 | 5 | ~~LiveKit Cloud provisioning (APAC region)~~ | System owner | ✅ Done |
 | 6 | ~~Break-glass emergency access~~ | System owner | ✅ Done |
@@ -34,7 +34,7 @@ Last updated: 2026-05-14
 ### What We Control vs What's Blocked
 
 **Can do now (no external dependencies):**
-- Nothing significant — all non-hardware, non-frontend code work is complete. Remaining work requires: (1) camera hardware for LiveKit publish testing, (2) frontend coworker for web UI.
+- Clean up docs/runbooks after smoke results, keep static checks green, and prepare production deployment hardening. The main product-path blockers now require frontend implementation and real camera hardware.
 
 **Blocked on external dependencies:**
 - Frontend UI → frontend coworker
@@ -190,7 +190,9 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] `db_command_provider` returns pending/unexpired commands in FIFO order matching hook protocol
 - [x] `db_ack_sink` marks commands accepted/rejected with error and timestamp, matching hook protocol
 - [x] 9 tests passing for enqueue, provider filtering, ack acceptance/rejection, idempotency, and FIFO ordering
-- [x] Alembic migration, cleanup job, and real actions remain deferred (DB coworker / future milestone)
+- [x] Alembic migration `0007_gateway_command_tables` creates `gateway_command_queue` and `camera_publish_states`
+- [x] Active DB verified at `0007_gateway_command_tables`
+- [x] Cleanup job and real CCTV hardware validation remain deferred
 
 ### Command Queue App Factory Wiring
 - [x] Session-per-call `create_command_provider()` and `create_ack_sink()` wrappers added
@@ -661,6 +663,15 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Observed transient LiveKit signal retry/timeout logs, but final smoke result passed and cleanup succeeded
 - [x] Cleared LiveKit Cloud smoke secrets from the shell after the run
 - [x] No API key, API secret, generated JWT, or credential material committed
+
+### Backend-Controlled Gateway Publish Smoke
+- [x] Applied `0007_gateway_command_tables` and verified `gateway_command_queue` and `camera_publish_states`
+- [x] Created a gateway, synthetic camera, and active gateway-camera assignment through backend admin APIs
+- [x] Minted a backend gateway ingest token and enqueued `gateway.command.start_publish`
+- [x] Edge agent received the command over the gateway control WebSocket and ran in `livekit-ffmpeg` mode
+- [x] Latest command status verified as `accepted` with `acked_at` populated and no error
+- [x] First command rejected due to LiveKit `invalid token`; a fresh short-lived token/command resolved the issue
+- [x] No LiveKit secrets, generated JWTs, or gateway publish tokens committed
 
 ### Production Gateway Supervision
 - [x] Added `python -m panoptix_edge_agent.cli --supervise` supervisor entrypoint

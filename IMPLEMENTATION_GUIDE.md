@@ -1035,7 +1035,7 @@ app.state.gateway_control_ack_sink
 
 ### Important limitation
 
-This is intentionally not a command queue. ACKs are not persisted, there is no public enqueue API, and the agent still does not execute camera, mediamtx, or LiveKit actions.
+This was intentionally not a command queue at the time it was added. Later milestones added persistent queues, public admin enqueue/list/cancel endpoints, DB-backed ACK persistence, and opt-in `livekit-ffmpeg` command execution.
 
 ### Why it matters
 
@@ -1110,7 +1110,7 @@ The reconnect wrapper calls the existing `run_once()` WebSocket control path. Te
 
 ### Important limitation
 
-This is a bounded local skeleton, not the final production supervisor. There is no persistent command queue, no command execution, no mediamtx control, no LiveKit publishing orchestration, and no inbound gateway listener.
+This was a bounded local skeleton at the time it was added. Later milestones added persistent command queues, command execution, opt-in mediamtx supervision, and LiveKit publishing smoke coverage. The zero-inbound-gateway-listener rule remains unchanged.
 
 ### Why it matters
 
@@ -1315,13 +1315,9 @@ Operators now have a paginated in-browser audit browsing surface for quick inspe
 - Provider and sink match the existing hook protocol so wiring into `app.state` is a future one-line change
 - `db_ack_sink` is idempotent: unknown command IDs and `None` command IDs are silently ignored
 
-### What was not included
+### Later completion notes
 
-- Alembic migration (DB coworker ownership)
-- Wiring into app factory (`app.state` hooks remain in-memory for now)
-- Background expired-command cleanup job
-- Real camera/media actions
-- Command enqueue API endpoint
+The initial queue helper milestone was followed by app-factory wiring, command enqueue/list/cancel endpoints, cleanup helpers, and migration `0007_gateway_command_tables`. Real CCTV hardware validation remains separate from the synthetic backend-command smoke.
 
 ### Tests added
 
@@ -2803,7 +2799,7 @@ The checklist documents:
 - cleanup commands for removing LiveKit secrets from the shell
 - a smoke result template that records host/room/result metadata without credentials
 
-This is a runbook/checklist milestone only. It does not mark real LiveKit Cloud smoke testing as passed, and it does not store real credentials in the repository.
+This was a runbook/checklist milestone only when created. The direct LiveKit Cloud smoke was later executed in Section 77. The repository still stores no real credentials.
 
 ---
 
@@ -2835,7 +2831,38 @@ Transient LiveKit signal retry/timeout logs appeared during connection, but the 
 
 ---
 
-## 78. Current Verification Status
+## 78. Gateway Command Tables And Backend-Controlled Publish Smoke
+
+### What was added
+
+The schema now includes persistent tables required for backend-driven gateway publish commands:
+
+- `gateway_command_queue` for queued gateway commands, status, ACK timestamp, and error capture
+- `camera_publish_states` for backend camera publish-state tracking
+- PostgreSQL enums `command_status` and `camera_publish_status`
+
+The migration is `0007_gateway_command_tables` and follows `0006_audit_log_metadata`.
+
+### What was verified
+
+A backend-controlled synthetic publish smoke passed against LiveKit Cloud:
+
+- backend admin APIs created a gateway, synthetic camera, and gateway-camera assignment
+- backend minted a short-lived gateway ingest token
+- backend enqueued `gateway.command.start_publish`
+- edge agent consumed the command over `/api/v1/gateway-control/ws`
+- edge agent ran with `PANOPTIX_MEDIA_PUBLISHER_MODE=livekit-ffmpeg`
+- command status was verified as `accepted` with `acked_at` populated
+
+One earlier command rejected with LiveKit `invalid token`; re-minting a fresh short-lived ingest token and command resolved it. No LiveKit API key, API secret, generated JWT, or gateway-publish token is stored in the repository.
+
+### What remains
+
+The synthetic backend-command path is proven. Remaining production-readiness work is real CCTV hardware validation, frontend subscriber playback with the LiveKit JS SDK, and production deployment hardening.
+
+---
+
+## 79. Current Verification Status
 
 ### What passed
 
