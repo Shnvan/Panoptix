@@ -29,7 +29,7 @@
 | VR-003 | Input validation | Role actions must be `grant` or `revoke`. | Admin users | Confirmed in existing project | `RoleActionRequest` pattern. |
 | VR-004 | Input validation | Disable, break-glass, fallback, signage, and MFA actions require reason/evidence text within bounded lengths. | Admin APIs | Confirmed in existing project | Pydantic `Field` constraints. |
 | VR-005 | Input validation | Camera `source_type` must match actual enum values. | Cameras | Confirmed in existing project | Actual enum: `rtsp`, `nvr_rtsp`, `onvif_profile_s`, `onvif_profile_t`, `synthetic_rtsp_test_source`. |
-| VR-006 | Documentation mismatch | Frontend backend-status doc lists stale source types: `rtsp`, `onvif`, `usb`, `file`, `test`. | Documentation | Needs Team Confirmation | Should be corrected to match code. |
+| VR-006 | Documentation consistency | Frontend backend-status doc lists the same camera source types as the backend enum. | Documentation | Confirmed in current docs | Corrected to match code. |
 | VR-007 | Input validation | LiveKit room names must be unique. | Cameras | Confirmed in existing project | Checked by API and DB unique constraint. |
 | VR-008 | Input validation | Command expiry must be bounded. | Commands | Confirmed in existing project | Current docs indicate default 300 and bounds 10-3600. |
 | VR-009 | Input validation | Command status filters must use `pending`, `accepted`, `rejected`, `expired`, or `cancelled`. | Commands | Confirmed in existing project | Enum and tests exist. |

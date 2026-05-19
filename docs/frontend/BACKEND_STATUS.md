@@ -170,10 +170,12 @@ All admin endpoints require the `admin` role.
 | Method | Path | Request | Response |
 |---|---|---|---|
 | `POST` | `/api/v1/admin/cameras` | `{ "display_name", "source_type", "livekit_room_name" }` | camera summary |
+| `PATCH` | `/api/v1/admin/cameras/{camera_id}` | `{ "display_name"?, "source_type"?, "livekit_room_name"? }` | camera summary |
 | `POST` | `/api/v1/admin/cameras/{camera_id}/acl` | `{ "action": "grant"/"revoke", "user_email" }` | ACL result |
 | `POST` | `/api/v1/admin/cameras/{camera_id}/disable` | `{ "reason" }` | retired camera |
+| `POST` | `/api/v1/admin/cameras/{camera_id}/enable` | none | camera summary |
 
-- **`source_type`** must be one of: `rtsp`, `onvif`, `usb`, `file`, `test`
+- **`source_type`** must be one of: `rtsp`, `nvr_rtsp`, `onvif_profile_s`, `onvif_profile_t`, `synthetic_rtsp_test_source`
 - **`livekit_room_name`** must be unique across all cameras
 
 ### Gateway Management

@@ -34,7 +34,7 @@
 | VR-001 UUID validation | FR-007, FR-008, FR-023, FR-031 | Router parse helpers | TS-003, TS-006 | Complete |
 | VR-003 Role action values | FR-013 | `RoleActionRequest` | TS-011 | Complete |
 | VR-005 Camera source enum | FR-017 | `CameraSourceType` | TS-005 | Complete |
-| VR-006 Source type docs mismatch | FR-017 | `BACKEND_STATUS.md` vs enum | Recommended doc test | Partial |
+| VR-006 Source type docs match backend enum | FR-017 | `BACKEND_STATUS.md` and `CameraSourceType` enum | Documentation search | Complete |
 | VR-010 Gateway route/principal match | FR-028 | `api/gateways.py` | TS-006 | Complete |
 | VR-011 LiveKit webhook signature/replay | FR-035, FR-030 | `api/livekit_webhooks.py` | TS-008 | Complete |
 | VR-013 Edge credential validation | FR-030 | `camera_credentials.py` | TS-016 | Partial |

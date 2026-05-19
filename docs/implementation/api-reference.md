@@ -78,6 +78,8 @@ FastAPI remains the security authority. Browser responses must not expose RTSP U
 | `GET` | `/api/v1/admin/internal/break-glass-status` | unauthenticated monitor endpoint |
 | `GET` | `/api/v1/admin/backups/status` | database-known backup readiness from `backup_runs` |
 
+Admin camera `source_type` values are exactly: `rtsp`, `nvr_rtsp`, `onvif_profile_s`, `onvif_profile_t`, and `synthetic_rtsp_test_source`.
+
 Admin audit query filters:
 
 - `/api/v1/admin/audit`: `cursor`, `limit`, `action`, `actor_type`, `actor_id`, `severity`, `category`, `outcome`, `resource`, `session_id`, `ts_from`, `ts_to`.

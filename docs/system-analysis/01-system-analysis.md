@@ -138,5 +138,5 @@ flowchart LR
 | Reports/export logic | Audit export, DPA export, health dashboard data, backup scripts/status API |
 | Features confirmed from code | Auth, sessions, CSRF, RBAC, camera ACL, gateway control, LiveKit tokens/webhooks, audit, break-glass, DPA/signage |
 | Features documented but not found as complete code | Frontend UI, DSR workflow UI, full self-hosted fallback |
-| Features found in code but under-documented or inconsistent | Actual `CameraSourceType` enum differs from `docs/frontend/BACKEND_STATUS.md` |
+| Features found in code but under-documented or inconsistent | No current camera source-type drift found; `docs/frontend/BACKEND_STATUS.md` now matches `CameraSourceType` |
 
