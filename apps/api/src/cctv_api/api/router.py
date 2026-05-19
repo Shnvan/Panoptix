@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import re
 import uuid
 from collections.abc import Generator, Sequence
 from datetime import datetime, timedelta, timezone
@@ -20,6 +21,11 @@ from cctv_api.api.livekit_webhooks import router as livekit_webhook_router
 from cctv_api.core.config import Settings, get_settings
 from cctv_api.db import db_session
 from cctv_api.gateway.command_queue import enqueue_command, expire_stale_commands
+from cctv_api.integrations.github_invites import (
+    GitHubInviteConfigError,
+    GitHubInviteError,
+    create_github_org_invitation,
+)
 from cctv_api.jobs.maintenance import run_admin_maintenance_job
 from cctv_api.models.enums import ActorType, BackupUploadStatus, CameraPublishStatus, CameraSourceType, CommandStatus, DpaKind, EventCategory, EventOutcome, EventSeverity, GatewayStatus, StreamKind
 from cctv_api.models.tables import (
@@ -233,6 +239,22 @@ class RoleActionResponse(BaseModel):
     role_name: str
     action: str
     status: str
+
+
+class InviteUserRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    role_names: list[str] = Field(default_factory=lambda: ["viewer"], max_length=8)
+    reason: str | None = Field(default=None, max_length=512)
+
+
+class InviteUserResponse(BaseModel):
+    user_id: str
+    email: str
+    roles: list[str]
+    github_invitation_id: int | None
+    github_org: str
+    status: str
+    next_step: str
 
 
 @v1_router.post("/admin/users/{user_id}/role")
@@ -940,6 +962,18 @@ def _parse_uuid(value: str, detail: str) -> uuid.UUID:
             detail=detail,
             type_uri="https://panoptix.local/problems/bad-request",
         ) from exc
+
+
+def _normalize_invite_email(value: str) -> str:
+    email = value.strip().lower()
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        raise ProblemDetail(
+            status=400,
+            title="Bad Request",
+            detail="email-invalid",
+            type_uri="https://panoptix.local/problems/bad-request",
+        )
+    return email
 
 
 def _audit_session_id(request: Request) -> uuid.UUID | None:
@@ -2703,14 +2737,109 @@ def admin_mfa_reset(
 
 @v1_router.post("/admin/users/invite")
 def admin_invite_user(
+    body: InviteUserRequest,
+    request: Request,
     principal: Principal = Depends(require_authenticated_user),
-) -> dict[str, object]:
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> InviteUserResponse:
     require_role(principal, "admin")
-    raise ProblemDetail(
-        status=501,
-        title="Not Implemented",
-        detail="idp-invite-not-implemented",
-        type_uri="about:blank",
+
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _check_rate_limit(
+        key=f"admin-mutation:{actor.id}",
+        max_requests=settings.RATE_LIMIT_ADMIN_MUTATION_MAX,
+        window_seconds=settings.RATE_LIMIT_ADMIN_MUTATION_WINDOW,
+        audit_action="admin.rate_limited",
+        resource="endpoint:/api/v1/admin/users/invite",
+        db=db,
+        settings=settings,
+        request=request,
+        actor_id=actor.id,
+    )
+
+    email = _normalize_invite_email(body.email)
+    role_names = sorted({role_name.strip() for role_name in body.role_names if role_name.strip()})
+    if not role_names:
+        raise ProblemDetail(
+            status=400,
+            title="Bad Request",
+            detail="role-names-required",
+            type_uri="https://panoptix.local/problems/bad-request",
+        )
+
+    role_rows = db.execute(select(Role).where(Role.name.in_(role_names))).scalars().all()
+    roles_by_name = {role.name: role for role in role_rows}
+    missing_roles = sorted(set(role_names) - set(roles_by_name))
+    if missing_roles:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="role-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+
+    target_user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+    if target_user is None:
+        target_user = User(id=uuid.uuid4(), email=email, idp_subject=None)
+        db.add(target_user)
+        db.flush()
+
+    existing_role_ids = set(
+        db.execute(select(UserRole.role_id).where(UserRole.user_id == str(target_user.id))).scalars().all()
+    )
+    for role_name in role_names:
+        role = roles_by_name[role_name]
+        if role.id not in existing_role_ids:
+            db.add(UserRole(user_id=target_user.id, role_id=role.id))
+    db.flush()
+    roles_after = sorted(set(get_user_roles(db, target_user.id)) | set(role_names))
+
+    try:
+        invite_result = create_github_org_invitation(settings, email=email)
+    except GitHubInviteConfigError as exc:
+        db.rollback()
+        raise ProblemDetail(
+            status=503,
+            title="Service Unavailable",
+            detail=str(exc),
+            type_uri="https://panoptix.local/problems/service-unavailable",
+        ) from exc
+    except GitHubInviteError as exc:
+        db.rollback()
+        raise ProblemDetail(
+            status=502,
+            title="Bad Gateway",
+            detail=str(exc),
+            type_uri="https://panoptix.local/problems/bad-gateway",
+        ) from exc
+
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=actor.id,
+        action="admin.user.invited",
+        resource=f"user:{target_user.id}",
+        payload={
+            "target_user_id": str(target_user.id),
+            "target_email": email,
+            "role_names": role_names,
+            "github_org": invite_result.org,
+            "github_invitation_id": invite_result.invitation_id,
+            "github_invite_status": invite_result.status,
+            "reason": body.reason,
+        },
+    )
+    db.commit()
+    return InviteUserResponse(
+        user_id=str(target_user.id),
+        email=email,
+        roles=roles_after,
+        github_invitation_id=invite_result.invitation_id,
+        github_org=invite_result.org,
+        status=invite_result.status,
+        next_step="User must accept the GitHub organization invitation, then sign in through Cloudflare Access.",
     )
 
 

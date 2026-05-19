@@ -31,7 +31,7 @@ Panoptix enables authorized users to view assigned CCTV cameras while keeping ca
 | Area | Scope statement | Status |
 |---|---|---|
 | Viewer camera list and token access | Backend returns only active cameras with active ACLs and mints subscriber tokens | Existing |
-| Admin camera and gateway management | Backend supports create/list/detail/disable/assign flows | Existing |
+| Admin camera, gateway, and user onboarding | Backend supports camera/gateway lifecycle control and GitHub-backed user invites | Existing |
 | Gateway command/control | Persistent command queue plus WebSocket and heartbeat fallback | Existing |
 | Edge publishing | Agent verifies commands and has LiveKit/FFmpeg scaffolds; real hardware validation pending | Partially Existing |
 | Frontend | Required UX and integration docs exist; application code is not implemented | Missing |
@@ -42,7 +42,6 @@ Panoptix enables authorized users to view assigned CCTV cameras while keeping ca
 
 - No implemented Next.js/React frontend was found in `apps/web/`.
 - Real camera onboarding and production camera-to-LiveKit publishing require physical hardware.
-- `/api/v1/admin/users/invite` returns `501`.
 - DSR database tables exist, but full DSR workflow APIs were not found.
 - Self-hosted LiveKit fallback is represented by docs/configuration and a mode switch, not full operations.
 
@@ -61,7 +60,8 @@ Panoptix enables authorized users to view assigned CCTV cameras while keeping ca
 - Authentication and identity: Cloudflare Access verification, local dev auth, signed sessions.
 - Authorization: role checks plus camera ACLs and gateway-camera assignments.
 - Camera management: create, list, detail, disable/retire, user ACL grant/revoke.
-- Gateway management: create, list, detail, disable, rotate credentials, assign cameras.
+- Gateway management: create, list, detail, update, disable, enable, rotate credentials, assign cameras.
+- User onboarding: GitHub organization invite plus local Panoptix role preparation.
 - Gateway command queue: enqueue, list, cancel, expire, ACK processing, signed envelopes.
 - LiveKit integration: viewer tokens, gateway tokens, webhooks, room-presence-driven start/stop.
 - Audit: HMAC-chained audit rows, verification, listing, export.
@@ -77,7 +77,6 @@ Panoptix enables authorized users to view assigned CCTV cameras while keeping ca
 | Real hardware onboarding workflow | Required to validate real camera publishing | Partially Existing |
 | DSR workflow API and UI | Data model exists but no full route workflow found | Missing |
 | Backup worker and restore drill evidence | Status endpoint reads `backup_runs`, but production backup artifacts and restore evidence are pending | Partially Existing |
-| IdP invite automation | Endpoint exists as `501` stub | Missing |
 | Production self-hosted LiveKit fallback runbook/execution | Fallback mode exists but full operations remain future work | Partially Existing |
 
 ## Main Workflows
@@ -107,7 +106,6 @@ flowchart LR
 | Frontend not implemented | MVP cannot be used by end users despite backend readiness | Build frontend against documented API contract |
 | Hardware not onboarded | Real live camera behavior remains unproven | Procure and validate with supported RTSP cameras |
 | Documentation/code drift | Frontend or QA may build against wrong fields | Treat code and API tests as authoritative and update docs |
-| Stub endpoints mistaken as complete | Operations or admin workflows may fail in production | Label stubs clearly in API and analysis docs |
 | DSR tables without workflow | Compliance process may be incomplete | Define DSR API/UI workflow or mark manual process |
 
 ## Constraints
@@ -125,7 +123,7 @@ flowchart LR
 - Fix the documented camera source type mismatch in `docs/frontend/BACKEND_STATUS.md`.
 - Add frontend implementation and E2E tests before MVP acceptance.
 - Treat real hardware onboarding as a release gate for camera streaming.
-- Implement or remove/rename the remaining IdP invite stub before production handoff.
+- Keep Cloudflare Access policies aligned with the configured GitHub organization/team used for invites.
 
 ## Project Inventory Summary
 
@@ -139,6 +137,6 @@ flowchart LR
 | API files | FastAPI routers under `apps/api/src/cctv_api/api/` |
 | Reports/export logic | Audit export, DPA export, health dashboard data, backup scripts/status API |
 | Features confirmed from code | Auth, sessions, CSRF, RBAC, camera ACL, gateway control, LiveKit tokens/webhooks, audit, break-glass, DPA/signage |
-| Features documented but not found as complete code | Frontend UI, IdP invite automation, DSR workflow UI/API, full self-hosted fallback |
+| Features documented but not found as complete code | Frontend UI, DSR workflow UI/API, full self-hosted fallback |
 | Features found in code but under-documented or inconsistent | Actual `CameraSourceType` enum differs from `docs/frontend/BACKEND_STATUS.md` |
 

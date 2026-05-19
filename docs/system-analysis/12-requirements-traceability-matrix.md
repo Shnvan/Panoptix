@@ -10,6 +10,7 @@
 | FR-012 Admin user list | BR-002 | Admin users | `GET /api/v1/admin/users` | `users`, `user_roles`, `roles` | `api/router.py` | TS-011 | Complete |
 | FR-013 Role grant/revoke | BR-002 | Admin users | `POST /api/v1/admin/users/{id}/role` | `user_roles`, `roles` | `api/router.py` | TS-011 | Complete |
 | FR-014 Disable user | BR-002, BR-007 | Admin users | `POST /api/v1/admin/users/{id}/disable` | `users`, `sessions`, `audit_log` | `api/router.py`, `livekit_rooms.py` | TS-011 | Complete |
+| FR-016 Invite user | BR-002 | Admin users | `POST /api/v1/admin/users/invite` | `users`, `user_roles`, `audit_log` | `api/router.py`, `github_invites.py` | TS-011a | Complete |
 | FR-017 Create camera | BR-002 | Admin cameras | `POST /api/v1/admin/cameras` | `cameras` | `api/router.py` | TS-004, TS-005 | Complete |
 | FR-019 Camera ACL | BR-003 | Admin cameras | `POST /api/v1/admin/cameras/{id}/acl` | `camera_acl`, `users` | `api/router.py` | TS-002, TS-003 | Complete |
 | FR-020 Disable camera | BR-010 | Admin cameras | `POST /api/v1/admin/cameras/{id}/disable` | `cameras`, `audit_log` | `api/router.py`, `livekit_rooms.py` | TS-012 | Complete |

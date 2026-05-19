@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     ALLOW_DEV_AUTH: bool = False
     DEV_CF_JWT_SIGNING_KEY: str = "replace-me-local-only"
 
+    # ── GitHub organization invitations ──
+    GITHUB_INVITES_ENABLED: bool = False
+    GITHUB_ORG: str = ""
+    GITHUB_INVITE_TOKEN: str = "replace-me"
+    GITHUB_INVITE_TEAM_IDS: str = ""
+    GITHUB_INVITE_TIMEOUT_SECONDS: int = Field(default=10, ge=1, le=60)
+
     # ── Session / cookie ──
     SESSION_COOKIE_NAME: str = "panoptix_session"
     SESSION_SIGNING_KEY: str = "replace-me"
@@ -113,6 +120,13 @@ class Settings(BaseSettings):
             "GATEWAY_SERVICE_TOKEN",
             "GATEWAY_COMMAND_SIGNING_KEY",
         ]
+
+        if self.GITHUB_INVITES_ENABLED:
+            _GUARDED_FIELDS.extend(["GITHUB_ORG", "GITHUB_INVITE_TOKEN"])
+            if not self.GITHUB_ORG.strip():
+                unsafe.append("GITHUB_ORG")
+            if not self.GITHUB_INVITE_TOKEN.strip():
+                unsafe.append("GITHUB_INVITE_TOKEN")
 
         for field_name in _GUARDED_FIELDS:
             value = getattr(self, field_name, "")

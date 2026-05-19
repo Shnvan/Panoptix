@@ -33,7 +33,7 @@
 | FR-013 | The system shall allow admins to grant and revoke roles. | Admin users | Admin | High | Existing |
 | FR-014 | The system shall allow admins to disable users, revoke sessions, and remove LiveKit viewer participants. | Admin users | Admin | High | Existing |
 | FR-015 | The system shall record admin-mediated MFA reset evidence. | Admin users | Admin | Medium | Existing |
-| FR-016 | The system shall automate IdP user invite flow. | Admin users | Admin | Medium | Missing |
+| FR-016 | The system shall automate GitHub organization user invite flow and prepare local Panoptix roles. | Admin users | Admin | Medium | Existing |
 
 ## Camera Management
 

@@ -354,7 +354,7 @@ Do not build against or depend on these:
 |---|---|
 | Real LiveKit Cloud video playback | LiveKit Cloud account provisioned (APAC); direct synthetic FFmpeg-to-LiveKit and backend-controlled synthetic gateway publish smoke passed. Frontend still needs subscriber playback UI. |
 | Real camera streams | Edge agent supports opt-in `livekit-ffmpeg` publishing and synthetic RTSP smoke has passed. Real CCTV hardware validation is still pending. |
-| Full admin user management | role update, disable, MFA reset implemented. IdP invite flow not implemented. |
+| Full admin user management | role update, disable, MFA reset, and GitHub-backed invite flow implemented. |
 | Gateway credential rotation | `POST /api/v1/admin/gateways/{id}/rotate-credential` is **implemented** (generates new service token, revokes old hash, audit-logged) |
 | DPA/signage export | `POST /api/v1/admin/dpa/export` and `POST /api/v1/admin/sites/:id/signage-attest` are **implemented** (JSONL bundle with kind filter, audit-logged) |
 | LiveKit fallback mode | `POST /api/v1/admin/livekit/fallback` is **implemented** (DB flag flip between `cloud`/`fallback`, audit-logged) |

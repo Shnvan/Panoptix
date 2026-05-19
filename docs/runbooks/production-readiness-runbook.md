@@ -48,6 +48,7 @@ Required groups:
 - Audit integrity: `AUDIT_HMAC_KEY_VERSION`, `AUDIT_HMAC_KEY`.
 - Gateway authentication and commands: `GATEWAY_SERVICE_TOKEN`, `GATEWAY_COMMAND_SIGNING_KEY`.
 - Cloudflare Access: `CF_ACCESS_ISSUER`, `CF_ACCESS_JWKS_URL`, dashboard/admin/gateway audience values.
+- GitHub invites: `GITHUB_INVITES_ENABLED`, `GITHUB_ORG`, `GITHUB_INVITE_TOKEN`, and optional `GITHUB_INVITE_TEAM_IDS`.
 - LiveKit: `LIVEKIT_CLOUD_URL`, `LIVEKIT_CLOUD_API_KEY`, `LIVEKIT_CLOUD_API_SECRET`, `LIVEKIT_WEBHOOK_SECRET`.
 - R2 backup storage: `R2_ACCOUNT_ID`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`.
 
@@ -58,7 +59,7 @@ Production or staging must fail closed if guarded values are missing or placehol
 Follow this order before any production cutover:
 
 1. Confirm branch and release candidate are approved.
-2. Confirm Cloudflare Access app, policies, audiences, and routing.
+2. Confirm Cloudflare Access app, policies, audiences, and routing; browser/admin policy must require the same GitHub organization/team configured for invites.
 3. Confirm Neon database roles, SSL, migration connection, and runtime connection.
 4. Confirm Railway API and web service environment variables.
 5. Apply migrations with the migration database role.
@@ -187,4 +188,3 @@ Production remains blocked until every item below is true:
 - [ ] Real CCTV hardware test passes.
 - [ ] Backup and restore-drill plan is reviewed.
 - [ ] Rollback owner and incident communication owner are named.
-

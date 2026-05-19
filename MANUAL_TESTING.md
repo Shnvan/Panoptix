@@ -14,7 +14,7 @@ Use this quick order before drilling into the detailed examples below:
 4. Test browser/user endpoints.
 5. Test admin CRUD and control endpoints.
 6. Test gateway heartbeat, camera status, ingest token, and control endpoints.
-7. Test expected `501` stubs and backup readiness reporting.
+7. Test GitHub-backed user invite behavior and backup readiness reporting.
 8. Test audit verification and export.
 9. Test edge-agent CLI modes.
 
@@ -41,7 +41,7 @@ Use this quick order before drilling into the detailed examples below:
 - `POST /api/v1/admin/users/{user_id}/role` - grant or revoke a role.
 - `POST /api/v1/admin/users/{user_id}/disable` - disable a user, revoke sessions, and remove viewer participants.
 - `POST /api/v1/admin/users/{user_id}/mfa/reset` - audit an admin-mediated MFA reset.
-- `POST /api/v1/admin/users/invite` - expected `501 idp-invite-not-implemented`.
+- `POST /api/v1/admin/users/invite` - invite a user to the configured GitHub organization/team and prepare local Panoptix roles.
 - `GET /api/v1/admin/gateways` - list gateways with filters and search.
 - `POST /api/v1/admin/gateways` - register a gateway and return a one-time service token.
 - `GET /api/v1/admin/gateways/{gateway_id}` - gateway detail.

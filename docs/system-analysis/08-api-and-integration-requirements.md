@@ -26,7 +26,7 @@ The backend is a FastAPI service. Most routes are mounted under `/api/v1`; `/hea
 | POST | `/api/v1/admin/users/{user_id}/role` | Grant/revoke role | Existing |
 | POST | `/api/v1/admin/users/{user_id}/disable` | Disable user, revoke sessions, remove viewer participants | Existing |
 | POST | `/api/v1/admin/users/{user_id}/mfa/reset` | Record MFA reset evidence | Existing |
-| POST | `/api/v1/admin/users/invite` | IdP invite automation | Missing; returns `501` |
+| POST | `/api/v1/admin/users/invite` | GitHub organization invite and local role preparation | Existing |
 | GET | `/api/v1/admin/gateways` | List gateways with filters/search | Existing |
 | POST | `/api/v1/admin/gateways` | Register gateway and return one-time service token | Existing |
 | GET | `/api/v1/admin/gateways/{gateway_id}` | Gateway detail | Existing |
@@ -68,8 +68,9 @@ The backend is a FastAPI service. Most routes are mounted under `/api/v1`; `/hea
 | Integration | Purpose | Current status |
 |---|---|---|
 | Cloudflare Access | Browser/admin identity provider and access layer | Existing for staging; production planned |
-| GitHub OAuth through Cloudflare | Staging IdP | Existing |
-| Google Workspace | Planned production IdP | Partially Existing in docs |
+| GitHub OAuth through Cloudflare | Final browser/admin IdP | Existing |
+| GitHub organization invitations | Admin user onboarding source of truth | Existing |
+| Google Workspace | Superseded identity option in older docs | Not current target |
 | LiveKit Cloud | WebRTC media SFU and webhook sender | Existing integration; real streams blocked by hardware |
 | Neon Postgres | Staging database | Existing |
 | Railway | Backend deployment | Existing |
@@ -80,8 +81,6 @@ The backend is a FastAPI service. Most routes are mounted under `/api/v1`; `/hea
 
 ## Missing Or Unclear API Behavior
 
-- Backup status response shape and source data are not implemented.
-- IdP invite automation is stubbed.
 - DSR request CRUD/workflow APIs were not found.
 - Frontend-generated OpenAPI/TypeScript client is not implemented.
 - Documentation should be corrected where camera source type values differ from code.

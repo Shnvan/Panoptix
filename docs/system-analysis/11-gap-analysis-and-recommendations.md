@@ -5,7 +5,6 @@
 | GAP-001 | Frontend application is not implemented. | `apps/web/README.md` | Users cannot operate the system through a browser UI. | Build viewer dashboard, admin screens, audit/compliance screens, and session UI. | Critical | Open |
 | GAP-002 | Real camera onboarding and hardware validation are pending. | `PROGRESS.md`, edge-agent README | Live CCTV workflow is not fully proven end to end. | Procure supported cameras/gateway hardware and run real RTSP-to-LiveKit tests. | Critical | Open |
 | GAP-003 | Edge agent has real publishing scaffolds, but production camera publishing remains partially validated. | `apps/cctv-edge/agent/src/`, tests | Stream reliability with real hardware remains unknown. | Add hardware smoke checklist and acceptance evidence. | High | Open |
-| GAP-004 | IdP invite API is a stub. | `POST /api/v1/admin/users/invite` | Admin user onboarding cannot be automated through API. | Implement IdP invite integration or remove from MVP UI. | Medium | Open |
 | GAP-005 | Backup restore drill evidence is not recorded. | `GET /api/v1/admin/backups/status`, `backup_runs`, `docs/runbooks/backup-restore.md` | Admin can see database-known backup status, but production restore confidence still needs a real drill. | Run an isolated restore drill and record evidence without storing secrets or backup contents in Git. | High | Open |
 | GAP-006 | DSR workflow tables exist but full API/UI workflow was not found. | `DsrRequest` model | Compliance workflow may be incomplete. | Define DSR scope and implement routes/UI if required. | Medium | Open |
 | GAP-007 | Frontend backend-status doc lists wrong camera source types. | `docs/frontend/BACKEND_STATUS.md`, `CameraSourceType` enum | Frontend may submit invalid values or reject valid values. | Correct docs and generate frontend constants from backend contract. | High | Open |
@@ -20,6 +19,7 @@
 
 | Former Gap ID | Resolution |
 |---|---|
+| GAP-004 | GitHub-backed user invite is implemented through `POST /api/v1/admin/users/invite`; it invites by email to the configured GitHub organization/team, prepares local roles, and writes audit rows. |
 | GAP-012 | Camera update/rename and re-enable routes are implemented as `PATCH /api/v1/admin/cameras/{camera_id}` and `POST /api/v1/admin/cameras/{camera_id}/enable`, with admin authorization and audit rows. |
 | GAP-013 | Gateway update and re-enable routes are implemented as `PATCH /api/v1/admin/gateways/{gateway_id}` and `POST /api/v1/admin/gateways/{gateway_id}/enable`, with credential rotation kept separate from metadata updates. |
 

@@ -27,6 +27,7 @@ The repository contains extensive backend and edge-agent tests:
 | AC-008 | Audit verification detects tampering or invalid key conditions. | Existing |
 | AC-009 | Gateway command queue supports enqueue, list, cancel, expire, deliver, and ACK. | Existing |
 | AC-010 | Edge agent rejects tampered, expired, or wrong-gateway commands. | Existing |
+| AC-010a | Admin user invite creates local role state, sends a GitHub organization invitation, and writes sanitized audit metadata. | Existing |
 | AC-011 | Frontend displays viewer/admin workflows using backend APIs. | Missing |
 | AC-012 | Real camera publishes through edge agent to LiveKit with production-like settings. | Partially Existing |
 | AC-013 | Backup status is visible to admins. | Missing |
@@ -47,6 +48,7 @@ The repository contains extensive backend and edge-agent tests:
 | TS-009 | Break-glass lifecycle works | Admin opens window | Open then close | Window and audit records exist | `test_break_glass.py` |
 | TS-010 | Audit chain tampering detected | Audit row is modified | Verify chain | Invalid result returned | `test_audit.py` |
 | TS-011 | Disable user removes access | Admin disables user | User requests token/session | Access denied and sessions revoked | `test_admin_user_management.py`, `test_audit.py` |
+| TS-011a | Invite user through GitHub | Admin submits email and role names | Backend calls GitHub invite client | Local user/roles and sanitized audit row exist | `test_stub_endpoints.py` |
 | TS-012 | Disable camera stops viewers | Camera has active room viewers | Admin disables camera | Camera retired and viewer participants removed/skipped safely | `test_cameras.py`, `test_livekit_rooms.py` |
 | TS-013 | Disable gateway stops publishers | Gateway has assigned rooms | Admin disables gateway | Gateway disabled and publisher participants removed/skipped safely | `test_admin_gateways.py`, `test_livekit_rooms.py` |
 | TS-014 | Privacy notice acceptance idempotent | User accepts current version | Repeat acceptance | Accepted status remains valid | `test_privacy_admin_users.py` |

@@ -44,7 +44,7 @@ FastAPI remains the security authority. Browser responses must not expose RTSP U
 | `POST` | `/api/v1/admin/users/{user_id}/role` | grant/revoke role |
 | `POST` | `/api/v1/admin/users/{user_id}/disable` | disable user, revoke sessions, remove LiveKit viewer participants |
 | `POST` | `/api/v1/admin/users/{user_id}/mfa/reset` | audit admin-mediated MFA reset |
-| `POST` | `/api/v1/admin/users/invite` | stub; returns `501 idp-invite-not-implemented` |
+| `POST` | `/api/v1/admin/users/invite` | invite user through configured GitHub organization and assign local roles |
 | `GET` | `/api/v1/admin/gateways` | list gateways with filters/search |
 | `POST` | `/api/v1/admin/gateways` | register gateway and return one-time service token |
 | `GET` | `/api/v1/admin/gateways/{gateway_id}` | gateway detail |
@@ -239,5 +239,4 @@ Gateway ACK:
 - Frontend-generated OpenAPI/TypeScript client.
 - Dynamic CSP middleware driven by `media_plane_mode`.
 - Backup worker R2 object verification and restore-drill automation.
-- IdP invite automation.
 - Browser bundle scan and frontend API type generation.

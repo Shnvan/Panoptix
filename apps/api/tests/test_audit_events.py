@@ -254,3 +254,11 @@ def test_lifecycle_management_events_registered() -> None:
         assert defn.severity == EventSeverity.medium, f"{action} should be medium severity"
         assert defn.category == expected_category, f"{action} category mismatch"
         assert defn.default_outcome == EventOutcome.success, f"{action} should be success"
+
+
+def test_admin_user_invite_event_registered() -> None:
+    defn = classify_audit_event("admin.user.invited")
+    assert defn is not None
+    assert defn.severity == EventSeverity.high
+    assert defn.category == EventCategory.authorization
+    assert defn.default_outcome == EventOutcome.success

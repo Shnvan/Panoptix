@@ -16,7 +16,7 @@ Design direction: new frontend work should follow [Panoptix Design System](PANOP
 | Implemented and usable | `/api/v1/sessions/active`, `/api/v1/sessions/revoke` | Settings/session UI exists | Verify revoke UX and session refresh behavior. |
 | Implemented but incomplete | `/api/v1/admin/users`, role update, disable | User admin UI exists | Add MFA reset and invite flows; fix stale copy that says MFA reset is not implemented. |
 | Implemented but missing UI | `/api/v1/admin/users/{user_id}/mfa/reset` | Marked as not implemented in current UI/report | Add admin-mediated MFA reset action and result messaging. |
-| Implemented but missing UI | `/api/v1/admin/users/invite` | No complete invite UI | Add invite flow or explicitly document no production UI yet. |
+| Implemented but missing UI | `/api/v1/admin/users/invite` | No complete invite UI | Add GitHub organization invite form for email, roles, and reason. |
 | Implemented but incomplete | `/api/v1/admin/audit`, verify, export | Audit table exists with limited filtering | Add full audit filters for actor, severity, category, outcome, resource, session, and date range. |
 | Implemented but missing UI | `/api/v1/admin/actors/{actor_type}/{actor_id}/profile` | No actor investigation UI | Add actor profile page/drawer linked from users, gateways, audit rows, and break-glass/system actors. |
 | Implemented but missing UI | `/api/v1/admin/actors/{actor_type}/{actor_id}/activity` | No actor activity timeline UI | Add activity timeline with cursor pagination and filters. |
@@ -46,7 +46,7 @@ These must be resolved before treating the frontend as production-ready.
 | Replace placeholder gateway UI | Required | Gateway list/detail, command history, assignment, update, disable, enable, and rotate views must use real `/api/v1/admin/gateways` data. |
 | Separate viewer camera data from admin camera data | Required | Viewer dashboard uses `/api/v1/cameras`; admin camera management uses `/api/v1/admin/cameras` and detail routes. |
 | Remove or disable nonexistent endpoint calls | Required | Security reports, DSR listing, and site listing must not appear as broken production features. |
-| Expose missing implemented admin actions | Required | Add or document UI for MFA reset, backup status, break-glass status, and actor profile/activity. Keep user invite hidden or marked planned until the backend IdP invite stub is implemented. |
+| Expose missing implemented admin actions | Required | Add or document UI for user invite, MFA reset, backup status, break-glass status, and actor profile/activity. |
 | Full local smoke test | Required | Run the frontend against a local backend with dev auth and verify every sidebar page loads without React crashes or failed required calls. |
 | Full staging smoke test | Required | Test with Cloudflare Access session cookies, CSRF, backend routes, SSE where applicable, and deployed frontend assets. |
 | Browser publishing absence check | Required | Confirm the browser bundle does not request camera/microphone permission and does not publish media to LiveKit. |
