@@ -1,8 +1,9 @@
-import { Activity, CheckCircle, XCircle, AlertTriangle, Shield, Wrench, Radio, Server, Globe, Lock } from 'lucide-react';
+import { Activity, CheckCircle, XCircle, AlertTriangle, Shield, Wrench, Radio, Server, Globe, Lock, Database, HardDrive } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '../../lib/theme';
 import { api, ApiError } from '../../lib/api';
+import { useBackupStatus } from '../../lib/hooks';
 import type { DeepHealthResponse } from '../../lib/types';
 
 export function HealthSection() {
@@ -16,6 +17,7 @@ export function HealthSection() {
   const [msg, setMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [livekitMode, setLivekitMode] = useState<'cloud' | 'fallback'>('cloud');
   const [switchingMode, setSwitchingMode] = useState(false);
+  const { backup } = useBackupStatus();
 
   const showMsg = (text: string, type: 'success' | 'error') => {
     setMsg({ text, type });
@@ -67,7 +69,7 @@ export function HealthSection() {
   };
 
   const renderSecurityCheck = (title: string, IconComp: typeof Shield) => (
-    <div className={`backdrop-blur-xl border rounded-xl p-5 ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
+    <div className={`backdrop-blur-xl border rounded-lg p-5 ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
       <div className="flex items-center gap-3 mb-3">
         <IconComp className="w-5 h-5 text-slate-400" />
         <h4 className={`font-semibold ${d ? 'text-white' : 'text-slate-900'}`}>{title}</h4>
@@ -78,15 +80,17 @@ export function HealthSection() {
     </div>
   );
 
+  const latestBackup = backup?.latest_run;
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className={`text-2xl font-bold mb-1 ${d ? 'text-white' : 'text-slate-900'}`}>System Health</h2>
-        <p className={d ? 'text-slate-400' : 'text-slate-500'}>Deep health monitoring and maintenance controls</p>
+        <p className={d ? 'text-slate-400' : 'text-slate-500'}>Deep health monitoring, backup status, and maintenance controls</p>
       </div>
 
       {msg && (
-        <div className={`p-3 rounded-xl text-sm flex items-center gap-2 ${
+        <div className={`p-3 rounded-lg text-sm flex items-center gap-2 ${
           msg.type === 'error' ? 'bg-red-500/10 border border-red-500/20 text-red-400' : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
         }`}>
           {msg.type === 'error' ? <XCircle className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
@@ -95,9 +99,9 @@ export function HealthSection() {
       )}
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-        className={`backdrop-blur-xl border rounded-xl p-6 ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
+        className={`backdrop-blur-xl border rounded-lg p-6 ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center">
+          <div className="w-10 h-10 bg-emerald-500/20 rounded-lg flex items-center justify-center">
             <Activity className="w-5 h-5 text-emerald-500" />
           </div>
           <div>
@@ -109,7 +113,7 @@ export function HealthSection() {
         {healthLoading ? (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className={`p-4 rounded-xl animate-pulse ${d ? 'bg-slate-800/50' : 'bg-slate-100'}`}>
+              <div key={i} className={`p-4 rounded-lg animate-pulse ${d ? 'bg-slate-800/50' : 'bg-slate-100'}`}>
                 <div className="h-4 w-16 rounded bg-slate-700/50 mb-2" />
                 <div className="h-6 w-12 rounded bg-slate-700/50" />
               </div>
@@ -123,7 +127,7 @@ export function HealthSection() {
               { label: 'Gateway', status: health?.gateway || 'unknown', icon: Globe },
               { label: 'Overall', status: health?.status || 'unknown', icon: Activity },
             ].map(item => (
-              <div key={item.label} className={`p-4 rounded-xl border ${statusBg(item.status)}`}>
+              <div key={item.label} className={`p-4 rounded-lg border ${statusBg(item.status)}`}>
                 <div className="flex items-center gap-2 mb-2">
                   <item.icon className={`w-4 h-4 ${item.status === 'ok' ? 'text-emerald-400' : item.status === 'degraded' ? 'text-amber-400' : 'text-red-400'}`} />
                   <span className={`text-sm font-medium ${d ? 'text-slate-300' : 'text-slate-600'}`}>{item.label}</span>
@@ -140,9 +144,52 @@ export function HealthSection() {
         )}
       </motion.div>
 
+      {/* Backup Status — from GET /admin/backups/status */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
+        className={`backdrop-blur-xl border rounded-lg p-6 ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center">
+            <Database className="w-5 h-5 text-orange-500" />
+          </div>
+          <div>
+            <h3 className={`font-semibold ${d ? 'text-white' : 'text-slate-900'}`}>Backup Status</h3>
+            <p className={`text-sm ${d ? 'text-slate-400' : 'text-slate-500'}`}>Latest database backup from R2 storage</p>
+          </div>
+        </div>
+        {latestBackup ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className={`p-3 rounded-lg ${d ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
+              <p className={`text-xs mb-1 ${d ? 'text-slate-400' : 'text-slate-500'}`}>Status</p>
+              <p className={`text-sm font-medium ${latestBackup.status === 'completed' ? 'text-emerald-400' : latestBackup.status === 'running' ? 'text-amber-400' : 'text-red-400'}`}>
+                {latestBackup.status.toUpperCase()}
+              </p>
+            </div>
+            <div className={`p-3 rounded-lg ${d ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
+              <p className={`text-xs mb-1 ${d ? 'text-slate-400' : 'text-slate-500'}`}>Upload</p>
+              <p className={`text-sm font-medium ${d ? 'text-white' : 'text-slate-900'}`}>{latestBackup.upload_status}</p>
+            </div>
+            <div className={`p-3 rounded-lg ${d ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
+              <p className={`text-xs mb-1 ${d ? 'text-slate-400' : 'text-slate-500'}`}>Started</p>
+              <p className={`text-sm font-medium ${d ? 'text-white' : 'text-slate-900'}`}>{new Date(latestBackup.started_at).toLocaleString()}</p>
+            </div>
+            <div className={`p-3 rounded-lg ${d ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
+              <p className={`text-xs mb-1 ${d ? 'text-slate-400' : 'text-slate-500'}`}>Size</p>
+              <p className={`text-sm font-medium ${d ? 'text-white' : 'text-slate-900'}`}>
+                {latestBackup.size_bytes ? `${(latestBackup.size_bytes / 1024 / 1024).toFixed(2)} MB` : '—'}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className={`p-4 rounded-lg text-sm text-center ${d ? 'bg-slate-800/50 text-slate-400' : 'bg-slate-50 text-slate-500'}`}>
+            <HardDrive className={`w-8 h-8 mx-auto mb-2 ${d ? 'text-slate-600' : 'text-slate-300'}`} />
+            No backup data available
+          </div>
+        )}
+      </motion.div>
+
       <div>
         <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${d ? 'text-white' : 'text-slate-900'}`}>
-          <Shield className="w-5 h-5 text-cyan-500" /> Security Check Reports
+          <Shield className="w-5 h-5 text-orange-500" /> Security Check Reports
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {renderSecurityCheck('T-30: Exposure Check', Globe)}
@@ -152,10 +199,10 @@ export function HealthSection() {
       </div>
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-        className={`backdrop-blur-xl border rounded-xl p-6 ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
+        className={`backdrop-blur-xl border rounded-lg p-6 ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
               <Radio className="w-5 h-5 text-purple-500" />
             </div>
             <div>
@@ -171,7 +218,7 @@ export function HealthSection() {
             </div>
           </div>
           <button onClick={handleLivekitToggle} disabled={switchingMode}
-            className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50 ${
+            className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
               livekitMode === 'cloud'
                 ? 'bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-400'
                 : 'bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-emerald-400'
@@ -182,10 +229,10 @@ export function HealthSection() {
       </motion.div>
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-        className={`backdrop-blur-xl border rounded-xl p-6 ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
+        className={`backdrop-blur-xl border rounded-lg p-6 ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-amber-500/20 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-amber-500/20 rounded-lg flex items-center justify-center">
               <Wrench className="w-5 h-5 text-amber-500" />
             </div>
             <div>
@@ -194,12 +241,12 @@ export function HealthSection() {
             </div>
           </div>
           <button onClick={handleMaintenance} disabled={runningMaintenance}
-            className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white rounded-xl text-sm font-medium shadow-lg shadow-amber-500/25 disabled:opacity-50 transition-all">
+            className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white rounded-lg text-sm font-medium shadow-lg shadow-amber-500/25 disabled:opacity-50 transition-all">
             <Wrench className="w-4 h-4 inline mr-2" />{runningMaintenance ? 'Running...' : 'Run Maintenance'}
           </button>
         </div>
         {maintenanceResult && (
-          <div className="mt-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-sm text-emerald-400">
+          <div className="mt-4 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-sm text-emerald-400">
             {maintenanceResult}
           </div>
         )}

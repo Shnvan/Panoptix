@@ -39,7 +39,7 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className={`border rounded-2xl max-w-6xl w-full overflow-hidden shadow-2xl ${
+        className={`border rounded-lg max-w-6xl w-full overflow-hidden shadow-2xl ${
           theme === 'dark'
             ? 'bg-gradient-to-br from-slate-900 to-slate-800 border-slate-700/50'
             : 'bg-white border-slate-200'
@@ -51,8 +51,8 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
           theme === 'dark' ? 'border-slate-700/50' : 'border-slate-200'
         }`}>
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-cyan-500/20 rounded-xl flex items-center justify-center">
-              <Camera className="w-6 h-6 text-cyan-500" />
+            <div className="w-12 h-12 bg-orange-500/20 rounded-lg flex items-center justify-center">
+              <Camera className="w-6 h-6 text-orange-500" />
             </div>
             <div>
               <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
@@ -68,7 +68,7 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
           </div>
           <button
             onClick={onClose}
-            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+            className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
               theme === 'dark' ? 'bg-slate-800/50 hover:bg-slate-700/50' : 'bg-slate-100 hover:bg-slate-200'
             }`}
             aria-label="Close modal"
@@ -81,22 +81,22 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6">
           {/* Video Panel */}
           <div className="lg:col-span-2 space-y-4">
-            <div className="aspect-video bg-slate-950 rounded-xl overflow-hidden relative">
+            <div className="aspect-video bg-slate-950 rounded-lg overflow-hidden relative">
               <div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-950">
                 <div className="absolute inset-0 flex items-center justify-center">
                   <Camera className="w-24 h-24 text-slate-700" />
                 </div>
                 <motion.div
-                  className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-50"
+                  className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-orange-400 to-transparent opacity-50"
                   animate={{ y: [0, 400, 0] }}
                   transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
                 />
               </div>
-              <div className="absolute top-4 left-4 flex items-center gap-2 bg-amber-500/90 backdrop-blur-sm px-3 py-1.5 rounded-lg">
+              <div className="absolute top-4 left-4 flex items-center gap-2 bg-amber-500/90 backdrop-blur-sm px-3 py-1.5 rounded-md">
                 <div className="w-2 h-2 rounded-full bg-white" />
                 <span className="text-xs font-bold text-white">PLAYER PENDING</span>
               </div>
-              <div className="absolute bottom-4 left-4 bg-black/70 backdrop-blur-sm px-3 py-1.5 rounded-lg font-mono text-xs text-white">
+              <div className="absolute bottom-4 left-4 bg-black/70 backdrop-blur-sm px-3 py-1.5 rounded-md font-mono text-xs text-white">
                 {new Date().toLocaleString('en-US', { hour12: false })}
               </div>
             </div>
@@ -106,14 +106,14 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
               <button
                 onClick={requestViewToken}
                 disabled={tokenStatus === 'loading'}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 rounded-xl text-cyan-500 transition-colors disabled:opacity-50"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 rounded-lg text-orange-500 transition-colors disabled:opacity-50"
               >
                 <RefreshCw className={`w-4 h-4 ${tokenStatus === 'loading' ? 'animate-spin' : ''}`} />
                 <span className="text-sm font-medium">
                   {tokenStatus === 'loading' ? 'Requesting...' : tokenStatus === 'ready' ? 'Token Ready' : 'Request Stream Token'}
                 </span>
               </button>
-              <button className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 border rounded-xl transition-colors ${
+              <button className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 border rounded-lg transition-colors ${
                 theme === 'dark'
                   ? 'bg-slate-800/50 hover:bg-slate-700/50 border-slate-700/50 text-white'
                   : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
@@ -124,7 +124,7 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
             </div>
 
             {tokenError && (
-              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
                 {tokenError}
               </div>
             )}
@@ -132,7 +132,7 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
 
           {/* Metadata Panel */}
           <div className="space-y-4">
-            <div className={`border rounded-xl p-4 space-y-3 ${
+            <div className={`border rounded-lg p-4 space-y-3 ${
               theme === 'dark' ? 'bg-slate-800/50 border-slate-700/50' : 'bg-slate-50 border-slate-200'
             }`}>
               <h3 className={`font-semibold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
@@ -153,17 +153,17 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
               </div>
             </div>
 
-            <div className={`border rounded-xl p-4 text-sm ${
+            <div className={`border rounded-lg p-4 text-sm ${
               theme === 'dark' ? 'bg-amber-500/10 border-amber-500/20 text-amber-200' : 'bg-amber-50 border-amber-200 text-amber-800'
             }`}>
               This frontend can request a short-lived viewer token, but browser LiveKit playback is still pending integration.
             </div>
 
-            <div className={`border rounded-xl p-4 space-y-3 ${
+            <div className={`border rounded-lg p-4 space-y-3 ${
               theme === 'dark' ? 'bg-slate-800/50 border-slate-700/50' : 'bg-slate-50 border-slate-200'
             }`}>
               <h3 className={`font-semibold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-                <Eye className="w-4 h-4 text-cyan-500" /> Access
+                <Eye className="w-4 h-4 text-orange-500" /> Access
               </h3>
               <div className="space-y-2 text-sm">
                 {['Security Team', 'Admin Staff'].map((team) => (

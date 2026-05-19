@@ -32,7 +32,7 @@ export function Header({ user, alertCount }: HeaderProps) {
           <input
             type="text"
             placeholder="Search cameras, gateways, users..."
-            className={`w-full rounded-xl pl-10 pr-4 py-2 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${
+            className={`w-full rounded-lg pl-10 pr-4 py-2 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-orange-500/50 ${
               theme === 'dark'
                 ? 'bg-slate-800/50 border border-slate-700/50 text-white placeholder-slate-400'
                 : 'bg-slate-100 border border-slate-200 text-slate-900 placeholder-slate-400'
@@ -44,10 +44,10 @@ export function Header({ user, alertCount }: HeaderProps) {
       {/* Right Side */}
       <div className="flex items-center gap-3">
         {/* Current Time */}
-        <div className={`flex items-center gap-2 px-3 py-2 rounded-xl ${
+        <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
           theme === 'dark' ? 'bg-slate-800/50' : 'bg-slate-100'
         }`}>
-          <Clock className="w-4 h-4 text-cyan-500" />
+          <Clock className="w-4 h-4 text-orange-500" />
           <span className={`text-sm font-medium font-mono ${
             theme === 'dark' ? 'text-white' : 'text-slate-700'
           }`}>
@@ -56,7 +56,7 @@ export function Header({ user, alertCount }: HeaderProps) {
         </div>
 
         {/* Security Status */}
-        <div className="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+        <div className="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
           <Shield className="w-4 h-4 text-emerald-400" />
           <span className="text-sm text-emerald-400 font-medium">Secure</span>
         </div>
@@ -64,7 +64,7 @@ export function Header({ user, alertCount }: HeaderProps) {
         {/* Theme Toggle */}
         <button
           onClick={toggleTheme}
-          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+          className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
             theme === 'dark'
               ? 'bg-slate-800/50 hover:bg-slate-700/50 text-slate-400 hover:text-white'
               : 'bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700'
@@ -75,7 +75,7 @@ export function Header({ user, alertCount }: HeaderProps) {
         </button>
 
         {/* Notifications */}
-        <button className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-colors group ${
+        <button className={`relative w-10 h-10 rounded-lg flex items-center justify-center transition-colors group ${
           theme === 'dark'
             ? 'bg-slate-800/50 hover:bg-slate-700/50'
             : 'bg-slate-100 hover:bg-slate-200'
@@ -91,12 +91,12 @@ export function Header({ user, alertCount }: HeaderProps) {
         </button>
 
         {/* User Profile */}
-        <button className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-colors group ${
+        <button className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors group ${
           theme === 'dark'
             ? 'bg-slate-800/50 hover:bg-slate-700/50'
             : 'bg-slate-100 hover:bg-slate-200'
         }`}>
-          <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-amber-600 rounded-md flex items-center justify-center">
             <User className="w-5 h-5 text-white" />
           </div>
           <div className="text-left">

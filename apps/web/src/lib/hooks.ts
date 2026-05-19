@@ -9,6 +9,11 @@ import type {
   SessionItem,
   PrivacyNoticeResponse,
   DeepHealthResponse,
+  AdminDashboardResponse,
+  AdminGateway,
+  DsrRequest,
+  BackupStatusResponse,
+  BreakGlassStatusResponse,
 } from './types';
 
 // ── useMe ──
@@ -257,4 +262,130 @@ export function useSystemHealth() {
   }, []);
 
   return status;
+}
+
+// ── useAdminDashboard ──
+
+export function useAdminDashboard() {
+  const [dashboard, setDashboard] = useState<AdminDashboardResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchDashboard = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await api.getAdminDashboard();
+      setDashboard(data);
+    } catch {
+      // Not admin or error
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
+
+  return { dashboard, loading, refetch: fetchDashboard };
+}
+
+// ── useAdminGateways ──
+
+export function useAdminGateways() {
+  const [gateways, setGateways] = useState<AdminGateway[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+
+  const fetchGateways = useCallback(async (cursor?: string) => {
+    setLoading(true);
+    try {
+      const data = await api.listAdminGateways(cursor);
+      setGateways((prev) => (cursor ? [...prev, ...data.items] : data.items));
+      setNextCursor(data.next_cursor);
+    } catch {
+      // Access denied or error
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchGateways(); }, [fetchGateways]);
+
+  return {
+    gateways,
+    loading,
+    loadMore: () => { if (nextCursor) fetchGateways(nextCursor); },
+    hasMore: !!nextCursor,
+    refetch: () => fetchGateways(),
+  };
+}
+
+// ── useDsrRequests ──
+
+export function useDsrRequests() {
+  const [requests, setRequests] = useState<DsrRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+
+  const fetchRequests = useCallback(async (cursor?: string) => {
+    setLoading(true);
+    try {
+      const data = await api.listDsrRequests(cursor);
+      setRequests((prev) => (cursor ? [...prev, ...data.items] : data.items));
+      setNextCursor(data.next_cursor);
+    } catch {
+      // Access denied or error
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchRequests(); }, [fetchRequests]);
+
+  return {
+    requests,
+    loading,
+    loadMore: () => { if (nextCursor) fetchRequests(nextCursor); },
+    hasMore: !!nextCursor,
+    refetch: () => fetchRequests(),
+  };
+}
+
+// ── useBackupStatus ──
+
+export function useBackupStatus() {
+  const [backup, setBackup] = useState<BackupStatusResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    api.getBackupStatus()
+      .then((data) => { if (mounted) setBackup(data); })
+      .catch(() => {})
+      .finally(() => { if (mounted) setLoading(false); });
+    return () => { mounted = false; };
+  }, []);
+
+  return { backup, loading };
+}
+
+// ── useBreakGlassStatus ──
+
+export function useBreakGlassStatus() {
+  const [status, setStatus] = useState<BreakGlassStatusResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchStatus = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await api.getBreakGlassStatus();
+      setStatus(data);
+    } catch {
+      // Not admin or error
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchStatus(); }, [fetchStatus]);
+
+  return { status, loading, refetch: fetchStatus };
 }
