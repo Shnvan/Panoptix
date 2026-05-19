@@ -6,11 +6,11 @@ Current status and next steps for any session continuing this project.
 
 ## Overall Progress: ~88% to MVP
 
-Last updated: 2026-05-19
+Last updated: 2026-05-20
 
 | Area | Progress | Status | Notes |
 |------|----------|--------|-------|
-| **Backend API** | 99% | 🟢 Strong | Auth, RBAC, audit, actor investigation profiles/activity timeline, health, gateway, camera, command, webhook, session, admin, break-glass, search/filter, enrichment, LiveKit fallback, DPA export, signage attestation, credential rotation, MFA reset, GitHub-backed invites, camera/gateway lifecycle update and re-enable, and backup status reporting all done. Backend-controlled synthetic gateway publish smoke passed. 532 tests passing. |
+| **Backend API** | 99% | 🟢 Strong | Auth, RBAC, audit, actor investigation profiles/activity timeline, health, gateway, camera, command, webhook, session, admin, break-glass, search/filter, enrichment, LiveKit fallback, DPA export, DSR workflow tracking, signage attestation, credential rotation, MFA reset, GitHub-backed invites, camera/gateway lifecycle update and re-enable, and backup status reporting all done. Backend-controlled synthetic gateway publish smoke passed. 532 tests passing. |
 | **Edge Agent** | 88% | 🟢 Strong | Heartbeat, command signing, WebSocket control, FFmpeg frame source, LiveKit SDK bridge, per-camera credentials, supervisor, real FFmpeg integration tests, synthetic RTSP to LiveKit Cloud smoke, backend-command publish ACK, exponential backoff + jitter, mTLS cert bootstrap scaffold, cryptography dep all done. Missing: real CCTV hardware validation and production service deployment. |
 | **Frontend** | 0% | 🔴 Not started | Placeholder only. Owned by frontend coworker. Blocked until admin UI, camera grid viewer, and privacy notice flow are built. |
 | **Database** | 97% | 🟢 Strong | Core schema plus `0007_gateway_command_tables` migration deployed on active DB; `gateway_command_queue`, `camera_publish_states`, and `backup_runs` model/schema verified. Backup status endpoint now reports database-known backup readiness from `backup_runs`. Missing: recorded restore drill evidence, backup worker automation, retention policy tables (pilot+). |
@@ -34,7 +34,7 @@ Last updated: 2026-05-19
 ### What We Control vs What's Blocked
 
 **Can do now (no external dependencies):**
-- Keep static checks green, run an isolated restore drill when R2 backup artifacts are available, and prepare production deployment hardening. The main product-path blockers now require frontend implementation and real camera hardware.
+- Keep static checks green, run an isolated restore drill when R2 backup artifacts are available, and prepare production deployment hardening. Backend DSR tracking is now available as an API; the DSR browser UI remains frontend work. The main product-path blockers now require frontend implementation and real camera hardware.
 
 **Blocked on external dependencies:**
 - Frontend UI → frontend coworker

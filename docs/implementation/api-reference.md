@@ -116,6 +116,36 @@ Backup status:
 
 `status` is `missing` when no backup rows exist, `ok` when the latest backup is uploaded/finished with restore-format success and a successful schema restore drill is recorded, and `degraded` otherwise. The endpoint does not call R2 or return object paths, credentials, database URLs, backup artifacts, or decryption material.
 
+## DSR Workflow Routes
+
+Admin-only Data Subject Request tracking is available under:
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/api/v1/admin/dsr-requests` | list DSR cases; supports `status` and `limit` |
+| `POST` | `/api/v1/admin/dsr-requests` | create a DSR case |
+| `GET` | `/api/v1/admin/dsr-requests/{request_id}` | view one DSR case and audit the access |
+| `PATCH` | `/api/v1/admin/dsr-requests/{request_id}` | update DSR lifecycle fields |
+
+Supported `subject_type` values are `user`, `bystander`, and `site_contact`. Supported `request_type` values are `access`, `correction`, `deletion`, `objection`, `restriction`, and `other`. Supported `status` values are `open`, `verified`, `in_progress`, `completed`, `rejected`, and `cancelled`.
+
+Create request:
+
+```json
+{
+  "requester_contact": "person@example.com",
+  "subject_type": "user",
+  "request_type": "access",
+  "site_id": "uuid-or-null",
+  "camera_scope_note": "optional scope note",
+  "due_at": "2026-06-19T00:00:00+00:00",
+  "status": "open",
+  "artifact_id": "uuid-or-null"
+}
+```
+
+The API records `admin.dsr.created`, `admin.dsr.viewed`, and `admin.dsr.updated` audit events. It tracks the case lifecycle only; it does not automatically search, export, redact, or delete footage.
+
 ## Gateway Routes
 
 | Method | Path | Notes |

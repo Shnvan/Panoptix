@@ -31,7 +31,7 @@ Design direction: new frontend work should follow [Panoptix Design System](PANOP
 | Implemented but incomplete | `/api/v1/admin/sites/{site_id}/signage-attest` | Attestation call exists, but site listing source is missing | Disable or clearly mark until a real site list source exists, or add backend site listing later. |
 | Implemented but missing UI | `/api/v1/admin/backups/status` | No production UI | Add backup status card or document why it stays admin/API-only. |
 | Frontend calls nonexistent endpoint | `/api/v1/admin/sites` | API client has `listSites()` but backend route is not present | Remove, disable, or mark planned until backend route exists. |
-| Frontend calls nonexistent endpoint | `/api/v1/admin/dsr-requests` | API client has `listDsrRequests()` but backend route is not present | Remove, disable, or mark planned until backend route exists. |
+| Implemented but missing UI | `/api/v1/admin/dsr-requests` | Backend DSR list/create/detail/update routes are implemented; UI is not production-ready | Add DSR case management UI for requester, type, due date, status, outcome, and artifact link. |
 | Frontend calls nonexistent endpoint | `/api/v1/admin/exposure-check`, `/media-isolation-check`, `/origin-binding-check` | API client has security check calls but backend routes are not present | Remove, disable, or mark planned until backend routes exist. |
 | Backend/gateway-only | Gateway heartbeat, ingest token, camera status, gateway WebSocket, LiveKit webhook | Must not be browser-callable | Keep out of frontend UI and browser API client. |
 | Pilot/future only | Viewer watermark, alerts, incident workflow, analyst notes, behavior baseline | Not production-ready | Keep as pilot backlog until backend data sources and models exist. |
@@ -45,7 +45,7 @@ These must be resolved before treating the frontend as production-ready.
 | Real LiveKit browser viewer playback | Not done | Use backend viewer tokens to connect with the LiveKit client as a subscriber only. |
 | Replace placeholder gateway UI | Required | Gateway list/detail, command history, assignment, update, disable, enable, and rotate views must use real `/api/v1/admin/gateways` data. |
 | Separate viewer camera data from admin camera data | Required | Viewer dashboard uses `/api/v1/cameras`; admin camera management uses `/api/v1/admin/cameras` and detail routes. |
-| Remove or disable nonexistent endpoint calls | Required | Security reports, DSR listing, and site listing must not appear as broken production features. |
+| Remove or disable nonexistent endpoint calls | Required | Security reports and site listing must not appear as broken production features; DSR now has backend routes but still needs UI integration. |
 | Expose missing implemented admin actions | Required | Add or document UI for user invite, MFA reset, backup status, break-glass status, and actor profile/activity. |
 | Full local smoke test | Required | Run the frontend against a local backend with dev auth and verify every sidebar page loads without React crashes or failed required calls. |
 | Full staging smoke test | Required | Test with Cloudflare Access session cookies, CSRF, backend routes, SSE where applicable, and deployed frontend assets. |

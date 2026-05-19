@@ -23,7 +23,7 @@ Database evidence was found in `apps/api/src/cctv_api/models/tables.py`, `apps/a
 | `audit_hmac_keys`, `audit_log` | HMAC key versions and tamper-evident audit chain | Existing |
 | `break_glass_usage` | Emergency access lifecycle | Existing |
 | `privacy_notice_acceptances` | Versioned privacy notice acceptance | Existing |
-| `dpa_artifacts`, `dsr_requests` | Compliance artifacts and DSR ledger | Partially Existing |
+| `dpa_artifacts`, `dsr_requests` | Compliance artifacts and DSR ledger | Backend Existing |
 | `system_config` | Runtime configuration values such as media-plane mode | Existing |
 | `backup_runs` | Backup execution metadata | Partially Existing |
 | `webhook_replay_cache` | LiveKit webhook replay prevention | Existing |
@@ -95,7 +95,7 @@ erDiagram
 | `break_glass_usage` | `opened_at`, `closed_at`, `auto_disable_at` | Emergency access lifecycle | DateTime TZ | Mixed | Opened index | Existing |
 | `privacy_notice_acceptances` | `user_id`, `notice_version`, `accepted_at` | Versioned notice acceptance | UUID/String/DateTime | Yes | Composite PK | Existing |
 | `dpa_artifacts` | `kind`, `path_to_r2`, `signed_hash` | Compliance artifact metadata | Enum/String | Mixed | DPA enum | Existing |
-| `dsr_requests` | `requester_contact`, `subject_type`, `request_type`, `due_at`, `status` | DSR case tracking | String/Enum/DateTime | Yes | Due index | Partially Existing |
+| `dsr_requests` | `requester_contact`, `subject_type`, `request_type`, `due_at`, `status` | DSR case tracking | String/Enum/DateTime | Yes | Due index | Backend Existing |
 | `system_config` | `key`, `value`, `updated_by`, `updated_at` | Runtime configuration | String/UUID/DateTime | Yes | Primary key | Existing |
 | `backup_runs` | `started_at`, `finished_at`, `size_bytes`, `sha256`, `upload_status` | Backup run metadata | DateTime/BigInt/String/Enum | Mixed | Status enum | Partially Existing |
 | `webhook_replay_cache` | `provider`, `signature`, `ts`, `expires_at` | Webhook replay key | String/DateTime | Yes | Composite PK | Existing |
@@ -104,7 +104,7 @@ erDiagram
 
 | Gap | Impact | Recommendation |
 |---|---|---|
-| DSR table exists but no full DSR API/UI was found | Compliance process may be manual or incomplete | Define DSR workflow and ownership |
+| DSR API exists but no frontend UI was found | Compliance process is API-only until frontend work lands | Build DSR case management UI |
 | Backup metadata depends on backup job writes | Admin status is only as accurate as `backup_runs` rows written by the backup workflow | Keep backup job/runbook responsible for recording upload and restore validation evidence |
 | `sites.bystander_signage_attested_at` and `dpa_artifacts` both relate to signage | Risk of unclear source of truth | Confirm how site timestamp and artifact record should synchronize |
 | Frontend docs contain stale camera source type values | UI validation may reject valid values or submit invalid ones | Update docs/client types from actual enum |

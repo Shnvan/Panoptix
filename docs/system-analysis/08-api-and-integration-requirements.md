@@ -81,7 +81,7 @@ The backend is a FastAPI service. Most routes are mounted under `/api/v1`; `/hea
 
 ## Missing Or Unclear API Behavior
 
-- DSR request CRUD/workflow APIs were not found.
+- DSR request CRUD/workflow APIs now exist under `/api/v1/admin/dsr-requests`; frontend workflow integration is still pending.
 - Frontend-generated OpenAPI/TypeScript client is not implemented.
 - Documentation should be corrected where camera source type values differ from code.
 

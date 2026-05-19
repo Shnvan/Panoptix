@@ -42,7 +42,7 @@ Panoptix enables authorized users to view assigned CCTV cameras while keeping ca
 
 - No implemented Next.js/React frontend was found in `apps/web/`.
 - Real camera onboarding and production camera-to-LiveKit publishing require physical hardware.
-- DSR database tables exist, but full DSR workflow APIs were not found.
+- Backend DSR workflow APIs exist; frontend DSR case management UI is still pending.
 - Self-hosted LiveKit fallback is represented by docs/configuration and a mode switch, not full operations.
 
 ## Users And Roles
@@ -65,7 +65,7 @@ Panoptix enables authorized users to view assigned CCTV cameras while keeping ca
 - Gateway command queue: enqueue, list, cancel, expire, ACK processing, signed envelopes.
 - LiveKit integration: viewer tokens, gateway tokens, webhooks, room-presence-driven start/stop.
 - Audit: HMAC-chained audit rows, verification, listing, export.
-- Privacy and compliance: privacy notice acceptance, DPA export, signage attestation.
+- Privacy and compliance: privacy notice acceptance, DPA export, DSR workflow tracking, signage attestation.
 - Operations: health checks, maintenance job, runbooks, CI/security scans, backup scripts.
 - Edge agent: heartbeat, command verification, command execution, supervisor, media scaffolds.
 
@@ -75,7 +75,7 @@ Panoptix enables authorized users to view assigned CCTV cameras while keeping ca
 |---|---|---|
 | Frontend web application | Required for viewer dashboard and admin workflows | Missing |
 | Real hardware onboarding workflow | Required to validate real camera publishing | Partially Existing |
-| DSR workflow API and UI | Data model exists but no full route workflow found | Missing |
+| DSR workflow UI | Backend DSR API exists; browser workflow is still frontend work | Missing |
 | Backup worker and restore drill evidence | Status endpoint reads `backup_runs`, but production backup artifacts and restore evidence are pending | Partially Existing |
 | Production self-hosted LiveKit fallback runbook/execution | Fallback mode exists but full operations remain future work | Partially Existing |
 
@@ -106,7 +106,7 @@ flowchart LR
 | Frontend not implemented | MVP cannot be used by end users despite backend readiness | Build frontend against documented API contract |
 | Hardware not onboarded | Real live camera behavior remains unproven | Procure and validate with supported RTSP cameras |
 | Documentation/code drift | Frontend or QA may build against wrong fields | Treat code and API tests as authoritative and update docs |
-| DSR tables without workflow | Compliance process may be incomplete | Define DSR API/UI workflow or mark manual process |
+| DSR workflow has no UI | Compliance case tracking is API-only until frontend work lands | Build DSR case management UI against the implemented backend routes |
 
 ## Constraints
 
@@ -137,6 +137,6 @@ flowchart LR
 | API files | FastAPI routers under `apps/api/src/cctv_api/api/` |
 | Reports/export logic | Audit export, DPA export, health dashboard data, backup scripts/status API |
 | Features confirmed from code | Auth, sessions, CSRF, RBAC, camera ACL, gateway control, LiveKit tokens/webhooks, audit, break-glass, DPA/signage |
-| Features documented but not found as complete code | Frontend UI, DSR workflow UI/API, full self-hosted fallback |
+| Features documented but not found as complete code | Frontend UI, DSR workflow UI, full self-hosted fallback |
 | Features found in code but under-documented or inconsistent | Actual `CameraSourceType` enum differs from `docs/frontend/BACKEND_STATUS.md` |
 

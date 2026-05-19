@@ -22,7 +22,7 @@
 | Compliance | Export DPA artifacts and record signage | Admin/Auditor | Artifact kind, hash, effective dates, site | Export, signage attest | Placeholder only | Missing |
 | Health/operations | Show backend, DB, LiveKit, and gateway freshness | Admin | Deep health check result | Refresh, run maintenance | Placeholder only | Missing |
 | Backup status | Show backup health | Admin | Backup metadata | Refresh | Endpoint stub only | Missing |
-| DSR ledger | Track data subject requests | Admin/Auditor | Requester, type, due date, status, outcome | Create/update/export | Data model only | Missing |
+| DSR ledger | Track data subject requests | Admin/Auditor | Requester, type, due date, status, outcome | Create/update/export | Backend API only | Missing UI |
 
 ## Field And Validation Notes
 

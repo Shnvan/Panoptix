@@ -24,5 +24,5 @@
 | API inspection | FastAPI routers under `apps/api/src/cctv_api/api/` |
 | Test inspection | `apps/api/tests/`, `apps/cctv-edge/agent/tests/`, `docs/implementation/test-plan.md` |
 | Analyst recommendation | Gap analysis, recommended future enhancements, traceability matrix |
-| Needs team confirmation | Auditor/SuperAdmin roles, DSR workflow, backup status shape, re-enable/update lifecycle policies |
+| Needs team confirmation | Auditor/SuperAdmin roles, backup status shape, re-enable/update lifecycle policies |
 

@@ -262,3 +262,12 @@ def test_admin_user_invite_event_registered() -> None:
     assert defn.severity == EventSeverity.high
     assert defn.category == EventCategory.authorization
     assert defn.default_outcome == EventOutcome.success
+
+
+def test_dsr_workflow_events_registered() -> None:
+    for action in ["admin.dsr.created", "admin.dsr.updated", "admin.dsr.viewed"]:
+        defn = classify_audit_event(action)
+        assert defn is not None
+        assert defn.severity == EventSeverity.medium
+        assert defn.category == EventCategory.compliance
+        assert defn.default_outcome == EventOutcome.success

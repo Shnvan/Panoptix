@@ -18,7 +18,7 @@
 | BR-012 | LiveKit presence | Camera publishing should start on viewer presence and stop when no viewers remain after grace handling. | LiveKit webhooks | Confirmed in existing project | Room-presence command logic and tests exist. |
 | BR-013 | Compliance | Privacy notice acceptance must be versioned and idempotent for the current version. | Privacy | Confirmed in existing project | `privacy_notice_acceptances` primary key includes user and version. |
 | BR-014 | Backup visibility | Admins should see backup status in the product. | Operations | Confirmed in existing project | Endpoint reports database-known readiness from `backup_runs`; restore drill evidence remains operational. |
-| BR-015 | DSR workflow | DSR requests should be tracked through receipt, verification, due date, outcome, and artifact link. | Compliance | Implied by documentation | Table exists, full API/UI not found. |
+| BR-015 | DSR workflow | DSR requests should be tracked through receipt, verification, due date, outcome, and artifact link. | Compliance | Implemented backend API | Backend routes exist; frontend UI is pending. |
 
 ## Validation Rules
 
@@ -45,6 +45,6 @@
 |---|---|
 | Auditor and SuperAdmin as separate roles | UX docs mention personas, but code seeds only `admin` and `viewer`. |
 | Exact frontend status labels and display copy | UX docs define message intent, but no UI implementation exists. |
-| DSR workflow ownership and API scope | Data model exists; end-to-end process was not found. |
+| DSR workflow frontend ownership | Backend API exists; browser workflow still needs frontend implementation. |
 | Backup status acceptance criteria | Endpoint is stubbed and R2 operations are documented separately. |
 

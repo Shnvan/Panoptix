@@ -12,7 +12,7 @@
 | DPA artifact export | Export compliance artifact metadata | Admin/Auditor | Optional kinds | JSON API | `dpa_artifacts` | Existing |
 | Signage attestation result | Record and return signage artifact metadata | Admin | Site ID | JSON API | `sites`, `dpa_artifacts` | Existing |
 | Backup status | Show backup health/status | Admin | None | JSON API | `backup_runs` | Existing |
-| DSR ledger/report | Track data subject requests | Admin/Auditor | Not defined | Not implemented | `dsr_requests` | Partially Existing |
+| DSR ledger/report | Track data subject requests | Admin/Auditor | API list/detail available | Backend implemented; UI pending | `dsr_requests` | Backend Existing |
 
 ## Report Field Requirements
 
@@ -32,7 +32,7 @@
 | Gap | Impact | Recommendation |
 |---|---|---|
 | Restore drill evidence not recorded | Admin can inspect `backup_runs`, but production restore confidence still needs drill evidence | Run an isolated restore drill and record evidence without storing secrets or backup contents in Git |
-| DSR report has table only | Compliance staff lack supported workflow | Add DSR routes and UI before relying on product for DSR handling |
+| DSR report has no UI | Compliance staff need a browser workflow | Add DSR UI backed by existing routes before relying on frontend for DSR handling |
 | Audit UI missing | Existing export/list APIs are not accessible to users through product UI | Build admin audit screen in frontend |
 | DPA export likely returns metadata, not full legal documents | Team may overestimate compliance completeness | Clarify whether artifacts are generated, uploaded, or manually maintained |
 

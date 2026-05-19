@@ -31,7 +31,7 @@ The repository contains extensive backend and edge-agent tests:
 | AC-011 | Frontend displays viewer/admin workflows using backend APIs. | Missing |
 | AC-012 | Real camera publishes through edge agent to LiveKit with production-like settings. | Partially Existing |
 | AC-013 | Backup status is visible to admins. | Missing |
-| AC-014 | DSR workflow is usable end to end. | Missing |
+| AC-014 | DSR workflow is usable through backend APIs. | Backend Complete |
 
 ## Test Scenarios
 
@@ -55,13 +55,13 @@ The repository contains extensive backend and edge-agent tests:
 | TS-015 | Frontend viewer dashboard | Frontend app exists | User logs in and opens dashboard | Grid, empty/error states, and LiveKit player render correctly | Missing |
 | TS-016 | Real camera publish | Real camera and gateway configured | Viewer joins room | Gateway publishes camera stream to LiveKit | Partially Existing smoke scaffolds |
 | TS-017 | Backup status | Backup run exists | Admin opens backup status | Latest status and restore checks display | `test_backup_status.py` |
-| TS-018 | DSR workflow | DSR request received | Admin records lifecycle | Request status/outcome and artifact link persist | Missing |
+| TS-018 | DSR workflow | DSR request received | Admin records lifecycle | Request status/outcome and artifact link persist | `test_dsr_requests.py` |
 
 ## QA Recommendations
 
 - Add Playwright coverage when `apps/web/` is implemented.
 - Add hardware-backed smoke tests for real RTSP camera to LiveKit publishing.
 - Keep restore drill evidence as a manual operations artifact until backup automation records real rows.
-- Add DSR API tests if the team approves DSR workflow scope.
+- Add frontend DSR case management tests when the browser UI is implemented.
 - Keep manual evidence for staging health, restore drills, and production readiness gates.
 

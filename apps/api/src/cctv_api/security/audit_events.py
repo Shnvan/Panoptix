@@ -114,6 +114,9 @@ _r("admin.user.disabled", S.high, C.admin, O.success)
 _r("admin.user.mfa_reset", S.critical, C.admin, O.success)
 _r("admin.maintenance.run", S.low, C.admin, O.success)
 _r("admin.dpa.export", S.medium, C.compliance, O.success)
+_r("admin.dsr.created", S.medium, C.compliance, O.success)
+_r("admin.dsr.updated", S.medium, C.compliance, O.success)
+_r("admin.dsr.viewed", S.medium, C.compliance, O.success)
 _r("admin.signage.attest", S.medium, C.compliance, O.success)
 
 # --- System ---

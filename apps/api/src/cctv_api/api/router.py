@@ -27,7 +27,7 @@ from cctv_api.integrations.github_invites import (
     create_github_org_invitation,
 )
 from cctv_api.jobs.maintenance import run_admin_maintenance_job
-from cctv_api.models.enums import ActorType, BackupUploadStatus, CameraPublishStatus, CameraSourceType, CommandStatus, DpaKind, EventCategory, EventOutcome, EventSeverity, GatewayStatus, StreamKind
+from cctv_api.models.enums import ActorType, BackupUploadStatus, CameraPublishStatus, CameraSourceType, CommandStatus, DpaKind, EventCategory, EventOutcome, EventSeverity, GatewayStatus, RequestType, StreamKind, SubjectType
 from cctv_api.models.tables import (
     AuditHmacKey,
     AuditLog,
@@ -37,6 +37,7 @@ from cctv_api.models.tables import (
     CameraEvent,
     CameraPublishState,
     DpaArtifact,
+    DsrRequest,
     EdgeGateway,
     GatewayCameraAssignment,
     GatewayCommandQueue,
@@ -84,6 +85,8 @@ CURRENT_PRIVACY_NOTICE_BODY = (
     "Panoptix provides live-view access to assigned CCTV cameras only. "
     "Use is audited. Do not record, publish, or share camera views outside approved operations."
 )
+
+DSR_STATUSES = frozenset({"open", "verified", "in_progress", "completed", "rejected", "cancelled"})
 
 
 @v1_router.get("/me")
@@ -2562,6 +2565,289 @@ def admin_livekit_fallback(
 
 
 # ── DPA export ──
+
+
+# --- DSR workflow ---
+
+
+class DsrCreateRequest(BaseModel):
+    requester_contact: str = Field(min_length=1, max_length=320)
+    subject_type: str
+    request_type: str
+    site_id: str | None = None
+    camera_scope_note: str | None = Field(default=None, max_length=2000)
+    received_at: datetime | None = None
+    due_at: datetime
+    verified_at: datetime | None = None
+    status: str = "open"
+    outcome: str | None = Field(default=None, max_length=4000)
+    artifact_id: str | None = None
+
+
+class DsrUpdateRequest(BaseModel):
+    requester_contact: str | None = Field(default=None, min_length=1, max_length=320)
+    subject_type: str | None = None
+    request_type: str | None = None
+    site_id: str | None = None
+    camera_scope_note: str | None = Field(default=None, max_length=2000)
+    received_at: datetime | None = None
+    due_at: datetime | None = None
+    verified_at: datetime | None = None
+    status: str | None = None
+    outcome: str | None = Field(default=None, max_length=4000)
+    artifact_id: str | None = None
+
+
+def _parse_dsr_subject_type(value: str) -> SubjectType:
+    try:
+        return SubjectType(value)
+    except ValueError as exc:
+        raise ProblemDetail(
+            status=400,
+            title="Bad Request",
+            detail="subject-type-invalid",
+            type_uri="https://panoptix.local/problems/bad-request",
+        ) from exc
+
+
+def _parse_dsr_request_type(value: str) -> RequestType:
+    try:
+        return RequestType(value)
+    except ValueError as exc:
+        raise ProblemDetail(
+            status=400,
+            title="Bad Request",
+            detail="request-type-invalid",
+            type_uri="https://panoptix.local/problems/bad-request",
+        ) from exc
+
+
+def _parse_dsr_status(value: str) -> str:
+    if value not in DSR_STATUSES:
+        raise ProblemDetail(
+            status=400,
+            title="Bad Request",
+            detail="dsr-status-invalid",
+            type_uri="https://panoptix.local/problems/bad-request",
+        )
+    return value
+
+
+def _validate_dsr_links(db: DbSession, *, site_id: str | None, artifact_id: str | None) -> tuple[uuid.UUID | None, uuid.UUID | None]:
+    site_uuid: uuid.UUID | None = None
+    artifact_uuid: uuid.UUID | None = None
+
+    if site_id is not None:
+        site_uuid = _parse_uuid(site_id, "site-id-invalid")
+        site = db.execute(select(Site).where(Site.id == str(site_uuid))).scalar_one_or_none()
+        if site is None:
+            raise ProblemDetail(
+                status=404,
+                title="Not Found",
+                detail="site-not-found",
+                type_uri="https://panoptix.local/problems/not-found",
+            )
+
+    if artifact_id is not None:
+        artifact_uuid = _parse_uuid(artifact_id, "artifact-id-invalid")
+        artifact = db.execute(select(DpaArtifact).where(DpaArtifact.id == str(artifact_uuid))).scalar_one_or_none()
+        if artifact is None:
+            raise ProblemDetail(
+                status=404,
+                title="Not Found",
+                detail="artifact-not-found",
+                type_uri="https://panoptix.local/problems/not-found",
+            )
+
+    return site_uuid, artifact_uuid
+
+
+def _dsr_response(row: DsrRequest) -> dict[str, object | None]:
+    return {
+        "request_id": str(row.id),
+        "requester_contact": row.requester_contact,
+        "subject_type": row.subject_type.value if row.subject_type else None,
+        "request_type": row.request_type.value if row.request_type else None,
+        "site_id": str(row.site_id) if row.site_id else None,
+        "camera_scope_note": row.camera_scope_note,
+        "received_at": row.received_at.isoformat() if row.received_at else None,
+        "due_at": row.due_at.isoformat() if row.due_at else None,
+        "verified_at": row.verified_at.isoformat() if row.verified_at else None,
+        "status": row.status,
+        "outcome": row.outcome,
+        "artifact_id": str(row.artefact_id) if row.artefact_id else None,
+    }
+
+
+def _dsr_not_found() -> ProblemDetail:
+    return ProblemDetail(
+        status=404,
+        title="Not Found",
+        detail="dsr-request-not-found",
+        type_uri="https://panoptix.local/problems/not-found",
+    )
+
+
+@v1_router.get("/admin/dsr-requests")
+def list_dsr_requests(
+    status: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    query = select(DsrRequest).order_by(DsrRequest.due_at.asc(), DsrRequest.received_at.desc())
+    if status is not None:
+        query = query.where(DsrRequest.status == _parse_dsr_status(status))
+    rows = list(db.execute(query.limit(limit)).scalars().all())
+    return {"items": [_dsr_response(row) for row in rows], "count": len(rows)}
+
+
+@v1_router.post("/admin/dsr-requests", status_code=201)
+def create_dsr_request(
+    body: DsrCreateRequest,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object | None]:
+    require_role(principal, "admin")
+    site_uuid, artifact_uuid = _validate_dsr_links(db, site_id=body.site_id, artifact_id=body.artifact_id)
+    now = datetime.now(timezone.utc)
+    dsr = DsrRequest(
+        id=uuid.uuid4(),
+        requester_contact=body.requester_contact,
+        subject_type=_parse_dsr_subject_type(body.subject_type),
+        request_type=_parse_dsr_request_type(body.request_type),
+        site_id=site_uuid,
+        camera_scope_note=body.camera_scope_note,
+        received_at=body.received_at or now,
+        due_at=body.due_at,
+        verified_at=body.verified_at,
+        status=_parse_dsr_status(body.status),
+        outcome=body.outcome,
+        artefact_id=artifact_uuid,
+    )
+    db.add(dsr)
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=actor.id,
+        action="admin.dsr.created",
+        resource=f"dsr-request:{dsr.id}",
+        payload=_dsr_response(dsr),
+    )
+    db.commit()
+    return _dsr_response(dsr)
+
+
+@v1_router.get("/admin/dsr-requests/{request_id}")
+def get_dsr_request(
+    request_id: str,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object | None]:
+    require_role(principal, "admin")
+    request_uuid = _parse_uuid(request_id, "dsr-request-id-invalid")
+    dsr = db.execute(select(DsrRequest).where(DsrRequest.id == str(request_uuid))).scalar_one_or_none()
+    if dsr is None:
+        raise _dsr_not_found()
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=actor.id,
+        action="admin.dsr.viewed",
+        resource=f"dsr-request:{request_uuid}",
+        payload={"request_id": str(request_uuid), "status": dsr.status},
+    )
+    db.commit()
+    return _dsr_response(dsr)
+
+
+@v1_router.patch("/admin/dsr-requests/{request_id}")
+def update_dsr_request(
+    request_id: str,
+    body: DsrUpdateRequest,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object | None]:
+    require_role(principal, "admin")
+    request_uuid = _parse_uuid(request_id, "dsr-request-id-invalid")
+    dsr = db.execute(select(DsrRequest).where(DsrRequest.id == str(request_uuid))).scalar_one_or_none()
+    if dsr is None:
+        raise _dsr_not_found()
+
+    updates = body.model_dump(exclude_unset=True)
+    if not updates:
+        raise ProblemDetail(
+            status=400,
+            title="Bad Request",
+            detail="dsr-update-empty",
+            type_uri="https://panoptix.local/problems/bad-request",
+        )
+
+    before = _dsr_response(dsr)
+    if "requester_contact" in updates:
+        dsr.requester_contact = body.requester_contact or ""
+    if "subject_type" in updates:
+        if body.subject_type is None:
+            raise ProblemDetail(status=400, title="Bad Request", detail="subject-type-invalid", type_uri="https://panoptix.local/problems/bad-request")
+        dsr.subject_type = _parse_dsr_subject_type(body.subject_type)
+    if "request_type" in updates:
+        if body.request_type is None:
+            raise ProblemDetail(status=400, title="Bad Request", detail="request-type-invalid", type_uri="https://panoptix.local/problems/bad-request")
+        dsr.request_type = _parse_dsr_request_type(body.request_type)
+    if "site_id" in updates or "artifact_id" in updates:
+        site_uuid, artifact_uuid = _validate_dsr_links(
+            db,
+            site_id=body.site_id if "site_id" in updates else str(dsr.site_id) if dsr.site_id else None,
+            artifact_id=body.artifact_id if "artifact_id" in updates else str(dsr.artefact_id) if dsr.artefact_id else None,
+        )
+        if "site_id" in updates:
+            dsr.site_id = site_uuid
+        if "artifact_id" in updates:
+            dsr.artefact_id = artifact_uuid
+    if "camera_scope_note" in updates:
+        dsr.camera_scope_note = body.camera_scope_note
+    if "received_at" in updates:
+        if body.received_at is None:
+            raise ProblemDetail(status=400, title="Bad Request", detail="received-at-required", type_uri="https://panoptix.local/problems/bad-request")
+        dsr.received_at = body.received_at
+    if "due_at" in updates:
+        if body.due_at is None:
+            raise ProblemDetail(status=400, title="Bad Request", detail="due-at-required", type_uri="https://panoptix.local/problems/bad-request")
+        dsr.due_at = body.due_at
+    if "verified_at" in updates:
+        dsr.verified_at = body.verified_at
+    if "status" in updates:
+        if body.status is None:
+            raise ProblemDetail(status=400, title="Bad Request", detail="dsr-status-invalid", type_uri="https://panoptix.local/problems/bad-request")
+        dsr.status = _parse_dsr_status(body.status)
+    if "outcome" in updates:
+        dsr.outcome = body.outcome
+
+    db.flush()
+    after = _dsr_response(dsr)
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=actor.id,
+        action="admin.dsr.updated",
+        resource=f"dsr-request:{request_uuid}",
+        payload={"request_id": str(request_uuid), "before": before, "after": after},
+    )
+    db.commit()
+    return after
 
 
 class DpaExportRequest(BaseModel):
