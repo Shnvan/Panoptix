@@ -20,7 +20,7 @@
 | FR-038 Break-glass | BR-009 | Admin recovery | `/admin/break-glass/*` | `break_glass_usage`, `audit_log` | `security/break_glass.py` | TS-009 | Complete |
 | FR-041 DPA/signage | BR-013 | Compliance | `/admin/dpa/export`, `/admin/sites/{id}/signage-attest` | `dpa_artifacts`, `sites` | `api/router.py` | TS-014 | Partial |
 | FR-042 DSR workflow | BR-015 | DSR ledger | Not found | `dsr_requests` | `models/tables.py` | TS-018 | Missing |
-| FR-043 Backup status | BR-014 | Backup status | `/admin/backups/status` | `backup_runs` | Stub endpoint | TS-017 | Missing |
+| FR-043 Backup status | BR-014 | Backup status | `/admin/backups/status` | `backup_runs` | `api/router.py` | TS-017 | Complete |
 | FR-011 Frontend dashboard | BR-003, BR-005 | Viewer dashboard | Uses browser APIs | N/A | `apps/web/README.md` only | TS-015 | Missing |
 | FR-030 Real camera publish | BR-004, BR-006, BR-012 | Viewer dashboard | Gateway + LiveKit | `stream_grants`, `camera_publish_states` | edge media modules | TS-016 | Partial |
 

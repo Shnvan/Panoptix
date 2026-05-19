@@ -52,7 +52,7 @@ The backend is a FastAPI service. Most routes are mounted under `/api/v1`; `/hea
 | POST | `/api/v1/admin/break-glass/open` | Open emergency access window | Existing |
 | POST | `/api/v1/admin/break-glass/close` | Close emergency access window | Existing |
 | GET | `/api/v1/admin/internal/break-glass-status` | Monitor break-glass state | Existing; unauthenticated monitor route |
-| GET | `/api/v1/admin/backups/status` | Backup status | Missing; returns `501` |
+| GET | `/api/v1/admin/backups/status` | Backup status | Existing; reports `backup_runs` readiness |
 
 ## Gateway APIs
 

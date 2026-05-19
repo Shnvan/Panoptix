@@ -52,14 +52,14 @@ The repository contains extensive backend and edge-agent tests:
 | TS-014 | Privacy notice acceptance idempotent | User accepts current version | Repeat acceptance | Accepted status remains valid | `test_privacy_admin_users.py` |
 | TS-015 | Frontend viewer dashboard | Frontend app exists | User logs in and opens dashboard | Grid, empty/error states, and LiveKit player render correctly | Missing |
 | TS-016 | Real camera publish | Real camera and gateway configured | Viewer joins room | Gateway publishes camera stream to LiveKit | Partially Existing smoke scaffolds |
-| TS-017 | Backup status | Backup run exists | Admin opens backup status | Latest status and restore checks display | Missing |
+| TS-017 | Backup status | Backup run exists | Admin opens backup status | Latest status and restore checks display | `test_backup_status.py` |
 | TS-018 | DSR workflow | DSR request received | Admin records lifecycle | Request status/outcome and artifact link persist | Missing |
 
 ## QA Recommendations
 
 - Add Playwright coverage when `apps/web/` is implemented.
 - Add hardware-backed smoke tests for real RTSP camera to LiveKit publishing.
-- Add backup status tests when the endpoint is implemented.
+- Keep restore drill evidence as a manual operations artifact until backup automation records real rows.
 - Add DSR API tests if the team approves DSR workflow scope.
 - Keep manual evidence for staging health, restore drills, and production readiness gates.
 

@@ -10,10 +10,10 @@ Last updated: 2026-05-19
 
 | Area | Progress | Status | Notes |
 |------|----------|--------|-------|
-| **Backend API** | 99% | 🟢 Strong | Auth, RBAC, audit, actor investigation profiles/activity timeline, health, gateway, camera, command, webhook, session, admin, break-glass, search/filter, enrichment, LiveKit fallback, DPA export, signage attestation, credential rotation, MFA reset, 501 stubs all done. Backend-controlled synthetic gateway publish smoke passed. 532 tests passing. |
+| **Backend API** | 99% | 🟢 Strong | Auth, RBAC, audit, actor investigation profiles/activity timeline, health, gateway, camera, command, webhook, session, admin, break-glass, search/filter, enrichment, LiveKit fallback, DPA export, signage attestation, credential rotation, MFA reset, and backup status reporting all done. Remaining 501 stub: IdP invite. Backend-controlled synthetic gateway publish smoke passed. 532 tests passing. |
 | **Edge Agent** | 88% | 🟢 Strong | Heartbeat, command signing, WebSocket control, FFmpeg frame source, LiveKit SDK bridge, per-camera credentials, supervisor, real FFmpeg integration tests, synthetic RTSP to LiveKit Cloud smoke, backend-command publish ACK, exponential backoff + jitter, mTLS cert bootstrap scaffold, cryptography dep all done. Missing: real CCTV hardware validation and production service deployment. |
 | **Frontend** | 0% | 🔴 Not started | Placeholder only. Owned by frontend coworker. Blocked until admin UI, camera grid viewer, and privacy notice flow are built. |
-| **Database** | 96% | 🟢 Strong | Core schema plus `0007_gateway_command_tables` migration deployed on active DB; `gateway_command_queue`, `camera_publish_states`, and `backup_runs` model/schema verified. Missing: backup status API implementation, recorded restore drill evidence, retention policy tables (pilot+). |
+| **Database** | 97% | 🟢 Strong | Core schema plus `0007_gateway_command_tables` migration deployed on active DB; `gateway_command_queue`, `camera_publish_states`, and `backup_runs` model/schema verified. Backup status endpoint now reports database-known backup readiness from `backup_runs`. Missing: recorded restore drill evidence, backup worker automation, retention policy tables (pilot+). |
 | **Infrastructure** | 90% | 🟢 Strong | Cloudflare Access, Railway, Neon staging all live. Staging health check cron running (15 min). 7-day uptime clock started. R2 backup bucket `panoptix-backups` provisioned via Terraform Cloud. LiveKit Cloud account provisioned (APAC). Semgrep CI token configured. Missing: paid Neon tier, production Cloudflare/Railway/Neon environments (waits for 7-day gate). |
 | **Security** | 90% | 🟢 Strong | CF Access JWT, CSRF, HMAC audit chain, classified audit events with session/IP/UA metadata, audit-of-audit for profile/activity views, rate limiting (including admin mutations), security headers, service tokens, RBAC, break-glass, SCA/SAST CI, mediamtx threat model, mTLS cert bootstrap scaffold, CT-log monitoring all done. Missing: device posture enforcement (checklist done), WARP posture production activation. |
 | **Documentation** | 95% | 🟢 Strong | Full system plan, API reference, 51+ docs, all runbooks done (incl. break-glass, lost-MFA, IdP-outage, bus-factor, uptime monitoring, backup-restore DR schedule, Cloudflare WARP posture), mediamtx threat model, Terraform state security doc, IMPLEMENTATION_GUIDE fully up-to-date. |
@@ -34,7 +34,7 @@ Last updated: 2026-05-19
 ### What We Control vs What's Blocked
 
 **Can do now (no external dependencies):**
-- Keep static checks green, finish backup/restore readiness work, and prepare production deployment hardening. The main product-path blockers now require frontend implementation and real camera hardware.
+- Keep static checks green, run an isolated restore drill when R2 backup artifacts are available, and prepare production deployment hardening. The main product-path blockers now require frontend implementation and real camera hardware.
 
 **Blocked on external dependencies:**
 - Frontend UI → frontend coworker

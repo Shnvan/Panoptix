@@ -21,10 +21,11 @@ from cctv_api.core.config import Settings, get_settings
 from cctv_api.db import db_session
 from cctv_api.gateway.command_queue import enqueue_command, expire_stale_commands
 from cctv_api.jobs.maintenance import run_admin_maintenance_job
-from cctv_api.models.enums import ActorType, CameraPublishStatus, CameraSourceType, CommandStatus, DpaKind, EventCategory, EventOutcome, EventSeverity, GatewayStatus, StreamKind
+from cctv_api.models.enums import ActorType, BackupUploadStatus, CameraPublishStatus, CameraSourceType, CommandStatus, DpaKind, EventCategory, EventOutcome, EventSeverity, GatewayStatus, StreamKind
 from cctv_api.models.tables import (
     AuditHmacKey,
     AuditLog,
+    BackupRun,
     Camera,
     CameraAcl,
     CameraEvent,
@@ -2409,11 +2410,90 @@ def admin_invite_user(
 @v1_router.get("/admin/backups/status")
 def admin_backups_status(
     principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
 ) -> dict[str, object]:
     require_role(principal, "admin")
-    raise ProblemDetail(
-        status=501,
-        title="Not Implemented",
-        detail="backup-status-not-implemented",
-        type_uri="about:blank",
+
+    latest_backup = db.execute(
+        select(BackupRun).order_by(BackupRun.started_at.desc()).limit(1)
+    ).scalar_one_or_none()
+    latest_restore_drill = db.execute(
+        select(BackupRun)
+        .where(BackupRun.restore_schema_ok.isnot(None))
+        .order_by(BackupRun.started_at.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+
+    if latest_backup is None:
+        return {
+            "status": "missing",
+            "latest_backup": None,
+            "latest_restore_drill": None,
+            "checks": {
+                "has_backup": False,
+                "latest_upload_uploaded": False,
+                "latest_backup_finished": False,
+                "latest_restore_format_ok": False,
+                "restore_drill_recorded": False,
+                "latest_restore_schema_ok": False,
+                "latest_backup_age_hours": None,
+            },
+        }
+
+    latest_upload_uploaded = latest_backup.upload_status == BackupUploadStatus.uploaded
+    latest_backup_finished = latest_backup.finished_at is not None
+    latest_restore_format_ok = latest_backup.restore_format_ok is True
+    restore_drill_recorded = latest_restore_drill is not None
+    latest_restore_schema_ok = (
+        latest_restore_drill.restore_schema_ok is True if latest_restore_drill else False
     )
+    status = (
+        "ok"
+        if (
+            latest_upload_uploaded
+            and latest_backup_finished
+            and latest_restore_format_ok
+            and latest_restore_schema_ok
+        )
+        else "degraded"
+    )
+
+    return {
+        "status": status,
+        "latest_backup": _backup_run_to_response(latest_backup),
+        "latest_restore_drill": (
+            _backup_run_to_response(latest_restore_drill)
+            if latest_restore_drill is not None
+            else None
+        ),
+        "checks": {
+            "has_backup": True,
+            "latest_upload_uploaded": latest_upload_uploaded,
+            "latest_backup_finished": latest_backup_finished,
+            "latest_restore_format_ok": latest_restore_format_ok,
+            "restore_drill_recorded": restore_drill_recorded,
+            "latest_restore_schema_ok": latest_restore_schema_ok,
+            "latest_backup_age_hours": _age_hours(latest_backup.started_at),
+        },
+    }
+
+
+def _backup_run_to_response(row: BackupRun) -> dict[str, object]:
+    return {
+        "id": str(row.id),
+        "started_at": row.started_at.isoformat(),
+        "finished_at": row.finished_at.isoformat() if row.finished_at else None,
+        "size_bytes": row.size_bytes,
+        "sha256": row.sha256,
+        "restore_format_ok": row.restore_format_ok,
+        "restore_schema_ok": row.restore_schema_ok,
+        "row_count_estimate": row.row_count_estimate,
+        "upload_status": row.upload_status.value,
+        "notes": row.notes,
+    }
+
+
+def _age_hours(ts: datetime) -> float:
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    return round((datetime.now(timezone.utc) - ts).total_seconds() / 3600, 2)

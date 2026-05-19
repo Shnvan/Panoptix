@@ -16,10 +16,21 @@ As of the 2026-05-19 readiness pass:
 - The `backup_runs` table and `BackupRun` model exist for backup metadata.
 - Cloudflare R2 bucket `panoptix-backups` is documented as provisioned, with staging R2 credentials stored in Railway secrets.
 - `scripts/restore-drill.sh` exists for an operator-run restore drill against R2 and a target database.
-- `GET /api/v1/admin/backups/status` is still a deliberate `501 backup-status-not-implemented` stub.
+- `GET /api/v1/admin/backups/status` reports database-known backup readiness from `backup_runs`.
 - A real restore drill has not yet been recorded in repository evidence.
 
-Do not treat backups as production-operational until a backup artifact is produced, restore-drill evidence is recorded, and either the backup status endpoint is implemented or the runbook explicitly remains the only source of truth.
+Do not treat backups as production-operational until a backup artifact is produced, restore-drill evidence is recorded, and backup worker automation is configured.
+
+## Backup status API
+
+`GET /api/v1/admin/backups/status` is admin-only and returns a compact readiness summary:
+
+- `status`: `missing`, `degraded`, or `ok`.
+- `latest_backup`: latest `backup_runs` record, or `null`.
+- `latest_restore_drill`: latest row with `restore_schema_ok` recorded, or `null`.
+- `checks`: booleans for upload success, backup completion, restore-format check, restore-drill presence, schema-restore result, and latest backup age in hours.
+
+The endpoint does not call R2 and does not expose credentials, object paths, database URLs, backup artifacts, or decryption material.
 
 ## Daily backup
 

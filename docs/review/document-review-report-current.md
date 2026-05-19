@@ -74,16 +74,17 @@ Verified implementation state:
 - `scripts/restore-drill.sh` exists for R2-backed restore drill execution.
 - `docs/runbooks/backup-restore.md` documents daily backup, weekly restore drill, emergency restore, and DR cadence.
 - R2 backup bucket `panoptix-backups` and scoped R2 staging credentials are documented as provisioned in Railway secrets.
+- `GET /api/v1/admin/backups/status` now reports database-known backup readiness from `backup_runs`.
 
 Known gaps:
 
-- `GET /api/v1/admin/backups/status` is still intentionally a stub returning `501 backup-status-not-implemented`.
+- Backup worker automation and direct R2 object verification remain outside the web API.
 - No fresh restore drill was executed in this pass.
 - No backup artifact, database dump, R2 object metadata, database URL, R2 key, or decryption key was added to the repository.
 
 Next backup/restore task:
 
-- Either implement the admin backup status endpoint from `backup_runs`, or run an isolated restore drill against a disposable database and record the evidence without storing secrets or backup contents in Git.
+- Run an isolated restore drill against a disposable database and record the evidence without storing secrets or backup contents in Git.
 
 ## Current Human Decisions
 

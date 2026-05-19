@@ -79,14 +79,3 @@ def test_backups_status_requires_admin_role(test_db_session: DbSession) -> None:
     client = _client(test_db_session)
     response = client.get("/api/v1/admin/backups/status", headers=_VIEWER_HEADERS)
     assert response.status_code == 403
-
-
-def test_backups_status_returns_501(test_db_session: DbSession) -> None:
-    client = _client(test_db_session)
-    response = client.get("/api/v1/admin/backups/status", headers=_ADMIN_HEADERS)
-    assert response.status_code == 501
-    data = response.json()
-    assert data["detail"] == "backup-status-not-implemented"
-    assert data["status"] == 501
-    assert data["title"] == "Not Implemented"
-    assert data["type"] == "about:blank"

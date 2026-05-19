@@ -105,7 +105,7 @@ erDiagram
 | Gap | Impact | Recommendation |
 |---|---|---|
 | DSR table exists but no full DSR API/UI was found | Compliance process may be manual or incomplete | Define DSR workflow and ownership |
-| Backup metadata table exists but backup status endpoint is stubbed | Admin cannot inspect backups through API | Implement `/api/v1/admin/backups/status` or document external-only operation |
+| Backup metadata depends on backup job writes | Admin status is only as accurate as `backup_runs` rows written by the backup workflow | Keep backup job/runbook responsible for recording upload and restore validation evidence |
 | `sites.bystander_signage_attested_at` and `dpa_artifacts` both relate to signage | Risk of unclear source of truth | Confirm how site timestamp and artifact record should synchronize |
 | Frontend docs contain stale camera source type values | UI validation may reject valid values or submit invalid ones | Update docs/client types from actual enum |
 

@@ -17,7 +17,7 @@
 | BR-011 | Gateway lifecycle | Disabled gateways must not mint publish tokens or publish assigned cameras. | Gateway | Confirmed in existing project | Implemented through gateway status checks. |
 | BR-012 | LiveKit presence | Camera publishing should start on viewer presence and stop when no viewers remain after grace handling. | LiveKit webhooks | Confirmed in existing project | Room-presence command logic and tests exist. |
 | BR-013 | Compliance | Privacy notice acceptance must be versioned and idempotent for the current version. | Privacy | Confirmed in existing project | `privacy_notice_acceptances` primary key includes user and version. |
-| BR-014 | Backup visibility | Admins should see backup status in the product. | Operations | Missing in implementation | Endpoint is present but returns `501`. |
+| BR-014 | Backup visibility | Admins should see backup status in the product. | Operations | Confirmed in existing project | Endpoint reports database-known readiness from `backup_runs`; restore drill evidence remains operational. |
 | BR-015 | DSR workflow | DSR requests should be tracked through receipt, verification, due date, outcome, and artifact link. | Compliance | Implied by documentation | Table exists, full API/UI not found. |
 
 ## Validation Rules

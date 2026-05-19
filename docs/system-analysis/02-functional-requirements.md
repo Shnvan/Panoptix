@@ -80,5 +80,5 @@
 | FR-040 | The system shall run maintenance cleanup for stale commands and due publish stops. | Operations | Admin/System | Medium | Existing |
 | FR-041 | The system shall export DPA artifacts and record signage attestations. | Compliance | Admin | Medium | Existing |
 | FR-042 | The system shall manage DSR requests end to end. | Compliance | Admin/Auditor | Medium | Partially Existing |
-| FR-043 | The system shall return backup status from `/api/v1/admin/backups/status`. | Operations | Admin | Medium | Missing |
+| FR-043 | The system shall return backup status from `/api/v1/admin/backups/status`. | Operations | Admin | Medium | Existing |
 

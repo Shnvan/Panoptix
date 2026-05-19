@@ -36,13 +36,13 @@ Panoptix enables authorized users to view assigned CCTV cameras while keeping ca
 | Edge publishing | Agent verifies commands and has LiveKit/FFmpeg scaffolds; real hardware validation pending | Partially Existing |
 | Frontend | Required UX and integration docs exist; application code is not implemented | Missing |
 | Recording/playback/snapshots | Excluded from MVP | Out of scope |
-| Backup operations | R2 provisioning docs and scripts exist; backup status API is stubbed | Partially Existing |
+| Backup operations | R2 provisioning docs, scripts, and database-known backup status API exist; restore drill evidence pending | Partially Existing |
 
 ## Limitations
 
 - No implemented Next.js/React frontend was found in `apps/web/`.
 - Real camera onboarding and production camera-to-LiveKit publishing require physical hardware.
-- `/api/v1/admin/users/invite` and `/api/v1/admin/backups/status` return `501`.
+- `/api/v1/admin/users/invite` returns `501`.
 - DSR database tables exist, but full DSR workflow APIs were not found.
 - Self-hosted LiveKit fallback is represented by docs/configuration and a mode switch, not full operations.
 
@@ -76,7 +76,7 @@ Panoptix enables authorized users to view assigned CCTV cameras while keeping ca
 | Frontend web application | Required for viewer dashboard and admin workflows | Missing |
 | Real hardware onboarding workflow | Required to validate real camera publishing | Partially Existing |
 | DSR workflow API and UI | Data model exists but no full route workflow found | Missing |
-| Backup status implementation | Endpoint exists as `501` stub | Missing |
+| Backup worker and restore drill evidence | Status endpoint reads `backup_runs`, but production backup artifacts and restore evidence are pending | Partially Existing |
 | IdP invite automation | Endpoint exists as `501` stub | Missing |
 | Production self-hosted LiveKit fallback runbook/execution | Fallback mode exists but full operations remain future work | Partially Existing |
 
@@ -125,7 +125,7 @@ flowchart LR
 - Fix the documented camera source type mismatch in `docs/frontend/BACKEND_STATUS.md`.
 - Add frontend implementation and E2E tests before MVP acceptance.
 - Treat real hardware onboarding as a release gate for camera streaming.
-- Implement or remove/rename stubbed admin APIs before production handoff.
+- Implement or remove/rename the remaining IdP invite stub before production handoff.
 
 ## Project Inventory Summary
 
@@ -137,8 +137,8 @@ flowchart LR
 | Database files | `apps/api/alembic/versions/*.py`, `apps/api/src/cctv_api/models/*.py`, `docs/architecture/erd.mmd` |
 | UI files | `apps/web/README.md` placeholder; frontend specs in `docs/frontend/` |
 | API files | FastAPI routers under `apps/api/src/cctv_api/api/` |
-| Reports/export logic | Audit export, DPA export, health dashboard data, backup scripts/status stub |
+| Reports/export logic | Audit export, DPA export, health dashboard data, backup scripts/status API |
 | Features confirmed from code | Auth, sessions, CSRF, RBAC, camera ACL, gateway control, LiveKit tokens/webhooks, audit, break-glass, DPA/signage |
-| Features documented but not found as complete code | Frontend UI, IdP invite, backup status API, DSR workflow UI/API, full self-hosted fallback |
+| Features documented but not found as complete code | Frontend UI, IdP invite automation, DSR workflow UI/API, full self-hosted fallback |
 | Features found in code but under-documented or inconsistent | Actual `CameraSourceType` enum differs from `docs/frontend/BACKEND_STATUS.md` |
 

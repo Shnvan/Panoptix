@@ -46,7 +46,7 @@ These must be resolved before treating the frontend as production-ready.
 | Replace placeholder gateway UI | Required | Gateway list/detail, command history, assignment, disable, and rotate views must use real `/api/v1/admin/gateways` data. |
 | Separate viewer camera data from admin camera data | Required | Viewer dashboard uses `/api/v1/cameras`; admin camera management uses `/api/v1/admin/cameras` and detail routes. |
 | Remove or disable nonexistent endpoint calls | Required | Security reports, DSR listing, and site listing must not appear as broken production features. |
-| Expose missing implemented admin actions | Required | Add or document UI for MFA reset, user invite, backup status, break-glass status, and actor profile/activity. |
+| Expose missing implemented admin actions | Required | Add or document UI for MFA reset, backup status, break-glass status, and actor profile/activity. Keep user invite hidden or marked planned until the backend IdP invite stub is implemented. |
 | Full local smoke test | Required | Run the frontend against a local backend with dev auth and verify every sidebar page loads without React crashes or failed required calls. |
 | Full staging smoke test | Required | Test with Cloudflare Access session cookies, CSRF, backend routes, SSE where applicable, and deployed frontend assets. |
 | Browser publishing absence check | Required | Confirm the browser bundle does not request camera/microphone permission and does not publish media to LiveKit. |

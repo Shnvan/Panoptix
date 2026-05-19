@@ -14,7 +14,7 @@ Use this quick order before drilling into the detailed examples below:
 4. Test browser/user endpoints.
 5. Test admin CRUD and control endpoints.
 6. Test gateway heartbeat, camera status, ingest token, and control endpoints.
-7. Test expected `501` stubs.
+7. Test expected `501` stubs and backup readiness reporting.
 8. Test audit verification and export.
 9. Test edge-agent CLI modes.
 
@@ -67,7 +67,7 @@ Use this quick order before drilling into the detailed examples below:
 - `POST /api/v1/admin/break-glass/open` - open emergency access.
 - `POST /api/v1/admin/break-glass/close` - close emergency access and return rotation checklist.
 - `GET /api/v1/admin/internal/break-glass-status` - unauthenticated monitor endpoint.
-- `GET /api/v1/admin/backups/status` - expected `501 backup-status-not-implemented`.
+- `GET /api/v1/admin/backups/status` - report database-known backup readiness from `backup_runs`.
 
 ### Gateway surfaces
 
@@ -3786,6 +3786,35 @@ try {
   - `POST /api/v1/admin/break-glass/open`
   - `POST /api/v1/admin/gateways/{id}/commands`
 - Read-only admin endpoints (GET) are not rate-limited by this limiter
+
+---
+
+## Backup Status API Verification
+
+`GET /api/v1/admin/backups/status` reports what the backend knows from `backup_runs`. It does not call R2 and does not expose object paths, credentials, database URLs, backup artifacts, or decryption material.
+
+```powershell
+$BaseUrl = "http://127.0.0.1:8000"
+$AdminHeaders = @{
+  "x-panoptix-dev-auth" = "1"
+  "x-panoptix-dev-email" = "admin@example.test"
+  "x-panoptix-dev-subject" = "admin@example.test"
+  "x-panoptix-dev-roles" = "admin"
+}
+
+Invoke-RestMethod `
+  -Method GET `
+  -Uri "$BaseUrl/api/v1/admin/backups/status" `
+  -Headers $AdminHeaders
+```
+
+Expected states:
+
+- `missing`: no rows exist in `backup_runs`.
+- `degraded`: a backup row exists but upload, completion, restore-format, or schema-restore checks are missing or failed.
+- `ok`: latest backup is uploaded and finished, restore-format check passed, and a successful schema restore drill is recorded.
+
+The next production backup step is still a real restore drill against an isolated database using the R2-backed runbook below.
 
 ---
 

@@ -72,13 +72,45 @@ FastAPI remains the security authority. Browser responses must not expose RTSP U
 | `POST` | `/api/v1/admin/break-glass/open` | open emergency access window |
 | `POST` | `/api/v1/admin/break-glass/close` | close emergency access window and return rotation checklist |
 | `GET` | `/api/v1/admin/internal/break-glass-status` | unauthenticated monitor endpoint |
-| `GET` | `/api/v1/admin/backups/status` | stub; returns `501 backup-status-not-implemented` |
+| `GET` | `/api/v1/admin/backups/status` | database-known backup readiness from `backup_runs` |
 
 Admin audit query filters:
 
 - `/api/v1/admin/audit`: `cursor`, `limit`, `action`, `actor_type`, `actor_id`, `severity`, `category`, `outcome`, `resource`, `session_id`, `ts_from`, `ts_to`.
 - `/api/v1/admin/actors/{actor_type}/{actor_id}/activity`: `cursor`, `limit`, `action`, `severity`, `category`, `outcome`, `resource`, `session_id`, `ts_from`, `ts_to`.
 - Audit timeline cursors are integer audit row IDs; next pages fetch rows with `id < cursor`.
+
+Backup status:
+
+```json
+{
+  "status": "ok",
+  "latest_backup": {
+    "id": "uuid",
+    "started_at": "2026-05-19T00:00:00+00:00",
+    "finished_at": "2026-05-19T00:05:00+00:00",
+    "size_bytes": 123456,
+    "sha256": "hex-digest",
+    "restore_format_ok": true,
+    "restore_schema_ok": true,
+    "row_count_estimate": 42,
+    "upload_status": "uploaded",
+    "notes": "operator note"
+  },
+  "latest_restore_drill": null,
+  "checks": {
+    "has_backup": true,
+    "latest_upload_uploaded": true,
+    "latest_backup_finished": true,
+    "latest_restore_format_ok": true,
+    "restore_drill_recorded": true,
+    "latest_restore_schema_ok": true,
+    "latest_backup_age_hours": 2.5
+  }
+}
+```
+
+`status` is `missing` when no backup rows exist, `ok` when the latest backup is uploaded/finished with restore-format success and a successful schema restore drill is recorded, and `degraded` otherwise. The endpoint does not call R2 or return object paths, credentials, database URLs, backup artifacts, or decryption material.
 
 ## Gateway Routes
 
@@ -202,6 +234,6 @@ Gateway ACK:
 
 - Frontend-generated OpenAPI/TypeScript client.
 - Dynamic CSP middleware driven by `media_plane_mode`.
-- R2-backed backup status implementation.
+- Backup worker R2 object verification and restore-drill automation.
 - IdP invite automation.
 - Browser bundle scan and frontend API type generation.
