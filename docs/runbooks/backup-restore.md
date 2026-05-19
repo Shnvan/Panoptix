@@ -9,6 +9,18 @@
 - Pilot RPO: ≤1 hour with PITR.
 - Pilot RTO: ≤1 hour.
 
+## Current implementation status
+
+As of the 2026-05-19 readiness pass:
+
+- The `backup_runs` table and `BackupRun` model exist for backup metadata.
+- Cloudflare R2 bucket `panoptix-backups` is documented as provisioned, with staging R2 credentials stored in Railway secrets.
+- `scripts/restore-drill.sh` exists for an operator-run restore drill against R2 and a target database.
+- `GET /api/v1/admin/backups/status` is still a deliberate `501 backup-status-not-implemented` stub.
+- A real restore drill has not yet been recorded in repository evidence.
+
+Do not treat backups as production-operational until a backup artifact is produced, restore-drill evidence is recorded, and either the backup status endpoint is implemented or the runbook explicitly remains the only source of truth.
+
 ## Daily backup
 
 1. Scheduled backup job runs outside the web process.

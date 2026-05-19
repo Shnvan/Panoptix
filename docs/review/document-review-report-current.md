@@ -65,6 +65,26 @@ Current production blockers:
 - Real CCTV hardware validation is still pending; synthetic RTSP is verified.
 - Production deployment remains gated by staging uptime, Cloudflare/Railway/Neon production settings, and hardware/procurement readiness.
 
+## Backup Restore Readiness Pass - 2026-05-19
+
+Verified implementation state:
+
+- `BackupRun` model exists and maps to `backup_runs`.
+- Initial Alembic schema creates `backup_runs` and the `backup_upload_status` enum.
+- `scripts/restore-drill.sh` exists for R2-backed restore drill execution.
+- `docs/runbooks/backup-restore.md` documents daily backup, weekly restore drill, emergency restore, and DR cadence.
+- R2 backup bucket `panoptix-backups` and scoped R2 staging credentials are documented as provisioned in Railway secrets.
+
+Known gaps:
+
+- `GET /api/v1/admin/backups/status` is still intentionally a stub returning `501 backup-status-not-implemented`.
+- No fresh restore drill was executed in this pass.
+- No backup artifact, database dump, R2 object metadata, database URL, R2 key, or decryption key was added to the repository.
+
+Next backup/restore task:
+
+- Either implement the admin backup status endpoint from `backup_runs`, or run an isolated restore drill against a disposable database and record the evidence without storing secrets or backup contents in Git.
+
 ## Current Human Decisions
 
 - Legal/privacy owner naming is **not a current blocker** for the prototype.
