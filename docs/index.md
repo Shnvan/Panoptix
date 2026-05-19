@@ -102,6 +102,7 @@ All diagrams are in Mermaid format (`.mmd`).
 
 | Runbook | Description |
 |---------|-------------|
+| [Production Readiness Runbook](runbooks/production-readiness-runbook.md) | Top-level operator checklist for production-candidate verification across Cloudflare, Railway, Neon, LiveKit, R2, gateway, audit, backup, and rollback readiness |
 | [Gateway Control Channel](runbooks/gateway-control-channel.md) | Outbound WebSocket command channel and heartbeat fallback |
 | [Edge Gateway Service](runbooks/edge-gateway-service.md) | Docs-only host/service runbook for Docker, Linux systemd, and Windows/NSSM edge supervisor operation |
 | [Cloudflare Production Setup](runbooks/cloudflare-production-setup.md) | Docs-only Cloudflare Access, routing, JWT, and rollback preparation checklist |

@@ -2,6 +2,8 @@
 
 This is the frontend source of truth for production-readiness work on the combined `fullstack-integration` branch. It tracks every implemented backend capability and makes each one either usable in the frontend, intentionally hidden, or explicitly marked backend/gateway-only.
 
+Design direction: new frontend work should follow [Panoptix Design System](PANOPTIX_DESIGN_SYSTEM.md). The current cyan/slate/rounded UI can migrate gradually, but new production screens should move toward the BSIT 2-2-inspired dashboard/admin adaptation: dark-first, compact, sharp, orange-accented, and scan-focused.
+
 ## Backend-to-frontend Coverage Matrix
 
 | Category | Backend capability | Frontend state | Required action |
