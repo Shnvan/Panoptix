@@ -1,8 +1,9 @@
-# Pinned Python base image per ADR 0007
-FROM python:3.12.7-slim AS base
+# Pinned Python base image per ADR 0007 — use -slim-bookworm for latest Debian 12 OS patches
+FROM python:3.12-slim-bookworm AS base
 
-# Security: non-root user
-RUN groupadd --gid 1001 appuser && \
+# Security: apply latest OS security patches, then create non-root user
+RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/* && \
+    groupadd --gid 1001 appuser && \
     useradd --uid 1001 --gid 1001 --shell /bin/false appuser
 
 WORKDIR /app
@@ -22,6 +23,6 @@ ENV PYTHONPATH=/app/src \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-EXPOSE 8000
+EXPOSE 8080
 
-CMD ["uvicorn", "cctv_api.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
+CMD ["uvicorn", "cctv_api.main:app", "--host", "0.0.0.0", "--port", "8080", "--no-access-log"]

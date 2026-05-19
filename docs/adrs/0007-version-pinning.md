@@ -29,6 +29,18 @@ Using floating version tags or dependency ranges (e.g., `python:3.12-slim`, `lat
 
 Invariant 12 requires stable locked framework versions, experimental APIs banned in security-critical paths, lockfile pins, exact Docker base images, and Dependabot/Renovate enabled.
 
+## Current implementation note
+
+This ADR is the target supply-chain policy. The current repository has partial implementation:
+
+- GitHub Actions are version-pinned.
+- Dependabot covers backend pip, edge-agent pip, and GitHub Actions.
+- CI currently runs tests, ruff, mypy, compile checks, Gitleaks, Semgrep, osv-scanner, Trivy, and Docker build checks.
+- The repository does not yet have Python lockfiles, frontend lockfiles, SBOM generation/signing, browser bundle scans, Playwright, ZAP, or k6 gates.
+- The backend Docker image currently uses `python:3.12-slim-bookworm`; exact digest pinning remains a future hardening task.
+
+Until those gates are implemented, references below describe the accepted target policy rather than fully enforced current behavior.
+
 ## Decision
 
 **Every runtime dependency — framework, binary, Docker base image, Python package, and required frontend package — is pinned to an exact version. Updates are managed through Dependabot/Renovate PRs, reviewed by a human, CI-gated, and merged deliberately. No floating tags, no broad version ranges in security-critical paths, no `latest` in Dockerfiles.**
@@ -55,7 +67,7 @@ Invariant 12 requires stable locked framework versions, experimental APIs banned
 | Terraform providers | Version constraint `= x.y.z` | `version = "= 4.44.0"` | Dependabot PR |
 | GitHub Actions | Pinned to commit SHA | `uses: actions/checkout@abc123` | Dependabot PR |
 
-### CI enforcement
+### Target CI enforcement
 
 1. **Floating-tag lint**: a CI step scans `Dockerfile*` for floating tags (`latest`, `slim` without a patch version, `python:3.12` without patch). Fails the build.
 2. **Lockfile integrity**: Python dependencies install only from the committed lockfile. Frontend dependencies install only from the committed lockfile.
@@ -138,7 +150,7 @@ This ADR records the **policy**; the specific versions are appended as an addend
 
 - **Partially adopted**: distroless or `-slim` images are preferred. But the exact image tag is still pinned by digest, not just by name. Distroless reduces the OS-level attack surface; digest pinning ensures reproducibility.
 
-## Verification
+## Target Verification
 
 - **CI floating-tag lint**: fails on any Dockerfile with a floating tag.
 - **CI lockfile check**: Python/frontend installs fail if lockfiles are out of sync.

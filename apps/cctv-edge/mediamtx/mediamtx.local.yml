@@ -1,0 +1,11 @@
+api: no
+apiAddress: 127.0.0.1:9997
+rtsp: yes
+rtspAddress: 127.0.0.1:8554
+rtmp: no
+hls: no
+webrtc: no
+srt: no
+paths:
+  synthetic-camera-1:
+    source: publisher

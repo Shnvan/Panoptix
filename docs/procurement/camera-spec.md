@@ -52,9 +52,11 @@ This document records the minimum hardware/network requirements before buying or
 |---|---|---|---|---|---|---|
 | First RTSP camera/NVR candidate | Verify | Verify | Verify | Verify | To quote | Pending procurement check |
 
+> **Update 2026-05-13:** LiveKit Cloud account is provisioned (APAC region). Once camera hardware passes the acceptance test above, the full end-to-end path (camera → gateway FFmpeg → LiveKit Cloud → browser viewer) is ready for integration testing. No additional cloud accounts are needed.
+
 ## Candidate RTSP URL formats
 
-These formats are **candidate examples only**. No camera brand/model is selected yet.
+These formats are **candidate examples only**. No camera brand/model is selected yet. The same brands and RTSP URL patterns are covered in the COMP 012 academic lab manual (see [Academic Manual Crosswalk](../reference/academic-manual-crosswalk.md)).
 
 | Brand / family | Example RTSP URL format | Decision |
 |---|---|---|

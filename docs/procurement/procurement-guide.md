@@ -80,7 +80,7 @@ Minimum:
 - x86_64 quad-core CPU with AES-NI.
 - 8 GB RAM.
 - 128 GB SSD.
-- 1 Ã— GbE NIC.
+- 1 x GbE NIC.
 - Ubuntu 22.04 LTS support.
 - BIOS auto-power-on after power loss.
 
@@ -89,7 +89,7 @@ Recommended:
 - Intel N100/N305 or Ryzen 5xxx U-series.
 - 16 GB RAM.
 - 256 GB NVMe.
-- 2 Ã— GbE NICs.
+- 2 x GbE NICs.
 - UPS-backed power.
 - Fanless/low-noise design for occupied spaces.
 
@@ -97,9 +97,9 @@ Shortlist table:
 
 | SKU | CPU | RAM | Storage | NICs | Price | Ubuntu support | Notes | Decision |
 |---|---|---|---|---|---|---|---|---|
-| Beelink Mini S / Intel N100-class | Intel N100-class | 8â€“16 GB | 128â€“256 GB SSD | 1 GbE, 2 preferred | To quote | Verify Ubuntu 22.04 LTS | First procurement candidate | Selected candidate |
-| Intel NUC-class | x86_64 quad-core+ | 8â€“16 GB | 128â€“256 GB SSD | 1â€“2 GbE | To quote | Verify Ubuntu 22.04 LTS | Reference class | Fallback candidate |
-| MeLE Quieter-class | x86_64 | 8â€“16 GB | 128â€“256 GB SSD | 1â€“2 GbE | To quote | Verify Ubuntu 22.04 LTS | Fanless | Fallback candidate |
+| Beelink Mini S / Intel N100-class | Intel N100-class | 8-16 GB | 128-256 GB SSD | 1 GbE, 2 preferred | To quote | Verify Ubuntu 22.04 LTS | First procurement candidate | Selected candidate |
+| Intel NUC-class | x86_64 quad-core+ | 8-16 GB | 128-256 GB SSD | 1-2 GbE | To quote | Verify Ubuntu 22.04 LTS | Reference class | Fallback candidate |
+| MeLE Quieter-class | x86_64 | 8-16 GB | 128-256 GB SSD | 1-2 GbE | To quote | Verify Ubuntu 22.04 LTS | Fanless | Fallback candidate |
 
 ## 6. Camera / NVR criteria
 
@@ -134,8 +134,8 @@ Per-site needs:
 
 - VLAN-capable switch if cameras are not already isolated.
 - Enough PoE ports if cameras use PoE.
-- Ability to block camera VLAN â†’ internet.
-- Ability to block camera VLAN â†” operator LAN.
+- Ability to block camera VLAN -> internet.
+- Ability to block camera VLAN <-> operator LAN.
 - UPS support for switch + gateway.
 
 Checklist:

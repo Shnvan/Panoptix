@@ -15,6 +15,8 @@ Operate and troubleshoot the gateway-initiated outbound control channel used for
 5. Gateway ACKs success/failure.
 6. `cctv-api` audits dispatch, ACK, retry, and rejection.
 
+Current implementation note: the backend now supports persistent command queues, DB-backed ACK persistence, gateway control WebSocket dispatch, heartbeat fallback delivery, and bounded edge reconnect/backoff behavior. A backend-controlled synthetic RTSP publish smoke passed against LiveKit Cloud using `gateway.command.start_publish`. Real CCTV hardware validation and frontend subscriber playback remain separate production-readiness steps.
+
 ## Fallback behavior
 
 If the WebSocket is unavailable:

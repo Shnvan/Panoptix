@@ -152,6 +152,17 @@ Do not add:
 
 Those features change the privacy/security scope and require future approval.
 
+## Do not depend on publish-state internals
+
+The backend tracks camera publish state and stop grace timers internally. Frontend must not:
+
+- Query or display `camera_publish_states` rows directly.
+- Assume stop commands happen immediately when a viewer leaves — there is a 10-second grace window.
+- Build admin UI for managing publish state transitions — they are automated by LiveKit webhooks.
+- Poll gateway command queue to determine whether a camera is "live" — use camera events SSE instead.
+
+Camera online/offline status for the dashboard should come from `/api/v1/cameras/events` SSE, not from publish-state or command-queue internals.
+
 ## Required coordination before merging frontend changes
 
 Coordinate with the system owner before changes that affect:

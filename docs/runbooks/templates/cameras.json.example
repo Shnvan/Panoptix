@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "cameras": {
+    "<camera-uuid-1>": {
+      "rtsp_host": "192.168.10.50",
+      "rtsp_port": 554,
+      "rtsp_path": "/stream1",
+      "rtsp_transport": "tcp",
+      "username": "<camera-username>",
+      "password": "<camera-password>",
+      "tls": false
+    },
+    "<camera-uuid-2>": {
+      "rtsp_host": "192.168.10.51",
+      "rtsp_port": 554,
+      "rtsp_path": "/live/main",
+      "rtsp_transport": "tcp",
+      "username": "<camera-username>",
+      "password": "<camera-password>",
+      "tls": false
+    }
+  }
+}

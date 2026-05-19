@@ -6,7 +6,10 @@
 # Python
 __pycache__/
 *.py[cod]
+*.egg-info/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .venv/
 venv/
 
@@ -31,6 +34,15 @@ coverage/
 .tmp/
 tmp/
 
+# Terraform local state/cache
+.terraform/
+terraform.tfstate
+terraform.tfstate.*
+
 # Local AI/process instructions
-CLAUDE.md
+COUNCIL.md
 execute.md
+
+# Local AI assistant/process files
+CLAUDE.md
+claude.md

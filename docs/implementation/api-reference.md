@@ -1,135 +1,272 @@
 # API Reference
 
-<!-- PE-FIX: Extracted implementation-ready API contract from the council audit findings and main plan §15 -->
+This is the current backend and gateway API contract for the implemented FastAPI service. API routes are mounted under `/api/v1` except `/health`.
 
-This document is the working contract between the Next.js frontend, FastAPI backend, gateway agent, database owner, and QA. FastAPI remains the security authority for every data-bearing route.
+FastAPI remains the security authority. Browser responses must not expose RTSP URLs, camera credentials, gateway publish tokens, raw Cloudflare JWTs, database URLs, or long-lived auth tokens.
 
-## Contract rules
+## Shared Rules
 
-- API version prefix: `/api/v1`.
-- Public UI routes are served by `cctv-web`; API, health, webhook, and gateway-control routes are served by `cctv-api`.
-- Browser calls are same-origin through the Cloudflare-protected custom domain.
-- Protected browser routes require a verified Cloudflare Access JWT and app session.
-- Gateway routes require gateway identity: service token for MVP, mTLS for pilot+.
-- Errors use RFC 9457 Problem Details.
-- Cursor pagination is used for list endpoints.
-- State-changing browser requests require CSRF protection.
-- No response may include RTSP URLs, camera passwords, gateway-publish tokens to browsers, or long-lived auth tokens.
+- Browser routes require Cloudflare Access/app-session auth, or dev auth only in local development.
+- Admin routes require the `admin` role unless explicitly marked as monitor/internal.
+- Gateway HTTP and WebSocket routes require gateway identity.
+- Unsafe browser mutations require CSRF protection.
+- Errors use RFC 9457-style Problem Details.
+- Lists use cursor pagination where implemented.
+- Viewer and gateway LiveKit tokens are short-lived and kind-distinct.
 
-## Shared response shapes
+## Health and Webhooks
 
-### Problem Details
+| Method | Path | Auth | Status |
+|---|---|---|---|
+| `GET` | `/health` | public/platform health | implemented |
+| `GET` | `/api/v1/admin/health/deep` | admin | implemented; probes DB, LiveKit, and gateway freshness |
+| `POST` | `/api/v1/webhooks/livekit` | LiveKit webhook JWT/body hash | implemented |
+
+## Browser and Session Routes
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| `GET` | `/api/v1/me` | authenticated user | current principal profile |
+| `GET` | `/api/v1/cameras` | authenticated user | ACL-filtered camera list |
+| `GET` | `/api/v1/cameras/events` | authenticated user | SSE stream of accessible camera events |
+| `GET` | `/api/v1/cameras/{camera_id}/view-token` | active camera ACL | LiveKit viewer subscribe token |
+| `GET` | `/api/v1/privacy/notice` | authenticated user | current privacy notice and acceptance state |
+| `POST` | `/api/v1/privacy/notice/accept` | authenticated user | records current notice acceptance |
+| `GET` | `/api/v1/sessions/active` | authenticated user | active app sessions |
+| `POST` | `/api/v1/sessions/revoke` | authenticated user | revokes one owned session |
+
+## Admin Routes
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/api/v1/admin/dashboard` | aggregate system counts |
+| `GET` | `/api/v1/admin/users` | list users |
+| `POST` | `/api/v1/admin/users/{user_id}/role` | grant/revoke role |
+| `POST` | `/api/v1/admin/users/{user_id}/disable` | disable user, revoke sessions, remove LiveKit viewer participants |
+| `POST` | `/api/v1/admin/users/{user_id}/mfa/reset` | audit admin-mediated MFA reset |
+| `POST` | `/api/v1/admin/users/invite` | invite user through configured GitHub organization and assign local roles |
+| `GET` | `/api/v1/admin/gateways` | list gateways with filters/search |
+| `POST` | `/api/v1/admin/gateways` | register gateway and return one-time service token |
+| `GET` | `/api/v1/admin/gateways/{gateway_id}` | gateway detail |
+| `PATCH` | `/api/v1/admin/gateways/{gateway_id}` | update gateway display metadata; does not rotate credentials |
+| `POST` | `/api/v1/admin/gateways/{gateway_id}/disable` | disable gateway and remove LiveKit publisher participants |
+| `POST` | `/api/v1/admin/gateways/{gateway_id}/enable` | re-enable a disabled gateway without restoring revoked assignments |
+| `POST` | `/api/v1/admin/gateways/{gateway_id}/rotate-credential` | rotate one-time gateway service token |
+| `POST` | `/api/v1/admin/gateways/{gateway_id}/cameras` | grant/revoke gateway-camera assignment |
+| `POST` | `/api/v1/admin/gateways/{gateway_id}/commands` | enqueue gateway command |
+| `GET` | `/api/v1/admin/gateways/{gateway_id}/commands` | list gateway commands |
+| `POST` | `/api/v1/admin/gateways/{gateway_id}/commands/{command_id}/cancel` | cancel pending command |
+| `POST` | `/api/v1/admin/commands/cleanup` | expire stale pending commands |
+| `POST` | `/api/v1/admin/jobs/run-maintenance` | run maintenance job once |
+| `GET` | `/api/v1/admin/cameras` | list cameras with filters/search |
+| `POST` | `/api/v1/admin/cameras` | create camera |
+| `GET` | `/api/v1/admin/cameras/{camera_id}` | camera detail |
+| `PATCH` | `/api/v1/admin/cameras/{camera_id}` | update camera display/source metadata; no RTSP credentials accepted |
+| `POST` | `/api/v1/admin/cameras/{camera_id}/acl` | grant/revoke user camera ACL |
+| `POST` | `/api/v1/admin/cameras/{camera_id}/disable` | retire camera and remove LiveKit viewer participants |
+| `POST` | `/api/v1/admin/cameras/{camera_id}/enable` | re-enable a retired camera; viewer access still depends on camera ACLs |
+| `GET` | `/api/v1/admin/actors/{actor_type}/{actor_id}/profile` | composite actor investigation profile |
+| `GET` | `/api/v1/admin/actors/{actor_type}/{actor_id}/activity` | actor-scoped audit activity timeline |
+| `GET` | `/api/v1/admin/audit` | list scrubbed audit rows |
+| `GET` | `/api/v1/admin/audit/verify` | verify audit HMAC chain |
+| `GET` | `/api/v1/admin/audit/export` | export scrubbed audit JSONL |
+| `POST` | `/api/v1/admin/livekit/fallback` | switch `media_plane_mode` between `cloud` and `fallback` |
+| `POST` | `/api/v1/admin/dpa/export` | export DPA artifacts |
+| `POST` | `/api/v1/admin/sites/{site_id}/signage-attest` | record bystander signage attestation |
+| `POST` | `/api/v1/admin/break-glass/open` | open emergency access window |
+| `POST` | `/api/v1/admin/break-glass/close` | close emergency access window and return rotation checklist |
+| `GET` | `/api/v1/admin/internal/break-glass-status` | unauthenticated monitor endpoint |
+| `GET` | `/api/v1/admin/backups/status` | database-known backup readiness from `backup_runs` |
+
+Admin audit query filters:
+
+- `/api/v1/admin/audit`: `cursor`, `limit`, `action`, `actor_type`, `actor_id`, `severity`, `category`, `outcome`, `resource`, `session_id`, `ts_from`, `ts_to`.
+- `/api/v1/admin/actors/{actor_type}/{actor_id}/activity`: `cursor`, `limit`, `action`, `severity`, `category`, `outcome`, `resource`, `session_id`, `ts_from`, `ts_to`.
+- Audit timeline cursors are integer audit row IDs; next pages fetch rows with `id < cursor`.
+
+Backup status:
 
 ```json
 {
-  "type": "https://panoptix.local/problems/forbidden",
-  "title": "Forbidden",
-  "status": 403,
-  "detail": "camera-access-denied",
-  "instance": "/api/v1/cameras/123/view-token",
-  "trace_id": "cf-ray-or-request-id"
+  "status": "ok",
+  "latest_backup": {
+    "id": "uuid",
+    "started_at": "2026-05-19T00:00:00+00:00",
+    "finished_at": "2026-05-19T00:05:00+00:00",
+    "size_bytes": 123456,
+    "sha256": "hex-digest",
+    "restore_format_ok": true,
+    "restore_schema_ok": true,
+    "row_count_estimate": 42,
+    "upload_status": "uploaded",
+    "notes": "operator note"
+  },
+  "latest_restore_drill": null,
+  "checks": {
+    "has_backup": true,
+    "latest_upload_uploaded": true,
+    "latest_backup_finished": true,
+    "latest_restore_format_ok": true,
+    "restore_drill_recorded": true,
+    "latest_restore_schema_ok": true,
+    "latest_backup_age_hours": 2.5
+  }
 }
 ```
 
-### Camera summary
+`status` is `missing` when no backup rows exist, `ok` when the latest backup is uploaded/finished with restore-format success and a successful schema restore drill is recorded, and `degraded` otherwise. The endpoint does not call R2 or return object paths, credentials, database URLs, backup artifacts, or decryption material.
+
+## DSR Workflow Routes
+
+Admin-only Data Subject Request tracking is available under:
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/api/v1/admin/dsr-requests` | list DSR cases; supports `status` and `limit` |
+| `POST` | `/api/v1/admin/dsr-requests` | create a DSR case |
+| `GET` | `/api/v1/admin/dsr-requests/{request_id}` | view one DSR case and audit the access |
+| `PATCH` | `/api/v1/admin/dsr-requests/{request_id}` | update DSR lifecycle fields |
+
+Supported `subject_type` values are `user`, `bystander`, and `site_contact`. Supported `request_type` values are `access`, `correction`, `deletion`, `objection`, `restriction`, and `other`. Supported `status` values are `open`, `verified`, `in_progress`, `completed`, `rejected`, and `cancelled`.
+
+Create request:
 
 ```json
 {
-  "id": "uuid",
-  "display_name": "Front Gate",
-  "status": "online",
-  "last_seen_at": "2026-05-07T12:00:00Z",
-  "viewer_layout_allowed": true
+  "requester_contact": "person@example.com",
+  "subject_type": "user",
+  "request_type": "access",
+  "site_id": "uuid-or-null",
+  "camera_scope_note": "optional scope note",
+  "due_at": "2026-06-19T00:00:00+00:00",
+  "status": "open",
+  "artifact_id": "uuid-or-null"
 }
 ```
 
-### Viewer token response
+The API records `admin.dsr.created`, `admin.dsr.viewed`, and `admin.dsr.updated` audit events. It tracks the case lifecycle only; it does not automatically search, export, redact, or delete footage.
+
+## Gateway Routes
+
+| Method | Path | Notes |
+|---|---|---|
+| `POST` | `/api/v1/gateways/{gateway_id}/heartbeat` | heartbeat plus pending command fallback |
+| `POST` | `/api/v1/gateways/{gateway_id}/cameras/{camera_id}/status` | persist gateway-reported camera status |
+| `POST` | `/api/v1/gateways/{gateway_id}/ingest-token` | LiveKit gateway publish token |
+| `WEBSOCKET` | `/api/v1/gateway-control/ws` | outbound gateway control channel |
+
+## Important Response Shapes
+
+Viewer token:
 
 ```json
 {
   "camera_id": "uuid",
-  "room": "camera_ab12cd34",
+  "room": "camera_front_gate",
   "livekit_url": "wss://region.livekit.cloud",
   "token": "short-lived-viewer-subscribe-jwt",
-  "expires_at": "2026-05-07T12:01:00Z"
+  "expires_at": "2026-05-13T12:01:00Z"
 }
 ```
 
-## Browser/session endpoints
+Admin dashboard:
 
-| Method | Path | AuthZ | Request | Response | Notes |
-|---|---|---|---|---|---|
-| `GET` | `/api/v1/me` | any authenticated user | none | user profile, roles, permissions, camera ACL summary | Frontend bootstrap endpoint. |
-| `GET` | `/api/v1/cameras` | viewer/admin filtered by ACL | cursor params | list of camera summaries | Must not expose RTSP fields. |
-| `GET` | `/api/v1/cameras/:id/view-token` | viewer with active camera ACL | none | viewer token response | Subscriber-only token, TTL ≤60s. |
-| `GET` | `/api/v1/cameras/events` | viewer/admin filtered by ACL | optional cursor/last event | SSE event stream | Polling fallback at 30s. |
-| `GET` | `/api/v1/sessions/active` | self | none | active sessions | No raw CF JWTs. |
-| `POST` | `/api/v1/sessions/revoke` | self/admin | `{ "session_id": "uuid" }` | revocation result | Triggers LiveKit participant removal where applicable. |
-| `GET` | `/api/v1/privacy/notice` | any authenticated user | none | current notice content/version | User must accept current version before dashboard. |
-| `POST` | `/api/v1/privacy/notice/accept` | any authenticated user | `{ "notice_version": "string" }` | acceptance record | Writes audit event. |
+```json
+{
+  "cameras": { "total": 0, "active": 0, "retired": 0 },
+  "gateways": { "total": 0, "enabled": 0, "disabled": 0 },
+  "users": { "total": 0, "active": 0, "disabled": 0 },
+  "commands": { "pending": 0 },
+  "publishing": { "active": 0 }
+}
+```
 
-## Admin endpoints
+Actor investigation profile:
 
-| Method | Path | AuthZ | Request | Response | Notes |
-|---|---|---|---|---|---|
-| `GET` | `/api/v1/admin/users` | admin/auditor | filters/cursor | user list | Auditor read-only. |
-| `POST` | `/api/v1/admin/users/:id/role` | admin + re-auth | role/permission update | updated user | All changes audited. |
-| `POST` | `/api/v1/admin/users/:id/disable` | admin + re-auth | reason | disabled user | Revokes sessions and removes LiveKit participants ≤10s. |
-| `POST` | `/api/v1/admin/users/:id/mfa/reset` | super-admin permission | verification evidence | recovery window | Admin-mediated only. |
-| `POST` | `/api/v1/admin/cameras` | admin | name, source type, gateway, site | camera summary | Source type must be CCTV-only enum. |
-| `POST` | `/api/v1/admin/cameras/:id/acl` | admin | grant/revoke user camera ACL | ACL result | Enforces one active grant per user/camera. |
-| `POST` | `/api/v1/admin/cameras/:id/disable` | admin | reason | disabled/retired camera | Terminates active viewer sessions ≤10s. |
-| `POST` | `/api/v1/admin/gateways` | admin | gateway metadata | one-time service token or cert bundle | Raw credential shown once. |
-| `POST` | `/api/v1/admin/gateways/:id/disable` | admin | reason | disabled gateway | Publish stopped ≤10s if channel available. |
-| `POST` | `/api/v1/admin/gateways/:id/rotate-credential` | super-admin permission | rotation reason | one-time credential | Old credential revoked after confirmed switchover. |
-| `POST` | `/api/v1/admin/gateways/:id/cameras` | admin | add/remove camera assignment | assignment state | Enforces one active assignment per gateway/camera. |
-| `GET` | `/api/v1/admin/audit` | admin/auditor | filters/cursor | audit rows | Payloads scrubbed. |
-| `GET` | `/api/v1/admin/audit/verify` | admin/auditor | range/version | verifier result | Verifies HMAC chain and key versions. |
-| `GET` | `/api/v1/admin/audit/export` | admin/auditor + re-auth | filters | signed JSONL bundle | Synchronous MVP export. |
-| `POST` | `/api/v1/admin/dpa/export` | admin | artifact selection | signed DPA bundle | Includes signage attestations. |
-| `POST` | `/api/v1/admin/sites/:id/signage-attest` | admin | attestation metadata | artifact record | Required before real-site pilot. |
-| `POST` | `/api/v1/admin/livekit/fallback` | super-admin permission + re-auth | mode and reason | active media mode | Changes dynamic CSP on next request. |
+```json
+{
+  "actor_type": "user",
+  "actor_id": "uuid",
+  "identity": {},
+  "roles": ["viewer"],
+  "sessions": {},
+  "camera_access": {},
+  "stream_grants": {},
+  "activity_summary": {},
+  "risk_indicators": {},
+  "containment_status": {},
+  "ip_details": null,
+  "device_details": null,
+  "mfa_details": null,
+  "threat_intelligence": null,
+  "alerts": null,
+  "incidents": null,
+  "analyst_notes": null,
+  "behavior_baseline": null
+}
+```
 
-## Gateway endpoints
+Actor investigation activity:
 
-| Method | Path | AuthZ | Request | Response | Notes |
-|---|---|---|---|---|---|
-| `POST` | `/api/v1/gateways/:id/heartbeat` | gateway identity | gateway status, camera status, agent version | server time, pending fallback commands | Browser sessions rejected. |
-| `POST` | `/api/v1/gateways/:id/ingest-token` | gateway identity + assignment | camera ID | gateway-publish token | Publisher-only, TTL ≤60s. |
-| `POST` | `/api/v1/gateways/:id/cameras/:cameraId/status` | gateway identity + assignment | status event | accepted event | Pushes dashboard event. |
-| `GET` | `/api/v1/gateway-control/ws` | gateway identity | WebSocket upgrade | signed command stream | Gateway-initiated outbound channel only. |
+```json
+{
+  "items": [
+    {
+      "id": 123,
+      "ts": "2026-05-14T04:00:00Z",
+      "actor_id": "uuid",
+      "actor_type": "user",
+      "action": "viewer.token.issued",
+      "resource": "camera:uuid",
+      "payload": {},
+      "ip": "203.0.113.10",
+      "ua": "browser",
+      "event_severity": "low",
+      "event_outcome": "success",
+      "event_category": "authentication",
+      "session_id": "uuid"
+    }
+  ],
+  "next_cursor": null
+}
+```
 
-## Gateway control command envelope
+Actor notes:
+
+- `actor_type` supports `user`, `gateway`, `system`, `break_glass`, and `service_token_monitor`.
+- `user` and `gateway` require UUID actor IDs and existing backing rows.
+- System-like actors may use `none` as the path actor ID to inspect audit rows where `actor_id` is null.
+- Profile and activity reads write `admin.actor.profile.viewed` and `admin.actor.activity.viewed` audit events.
+
+Gateway command envelope:
 
 ```json
 {
   "command_id": "uuid",
   "kind": "gateway.command.start_publish",
   "gateway_id": "uuid",
-  "camera_id": "uuid",
-  "room": "camera_ab12cd34",
-  "issued_at": "2026-05-07T12:00:00Z",
-  "expires_at": "2026-05-07T12:00:30Z",
-  "payload": {
-    "gateway_publish_token": "short-lived-publisher-jwt"
-  },
+  "issued_at": "2026-05-13T12:00:00Z",
+  "expires_at": "2026-05-13T12:05:00Z",
+  "payload": {},
   "signature": "base64url-signature"
 }
 ```
 
-Gateway validates signature, target gateway, active assignment, command expiry, idempotency, and token scope before acting.
+Gateway ACK:
 
-## Webhook and health endpoints
+```json
+{
+  "type": "command_ack",
+  "command_id": "uuid",
+  "gateway_id": "uuid",
+  "status": "accepted",
+  "error": null
+}
+```
 
-| Method | Path | AuthZ | Request | Response | Notes |
-|---|---|---|---|---|---|
-| `POST` | `/api/v1/webhooks/livekit` | LiveKit HMAC + 60s timestamp | LiveKit event | 2xx/4xx | No CORS; preflight rejected. |
-| `GET` | `/health` | CF Access monitor service token or non-sensitive platform health | none | `{ "status": "ok" }` | No version/framework/DB info. |
-| `GET` | `/api/v1/admin/health/deep` | admin | none | deep health | DB, LiveKit, R2, gateway channel state. |
+## Deferred or Not Implemented
 
-## Frontend implementation notes
-
-- Generate frontend types from FastAPI OpenAPI once code exists.
-- Until generated types exist, this document is the manual contract.
-- React components must never import gateway-publish types into browser-published bundles.
-- `cctv-web` treats all authorization state as display data from `cctv-api`; it does not decide permission.
+- Frontend-generated OpenAPI/TypeScript client.
+- Dynamic CSP middleware driven by `media_plane_mode`.
+- Backup worker R2 object verification and restore-drill automation.
+- Browser bundle scan and frontend API type generation.

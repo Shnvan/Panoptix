@@ -9,6 +9,29 @@
 - Pilot RPO: ≤1 hour with PITR.
 - Pilot RTO: ≤1 hour.
 
+## Current implementation status
+
+As of the 2026-05-19 readiness pass:
+
+- The `backup_runs` table and `BackupRun` model exist for backup metadata.
+- Cloudflare R2 bucket `panoptix-backups` is documented as provisioned, with staging R2 credentials stored in Railway secrets.
+- `scripts/restore-drill.sh` exists for an operator-run restore drill against R2 and a target database.
+- `GET /api/v1/admin/backups/status` reports database-known backup readiness from `backup_runs`.
+- A real restore drill has not yet been recorded in repository evidence.
+
+Do not treat backups as production-operational until a backup artifact is produced, restore-drill evidence is recorded, and backup worker automation is configured.
+
+## Backup status API
+
+`GET /api/v1/admin/backups/status` is admin-only and returns a compact readiness summary:
+
+- `status`: `missing`, `degraded`, or `ok`.
+- `latest_backup`: latest `backup_runs` record, or `null`.
+- `latest_restore_drill`: latest row with `restore_schema_ok` recorded, or `null`.
+- `checks`: booleans for upload success, backup completion, restore-format check, restore-drill presence, schema-restore result, and latest backup age in hours.
+
+The endpoint does not call R2 and does not expose credentials, object paths, database URLs, backup artifacts, or decryption material.
+
 ## Daily backup
 
 1. Scheduled backup job runs outside the web process.
@@ -46,3 +69,27 @@
 - Production decryption key is not stored on the backup job host.
 - Backup logs must not include data contents.
 - Restore evidence is stored as a DPA/security artifact.
+
+## DR Testing Schedule
+
+Two levels of DR validation are required:
+
+**Quarterly restore drill** — run `scripts/restore-drill.sh` against a copy of the latest encrypted R2 backup in an isolated environment. Confirms the full decrypt → restore → integration-query path works end-to-end. Target completion: within the first two weeks of each quarter.
+
+**Annual full DR test** — bring up a staging-equivalent environment from scratch using only backup data and Terraform. Validates both the infrastructure rebuild path and the data restore path against a clean slate. Target completion: once per calendar year.
+
+The `scripts/restore-drill.sh` script (created in Round 3A) automates the quarterly drill steps. If the script does not yet exist, the drill must be performed manually following the _Weekly restore drill_ section above.
+
+| Drill Type | Frequency | Owner | Last Completed | Next Due |
+| --- | --- | --- | --- | --- |
+| Restore drill (automated) | Quarterly | On-call / DevOps | — | 2026-08-01 |
+| Full DR test (manual) | Annually | Engineering lead | — | 2027-05-20 |
+
+## Infrastructure status
+
+- Cloudflare R2 bucket `panoptix-backups` is provisioned and active.
+- Terraform Cloud workspace `panoptix-backup-r2` manages bucket state remotely.
+- R2 API tokens with Object Read & Write scope (bucket-only) are configured in Railway staging.
+- `scripts/restore-drill.sh` is available for automated quarterly drills.
+
+Record completion dates and any anomalies found as a DPA/security artifact alongside the standard restore evidence.

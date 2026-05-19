@@ -17,16 +17,19 @@ class ProblemDetail(Exception):
         detail: str = "",
         type_uri: str = "about:blank",
         extra: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
         self.status = status
         self.title = title
         self.detail = detail
         self.type_uri = type_uri
         self.extra = extra or {}
+        self.headers = headers or {}
         super().__init__(detail)
 
 
-async def problem_detail_handler(_request: Request, exc: ProblemDetail) -> JSONResponse:
+async def problem_detail_handler(_request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, ProblemDetail)
     body: dict[str, Any] = {
         "type": exc.type_uri,
         "title": exc.title,
@@ -34,4 +37,4 @@ async def problem_detail_handler(_request: Request, exc: ProblemDetail) -> JSONR
         "detail": exc.detail,
     }
     body.update(exc.extra)
-    return JSONResponse(status_code=exc.status, content=body)
+    return JSONResponse(status_code=exc.status, content=body, headers=exc.headers or None)

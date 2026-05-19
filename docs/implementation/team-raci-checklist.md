@@ -55,6 +55,35 @@ This checklist maps the agreed three-person team split into concrete responsibil
 - Implement gateway outbound WebSocket command channel and heartbeat fallback.
 - Implement audit flows; DPA export remains future/reference unless compliance work is reactivated.
 
+## Coordination gates
+
+### When database work should merge with backend
+
+Database work can merge into the backend workstream when these are true:
+
+- The database coworker has implemented the required schema/migrations in `database/`.
+- The affected backend contract is already documented in `docs/implementation/api-reference.md` or agreed with the system owner.
+- The schema supports the backend feature being integrated, such as sessions, gateway assignments, camera metadata, stream grants, audit events, or DSR records.
+- Migration, rollback, and seed/dev-data instructions are documented by the database coworker.
+- The backend can connect using environment variables only, with no hardcoded credentials.
+- Tests exist for the database-owned behavior, and backend integration tests can be added without changing database ownership.
+
+Do not merge database changes into backend-dependent features when the backend would need to invent schema, migrations, indexes, triggers, or DB roles. Those remain database coworker responsibilities.
+
+### When frontend work can start before backend is finished
+
+Frontend work can start before the backend is complete when these are true:
+
+- The frontend coworker uses only contracts in `docs/implementation/api-reference.md`.
+- Screens, states, and accessibility behavior come from `docs/frontend/ux-product-spec.md`.
+- Backend endpoints may still be placeholders, but their paths, request shapes, response shapes, and error shapes are stable enough to mock.
+- The frontend uses mock data, fixtures, or local API adapters until real backend routes are ready.
+- Auth/session behavior is treated as Cloudflare Access protected and same-origin; frontend code must not create its own auth model.
+- LiveKit frontend code is viewer-subscribe only and never handles gateway-publish tokens.
+- Any contract gap is raised to the system owner instead of being guessed in frontend code.
+
+Frontend changes should wait if the screen depends on an undecided API contract, unknown permission model, unknown camera state machine, or database fields that are not yet agreed.
+
 ## DevOps checklist
 
 - Configure Cloudflare same-domain routing to `cctv-web` and `cctv-api`.

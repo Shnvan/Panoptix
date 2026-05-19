@@ -1,11 +1,11 @@
-﻿# ADR 0003 â€” Postgres Provider and Tier Strategy
+﻿# ADR 0003 - Postgres Provider and Tier Strategy
 
 - **Status**: Accepted
 - **Date**: 2026-05-07
 - **Decision-makers**: System Owner, Software Architect, Database Architect
 - **Decision**: Neon-first Postgres strategy
 - **Supersedes**: None
-- **Plan references**: Â§12 stack table; Â§14; Â§17.2; Â§20.7; Â§20.12; Â§21 Phase 1/5; Invariant 15
+- **Plan references**: Section 12 stack table; Section 14; Section 17.2; Section 20.7; Section 20.12; Section 21 Phase 1/5; Invariant 15
 
 ## Context
 
@@ -195,11 +195,11 @@ Before pilot:
 
 ## References
 
-- v4 plan Â§12 (Technology Stack â€” database rows)
-- v4 plan Â§14 (Data Model & Database Design)
-- v4 plan Â§17.2 (Audit integrity)
-- v4 plan Â§20.7 (Backup / restore plan)
-- v4 plan Â§20.12 (DB restore runbook)
-- v4 plan Â§21 Phase 1 / Phase 5
+- v4 plan Section 12 (Technology Stack - database rows)
+- v4 plan Section 14 (Data Model & Database Design)
+- v4 plan Section 17.2 (Audit integrity)
+- v4 plan Section 20.7 (Backup / restore plan)
+- v4 plan Section 20.12 (DB restore runbook)
+- v4 plan Section 21 Phase 1 / Phase 5
 - Invariant 15 (DB least-privilege)
 

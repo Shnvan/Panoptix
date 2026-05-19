@@ -70,7 +70,7 @@ The system provides authenticated live viewing of fixed IP camera/NVR feeds thro
 | CCTV-only ingest | No browser/phone/laptop camera publishing | ADR 0009, CI scans |
 | No MVP recording | No server-side recording, snapshots, or playback | Plan invariant, tests |
 | Access control | CF Access + RBAC + camera ACL | Authz tests |
-| Short-lived tokens | Viewer/gateway media tokens â‰¤60 s | Token tests |
+| Short-lived tokens | Viewer/gateway media tokens <=60 s | Token tests |
 | Camera credential isolation | RTSP credentials stored only on gateway | T-62, gateway config review |
 | Bystander signage | Signage at every entrance, attested per site | ADR 0011, DPA artefact |
 | PII scrubbing | Sentry/logs/Telegram redaction | Log review |

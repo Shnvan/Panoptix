@@ -1,11 +1,11 @@
-﻿# ADR 0010 â€” Origin-Binding and Trusted-Header Policy
+﻿# ADR 0010 - Origin-Binding and Trusted-Header Policy
 
 - **Status**: Accepted
 - **Date**: 2026-05-07
 - **Decision-makers**: Software Architect, System Owner
 - **Supersedes**: None (fixes v3-review findings F-001 and F-002)
-- **Amended by**: ADR 0014 â€” Railway + Python Control Plane
-- **Plan references**: Invariant 14; Â§11.4; Â§11.6; Â§16.10; Â§18.2 T-56, T-64
+- **Amended by**: ADR 0014 - Railway + Python Control Plane
+- **Plan references**: Invariant 14; Section 11.4; Section 11.6; Section 16.10; Section 18.2 T-56, T-64
 
 ## Context
 
@@ -34,18 +34,18 @@ Both failures are **control-plane compromise vectors**: they bypass the entire i
 3. **Header normalization**: FastAPI middleware strips or ignores caller-supplied `Cf-*`, `Cf-Access-*`, `X-Forwarded-*`, and `X-Real-IP` fields unless JWT verification succeeds.
 4. **Railway ingress controls**: if Railway supports private networking, IP allow-lists, or equivalent origin restrictions compatible with Cloudflare, enable them. These controls are defense-in-depth, not the sole authorization boundary.
 
-**Result**: the only supported path to protected `cctv-api` handlers is: public internet â†’ Cloudflare edge â†’ Cloudflare Access policy â†’ Railway FastAPI app with verified CF Access JWT. A direct Railway-origin request without a valid CF Access JWT fails closed.
+**Result**: the only supported path to protected `cctv-api` handlers is: public internet -> Cloudflare edge -> Cloudflare Access policy -> Railway FastAPI app with verified CF Access JWT. A direct Railway-origin request without a valid CF Access JWT fails closed.
 
 ### Implementation: trusted-header policy (F-002 fix)
 
-**Layer 1 â€” App-side header stripping**:
+**Layer 1 - App-side header stripping**:
 
 The app middleware checks whether the request has a valid Cloudflare Access identity:
 
 - If the Cloudflare Access JWT validates: identity context is built from verified JWT claims, and Cloudflare metadata may be used for attribution.
 - If the Cloudflare Access JWT is missing or invalid: Cloudflare and forwarding headers are stripped/ignored, protected routes reject, and no identity context is created.
 
-**Layer 2 â€” Cloudflare/Railway ingress hardening**:
+**Layer 2 - Cloudflare/Railway ingress hardening**:
 
 Where platform support permits, ingress should restrict accepted sources or forwarded headers so the app receives only the minimal metadata it needs:
 
@@ -67,9 +67,9 @@ Where platform support permits, ingress should restrict accepted sources or forw
 
 | Attack vector | Layer 1 (app) | Layer 2 (platform/Cloudflare) | Result |
 |---|---|---|---|
-| Direct Railway-origin request with forged `Cf-Access-Jwt-Assertion` | JWT signature/audience/issuer validation fails â†’ request rejected | Platform restrictions if available | **Blocked** |
+| Direct Railway-origin request with forged `Cf-Access-Jwt-Assertion` | JWT signature/audience/issuer validation fails -> request rejected | Platform restrictions if available | **Blocked** |
 | Request with smuggled `cf-access-username-override` | Header ignored; identity comes from verified JWT claims only | Header allow-listing if available | **Blocked** |
-| Request through Cloudflare Access with valid `cf-access-jwt-assertion` | JWT validates â†’ identity context created | Forwarded by Cloudflare | **Allowed** (legitimate) |
+| Request through Cloudflare Access with valid `cf-access-jwt-assertion` | JWT validates -> identity context created | Forwarded by Cloudflare | **Allowed** (legitimate) |
 | Health probe with service-token policy | Service-token policy/JWT validated for `/health` only | Cloudflare policy | **Allowed** (limited scope) |
 
 ## Consequences
@@ -112,17 +112,17 @@ Where platform support permits, ingress should restrict accepted sources or forw
 
 ## Verification
 
-- **T-56 â€” Origin-binding test**:
-  1. Direct request to Railway service URL without CF Access JWT â†’ rejected.
-  2. Forged `Cf-Access-Jwt-Assertion` with invalid signature/audience/issuer â†’ rejected.
-  3. `Cf-Connecting-IP` / `X-Forwarded-For` spoofed without valid JWT â†’ ignored.
-  4. Request through Cloudflare Access with valid JWT â†’ accepted.
+- **T-56 - Origin-binding test**:
+  1. Direct request to Railway service URL without CF Access JWT -> rejected.
+  2. Forged `Cf-Access-Jwt-Assertion` with invalid signature/audience/issuer -> rejected.
+  3. `Cf-Connecting-IP` / `X-Forwarded-For` spoofed without valid JWT -> ignored.
+  4. Request through Cloudflare Access with valid JWT -> accepted.
 
-- **T-64 â€” trusted-header allow-list test**:
-  1. Injection via direct Railway origin â†’ stripped/ignored + rejected.
-  2. Injection of `cf-access-username-override` or similar extension header â†’ ignored before route handler identity construction.
+- **T-64 - trusted-header allow-list test**:
+  1. Injection via direct Railway origin -> stripped/ignored + rejected.
+  2. Injection of `cf-access-username-override` or similar extension header -> ignored before route handler identity construction.
 
-- **T-30 â€” External-exposure checklist**:
+- **T-30 - External-exposure checklist**:
   1. Railway-origin URL, if reachable, rejects protected routes without valid CF Access JWT.
   2. Public custom domain routes pass through Cloudflare Access.
   3. Shodan/Censys lookups show no unsupported origin endpoint as the documented user entry point.
@@ -131,11 +131,11 @@ Where platform support permits, ingress should restrict accepted sources or forw
 
 ## References
 
-- v4 plan Invariant 14 (Â§ Non-Negotiable Invariants)
-- v4 plan Â§11.4 (JWT validation â€” anti-forgery)
-- v4 plan Â§11.6 (Trusted-header policy â€” F-002 fix; trusted-header allow-list â€” N-03)
-- v4 plan Â§16.10 (Origin / control-plane exposure controls)
-- v4 plan Â§18.2 T-30, T-56, T-64
+- v4 plan Invariant 14 (Section  Non-Negotiable Invariants)
+- v4 plan Section 11.4 (JWT validation - anti-forgery)
+- v4 plan Section 11.6 (Trusted-header policy - F-002 fix; trusted-header allow-list - N-03)
+- v4 plan Section 16.10 (Origin / control-plane exposure controls)
+- v4 plan Section 18.2 T-30, T-56, T-64
 - v3-review findings F-001 (Origin-binding) and F-002 (Trusted-header forgery)
 - Cloudflare Access JWT validation documentation: https://developers.cloudflare.com/cloudflare-one/identity/authorization-cookie/validating-json/
 
