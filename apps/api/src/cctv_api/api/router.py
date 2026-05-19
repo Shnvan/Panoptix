@@ -1341,6 +1341,12 @@ class CreateGatewayRequest(BaseModel):
     cert_expires_at: datetime | None = None
 
 
+class UpdateGatewayRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    mtls_fingerprint: str | None = Field(default=None, max_length=255)
+    cert_expires_at: datetime | None = None
+
+
 class DisableGatewayRequest(BaseModel):
     reason: str = Field(min_length=1, max_length=500)
 
@@ -1494,6 +1500,27 @@ def get_admin_gateway(
     }
 
 
+def _gateway_metadata(gateway: EdgeGateway) -> dict[str, object | None]:
+    return {
+        "name": gateway.name,
+        "mtls_fingerprint": gateway.mtls_fingerprint,
+        "cert_expires_at": gateway.cert_expires_at.isoformat() if gateway.cert_expires_at else None,
+    }
+
+
+def _gateway_response(gateway: EdgeGateway) -> dict[str, object | None]:
+    return {
+        "gateway_id": str(gateway.id),
+        "name": gateway.name,
+        "status": gateway.status.value,
+        "mtls_fingerprint": gateway.mtls_fingerprint,
+        "cert_expires_at": gateway.cert_expires_at.isoformat() if gateway.cert_expires_at else None,
+        "last_seen_at": gateway.last_seen_at.isoformat() if gateway.last_seen_at else None,
+        "created_at": gateway.created_at.isoformat() if gateway.created_at else None,
+        "disabled_at": gateway.disabled_at.isoformat() if gateway.disabled_at else None,
+    }
+
+
 @v1_router.post("/admin/gateways", status_code=201)
 def create_gateway(
     body: CreateGatewayRequest,
@@ -1533,6 +1560,66 @@ def create_gateway(
         "created_at": gateway.created_at.isoformat(),
         "service_token": raw_token,
     }
+
+
+@v1_router.patch("/admin/gateways/{gateway_id}")
+def update_gateway(
+    gateway_id: str,
+    body: UpdateGatewayRequest,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    gateway_uuid = _parse_uuid(gateway_id, "gateway-id-invalid")
+    gateway = db.execute(select(EdgeGateway).where(EdgeGateway.id == str(gateway_uuid))).scalar_one_or_none()
+    if gateway is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="gateway-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+
+    updates = body.model_dump(exclude_unset=True)
+    if not updates:
+        raise ProblemDetail(
+            status=400,
+            title="Bad Request",
+            detail="gateway-update-empty",
+            type_uri="https://panoptix.local/problems/bad-request",
+        )
+
+    before = _gateway_metadata(gateway)
+    if "name" in updates:
+        if body.name is None:
+            raise ProblemDetail(
+                status=400,
+                title="Bad Request",
+                detail="gateway-name-required",
+                type_uri="https://panoptix.local/problems/bad-request",
+            )
+        gateway.name = body.name
+    if "mtls_fingerprint" in updates:
+        gateway.mtls_fingerprint = body.mtls_fingerprint
+    if "cert_expires_at" in updates:
+        gateway.cert_expires_at = body.cert_expires_at
+    db.flush()
+    after = _gateway_metadata(gateway)
+
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=actor.id,
+        action="gateway.update",
+        resource=f"gateway:{gateway_uuid}",
+        payload={"gateway_id": str(gateway_uuid), "before": before, "after": after},
+    )
+    db.commit()
+    return _gateway_response(gateway)
 
 
 @v1_router.post("/admin/gateways/{gateway_id}/disable")
@@ -1604,6 +1691,59 @@ def disable_gateway(
         participants_removed=removal.participants_removed,
         participant_errors=removal.errors,
     )
+
+
+@v1_router.post("/admin/gateways/{gateway_id}/enable")
+def enable_gateway(
+    gateway_id: str,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    gateway_uuid = _parse_uuid(gateway_id, "gateway-id-invalid")
+    gateway = db.execute(select(EdgeGateway).where(EdgeGateway.id == str(gateway_uuid))).scalar_one_or_none()
+    if gateway is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="gateway-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+    if gateway.status == GatewayStatus.retired:
+        raise ProblemDetail(
+            status=409,
+            title="Conflict",
+            detail="gateway-retired",
+            type_uri="https://panoptix.local/problems/conflict",
+        )
+    if gateway.status == GatewayStatus.enabled and gateway.disabled_at is None:
+        raise ProblemDetail(
+            status=409,
+            title="Conflict",
+            detail="gateway-already-enabled",
+            type_uri="https://panoptix.local/problems/conflict",
+        )
+
+    before = {"status": gateway.status.value, "disabled_at": gateway.disabled_at.isoformat() if gateway.disabled_at else None}
+    gateway.status = GatewayStatus.enabled
+    gateway.disabled_at = None
+    db.flush()
+    after = {"status": gateway.status.value, "disabled_at": None}
+
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=actor.id,
+        action="gateway.enable",
+        resource=f"gateway:{gateway_uuid}",
+        payload={"gateway_id": str(gateway_uuid), "before": before, "after": after},
+    )
+    db.commit()
+    return _gateway_response(gateway)
 
 
 class RotateCredentialRequest(BaseModel):
@@ -1857,10 +1997,38 @@ def get_admin_camera(
     }
 
 
+def _camera_metadata(camera: Camera) -> dict[str, object | None]:
+    return {
+        "display_name": camera.display_name,
+        "source_type": camera.source_type.value if camera.source_type else None,
+        "livekit_room_name": camera.livekit_room_name,
+    }
+
+
+def _camera_response(camera: Camera) -> dict[str, object | None]:
+    return {
+        "camera_id": str(camera.id),
+        "display_name": camera.display_name,
+        "source_type": camera.source_type.value if camera.source_type else None,
+        "livekit_room_name": camera.livekit_room_name,
+        "room_uuid": str(camera.room_uuid) if camera.room_uuid else None,
+        "gateway_id": str(camera.gateway_id) if camera.gateway_id else None,
+        "site_id": str(camera.site_id) if camera.site_id else None,
+        "created_at": camera.created_at.isoformat() if camera.created_at else None,
+        "retired_at": camera.retired_at.isoformat() if camera.retired_at else None,
+    }
+
+
 class CreateCameraRequest(BaseModel):
     display_name: str = Field(min_length=1, max_length=255)
     source_type: str
     livekit_room_name: str = Field(min_length=1, max_length=64)
+
+
+class UpdateCameraRequest(BaseModel):
+    display_name: str | None = Field(default=None, min_length=1, max_length=255)
+    source_type: str | None = None
+    livekit_room_name: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 class CameraAclRequest(BaseModel):
@@ -1927,6 +2095,100 @@ def create_camera(
         "source_type": camera.source_type.value,
         "livekit_room_name": camera.livekit_room_name,
     }
+
+
+@v1_router.patch("/admin/cameras/{camera_id}")
+def update_camera(
+    camera_id: str,
+    body: UpdateCameraRequest,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object | None]:
+    require_role(principal, "admin")
+    cam_uuid = _parse_uuid(camera_id, "camera-id-invalid")
+    camera = db.execute(select(Camera).where(Camera.id == str(cam_uuid))).scalar_one_or_none()
+    if camera is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="camera-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+
+    updates = body.model_dump(exclude_unset=True)
+    if not updates:
+        raise ProblemDetail(
+            status=400,
+            title="Bad Request",
+            detail="camera-update-empty",
+            type_uri="https://panoptix.local/problems/bad-request",
+        )
+
+    before = _camera_metadata(camera)
+    if "display_name" in updates:
+        if body.display_name is None:
+            raise ProblemDetail(
+                status=400,
+                title="Bad Request",
+                detail="camera-display-name-required",
+                type_uri="https://panoptix.local/problems/bad-request",
+            )
+        camera.display_name = body.display_name
+    if "source_type" in updates:
+        if body.source_type is None:
+            raise ProblemDetail(
+                status=400,
+                title="Bad Request",
+                detail="source-type-invalid",
+                type_uri="https://panoptix.local/problems/bad-request",
+            )
+        try:
+            camera.source_type = CameraSourceType(body.source_type)
+        except ValueError:
+            raise ProblemDetail(
+                status=400,
+                title="Bad Request",
+                detail="source-type-invalid",
+                type_uri="https://panoptix.local/problems/bad-request",
+            )
+    if "livekit_room_name" in updates:
+        if body.livekit_room_name is None:
+            raise ProblemDetail(
+                status=400,
+                title="Bad Request",
+                detail="room-name-required",
+                type_uri="https://panoptix.local/problems/bad-request",
+            )
+        existing = db.execute(
+            select(Camera)
+            .where(Camera.livekit_room_name == body.livekit_room_name)
+            .where(Camera.id != str(cam_uuid))
+        ).scalar_one_or_none()
+        if existing is not None:
+            raise ProblemDetail(
+                status=409,
+                title="Conflict",
+                detail="room-name-taken",
+                type_uri="https://panoptix.local/problems/conflict",
+            )
+        camera.livekit_room_name = body.livekit_room_name
+    db.flush()
+    after = _camera_metadata(camera)
+
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=actor.id,
+        action="camera.update",
+        resource=f"camera:{cam_uuid}",
+        payload={"camera_id": str(cam_uuid), "before": before, "after": after},
+    )
+    db.commit()
+    return _camera_response(camera)
 
 
 @v1_router.post("/admin/cameras/{camera_id}/acl")
@@ -2077,6 +2339,51 @@ def disable_camera(
 
 
 # ── Break-glass emergency access ─────────────────────────────────────────
+
+
+@v1_router.post("/admin/cameras/{camera_id}/enable")
+def enable_camera(
+    camera_id: str,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object | None]:
+    require_role(principal, "admin")
+    cam_uuid = _parse_uuid(camera_id, "camera-id-invalid")
+    camera = db.execute(select(Camera).where(Camera.id == str(cam_uuid))).scalar_one_or_none()
+    if camera is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="camera-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+    if camera.retired_at is None:
+        raise ProblemDetail(
+            status=409,
+            title="Conflict",
+            detail="camera-already-active",
+            type_uri="https://panoptix.local/problems/conflict",
+        )
+
+    before = {"retired_at": camera.retired_at.isoformat()}
+    camera.retired_at = None
+    db.flush()
+    after = {"retired_at": None}
+
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    _record_user_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=actor.id,
+        action="camera.enable",
+        resource=f"camera:{cam_uuid}",
+        payload={"camera_id": str(cam_uuid), "before": before, "after": after},
+    )
+    db.commit()
+    return _camera_response(camera)
 
 
 class BreakGlassOpenRequest(BaseModel):

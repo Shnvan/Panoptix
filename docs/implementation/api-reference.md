@@ -48,7 +48,9 @@ FastAPI remains the security authority. Browser responses must not expose RTSP U
 | `GET` | `/api/v1/admin/gateways` | list gateways with filters/search |
 | `POST` | `/api/v1/admin/gateways` | register gateway and return one-time service token |
 | `GET` | `/api/v1/admin/gateways/{gateway_id}` | gateway detail |
+| `PATCH` | `/api/v1/admin/gateways/{gateway_id}` | update gateway display metadata; does not rotate credentials |
 | `POST` | `/api/v1/admin/gateways/{gateway_id}/disable` | disable gateway and remove LiveKit publisher participants |
+| `POST` | `/api/v1/admin/gateways/{gateway_id}/enable` | re-enable a disabled gateway without restoring revoked assignments |
 | `POST` | `/api/v1/admin/gateways/{gateway_id}/rotate-credential` | rotate one-time gateway service token |
 | `POST` | `/api/v1/admin/gateways/{gateway_id}/cameras` | grant/revoke gateway-camera assignment |
 | `POST` | `/api/v1/admin/gateways/{gateway_id}/commands` | enqueue gateway command |
@@ -59,8 +61,10 @@ FastAPI remains the security authority. Browser responses must not expose RTSP U
 | `GET` | `/api/v1/admin/cameras` | list cameras with filters/search |
 | `POST` | `/api/v1/admin/cameras` | create camera |
 | `GET` | `/api/v1/admin/cameras/{camera_id}` | camera detail |
+| `PATCH` | `/api/v1/admin/cameras/{camera_id}` | update camera display/source metadata; no RTSP credentials accepted |
 | `POST` | `/api/v1/admin/cameras/{camera_id}/acl` | grant/revoke user camera ACL |
 | `POST` | `/api/v1/admin/cameras/{camera_id}/disable` | retire camera and remove LiveKit viewer participants |
+| `POST` | `/api/v1/admin/cameras/{camera_id}/enable` | re-enable a retired camera; viewer access still depends on camera ACLs |
 | `GET` | `/api/v1/admin/actors/{actor_type}/{actor_id}/profile` | composite actor investigation profile |
 | `GET` | `/api/v1/admin/actors/{actor_type}/{actor_id}/activity` | actor-scoped audit activity timeline |
 | `GET` | `/api/v1/admin/audit` | list scrubbed audit rows |

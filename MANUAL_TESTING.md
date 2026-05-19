@@ -45,7 +45,9 @@ Use this quick order before drilling into the detailed examples below:
 - `GET /api/v1/admin/gateways` - list gateways with filters and search.
 - `POST /api/v1/admin/gateways` - register a gateway and return a one-time service token.
 - `GET /api/v1/admin/gateways/{gateway_id}` - gateway detail.
+- `PATCH /api/v1/admin/gateways/{gateway_id}` - update gateway display metadata without rotating credentials.
 - `POST /api/v1/admin/gateways/{gateway_id}/disable` - disable a gateway and remove publisher participants.
+- `POST /api/v1/admin/gateways/{gateway_id}/enable` - re-enable a disabled gateway.
 - `POST /api/v1/admin/gateways/{gateway_id}/rotate-credential` - rotate the gateway service token.
 - `POST /api/v1/admin/gateways/{gateway_id}/cameras` - grant or revoke gateway-camera assignment.
 - `POST /api/v1/admin/gateways/{gateway_id}/commands` - enqueue a gateway command.
@@ -56,8 +58,10 @@ Use this quick order before drilling into the detailed examples below:
 - `GET /api/v1/admin/cameras` - list cameras with filters and search.
 - `POST /api/v1/admin/cameras` - create a camera.
 - `GET /api/v1/admin/cameras/{camera_id}` - camera detail.
+- `PATCH /api/v1/admin/cameras/{camera_id}` - update camera display/source metadata without accepting RTSP credentials.
 - `POST /api/v1/admin/cameras/{camera_id}/acl` - grant or revoke user camera ACL.
 - `POST /api/v1/admin/cameras/{camera_id}/disable` - retire a camera and remove viewer participants.
+- `POST /api/v1/admin/cameras/{camera_id}/enable` - re-enable a retired camera; existing camera ACL rules still control viewer access.
 - `GET /api/v1/admin/audit` - list scrubbed audit rows.
 - `GET /api/v1/admin/audit/verify` - verify the audit HMAC chain.
 - `GET /api/v1/admin/audit/export` - export scrubbed audit JSONL.

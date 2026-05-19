@@ -239,3 +239,18 @@ def test_gateway_auth_failures_classified_correctly() -> None:
         defn = classify_audit_event(action)
         assert defn is not None, f"Missing: {action}"
         assert defn.severity == EventSeverity.medium, f"{action} should be medium severity"
+
+
+def test_lifecycle_management_events_registered() -> None:
+    lifecycle_actions = [
+        ("camera.update", EventCategory.data_access),
+        ("camera.enable", EventCategory.data_access),
+        ("gateway.update", EventCategory.system),
+        ("gateway.enable", EventCategory.system),
+    ]
+    for action, expected_category in lifecycle_actions:
+        defn = classify_audit_event(action)
+        assert defn is not None, f"Missing: {action}"
+        assert defn.severity == EventSeverity.medium, f"{action} should be medium severity"
+        assert defn.category == expected_category, f"{action} category mismatch"
+        assert defn.default_outcome == EventOutcome.success, f"{action} should be success"

@@ -141,6 +141,69 @@ def test_create_gateway_succeeds_and_writes_audit(test_db_session: DbSession) ->
     assert _audit_actions(test_db_session) == ["gateway.create"]
 
 
+def test_update_gateway_requires_authentication(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(test_db_session)
+    client = _client(test_db_session)
+    response = client.patch(
+        f"/api/v1/admin/gateways/{gateway.id}",
+        json={"name": "Updated Gateway"},
+    )
+    assert response.status_code == 401
+
+
+def test_update_gateway_requires_admin_role(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(test_db_session)
+    client = _client(test_db_session)
+    response = client.patch(
+        f"/api/v1/admin/gateways/{gateway.id}",
+        headers=_viewer_headers(),
+        json={"name": "Updated Gateway"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "role-required"
+
+
+def test_update_gateway_succeeds_and_writes_audit(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(test_db_session)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+    client = _client(test_db_session)
+    response = client.patch(
+        f"/api/v1/admin/gateways/{gateway.id}",
+        headers=_admin_headers(),
+        json={
+            "name": "Updated Gateway",
+            "mtls_fingerprint": "sha256:new",
+            "cert_expires_at": expires_at.isoformat(),
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["gateway_id"] == str(gateway.id)
+    assert body["name"] == "Updated Gateway"
+    assert body["status"] == "enabled"
+    assert body["mtls_fingerprint"] == "sha256:new"
+
+    test_db_session.refresh(gateway)
+    assert gateway.name == "Updated Gateway"
+    assert gateway.mtls_fingerprint == "sha256:new"
+
+    audit = test_db_session.execute(select(AuditLog).where(AuditLog.action == "gateway.update")).scalar_one()
+    assert audit.payload["gateway_id"] == str(gateway.id)
+    assert audit.payload["before"]["name"] == "Test Gateway"
+    assert audit.payload["after"]["name"] == "Updated Gateway"
+
+
+def test_update_gateway_rejects_missing_gateway(test_db_session: DbSession) -> None:
+    client = _client(test_db_session)
+    response = client.patch(
+        f"/api/v1/admin/gateways/{uuid.uuid4()}",
+        headers=_admin_headers(),
+        json={"name": "Missing Gateway"},
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "gateway-not-found"
+
+
 def test_disable_gateway_requires_admin(test_db_session: DbSession) -> None:
     gateway = _seed_gateway(test_db_session)
     client = _client(test_db_session)
@@ -208,6 +271,71 @@ def test_disable_gateway_rejects_already_disabled(test_db_session: DbSession) ->
     )
     assert response.status_code == 409
     assert response.json()["detail"] == "gateway-already-disabled"
+
+
+def test_enable_gateway_requires_admin(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(test_db_session, status=GatewayStatus.disabled)
+    client = _client(test_db_session)
+    response = client.post(
+        f"/api/v1/admin/gateways/{gateway.id}/enable",
+        headers=_viewer_headers(),
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "role-required"
+
+
+def test_enable_gateway_requires_authentication(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(test_db_session, status=GatewayStatus.disabled)
+    client = _client(test_db_session)
+    response = client.post(f"/api/v1/admin/gateways/{gateway.id}/enable")
+    assert response.status_code == 401
+
+
+def test_enable_gateway_succeeds_and_writes_audit(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(test_db_session, status=GatewayStatus.disabled)
+    gateway.disabled_at = datetime.now(timezone.utc)
+    test_db_session.commit()
+    client = _client(test_db_session)
+    response = client.post(
+        f"/api/v1/admin/gateways/{gateway.id}/enable",
+        headers=_admin_headers(),
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["gateway_id"] == str(gateway.id)
+    assert body["status"] == "enabled"
+    assert body["disabled_at"] is None
+
+    test_db_session.refresh(gateway)
+    assert gateway.status == GatewayStatus.enabled
+    assert gateway.disabled_at is None
+    assert get_enabled_gateway(test_db_session, gateway.id) is not None
+
+    audit = test_db_session.execute(select(AuditLog).where(AuditLog.action == "gateway.enable")).scalar_one()
+    assert audit.payload["gateway_id"] == str(gateway.id)
+    assert audit.payload["before"]["status"] == "disabled"
+    assert audit.payload["after"]["status"] == "enabled"
+
+
+def test_enable_gateway_rejects_already_enabled(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(test_db_session)
+    client = _client(test_db_session)
+    response = client.post(
+        f"/api/v1/admin/gateways/{gateway.id}/enable",
+        headers=_admin_headers(),
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == "gateway-already-enabled"
+
+
+def test_enable_gateway_rejects_missing_gateway(test_db_session: DbSession) -> None:
+    client = _client(test_db_session)
+    response = client.post(
+        f"/api/v1/admin/gateways/{uuid.uuid4()}/enable",
+        headers=_admin_headers(),
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "gateway-not-found"
 
 
 def test_gateway_assignment_requires_admin(test_db_session: DbSession) -> None:

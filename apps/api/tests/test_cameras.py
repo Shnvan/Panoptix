@@ -391,6 +391,84 @@ def test_create_camera_succeeds(test_db_session: DbSession) -> None:
     assert "camera_id" in data
 
 
+# ── Admin Camera Update Tests ──
+
+
+def test_update_camera_requires_authentication(test_db_session: DbSession) -> None:
+    camera = _seed_camera(test_db_session)
+    client = _client(test_db_session)
+    response = client.patch(
+        f"/api/v1/admin/cameras/{camera.id}",
+        json={"display_name": "Updated Camera"},
+    )
+    assert response.status_code == 401
+
+
+def test_update_camera_requires_admin_role(test_db_session: DbSession) -> None:
+    camera = _seed_camera(test_db_session)
+    client = _client(test_db_session)
+    response = client.patch(
+        f"/api/v1/admin/cameras/{camera.id}",
+        headers=_VIEWER_HEADERS,
+        json={"display_name": "Updated Camera"},
+    )
+    assert response.status_code == 403
+
+
+def test_update_camera_succeeds_and_writes_audit(test_db_session: DbSession) -> None:
+    camera = _seed_camera(test_db_session)
+    client = _client(test_db_session)
+    response = client.patch(
+        f"/api/v1/admin/cameras/{camera.id}",
+        headers=_ADMIN_HEADERS,
+        json={
+            "display_name": "Updated Camera",
+            "source_type": "synthetic_rtsp_test_source",
+            "livekit_room_name": "room-updated-camera",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["camera_id"] == str(camera.id)
+    assert data["display_name"] == "Updated Camera"
+    assert data["source_type"] == "synthetic_rtsp_test_source"
+    assert data["livekit_room_name"] == "room-updated-camera"
+
+    test_db_session.refresh(camera)
+    assert camera.display_name == "Updated Camera"
+    assert camera.source_type == CameraSourceType.synthetic_rtsp_test_source
+    assert camera.livekit_room_name == "room-updated-camera"
+
+    audit = test_db_session.execute(select(AuditLog).where(AuditLog.action == "camera.update")).scalar_one()
+    assert audit.payload["camera_id"] == str(camera.id)
+    assert audit.payload["before"]["display_name"] == "Test Camera"
+    assert audit.payload["after"]["display_name"] == "Updated Camera"
+
+
+def test_update_camera_rejects_duplicate_room_name(test_db_session: DbSession) -> None:
+    camera = _seed_camera(test_db_session)
+    other = _seed_camera(test_db_session, display_name="Other")
+    client = _client(test_db_session)
+    response = client.patch(
+        f"/api/v1/admin/cameras/{camera.id}",
+        headers=_ADMIN_HEADERS,
+        json={"livekit_room_name": other.livekit_room_name},
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == "room-name-taken"
+
+
+def test_update_camera_not_found_returns_404(test_db_session: DbSession) -> None:
+    client = _client(test_db_session)
+    response = client.patch(
+        f"/api/v1/admin/cameras/{uuid.uuid4()}",
+        headers=_ADMIN_HEADERS,
+        json={"display_name": "Missing"},
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "camera-not-found"
+
+
 # ── Admin Camera ACL Tests ──
 
 
@@ -525,6 +603,68 @@ def test_disable_camera_not_found_returns_404(test_db_session: DbSession) -> Non
         f"/api/v1/admin/cameras/{uuid.uuid4()}/disable",
         headers=_ADMIN_HEADERS,
         json={"reason": "Does not exist"},
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "camera-not-found"
+
+
+# ── Admin Camera Enable Tests ──
+
+
+def test_enable_camera_requires_admin(test_db_session: DbSession) -> None:
+    camera = _seed_camera(test_db_session, retired=True)
+    client = _client(test_db_session)
+    response = client.post(
+        f"/api/v1/admin/cameras/{camera.id}/enable",
+        headers=_VIEWER_HEADERS,
+    )
+    assert response.status_code == 403
+
+
+def test_enable_camera_requires_authentication(test_db_session: DbSession) -> None:
+    camera = _seed_camera(test_db_session, retired=True)
+    client = _client(test_db_session)
+    response = client.post(f"/api/v1/admin/cameras/{camera.id}/enable")
+    assert response.status_code == 401
+
+
+def test_enable_camera_succeeds_and_writes_audit(test_db_session: DbSession) -> None:
+    camera = _seed_camera(test_db_session, retired=True)
+    client = _client(test_db_session)
+    response = client.post(
+        f"/api/v1/admin/cameras/{camera.id}/enable",
+        headers=_ADMIN_HEADERS,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["camera_id"] == str(camera.id)
+    assert data["retired_at"] is None
+
+    test_db_session.refresh(camera)
+    assert camera.retired_at is None
+
+    audit = test_db_session.execute(select(AuditLog).where(AuditLog.action == "camera.enable")).scalar_one()
+    assert audit.payload["camera_id"] == str(camera.id)
+    assert audit.payload["before"]["retired_at"] is not None
+    assert audit.payload["after"]["retired_at"] is None
+
+
+def test_enable_camera_already_active_returns_409(test_db_session: DbSession) -> None:
+    camera = _seed_camera(test_db_session)
+    client = _client(test_db_session)
+    response = client.post(
+        f"/api/v1/admin/cameras/{camera.id}/enable",
+        headers=_ADMIN_HEADERS,
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == "camera-already-active"
+
+
+def test_enable_camera_not_found_returns_404(test_db_session: DbSession) -> None:
+    client = _client(test_db_session)
+    response = client.post(
+        f"/api/v1/admin/cameras/{uuid.uuid4()}/enable",
+        headers=_ADMIN_HEADERS,
     )
     assert response.status_code == 404
     assert response.json()["detail"] == "camera-not-found"

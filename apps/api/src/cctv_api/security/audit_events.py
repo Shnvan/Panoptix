@@ -68,12 +68,16 @@ _r("admin.rate_limited", S.medium, C.authorization, O.denied)
 # --- Camera management ---
 
 _r("camera.create", S.medium, C.data_access, O.success)
+_r("camera.update", S.medium, C.data_access, O.success)
 _r("camera.disable", S.high, C.data_access, O.success)
+_r("camera.enable", S.medium, C.data_access, O.success)
 
 # --- Gateway operations ---
 
 _r("gateway.create", S.high, C.system, O.success)
+_r("gateway.update", S.medium, C.system, O.success)
 _r("gateway.disable", S.high, C.system, O.success)
+_r("gateway.enable", S.medium, C.system, O.success)
 _r("gateway.credential.rotated", S.high, C.system, O.success)
 _r("gateway.camera.grant", S.medium, C.system, O.success)
 _r("gateway.camera.revoke", S.medium, C.system, O.success)

@@ -13,7 +13,9 @@
 | FR-017 Create camera | BR-002 | Admin cameras | `POST /api/v1/admin/cameras` | `cameras` | `api/router.py` | TS-004, TS-005 | Complete |
 | FR-019 Camera ACL | BR-003 | Admin cameras | `POST /api/v1/admin/cameras/{id}/acl` | `camera_acl`, `users` | `api/router.py` | TS-002, TS-003 | Complete |
 | FR-020 Disable camera | BR-010 | Admin cameras | `POST /api/v1/admin/cameras/{id}/disable` | `cameras`, `audit_log` | `api/router.py`, `livekit_rooms.py` | TS-012 | Complete |
+| FR-021 Camera lifecycle update | BR-002, BR-010 | Admin cameras | `PATCH /api/v1/admin/cameras/{id}`, `POST /api/v1/admin/cameras/{id}/enable` | `cameras`, `audit_log` | `api/router.py` | TS-004, TS-012 | Complete |
 | FR-023 Create gateway | BR-004, BR-006 | Admin gateways | `POST /api/v1/admin/gateways` | `edge_gateways` | `api/router.py`, `service_tokens.py` | TS-006 | Complete |
+| FR-025 Gateway lifecycle update | BR-004, BR-010 | Admin gateways | `PATCH /api/v1/admin/gateways/{id}`, `POST /api/v1/admin/gateways/{id}/disable`, `POST /api/v1/admin/gateways/{id}/enable` | `edge_gateways`, `audit_log` | `api/router.py`, `livekit_rooms.py` | TS-006, TS-012 | Complete |
 | FR-027 Gateway assignment | BR-004 | Admin gateways | `POST /api/v1/admin/gateways/{id}/cameras` | `gateway_camera_assignments` | `api/router.py` | TS-006 | Complete |
 | FR-031 Gateway commands | BR-004, BR-007 | Gateway commands | `/admin/gateways/{id}/commands*` | `gateway_command_queue` | `gateway/command_queue.py` | TS-007 | Complete |
 | FR-036 Audit chain | BR-007, BR-008 | Audit log | `/admin/audit*` | `audit_log`, `audit_hmac_keys` | `security/audit.py` | TS-010 | Complete |

@@ -43,16 +43,16 @@
 | FR-018 | The system shall prevent duplicate LiveKit room names. | Cameras | Admin | High | Existing |
 | FR-019 | The system shall allow admins to grant and revoke user-camera ACLs. | Cameras | Admin | High | Existing |
 | FR-020 | The system shall allow admins to retire cameras and remove active viewer participants. | Cameras | Admin | High | Existing |
-| FR-021 | The system shall support camera update/rename flows after creation. | Cameras | Admin | Medium | Missing |
+| FR-021 | The system shall support camera update/rename and re-enable flows after creation or retirement. | Cameras | Admin | Medium | Existing |
 | FR-022 | The system shall onboard real camera hardware and validate RTSP publishing. | Cameras | Admin/Gateway | High | Partially Existing |
 
 ## Gateway And Edge Agent
 
 | ID | Requirement | Module | Actor | Priority | Current status |
 |---|---|---|---|---|---|
-| FR-023 | The system shall allow admins to create gateways and return a one-time service token. | Gateway | Admin | High | Existing |
+| FR-023 | The system shall allow admins to create gateways, update gateway metadata, and return a one-time service token on creation. | Gateway | Admin | High | Existing |
 | FR-024 | The system shall store only hashed gateway service tokens. | Gateway | Admin/Gateway | High | Existing |
-| FR-025 | The system shall allow admins to disable gateways and remove active publisher participants. | Gateway | Admin | High | Existing |
+| FR-025 | The system shall allow admins to disable and re-enable gateways, and remove active publisher participants on disable. | Gateway | Admin | High | Existing |
 | FR-026 | The system shall allow admins to rotate gateway credentials. | Gateway | Admin | High | Existing |
 | FR-027 | The system shall allow admins to grant and revoke gateway-camera assignments. | Gateway | Admin | High | Existing |
 | FR-028 | The gateway shall authenticate to backend HTTP and WebSocket routes using gateway identity. | Gateway | Gateway | High | Existing |

@@ -21,8 +21,8 @@ Design direction: new frontend work should follow [Panoptix Design System](PANOP
 | Implemented but missing UI | `/api/v1/admin/actors/{actor_type}/{actor_id}/profile` | No actor investigation UI | Add actor profile page/drawer linked from users, gateways, audit rows, and break-glass/system actors. |
 | Implemented but missing UI | `/api/v1/admin/actors/{actor_type}/{actor_id}/activity` | No actor activity timeline UI | Add activity timeline with cursor pagination and filters. |
 | Implemented but incomplete | `/api/v1/admin/dashboard` | Dashboard currently uses local/frontend summaries | Wire dashboard metrics from backend. |
-| Implemented but incomplete | `/api/v1/admin/cameras`, detail, create, ACL, disable | Camera management uses viewer camera list in places | Use admin camera list/detail for admin screens and viewer camera list only for viewer dashboard. |
-| Implemented but incomplete | `/api/v1/admin/gateways`, detail, create, disable, rotate, assignment | Gateway screen has placeholder data comments | Replace placeholders with real list/detail data and production states. |
+| Implemented but incomplete | `/api/v1/admin/cameras`, detail, create, update, ACL, disable, enable | Camera management uses viewer camera list in places | Use admin camera list/detail for admin screens and viewer camera list only for viewer dashboard; add update and re-enable UI. |
+| Implemented but incomplete | `/api/v1/admin/gateways`, detail, create, update, disable, enable, rotate, assignment | Gateway screen has placeholder data comments | Replace placeholders with real list/detail data and production states; keep credential rotation separate from metadata update. |
 | Implemented but incomplete | Gateway commands create/list/cancel, command cleanup, maintenance job | Some actions are wired | Verify command history, command creation, cancel, cleanup, and maintenance UX against real backend data. |
 | Implemented and usable | `/api/v1/admin/break-glass/open`, `/close` | Break-glass section exists | Add status read from internal break-glass status endpoint. |
 | Implemented but missing UI | `/api/v1/admin/internal/break-glass-status` | No clear live status integration | Display current emergency window status and expiry when available. |
@@ -43,7 +43,7 @@ These must be resolved before treating the frontend as production-ready.
 | Task | Status | Notes |
 |---|---|---|
 | Real LiveKit browser viewer playback | Not done | Use backend viewer tokens to connect with the LiveKit client as a subscriber only. |
-| Replace placeholder gateway UI | Required | Gateway list/detail, command history, assignment, disable, and rotate views must use real `/api/v1/admin/gateways` data. |
+| Replace placeholder gateway UI | Required | Gateway list/detail, command history, assignment, update, disable, enable, and rotate views must use real `/api/v1/admin/gateways` data. |
 | Separate viewer camera data from admin camera data | Required | Viewer dashboard uses `/api/v1/cameras`; admin camera management uses `/api/v1/admin/cameras` and detail routes. |
 | Remove or disable nonexistent endpoint calls | Required | Security reports, DSR listing, and site listing must not appear as broken production features. |
 | Expose missing implemented admin actions | Required | Add or document UI for MFA reset, backup status, break-glass status, and actor profile/activity. Keep user invite hidden or marked planned until the backend IdP invite stub is implemented. |

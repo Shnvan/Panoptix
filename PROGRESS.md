@@ -10,7 +10,7 @@ Last updated: 2026-05-19
 
 | Area | Progress | Status | Notes |
 |------|----------|--------|-------|
-| **Backend API** | 99% | 🟢 Strong | Auth, RBAC, audit, actor investigation profiles/activity timeline, health, gateway, camera, command, webhook, session, admin, break-glass, search/filter, enrichment, LiveKit fallback, DPA export, signage attestation, credential rotation, MFA reset, and backup status reporting all done. Remaining 501 stub: IdP invite. Backend-controlled synthetic gateway publish smoke passed. 532 tests passing. |
+| **Backend API** | 99% | 🟢 Strong | Auth, RBAC, audit, actor investigation profiles/activity timeline, health, gateway, camera, command, webhook, session, admin, break-glass, search/filter, enrichment, LiveKit fallback, DPA export, signage attestation, credential rotation, MFA reset, camera/gateway lifecycle update and re-enable, and backup status reporting all done. Remaining 501 stub: IdP invite. Backend-controlled synthetic gateway publish smoke passed. 532 tests passing. |
 | **Edge Agent** | 88% | 🟢 Strong | Heartbeat, command signing, WebSocket control, FFmpeg frame source, LiveKit SDK bridge, per-camera credentials, supervisor, real FFmpeg integration tests, synthetic RTSP to LiveKit Cloud smoke, backend-command publish ACK, exponential backoff + jitter, mTLS cert bootstrap scaffold, cryptography dep all done. Missing: real CCTV hardware validation and production service deployment. |
 | **Frontend** | 0% | 🔴 Not started | Placeholder only. Owned by frontend coworker. Blocked until admin UI, camera grid viewer, and privacy notice flow are built. |
 | **Database** | 97% | 🟢 Strong | Core schema plus `0007_gateway_command_tables` migration deployed on active DB; `gateway_command_queue`, `camera_publish_states`, and `backup_runs` model/schema verified. Backup status endpoint now reports database-known backup readiness from `backup_runs`. Missing: recorded restore drill evidence, backup worker automation, retention policy tables (pilot+). |
@@ -781,6 +781,14 @@ Work with the frontend coworker to build the admin camera management and user ma
 - [x] 8 new gateway list+detail tests in `test_admin_gateways.py`
 - [x] 8 new camera list+detail tests in `test_cameras.py`
 - [x] All 389 backend tests passing; ruff, mypy clean
+
+### Admin Camera & Gateway Lifecycle Update Endpoints ✅
+- [x] `PATCH /api/v1/admin/cameras/{camera_id}` — update camera display/source metadata without accepting RTSP credentials
+- [x] `POST /api/v1/admin/cameras/{camera_id}/enable` — re-enable a retired camera while preserving existing ACL enforcement
+- [x] `PATCH /api/v1/admin/gateways/{gateway_id}` — update gateway display metadata without rotating credentials
+- [x] `POST /api/v1/admin/gateways/{gateway_id}/enable` — re-enable a disabled gateway without automatically restoring revoked assignments
+- [x] Successful lifecycle changes write `camera.update`, `camera.enable`, `gateway.update`, and `gateway.enable` audit rows with before/after payloads
+- [x] Focused camera/gateway lifecycle tests pass; frontend UI remains pending
 
 ### Camera Disable → Kill Viewer Participants ✅
 - [x] Added `remove_room_viewers()` to `security/livekit_rooms.py` — removes all `viewer:*` participants from a camera's single LiveKit room

@@ -13,15 +13,19 @@
 | GAP-009 | Self-hosted LiveKit fallback is not fully operationalized. | ADRs/runbooks/config | Fallback readiness may be overestimated. | Mark fallback as operational future work until tested. | Medium | Open |
 | GAP-010 | Browser E2E tests are missing. | No frontend app/tests found | UI regressions cannot be caught automatically. | Add Playwright tests with frontend implementation. | High | Open |
 | GAP-011 | Load, ZAP, SBOM, and browser bundle scan artifacts are not implemented. | `requirements.md`, test plan | Pilot/production assurance may be incomplete. | Add gates when frontend and production release hardening begin. | Medium | Open |
-| GAP-012 | Camera update/rename and re-enable flows are missing. | Admin camera routes | Admins may need operational corrections after creation/disable. | Confirm scope; implement if required. | Low | Needs Team Confirmation |
-| GAP-013 | Gateway re-enable flow is missing. | Admin gateway routes | Disabled gateway recovery may require manual DB action. | Confirm lifecycle policy and add route if needed. | Medium | Needs Team Confirmation |
 | GAP-014 | Backup status API is database-only. | `BackupRun`, backup runbooks | Product status depends on backup job rows and does not directly verify R2 object availability. | Keep R2 verification in the backup job/runbook or add a dedicated worker-side verification path. | Medium | Open |
 | GAP-015 | Site signage timestamp and DPA artifact both represent signage evidence. | `Site`, `DpaArtifact`, signage route | Source-of-truth ambiguity. | Decide whether route updates both records or artifact only. | Low | Needs Team Confirmation |
+
+## Recently Closed Gaps
+
+| Former Gap ID | Resolution |
+|---|---|
+| GAP-012 | Camera update/rename and re-enable routes are implemented as `PATCH /api/v1/admin/cameras/{camera_id}` and `POST /api/v1/admin/cameras/{camera_id}/enable`, with admin authorization and audit rows. |
+| GAP-013 | Gateway update and re-enable routes are implemented as `PATCH /api/v1/admin/gateways/{gateway_id}` and `POST /api/v1/admin/gateways/{gateway_id}/enable`, with credential rotation kept separate from metadata updates. |
 
 ## Remaining Questions For The Team
 
 - Should Auditor and SuperAdmin become explicit roles or remain personas under `admin`?
-- Should camera and gateway re-enable/update flows be MVP requirements?
 - What is the expected backup status response and operational source of truth?
 - Should DSR handling be product-managed or handled manually with only database records?
 - Which camera/NVR models will be accepted for the first hardware onboarding test?
@@ -42,6 +46,5 @@
 - Auditor/SuperAdmin role mapping.
 - DSR workflow ownership and scope.
 - Backup status response shape.
-- Camera/gateway lifecycle re-enable policy.
 - Signage attestation source of truth.
 
