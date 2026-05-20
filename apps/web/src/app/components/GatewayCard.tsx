@@ -24,7 +24,7 @@ export function GatewayCard({ name, status, gatewayId, commandCount = 0, lastSee
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -2 }}
-      className={`backdrop-blur-xl border rounded-xl p-6 transition-all duration-300 ${
+      className={`backdrop-blur-xl border rounded-lg p-6 transition-all duration-300 ${
         theme === 'dark'
           ? `bg-gradient-to-br ${cfg.bg} ${cfg.border} hover:shadow-lg`
           : `bg-gradient-to-br ${cfg.lightBg} ${cfg.lightBorder} hover:shadow-md`
@@ -32,7 +32,7 @@ export function GatewayCard({ name, status, gatewayId, commandCount = 0, lastSee
     >
       <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-3">
-          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+          <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
             theme === 'dark' ? 'bg-slate-900/50' : 'bg-white/80'
           }`}>
             <Server className={`w-6 h-6 ${theme === 'dark' ? cfg.text : cfg.lightText}`} />

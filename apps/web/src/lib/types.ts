@@ -347,9 +347,171 @@ export interface DsrListResponse {
   next_cursor: string | null;
 }
 
+// ── DSR CRUD ──
+
+export interface DsrCreateRequest {
+  requester_contact: string;
+  subject_type: 'user' | 'bystander' | 'site_contact';
+  request_type: 'access' | 'correction' | 'deletion' | 'objection' | 'restriction' | 'other';
+  site_id?: string;
+  camera_scope_note?: string;
+}
+
+export interface DsrUpdateRequest {
+  status?: string;
+  outcome?: string;
+  verified_at?: string;
+}
+
+// ── Admin Dashboard ──
+
+export interface AdminDashboardResponse {
+  cameras: { total: number; active: number; retired: number };
+  gateways: { total: number; enabled: number; disabled: number };
+  users: { total: number; active: number; disabled: number };
+  commands: { pending: number };
+  publishing: { active: number };
+}
+
+// ── Admin Gateway Listing ──
+
+export interface AdminGateway {
+  gateway_id: string;
+  name: string;
+  status: string;
+  last_seen_at: string | null;
+  created_at: string | null;
+  disabled_at: string | null;
+  camera_count: number;
+}
+
+export interface AdminGatewayDetail extends AdminGateway {
+  mtls_fingerprint: string | null;
+  cert_expires_at: string | null;
+}
+
+export interface AdminGatewayListResponse {
+  items: AdminGateway[];
+  next_cursor: string | null;
+}
+
+// ── Break-Glass Status ──
+
+export interface BreakGlassStatusResponse {
+  is_open: boolean;
+  current_window: BreakGlassUsage | null;
+}
+
+// ── MFA Reset ──
+
+export interface MfaResetResponse {
+  user_id: string;
+  status: string;
+  reset_at: string;
+}
+
+// ── User Invite ──
+
+export interface InviteUserRequest {
+  email: string;
+  role_names: string[];
+  reason?: string;
+}
+
+export interface InviteUserResponse {
+  user_id: string;
+  email: string;
+  roles: string[];
+  github_invitation_id: number | null;
+  github_org: string;
+  status: string;
+  next_step: string;
+}
+
+// ── Camera Enable ──
+
+export interface CameraEnableResponse {
+  camera_id: string;
+  display_name: string;
+  status: string;
+}
+
+// ── Gateway Enable ──
+
+export interface GatewayEnableResponse {
+  gateway_id: string;
+  name: string;
+  status: string;
+}
+
+// ── Admin Cameras Listing ──
+
+export interface AdminCamera {
+  camera_id: string;
+  display_name: string;
+  source_type: string | null;
+  livekit_room_name: string;
+  site_id: string | null;
+  created_at: string | null;
+  retired_at: string | null;
+  acl_count: number;
+}
+
+export interface AdminCameraListResponse {
+  items: AdminCamera[];
+  next_cursor: string | null;
+}
+
+// ── Backup Status ──
+
+export interface BackupStatusResponse {
+  latest_run: {
+    id: string;
+    started_at: string;
+    completed_at: string | null;
+    status: string;
+    upload_status: string;
+    r2_key: string | null;
+    size_bytes: number | null;
+    error: string | null;
+  } | null;
+}
+
 // ── Generic Paginated Response ──
 
 export interface PaginatedResponse<T> {
   items: T[];
   next_cursor: string | null;
+}
+
+// ── Gateway Action Responses ──
+
+export interface GatewayDisableResponse {
+  gateway_id: string;
+  status: string;
+  disabled_at: string;
+}
+
+export interface GatewayEnableResponse {
+  gateway_id: string;
+  status: string;
+}
+
+export interface GatewayRotateResponse {
+  gateway_id: string;
+  service_token: string;
+}
+
+// ── Camera Enable Response ──
+
+export interface CameraEnableResponse {
+  camera_id: string;
+  status: string;
+}
+
+// ── LiveKit Fallback Response ──
+
+export interface LivekitFallbackResponse {
+  mode: 'cloud' | 'fallback';
+  applied: boolean;
 }

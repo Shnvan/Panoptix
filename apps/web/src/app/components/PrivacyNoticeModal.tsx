@@ -25,7 +25,7 @@ export function PrivacyNoticeModal({ title, body, version, onAccept, loading }: 
         }`}
       >
         <div className="p-8 text-center">
-          <div className="w-20 h-20 mx-auto bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-xl shadow-cyan-500/30">
+          <div className="w-20 h-20 mx-auto bg-gradient-to-br from-orange-500 to-amber-600 rounded-2xl flex items-center justify-center mb-6 shadow-xl shadow-orange-500/30">
             <Shield className="w-10 h-10 text-white" />
           </div>
           <h2 className={`text-2xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{title}</h2>
@@ -33,23 +33,23 @@ export function PrivacyNoticeModal({ title, body, version, onAccept, loading }: 
         </div>
 
         <div className={`px-8 pb-6 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
-          <div className={`p-4 rounded-xl border mb-6 ${
+          <div className={`p-4 rounded-lg border mb-6 ${
             theme === 'dark' ? 'bg-slate-800/50 border-slate-700/50' : 'bg-slate-50 border-slate-200'
           }`}>
             <div className="flex items-start gap-3">
-              <FileText className={`w-5 h-5 flex-shrink-0 mt-0.5 ${theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'}`} />
+              <FileText className={`w-5 h-5 flex-shrink-0 mt-0.5 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-600'}`} />
               <p className="text-sm leading-relaxed">{body}</p>
             </div>
           </div>
           <ul className="space-y-2 text-sm mb-8">
-            <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-cyan-500 rounded-full" /> Access is logged and audited</li>
-            <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-cyan-500 rounded-full" /> Recording or sharing views is prohibited</li>
-            <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-cyan-500 rounded-full" /> Sessions expire after idle timeout</li>
+            <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-orange-500 rounded-full" /> Access is logged and audited</li>
+            <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-orange-500 rounded-full" /> Recording or sharing views is prohibited</li>
+            <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-orange-500 rounded-full" /> Sessions expire after idle timeout</li>
           </ul>
           <button
             onClick={onAccept}
             disabled={loading}
-            className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold py-3 rounded-xl shadow-lg shadow-cyan-500/30 transition-all disabled:opacity-50"
+            className="w-full bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-400 hover:to-amber-500 text-white font-semibold py-3 rounded-lg shadow-lg shadow-orange-500/30 transition-all disabled:opacity-50"
           >
             {loading ? 'Accepting...' : 'I Accept & Understand'}
           </button>

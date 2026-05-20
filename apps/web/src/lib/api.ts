@@ -171,10 +171,33 @@ export const api = {
       method: 'POST', body: JSON.stringify({ name, mtls_fingerprint: mtlsFingerprint }),
     }),
 
+  listAdminGateways: (cursor?: string, limit = 50, status?: string, search?: string) => {
+    const p = new URLSearchParams();
+    if (cursor) p.set('cursor', cursor);
+    p.set('limit', String(limit));
+    if (status) p.set('status', status);
+    if (search) p.set('search', search);
+    return apiFetch<import('./types').AdminGatewayListResponse>(`/api/v1/admin/gateways?${p}`);
+  },
+
+  getAdminGateway: (gatewayId: string) =>
+    apiFetch<import('./types').AdminGatewayDetail>(`/api/v1/admin/gateways/${gatewayId}`),
+
+  updateGateway: (gatewayId: string, body: { name?: string; mtls_fingerprint?: string }) =>
+    apiFetch<Record<string, unknown>>(`/api/v1/admin/gateways/${gatewayId}`, {
+      method: 'PATCH', body: JSON.stringify(body),
+    }),
+
   disableGateway: (gatewayId: string, reason: string) =>
     apiFetch<import('./types').GatewayDisableResponse>(
       `/api/v1/admin/gateways/${gatewayId}/disable`,
       { method: 'POST', body: JSON.stringify({ reason }) },
+    ),
+
+  enableGateway: (gatewayId: string) =>
+    apiFetch<import('./types').GatewayEnableResponse>(
+      `/api/v1/admin/gateways/${gatewayId}/enable`,
+      { method: 'POST' },
     ),
 
   rotateGatewayCredential: (gatewayId: string, reason: string) =>
@@ -250,6 +273,9 @@ export const api = {
       method: 'POST', body: JSON.stringify({ reason }),
     }),
 
+  getBreakGlassStatus: () =>
+    apiFetch<import('./types').BreakGlassStatusResponse>('/api/v1/admin/internal/break-glass-status'),
+
   // ── Admin: Sites (v4 §14.1) ──
   listSites: () =>
     apiFetch<import('./types').SiteListResponse>('/api/v1/admin/sites'),
@@ -273,19 +299,60 @@ export const api = {
       body: JSON.stringify({ mode, reason: `Admin switched media plane to ${mode} from frontend` }),
     }),
 
-  // ── Admin: Security Checks (v4 §15.1) ──
-  getExposureCheck: () =>
-    apiFetch<import('./types').SecurityCheckReport>('/api/v1/admin/exposure-check'),
-
-  getMediaIsolationCheck: () =>
-    apiFetch<import('./types').SecurityCheckReport>('/api/v1/admin/media-isolation-check'),
-
-  getOriginBindingCheck: () =>
-    apiFetch<import('./types').SecurityCheckReport>('/api/v1/admin/origin-binding-check'),
-
   // ── Admin: DSR Requests (v4 §14.1) ──
-  listDsrRequests: () =>
-    apiFetch<import('./types').DsrListResponse>('/api/v1/admin/dsr-requests'),
+  listDsrRequests: (cursor?: string, limit = 50) => {
+    const p = new URLSearchParams();
+    if (cursor) p.set('cursor', cursor);
+    p.set('limit', String(limit));
+    return apiFetch<import('./types').DsrListResponse>(`/api/v1/admin/dsr-requests?${p}`);
+  },
+
+  createDsrRequest: (body: import('./types').DsrCreateRequest) =>
+    apiFetch<import('./types').DsrRequest>('/api/v1/admin/dsr-requests', {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+
+  getDsrRequest: (requestId: string) =>
+    apiFetch<import('./types').DsrRequest>(`/api/v1/admin/dsr-requests/${requestId}`),
+
+  updateDsrRequest: (requestId: string, body: import('./types').DsrUpdateRequest) =>
+    apiFetch<import('./types').DsrRequest>(`/api/v1/admin/dsr-requests/${requestId}`, {
+      method: 'PATCH', body: JSON.stringify(body),
+    }),
+
+  // ── Admin: MFA Reset ──
+  resetUserMfa: (userId: string) =>
+    apiFetch<import('./types').MfaResetResponse>(`/api/v1/admin/users/${userId}/mfa/reset`, {
+      method: 'POST',
+    }),
+
+  // ── Admin: User Invite ──
+  inviteUser: (body: import('./types').InviteUserRequest) =>
+    apiFetch<import('./types').InviteUserResponse>('/api/v1/admin/users/invite', {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+
+  // ── Admin: Camera Enable ──
+  enableCamera: (cameraId: string) =>
+    apiFetch<import('./types').CameraEnableResponse>(`/api/v1/admin/cameras/${cameraId}/enable`, {
+      method: 'POST',
+    }),
+
+  // ── Admin: Admin Camera Listing ──
+  listAdminCameras: (cursor?: string, limit = 50) => {
+    const p = new URLSearchParams();
+    if (cursor) p.set('cursor', cursor);
+    p.set('limit', String(limit));
+    return apiFetch<import('./types').AdminCameraListResponse>(`/api/v1/admin/cameras?${p}`);
+  },
+
+  // ── Admin: Dashboard ──
+  getAdminDashboard: () =>
+    apiFetch<import('./types').AdminDashboardResponse>('/api/v1/admin/dashboard'),
+
+  // ── Admin: Backup Status ──
+  getBackupStatus: () =>
+    apiFetch<import('./types').BackupStatusResponse>('/api/v1/admin/backups/status'),
 
   // ── Health ──
   getHealth: () => apiFetch<import('./types').HealthResponse>('/health'),
@@ -293,3 +360,4 @@ export const api = {
   getDeepHealth: () =>
     apiFetch<import('./types').DeepHealthResponse>('/api/v1/admin/health/deep'),
 };
+

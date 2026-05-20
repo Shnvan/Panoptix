@@ -54,7 +54,7 @@ export function Sidebar({ activeSection, onSectionChange, isAdmin, systemStatus 
       }`}>
         {!collapsed && (
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/25">
+            <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg flex items-center justify-center shadow-lg shadow-orange-500/25">
               <Shield className="w-6 h-6 text-white" />
             </div>
             <div>
@@ -64,12 +64,12 @@ export function Sidebar({ activeSection, onSectionChange, isAdmin, systemStatus 
           </div>
         )}
         {collapsed && (
-          <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/25 mx-auto">
+          <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg flex items-center justify-center shadow-lg shadow-orange-500/25 mx-auto">
             <Shield className="w-6 h-6 text-white" />
           </div>
         )}
         <button onClick={() => setCollapsed(!collapsed)}
-          className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+          className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors ${
             collapsed ? 'hidden' : ''
           } ${
             theme === 'dark' ? 'bg-slate-800/50 hover:bg-slate-700/50' : 'bg-slate-100 hover:bg-slate-200'
@@ -80,7 +80,7 @@ export function Sidebar({ activeSection, onSectionChange, isAdmin, systemStatus 
 
       {collapsed && (
         <button onClick={() => setCollapsed(false)}
-          className={`mx-auto mt-3 w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+          className={`mx-auto mt-3 w-8 h-8 rounded-md flex items-center justify-center transition-colors ${
             theme === 'dark' ? 'bg-slate-800/50 hover:bg-slate-700/50' : 'bg-slate-100 hover:bg-slate-200'
           }`} aria-label="Expand sidebar">
           <ChevronLeft className={`w-4 h-4 rotate-180 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`} />
@@ -94,11 +94,11 @@ export function Sidebar({ activeSection, onSectionChange, isAdmin, systemStatus 
           const isActive = activeSection === item.id;
           return (
             <button key={item.id} onClick={() => onSectionChange(item.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all group ${
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all group ${
                 isActive
                   ? theme === 'dark'
-                    ? 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-400 shadow-lg shadow-cyan-500/10'
-                    : 'bg-gradient-to-r from-cyan-50 to-blue-50 text-cyan-700 shadow-sm'
+                    ? 'bg-gradient-to-r from-orange-500/20 to-amber-500/20 text-orange-400 shadow-lg shadow-orange-500/10'
+                    : 'bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 shadow-sm'
                   : theme === 'dark'
                     ? 'text-slate-400 hover:text-white hover:bg-slate-800/50'
                     : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
@@ -106,13 +106,13 @@ export function Sidebar({ activeSection, onSectionChange, isAdmin, systemStatus 
               title={collapsed ? item.label : undefined}
             >
               <Icon className={`w-5 h-5 flex-shrink-0 ${isActive
-                ? theme === 'dark' ? 'text-cyan-400' : 'text-cyan-600'
+                ? theme === 'dark' ? 'text-orange-400' : 'text-orange-600'
                 : theme === 'dark' ? 'text-slate-400 group-hover:text-white' : 'text-slate-400 group-hover:text-slate-700'
               }`} />
               {!collapsed && <span className="font-medium">{item.label}</span>}
               {isActive && !collapsed && (
                 <div className={`ml-auto w-2 h-2 rounded-full shadow-lg ${
-                  theme === 'dark' ? 'bg-cyan-400 shadow-cyan-400/50' : 'bg-cyan-500 shadow-cyan-500/50'
+                  theme === 'dark' ? 'bg-orange-400 shadow-orange-400/50' : 'bg-orange-500 shadow-orange-500/50'
                 }`} />
               )}
             </button>
@@ -123,7 +123,7 @@ export function Sidebar({ activeSection, onSectionChange, isAdmin, systemStatus 
       {/* Footer */}
       <div className={`p-4 border-t space-y-3 ${theme === 'dark' ? 'border-slate-800/50' : 'border-slate-200'}`}>
         <button onClick={toggleTheme}
-          className={`flex items-center gap-3 w-full px-4 py-2.5 rounded-xl transition-colors ${
+          className={`flex items-center gap-3 w-full px-4 py-2.5 rounded-lg transition-colors ${
             collapsed ? 'justify-center px-0' : ''
           } ${
             theme === 'dark' ? 'bg-slate-800/50 hover:bg-slate-700/50 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
@@ -132,7 +132,7 @@ export function Sidebar({ activeSection, onSectionChange, isAdmin, systemStatus 
           {!collapsed && <span className="text-sm font-medium">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>}
         </button>
         {!collapsed && (
-          <div className={`rounded-xl p-3 ${theme === 'dark' ? 'bg-slate-800/50' : 'bg-slate-100'}`}>
+          <div className={`rounded-lg p-3 ${theme === 'dark' ? 'bg-slate-800/50' : 'bg-slate-100'}`}>
             <div className="flex items-center justify-between mb-1">
               <span className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>System Status</span>
               <div className="flex items-center gap-1">

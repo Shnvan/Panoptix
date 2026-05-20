@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Video, Server, Users as UsersIcon, Shield, Grid2x2, Grid3x3, Square } from 'lucide-react';
+import { Video, Server, Users as UsersIcon, Shield, Grid2x2, Grid3x3, Square, Command } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { StatCard } from './components/StatCard';
@@ -16,7 +16,7 @@ import { CamerasManageSection } from './components/CamerasManageSection';
 import { GatewaysSection } from './components/GatewaysSection';
 import { HealthSection } from './components/HealthSection';
 import { BreakGlassSection } from './components/BreakGlassSection';
-import { useMe, useCameras, useCameraEvents, useSystemHealth, usePrivacyNotice } from '../lib/hooks';
+import { useMe, useCameras, useCameraEvents, useSystemHealth, usePrivacyNotice, useAdminDashboard } from '../lib/hooks';
 import { useTheme } from '../lib/theme';
 import type { CameraSummary, CameraTileStatus } from '../lib/types';
 
@@ -29,6 +29,7 @@ export function App() {
   const { cameras, loading: camerasLoading } = useCameras();
   const { events, cameraStatuses } = useCameraEvents();
   const systemStatus = useSystemHealth();
+  const { dashboard } = useAdminDashboard();
 
   const [activeSection, setActiveSection] = useState('dashboard');
   const [selectedCamera, setSelectedCamera] = useState<CameraSummary | null>(null);
@@ -50,7 +51,7 @@ export function App() {
     return (
       <div className={`h-full flex items-center justify-center ${theme === 'dark' ? 'bg-slate-950' : 'bg-slate-50'}`}>
         <div className="text-center">
-          <div className="w-16 h-16 mx-auto bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-xl shadow-cyan-500/30 animate-pulse">
+          <div className="w-16 h-16 mx-auto bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg flex items-center justify-center mb-4 shadow-xl shadow-orange-500/30 animate-pulse">
             <Shield className="w-8 h-8 text-white" />
           </div>
           <p className={theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}>Initializing secure connection...</p>
@@ -105,8 +106,8 @@ export function App() {
         <div className="flex items-center gap-1">
           {layoutButtons.map(({ layout, label, icon: Icon }) => (
             <button key={layout} onClick={() => setCameraLayout(layout)} title={`${label} grid`}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm transition-colors ${cameraLayout === layout
-                ? 'bg-cyan-500/20 text-cyan-500 border border-cyan-500/30'
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors ${cameraLayout === layout
+                ? 'bg-orange-500/20 text-orange-500 border border-orange-500/30'
                 : d ? 'bg-slate-800/50 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-500 hover:text-slate-900'
               }`}>
               <Icon className="w-4 h-4" /> {label}
@@ -118,11 +119,11 @@ export function App() {
       {camerasLoading ? (
         <div className={`grid ${gridClass} gap-4`}>
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className={`aspect-video rounded-xl ${d ? 'bg-slate-800/50 animate-pulse' : 'bg-slate-200 animate-pulse'}`} />
+            <div key={i} className={`aspect-video rounded-lg ${d ? 'bg-slate-800/50 animate-pulse' : 'bg-slate-200 animate-pulse'}`} />
           ))}
         </div>
       ) : cameras.length === 0 ? (
-        <div className={`text-center py-16 border rounded-xl ${d ? 'bg-slate-900/50 border-slate-700/50' : 'bg-slate-50 border-slate-200'}`}>
+        <div className={`text-center py-16 border rounded-lg ${d ? 'bg-slate-900/50 border-slate-700/50' : 'bg-slate-50 border-slate-200'}`}>
           <Video className={`w-16 h-16 mx-auto mb-4 ${d ? 'text-slate-600' : 'text-slate-300'}`} />
           <h3 className={`text-lg font-semibold mb-2 ${d ? 'text-white' : 'text-slate-900'}`}>No Assigned Cameras</h3>
           <p className={d ? 'text-slate-400' : 'text-slate-500'}>You do not have access to any cameras. Contact your administrator to get camera access.</p>
@@ -141,16 +142,21 @@ export function App() {
     </>
   );
 
+  // Use real dashboard data when available, fall back to local state
+  const dashCameras = dashboard?.cameras?.active ?? cameras.length;
+  const dashGateways = dashboard?.gateways?.enabled ?? 0;
+  const dashCmdPending = dashboard?.commands?.pending ?? 0;
+
   const renderContent = () => {
     switch (activeSection) {
       case 'dashboard':
         return (
           <div className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-              <StatCard title="Active Cameras" value={cameras.length} icon={Video} color="cyan" />
+              <StatCard title="Active Cameras" value={dashCameras} icon={Video} color="orange" change={dashboard ? `${dashboard.cameras.total} total` : undefined} />
               <StatCard title="System Status" value={systemStatus === 'ok' ? 'Operational' : 'Checking'} icon={Server} color="emerald" />
-              <StatCard title="Your Role" value={isAdmin ? 'Admin' : 'Viewer'} icon={UsersIcon} color="blue" />
-              <StatCard title="Camera Events" value={events.length} icon={Video} color={events.length > 0 ? 'amber' : 'emerald'} />
+              <StatCard title="Gateways Online" value={dashGateways} icon={Server} color="blue" change={dashboard ? `${dashboard.gateways.total} total` : undefined} />
+              <StatCard title="Pending Commands" value={dashCmdPending} icon={Command} color={dashCmdPending > 0 ? 'amber' : 'emerald'} />
             </div>
             {renderCameraGrid()}
             <SystemHealthChart />

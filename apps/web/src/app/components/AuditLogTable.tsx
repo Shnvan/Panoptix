@@ -1,9 +1,9 @@
 import { FileText, Download, Search, CheckCircle, ShieldCheck, ClipboardList, ScrollText, XCircle, MapPin, FileStack, AlertTriangle } from 'lucide-react';
 import { useTheme } from '../../lib/theme';
-import { useAdminAudit } from '../../lib/hooks';
+import { useAdminAudit, useDsrRequests } from '../../lib/hooks';
 import { api, ApiError } from '../../lib/api';
 import { useState, useEffect } from 'react';
-import type { DsrRequest, Site } from '../../lib/types';
+import type { Site } from '../../lib/types';
 
 /**
  * Audit & Compliance — ux-product-spec.md requires:
@@ -30,8 +30,7 @@ export function AuditLogTable() {
   const [msg, setMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   // DSR state
-  const [dsrRequests, setDsrRequests] = useState<DsrRequest[]>([]);
-  const [dsrLoading, setDsrLoading] = useState(false);
+  const { requests: dsrRequests, loading: dsrLoading } = useDsrRequests();
 
   const showMsg = (text: string, type: 'success' | 'error') => {
     setMsg({ text, type });
@@ -41,13 +40,10 @@ export function AuditLogTable() {
   useEffect(() => {
     if (tab === 'compliance') {
       setSitesLoading(true);
-      setSites([]);
-      setSitesLoading(false);
-    }
-    if (tab === 'dsr') {
-      setDsrLoading(true);
-      setDsrRequests([]);
-      setDsrLoading(false);
+      api.listSites()
+        .then(data => setSites(data.items))
+        .catch(() => setSites([]))
+        .finally(() => setSitesLoading(false));
     }
   }, [tab]);
 
@@ -131,7 +127,7 @@ export function AuditLogTable() {
 
       {/* Status messages */}
       {msg && (
-        <div className={`p-3 rounded-xl text-sm flex items-center gap-2 ${
+        <div className={`p-3 rounded-lg text-sm flex items-center gap-2 ${
           msg.type === 'error' ? 'bg-red-500/10 border border-red-500/20 text-red-400' : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
         }`}>
           {msg.type === 'error' ? <XCircle className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
@@ -144,8 +140,8 @@ export function AuditLogTable() {
         {tabs.map(t => {
           const Icon = t.icon;
           return (
-            <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${tab === t.id
-              ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25'
+            <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${tab === t.id
+              ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-lg shadow-orange-500/25'
               : d ? 'bg-slate-800/50 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-500 hover:text-slate-900'
             }`}><Icon className="w-4 h-4" />{t.label}</button>
           );
@@ -153,29 +149,29 @@ export function AuditLogTable() {
       </div>
 
       {tab === 'audit' ? (
-        <div className={`backdrop-blur-xl border rounded-xl overflow-hidden ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
+        <div className={`backdrop-blur-xl border rounded-lg overflow-hidden ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
           {/* Header */}
           <div className={`p-6 border-b ${d ? 'border-slate-700/50' : 'border-slate-200'}`}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-cyan-500/20 rounded-xl flex items-center justify-center"><FileText className="w-5 h-5 text-cyan-500" /></div>
+                <div className="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center"><FileText className="w-5 h-5 text-orange-500" /></div>
                 <div>
                   <h3 className={`font-semibold ${d ? 'text-white' : 'text-slate-900'}`}>Security Event Timeline</h3>
                   <p className={`text-sm ${d ? 'text-slate-400' : 'text-slate-500'}`}>{logs.length} events loaded · Tamper-evident HMAC chain</p>
                 </div>
               </div>
               <div className="flex gap-2">
-                <button onClick={handleVerify} disabled={verifying} className="flex items-center gap-2 px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-xl text-emerald-500 text-sm font-medium disabled:opacity-50">
+                <button onClick={handleVerify} disabled={verifying} className="flex items-center gap-2 px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-lg text-emerald-500 text-sm font-medium disabled:opacity-50">
                   <ShieldCheck className="w-4 h-4" />{verifying ? 'Verifying...' : 'Verify Chain'}
                 </button>
-                <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 rounded-xl text-cyan-500 text-sm font-medium">
+                <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 rounded-lg text-orange-500 text-sm font-medium">
                   <Download className="w-4 h-4" /> Export JSONL
                 </button>
               </div>
             </div>
 
             {verifyResult && (
-              <div className={`mb-4 p-3 rounded-xl flex items-center gap-2 text-sm ${verifyResult.valid ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border border-red-500/20 text-red-400'}`}>
+              <div className={`mb-4 p-3 rounded-lg flex items-center gap-2 text-sm ${verifyResult.valid ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border border-red-500/20 text-red-400'}`}>
                 <CheckCircle className="w-4 h-4" />
                 {verifyResult.valid ? `Chain verified: ${verifyResult.checked} rows valid` : 'Chain verification FAILED — integrity compromised'}
               </div>
@@ -186,10 +182,10 @@ export function AuditLogTable() {
               <div className="relative flex-1 min-w-48">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input type="text" placeholder="Search by actor, action, resource, IP..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                  className={`w-full rounded-xl pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${d ? 'bg-slate-800/50 border border-slate-700/50 text-white placeholder-slate-400' : 'bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400'}`} />
+                  className={`w-full rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 ${d ? 'bg-slate-800/50 border border-slate-700/50 text-white placeholder-slate-400' : 'bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400'}`} />
               </div>
               <select value={actionFilter || ''} onChange={(e) => setActionFilter(e.target.value || undefined)}
-                className={`px-4 py-2 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${d ? 'bg-slate-800/50 border border-slate-700/50 text-white' : 'bg-slate-50 border border-slate-200 text-slate-900'}`}>
+                className={`px-4 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 ${d ? 'bg-slate-800/50 border border-slate-700/50 text-white' : 'bg-slate-50 border border-slate-200 text-slate-900'}`}>
                 <option value="">All Actions</option>
                 <option value="camera.create">Camera Create</option>
                 <option value="camera.acl.grant">ACL Grant</option>
@@ -239,7 +235,7 @@ export function AuditLogTable() {
           </div>
           {hasMore && (
             <div className="p-4 text-center">
-              <button onClick={loadMore} className="px-6 py-2 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 rounded-xl text-cyan-500 text-sm font-medium">Load More</button>
+              <button onClick={loadMore} className="px-6 py-2 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 rounded-lg text-orange-500 text-sm font-medium">Load More</button>
             </div>
           )}
         </div>
@@ -247,17 +243,17 @@ export function AuditLogTable() {
         /* Compliance & DPA Tab */
         <div className="space-y-6">
           {/* DPA Export */}
-          <div className={`backdrop-blur-xl border rounded-xl p-6 ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
+          <div className={`backdrop-blur-xl border rounded-lg p-6 ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center"><FileStack className="w-5 h-5 text-blue-500" /></div>
+                <div className="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center"><FileStack className="w-5 h-5 text-orange-500" /></div>
                 <div>
                   <h3 className={`font-semibold ${d ? 'text-white' : 'text-slate-900'}`}>DPA Artefact Export</h3>
                   <p className={`text-sm ${d ? 'text-slate-400' : 'text-slate-500'}`}>Generate compliance documents: ROPA, PIAs, processor DPAs, breach logs, retention policies, signage attestations</p>
                 </div>
               </div>
               <button onClick={handleDpaExport} disabled={dpaExporting}
-                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-400 hover:to-purple-500 text-white rounded-xl text-sm font-medium shadow-lg shadow-blue-500/25 disabled:opacity-50 transition-all">
+                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-400 hover:to-amber-500 text-white rounded-lg text-sm font-medium shadow-lg shadow-orange-500/25 disabled:opacity-50 transition-all">
                 <Download className="w-4 h-4" /> {dpaExporting ? 'Exporting...' : 'Export DPA Bundle'}
               </button>
             </div>
@@ -265,9 +261,9 @@ export function AuditLogTable() {
           </div>
 
           {/* Bystander Signage Attestation — per core-features §7 + v4 §16.12 */}
-          <div className={`backdrop-blur-xl border rounded-xl p-6 ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
+          <div className={`backdrop-blur-xl border rounded-lg p-6 ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-amber-500/20 rounded-xl flex items-center justify-center"><MapPin className="w-5 h-5 text-amber-500" /></div>
+              <div className="w-10 h-10 bg-amber-500/20 rounded-lg flex items-center justify-center"><MapPin className="w-5 h-5 text-amber-500" /></div>
               <div>
                 <h3 className={`font-semibold ${d ? 'text-white' : 'text-slate-900'}`}>Bystander Signage Attestation</h3>
                 <p className={`text-sm ${d ? 'text-slate-400' : 'text-slate-500'}`}>Record that physical privacy signs are posted at each camera site (PH DPA §16.12)</p>
@@ -277,14 +273,14 @@ export function AuditLogTable() {
             {sitesLoading ? (
               <div className="text-center py-8 text-slate-400">Loading sites...</div>
             ) : sites.length === 0 ? (
-              <div className={`text-center py-8 rounded-xl ${d ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
+              <div className={`text-center py-8 rounded-lg ${d ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
                 <MapPin className={`w-10 h-10 mx-auto mb-2 ${d ? 'text-slate-600' : 'text-slate-300'}`} />
-                <p className={d ? 'text-slate-400' : 'text-slate-500'}>Site listing is not wired to the backend yet</p>
+                <p className={d ? 'text-slate-400' : 'text-slate-500'}>No sites found or endpoint unavailable</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {sites.map(site => (
-                  <div key={site.id} className={`flex items-center justify-between p-4 rounded-xl ${d ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
+                  <div key={site.id} className={`flex items-center justify-between p-4 rounded-lg ${d ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
                     <div>
                       <h4 className={`font-medium ${d ? 'text-white' : 'text-slate-900'}`}>{site.name}</h4>
                       {site.address && <p className={`text-sm ${d ? 'text-slate-400' : 'text-slate-500'}`}>{site.address}</p>}
@@ -300,7 +296,7 @@ export function AuditLogTable() {
                     </div>
                     {!site.bystander_signage_attested_at && (
                       <button onClick={() => handleSignageAttest(site.id, site.name)}
-                        className="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 rounded-xl text-amber-400 text-sm font-medium">
+                        className="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 rounded-lg text-amber-400 text-sm font-medium">
                         Attest Signage
                       </button>
                     )}
@@ -312,10 +308,10 @@ export function AuditLogTable() {
         </div>
       ) : (
         /* DSR Request Ledger Tab — per ux-product-spec.md */
-        <div className={`backdrop-blur-xl border rounded-xl overflow-hidden ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
+        <div className={`backdrop-blur-xl border rounded-lg overflow-hidden ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
           <div className={`p-6 border-b ${d ? 'border-slate-700/50' : 'border-slate-200'}`}>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center"><FileStack className="w-5 h-5 text-purple-500" /></div>
+              <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center"><FileStack className="w-5 h-5 text-purple-500" /></div>
               <div>
                 <h3 className={`font-semibold ${d ? 'text-white' : 'text-slate-900'}`}>Data Subject Request Ledger</h3>
                 <p className={`text-sm ${d ? 'text-slate-400' : 'text-slate-500'}`}>Track DSR requests (access, correction, deletion, objection, restriction) per RA 10173 / NPC guidelines</p>

@@ -24,13 +24,13 @@ export function ConfirmDialog({
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className={`max-w-md w-full border rounded-2xl p-6 shadow-2xl ${
+        className={`max-w-md w-full border rounded-lg p-6 shadow-2xl ${
           theme === 'dark' ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
         }`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start gap-4 mb-6">
-          <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
+          <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${
             variant === 'danger' ? 'bg-red-500/20' : 'bg-amber-500/20'
           }`}>
             <AlertTriangle className={`w-6 h-6 ${
@@ -46,10 +46,10 @@ export function ConfirmDialog({
           ⚠ This action is audited and cannot be undone.
         </p>
         <div className="flex gap-3">
-          <button onClick={onCancel} className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+          <button onClick={onCancel} className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
             theme === 'dark' ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
           }`}>{cancelLabel}</button>
-          <button onClick={onConfirm} disabled={loading} className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50 ${
+          <button onClick={onConfirm} disabled={loading} className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
             variant === 'danger' ? 'bg-red-500 hover:bg-red-400 text-white' : 'bg-amber-500 hover:bg-amber-400 text-white'
           }`}>{loading ? 'Processing...' : confirmLabel}</button>
         </div>

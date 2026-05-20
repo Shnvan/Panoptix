@@ -38,14 +38,14 @@ export function AlertsPanel({ events = [] }: AlertsPanelProps) {
   const alertConfig = {
     critical: { icon: XCircle, bg: 'from-red-500/20 to-red-600/20', border: 'border-red-500/30', iconColor: 'text-red-400', textColor: 'text-red-400', lightBg: 'from-red-50 to-red-100/50', lightBorder: 'border-red-200', lightText: 'text-red-700' },
     warning: { icon: AlertTriangle, bg: 'from-amber-500/20 to-amber-600/20', border: 'border-amber-500/30', iconColor: 'text-amber-400', textColor: 'text-amber-400', lightBg: 'from-amber-50 to-amber-100/50', lightBorder: 'border-amber-200', lightText: 'text-amber-700' },
-    info: { icon: Info, bg: 'from-blue-500/20 to-blue-600/20', border: 'border-blue-500/30', iconColor: 'text-blue-400', textColor: 'text-blue-400', lightBg: 'from-blue-50 to-blue-100/50', lightBorder: 'border-blue-200', lightText: 'text-blue-700' },
+    info: { icon: Info, bg: 'from-orange-500/20 to-orange-600/20', border: 'border-orange-500/30', iconColor: 'text-orange-400', textColor: 'text-orange-400', lightBg: 'from-orange-50 to-orange-100/50', lightBorder: 'border-orange-200', lightText: 'text-orange-700' },
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-red-500/20 rounded-xl flex items-center justify-center">
+          <div className="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center">
             <AlertCircle className="w-5 h-5 text-red-400" />
           </div>
           <div>
@@ -67,14 +67,14 @@ export function AlertsPanel({ events = [] }: AlertsPanelProps) {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.1 }}
-              className={`backdrop-blur-xl border rounded-xl p-4 transition-all duration-300 hover:shadow-lg ${
+              className={`backdrop-blur-xl border rounded-lg p-4 transition-all duration-300 hover:shadow-lg ${
                 theme === 'dark'
                   ? `bg-gradient-to-br ${config.bg} ${config.border}`
                   : `bg-gradient-to-br ${config.lightBg} ${config.lightBorder}`
               }`}
             >
               <div className="flex gap-4">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
                   theme === 'dark' ? 'bg-slate-900/50' : 'bg-white/80'
                 }`}>
                   <Icon className={`w-5 h-5 ${config.iconColor}`} />
