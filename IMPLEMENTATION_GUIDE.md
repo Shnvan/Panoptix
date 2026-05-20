@@ -119,6 +119,8 @@ Run the backend from `apps/api` and the frontend from `apps/web`:
 ```powershell
 cd apps/api
 $env:PYTHONPATH = "src"
+python -m alembic current
+python -m alembic upgrade head
 python -m uvicorn cctv_api.main:app --host 127.0.0.1 --port 8000
 ```
 
@@ -134,9 +136,19 @@ npm run dev
 
 Open `http://localhost:3000`. The Vite dev server proxies `/api/v1/*` and `/health` to the local backend.
 
+### Latest local smoke evidence
+
+Local full-stack admin smoke has been partially verified with an ignored `apps/api/.env`, a Neon-backed test database, and dev auth enabled. The backend reached Alembic head `0007_gateway_command_tables`. Users & Access, Camera Management, and Gateways load and perform core admin actions without the earlier broad Internal Server Error failures.
+
+Expected local-only limitations:
+
+- `github-invites-not-configured` is expected unless GitHub org invite settings are enabled.
+- Gateway health can be stale when no edge agent is heartbeating.
+- One-time gateway service tokens shown by create/rotate responses must not be screenshotted or stored in docs; rotate exposed test tokens or disable the test gateway.
+
 ### Current limits
 
-The frontend is integrated but not production-complete. Browser LiveKit subscriber playback is still pending; the camera modal can request a short-lived viewer token but does not yet render the real stream. Browser code must never call gateway-only endpoints or receive publisher tokens.
+The frontend is integrated but not production-complete. Browser LiveKit subscriber playback is still pending; the camera modal can request a short-lived viewer token but does not yet render the real stream. Full staging/deployed frontend browser smoke and production routing are still pending. Browser code must never call gateway-only endpoints or receive publisher tokens.
 
 ---
 

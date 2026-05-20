@@ -26,11 +26,22 @@ Use this quick order before drilling into the detailed examples below:
 
 ### Local full-stack browser smoke
 
+Current evidence: local full-stack admin smoke has been partially verified with a local FastAPI backend, an ignored `apps/api/.env`, a Neon-backed test database, and frontend dev auth. Users & Access, Camera Management, and Gateways load and perform core admin actions without the earlier broad Internal Server Error failures.
+
+Expected local-only limitations:
+
+- `POST /api/v1/admin/users/invite` returns `github-invites-not-configured` unless `GITHUB_INVITES_ENABLED=true` and GitHub org invite secrets are configured.
+- `GET /api/v1/admin/health/deep` may report gateway health as stale if no edge agent is heartbeating.
+- Real LiveKit browser subscriber playback remains pending; token minting may work before the UI renders live playback.
+- Any one-time gateway service token displayed after create/rotate must be copied securely, never screenshotted, and rotated or the test gateway disabled if exposed.
+
 Start the backend:
 
 ```powershell
 cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
 $env:PYTHONPATH = "src"
+python -m alembic current
+python -m alembic upgrade head
 python -m uvicorn cctv_api.main:app --host 127.0.0.1 --port 8000
 ```
 
@@ -47,7 +58,10 @@ npm run dev
 Open `http://localhost:3000` and verify:
 
 - login/session bootstrap loads with the dev-auth identity.
-- dashboard, cameras, gateways, users, audit/compliance, DSR, break-glass, health, and settings pages render.
+- dashboard, live cameras, camera management, gateways, users and access, audit logs, DSR/compliance, break-glass, health, and settings pages render.
+- Users & Access lists users and roles; role/MFA/disable/invite actions show success or expected problem details.
+- Camera Management lists admin cameras and supports create, ACL, retire, and enable flows where data allows.
+- Gateways lists real gateway data and supports create, assignment, command list, rotation, cleanup, maintenance, disable, and enable flows where data allows.
 - implemented admin actions show readable success or problem-detail errors.
 - camera detail can request a viewer token, but real LiveKit browser playback remains pending.
 - no browser code requests camera/microphone permission or calls gateway-only publisher routes.

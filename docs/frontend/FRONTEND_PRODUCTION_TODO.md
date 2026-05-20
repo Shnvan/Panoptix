@@ -2,7 +2,7 @@
 
 This is the frontend source of truth for production-readiness work on the combined `fullstack-integration` branch. It tracks every implemented backend capability and makes each one either usable in the frontend, intentionally hidden, or explicitly marked backend/gateway-only.
 
-Design direction: new frontend work should follow [Panoptix Design System](PANOPTIX_DESIGN_SYSTEM.md). The current cyan/slate/rounded UI can migrate gradually, but new production screens should move toward the BSIT 2-2-inspired dashboard/admin adaptation: dark-first, compact, sharp, orange-accented, and scan-focused.
+Design direction: new frontend work **must** follow [Panoptix Design System](PANOPTIX_DESIGN_SYSTEM.md). The current UI uses blue-tinted slate backgrounds (`#020617`, `#0f172a`), cyan accents (`#06b6d4`), and rounded corners — all of which must be replaced with pure dark backgrounds (`#0A0A0A`, `#111111`, `#1A1A1A`), warm orange accent (`#F07C1E`), and sharp edges (`border-radius: 0`). See the design system doc for the complete migration mapping.
 
 ## Backend-to-frontend Coverage Matrix
 
@@ -14,15 +14,15 @@ Design direction: new frontend work should follow [Panoptix Design System](PANOP
 | Implemented but incomplete | `/api/v1/cameras/events` | Disabled in dev-auth mode because EventSource cannot send custom headers | Keep production SSE path; test with Cloudflare/session cookies in staging. |
 | Implemented and usable | `/api/v1/privacy/notice`, `/api/v1/privacy/notice/accept` | Privacy notice gate exists | Verify notice mismatch and accepted states in browser. |
 | Implemented and usable | `/api/v1/sessions/active`, `/api/v1/sessions/revoke` | Settings/session UI exists | Verify revoke UX and session refresh behavior. |
-| Implemented and wired | `/api/v1/admin/users`, role update, disable | User admin UI exists | Browser smoke role changes, disable behavior, and error states. |
+| Implemented and wired | `/api/v1/admin/users`, role update, disable | User admin UI exists and local smoke has loaded real users/roles | Continue browser smoke for destructive actions, disable behavior, and edge-case error states. |
 | Implemented and wired | `/api/v1/admin/users/{user_id}/mfa/reset` | MFA reset modal calls the backend route | Browser smoke success/error states and audit copy. |
-| Implemented and wired | `/api/v1/admin/users/invite` | GitHub invite form calls the backend route | Browser smoke disabled-config, success, and validation states. |
+| Implemented and wired | `/api/v1/admin/users/invite` | GitHub invite form calls the backend route; `github-invites-not-configured` is expected when local GitHub invites are disabled | Browser smoke success and validation states only when real GitHub invite config is intentionally enabled. |
 | Implemented but incomplete | `/api/v1/admin/audit`, verify, export | Audit table exists with limited filtering | Add full audit filters for actor, severity, category, outcome, resource, session, and date range. |
 | Implemented but missing UI | `/api/v1/admin/actors/{actor_type}/{actor_id}/profile` | No actor investigation UI | Add actor profile page/drawer linked from users, gateways, audit rows, and break-glass/system actors. |
 | Implemented but missing UI | `/api/v1/admin/actors/{actor_type}/{actor_id}/activity` | No actor activity timeline UI | Add activity timeline with cursor pagination and filters. |
 | Implemented and wired | `/api/v1/admin/dashboard` | Dashboard hook calls backend metrics | Browser smoke metrics and empty/degraded states. |
-| Implemented and wired | `/api/v1/admin/cameras`, detail, create, update, ACL, disable, enable | Admin camera management uses backend admin routes | Browser smoke create/update/disable/enable/ACL and validation states. |
-| Implemented and wired | `/api/v1/admin/gateways`, detail, create, update, disable, enable, rotate, assignment | Gateway screen uses real gateway data and command routes | Browser smoke list/detail, create/update/disable/enable, rotate, assignment, and command states. |
+| Implemented and wired | `/api/v1/admin/cameras`, detail, create, update, ACL, disable, enable | Admin camera management uses backend admin routes and local smoke has loaded/created camera data | Continue browser smoke for update/disable/enable/ACL validation and edge states. |
+| Implemented and wired | `/api/v1/admin/gateways`, detail, create, update, disable, enable, rotate, assignment | Gateway screen uses real gateway data and local smoke has created/listed gateway data | Continue browser smoke for update/disable/enable, assignment, rotation, command states, and one-time token handling. |
 | Implemented but incomplete | Gateway commands create/list/cancel, command cleanup, maintenance job | Some actions are wired | Verify command history, command creation, cancel, cleanup, and maintenance UX against real backend data. |
 | Implemented and wired | `/api/v1/admin/break-glass/open`, `/close` | Break-glass section exists | Browser smoke open/close confirmation, checklist, and error states. |
 | Implemented and wired | `/api/v1/admin/internal/break-glass-status` | Break-glass status hook exists | Browser smoke current emergency window and expiry display. |
@@ -47,7 +47,7 @@ These must be resolved before treating the frontend as production-ready.
 | Verify viewer/admin camera split | Required | Viewer dashboard uses `/api/v1/cameras`; admin camera management uses `/api/v1/admin/cameras` and detail routes. |
 | Remove or disable nonexistent endpoint calls | Required | Security reports and site listing must not appear as broken production features. |
 | Expose or document remaining implemented admin actions | Required | Backup status has a UI path; actor profile/activity still needs a visible investigation path or documented no-UI decision. |
-| Full local smoke test | Required | Run the frontend against a local backend with dev auth and verify every sidebar page loads without React crashes or failed required calls. |
+| Full local smoke test | Partial | Local admin smoke has passed for Users & Access, Camera Management, and Gateways against a local backend with dev auth. Finish Dashboard, Live Cameras, Audit Logs, System Health, Break Glass, Settings, DSR/compliance, and page-specific action checks. |
 | Full staging smoke test | Required | Test with Cloudflare Access session cookies, CSRF, backend routes, SSE where applicable, and deployed frontend assets. |
 | Browser publishing absence check | Required | Confirm the browser bundle does not request camera/microphone permission and does not publish media to LiveKit. |
 | Sensitive-value exposure check | Required | Confirm no RTSP URLs, camera passwords, LiveKit admin secrets, Cloudflare service tokens, or long-lived auth tokens appear in frontend code, logs, storage, or UI. |
@@ -132,6 +132,8 @@ For the smoke test:
 6. Run implemented admin health and maintenance actions.
 7. Verify planned features are marked as planned or disabled.
 8. Confirm there are no React page errors, token leaks, or unexpected 4xx/5xx responses for implemented features.
+
+Current local evidence: Users & Access, Camera Management, and Gateways have been smoke-tested against a local FastAPI backend using an ignored `apps/api/.env` and dev auth. Treat `github-invites-not-configured` as expected unless GitHub invite settings are intentionally enabled. Treat any one-time gateway service token shown in the UI as sensitive; do not screenshot it, and rotate or disable any exposed test gateway.
 
 ## Current Default Next Task
 
