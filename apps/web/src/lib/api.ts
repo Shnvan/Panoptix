@@ -280,10 +280,10 @@ export const api = {
   listSites: () =>
     apiFetch<import('./types').SiteListResponse>('/api/v1/admin/sites'),
 
-  attestSignage: (siteId: string) =>
+  attestSignage: (siteId: string, notes = 'Signage attested from Panoptix admin console') =>
     apiFetch<import('./types').SignageAttestResponse>(
       `/api/v1/admin/sites/${siteId}/signage-attest`,
-      { method: 'POST' },
+      { method: 'POST', body: JSON.stringify({ notes }) },
     ),
 
   // ── Admin: DPA Export (v4 §15.1) ──
@@ -339,10 +339,11 @@ export const api = {
     }),
 
   // ── Admin: Admin Camera Listing ──
-  listAdminCameras: (cursor?: string, limit = 50) => {
+  listAdminCameras: (cursor?: string, limit = 50, includeRetired = true) => {
     const p = new URLSearchParams();
     if (cursor) p.set('cursor', cursor);
     p.set('limit', String(limit));
+    if (includeRetired) p.set('include_retired', 'true');
     return apiFetch<import('./types').AdminCameraListResponse>(`/api/v1/admin/cameras?${p}`);
   },
 

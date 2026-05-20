@@ -80,7 +80,7 @@ export function HealthSection() {
     </div>
   );
 
-  const latestBackup = backup?.latest_run;
+  const latestBackup = backup?.latest_backup;
 
   return (
     <div className="space-y-6">
@@ -160,8 +160,8 @@ export function HealthSection() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className={`p-3 rounded-lg ${d ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
               <p className={`text-xs mb-1 ${d ? 'text-slate-400' : 'text-slate-500'}`}>Status</p>
-              <p className={`text-sm font-medium ${latestBackup.status === 'completed' ? 'text-emerald-400' : latestBackup.status === 'running' ? 'text-amber-400' : 'text-red-400'}`}>
-                {latestBackup.status.toUpperCase()}
+              <p className={`text-sm font-medium ${backup?.status === 'ok' ? 'text-emerald-400' : backup?.status === 'degraded' ? 'text-amber-400' : 'text-red-400'}`}>
+                {(backup?.status || 'missing').toUpperCase()}
               </p>
             </div>
             <div className={`p-3 rounded-lg ${d ? 'bg-slate-800/50' : 'bg-slate-50'}`}>

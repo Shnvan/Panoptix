@@ -451,6 +451,7 @@ export interface AdminCamera {
   display_name: string;
   source_type: string | null;
   livekit_room_name: string;
+  gateway_id: string | null;
   site_id: string | null;
   created_at: string | null;
   retired_at: string | null;
@@ -465,16 +466,31 @@ export interface AdminCameraListResponse {
 // ── Backup Status ──
 
 export interface BackupStatusResponse {
-  latest_run: {
-    id: string;
-    started_at: string;
-    completed_at: string | null;
-    status: string;
-    upload_status: string;
-    r2_key: string | null;
-    size_bytes: number | null;
-    error: string | null;
-  } | null;
+  status: 'missing' | 'ok' | 'degraded';
+  latest_backup: BackupRunSummary | null;
+  latest_restore_drill: BackupRunSummary | null;
+  checks: {
+    has_backup: boolean;
+    latest_upload_uploaded: boolean;
+    latest_backup_finished: boolean;
+    latest_restore_format_ok: boolean;
+    restore_drill_recorded: boolean;
+    latest_restore_schema_ok: boolean;
+    latest_backup_age_hours: number | null;
+  };
+}
+
+export interface BackupRunSummary {
+  id: string;
+  started_at: string;
+  finished_at: string | null;
+  size_bytes: number | null;
+  sha256: string | null;
+  restore_format_ok: boolean | null;
+  restore_schema_ok: boolean | null;
+  row_count_estimate: number | null;
+  upload_status: string;
+  notes: string | null;
 }
 
 // ── Generic Paginated Response ──

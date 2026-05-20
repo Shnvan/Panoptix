@@ -2,7 +2,7 @@ import { Camera, Plus, Shield, UserPlus, XCircle, CheckCircle, Search, Trash2, P
 import { motion } from 'motion/react';
 import { useState } from 'react';
 import { useTheme } from '../../lib/theme';
-import { useCameras } from '../../lib/hooks';
+import { useAdminCameras } from '../../lib/hooks';
 import { api, ApiError } from '../../lib/api';
 import type { CameraSourceType } from '../../lib/types';
 
@@ -19,7 +19,7 @@ import type { CameraSourceType } from '../../lib/types';
  */
 export function CamerasManageSection() {
   const { theme } = useTheme();
-  const { cameras, loading, refetch } = useCameras();
+  const { cameras, loading, refetch } = useAdminCameras();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [actionMsg, setActionMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 

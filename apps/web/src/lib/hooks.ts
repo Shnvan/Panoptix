@@ -11,6 +11,7 @@ import type {
   DeepHealthResponse,
   AdminDashboardResponse,
   AdminGateway,
+  AdminCamera,
   DsrRequest,
   BackupStatusResponse,
   BreakGlassStatusResponse,
@@ -319,6 +320,35 @@ export function useAdminGateways() {
 }
 
 // ── useDsrRequests ──
+
+export function useAdminCameras() {
+  const [cameras, setCameras] = useState<AdminCamera[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+
+  const fetchCameras = useCallback(async (cursor?: string) => {
+    setLoading(true);
+    try {
+      const data = await api.listAdminCameras(cursor);
+      setCameras((prev) => (cursor ? [...prev, ...data.items] : data.items));
+      setNextCursor(data.next_cursor);
+    } catch {
+      // Access denied or error
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchCameras(); }, [fetchCameras]);
+
+  return {
+    cameras,
+    loading,
+    loadMore: () => { if (nextCursor) fetchCameras(nextCursor); },
+    hasMore: !!nextCursor,
+    refetch: () => fetchCameras(),
+  };
+}
 
 export function useDsrRequests() {
   const [requests, setRequests] = useState<DsrRequest[]>([]);
