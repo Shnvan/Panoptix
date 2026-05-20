@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Video, Server, Users as UsersIcon, Shield, Grid2x2, Grid3x3, Square, Command } from 'lucide-react';
+import { Video, Server, Shield, Grid2x2, Grid3x3, Square, Command } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { StatCard } from './components/StatCard';
