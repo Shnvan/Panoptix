@@ -36,7 +36,7 @@ These items already appear in `docs/planning/cctv-core-functionality-features.md
 | Feature | Status | Notes |
 |---|---|---|
 | Viewer identity watermark on video | Pilot | CSS overlay for MVP deterrence; video-embedded watermark in pilot. |
-| Alerting and notifications | Pilot | Email-first; Telegram optional. |
+| Alerting and notifications | Pilot | Backend alert records and generic SMTP email notification foundation implemented. Email is disabled by default until SMTP settings are configured. No Telegram, webhook, SMS, PagerDuty, Slack, or Teams integration in v1. |
 | mTLS gateway certificates with rotation alerts | Pilot | Replaces service-token identity for stronger gateway auth. |
 | NVR integration (`nvr_rtsp` source type) | Pilot | Extends camera source types beyond direct IP camera RTSP. |
 | Suspicious login detection | Pilot | CF Access signals + app heuristics. |
@@ -122,7 +122,7 @@ The backend actor profile and activity APIs are implemented for current audit/se
 | Device details | Pilot | Add stronger browser/device fingerprinting or Cloudflare device signals beyond raw user-agent strings. |
 | MFA details | Pilot | Ingest Cloudflare Access logs for MFA method, bypass, recovery, and denied MFA visibility. |
 | Threat intelligence | Pilot | Enrich actor activity with approved threat feeds such as abuse.ch or an equivalent source. |
-| Alerts and detections | Pilot | Add detection rules for suspicious actor behavior and create alert records from audit patterns. |
+| Alerts and detections | Pilot | Initial backend rules create alert records for break-glass opened, invalid audit verification, admin role grants, gateway disable, rejected gateway commands, and degraded/missing backup status. Broader suspicious actor behavior still needs new data sources, models, and privacy/security review. |
 | Incident tracking | Pilot | Add an incident model linked to actor profiles, audit rows, and containment actions. |
 | Analyst notes | Pilot | Allow authorized admins/security analysts to attach notes to actor profiles and investigation timelines. |
 | Behavior baseline | Pilot | Compute normal-vs-unusual actor behavior from historical audit/session/stream activity. |
@@ -158,7 +158,7 @@ Ideas for operational workflows and incident response.
 | Idea | Complexity | Who can prepare | Notes |
 |---|---|---|---|
 | Incident dashboard with timeline | Medium | Frontend + Backend + Database | Log and track incidents with timestamped events and resolution notes. |
-| Escalation workflows | Medium | Backend | Define escalation chains for unacknowledged alerts (email → Telegram → phone). |
+| Escalation workflows | Medium | Backend | Define escalation chains for unacknowledged alerts using email-only v1; other channels require separate approval. |
 | SLA tracking dashboard | Medium | Frontend + Backend | Track system uptime against defined service level targets. |
 | Downtime calendar | Low | Frontend + Database | Visual calendar showing past and scheduled downtime windows. |
 | Post-incident review templates | Low | Frontend + Database | Structured template for documenting incident root cause and remediation. |

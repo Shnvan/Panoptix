@@ -38,6 +38,18 @@ class Settings(BaseSettings):
     GITHUB_INVITE_TEAM_IDS: str = ""
     GITHUB_INVITE_TIMEOUT_SECONDS: int = Field(default=10, ge=1, le=60)
 
+    # ── Pilot alert email notifications ──
+    ALERT_EMAIL_ENABLED: bool = False
+    ALERT_EMAIL_SMTP_HOST: str = ""
+    ALERT_EMAIL_SMTP_PORT: int = Field(default=587, ge=1, le=65535)
+    ALERT_EMAIL_SMTP_USERNAME: str = ""
+    ALERT_EMAIL_SMTP_PASSWORD: str = "replace-me"
+    ALERT_EMAIL_FROM: str = ""
+    ALERT_EMAIL_TO: str = ""
+    ALERT_EMAIL_USE_TLS: bool = True
+    ALERT_EMAIL_MIN_SEVERITY: str = "high"
+    ALERT_EMAIL_TIMEOUT_SECONDS: int = Field(default=10, ge=1, le=60)
+
     # ── Session / cookie ──
     SESSION_COOKIE_NAME: str = "panoptix_session"
     SESSION_SIGNING_KEY: str = "replace-me"
@@ -127,6 +139,23 @@ class Settings(BaseSettings):
                 unsafe.append("GITHUB_ORG")
             if not self.GITHUB_INVITE_TOKEN.strip():
                 unsafe.append("GITHUB_INVITE_TOKEN")
+
+        if self.ALERT_EMAIL_ENABLED:
+            _GUARDED_FIELDS.extend(
+                [
+                    "ALERT_EMAIL_SMTP_HOST",
+                    "ALERT_EMAIL_SMTP_PASSWORD",
+                    "ALERT_EMAIL_FROM",
+                    "ALERT_EMAIL_TO",
+                ]
+            )
+            for field_name in (
+                "ALERT_EMAIL_SMTP_HOST",
+                "ALERT_EMAIL_FROM",
+                "ALERT_EMAIL_TO",
+            ):
+                if not getattr(self, field_name, "").strip():
+                    unsafe.append(field_name)
 
         for field_name in _GUARDED_FIELDS:
             value = getattr(self, field_name, "")

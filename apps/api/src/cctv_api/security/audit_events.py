@@ -118,11 +118,16 @@ _r("admin.dsr.created", S.medium, C.compliance, O.success)
 _r("admin.dsr.updated", S.medium, C.compliance, O.success)
 _r("admin.dsr.viewed", S.medium, C.compliance, O.success)
 _r("admin.signage.attest", S.medium, C.compliance, O.success)
+_r("admin.alert.acknowledged", S.medium, C.admin, O.success)
+_r("admin.alert.resolved", S.medium, C.admin, O.success)
 
 # --- System ---
 
 _r("system.break_glass.opened", S.critical, C.system, O.success)
 _r("system.break_glass.closed", S.high, C.system, O.success)
+_r("system.alert.created", S.high, C.system, O.success)
+_r("system.alert.email.sent", S.medium, C.system, O.success)
+_r("system.alert.email.failed", S.high, C.system, O.failure)
 _r("system.media_plane.switched_to_fallback", S.high, C.system, O.success)
 _r("system.media_plane.switched_to_primary", S.high, C.system, O.success)
 _r("system.maintenance.run", S.low, C.system, O.success)

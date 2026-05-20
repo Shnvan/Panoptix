@@ -27,8 +27,9 @@ from cctv_api.integrations.github_invites import (
     create_github_org_invitation,
 )
 from cctv_api.jobs.maintenance import run_admin_maintenance_job
-from cctv_api.models.enums import ActorType, BackupUploadStatus, CameraPublishStatus, CameraSourceType, CommandStatus, DpaKind, EventCategory, EventOutcome, EventSeverity, GatewayStatus, RequestType, StreamKind, SubjectType
+from cctv_api.models.enums import ActorType, AlertCategory, AlertSeverity, AlertStatus, BackupUploadStatus, CameraPublishStatus, CameraSourceType, CommandStatus, DpaKind, EventCategory, EventOutcome, EventSeverity, GatewayStatus, RequestType, StreamKind, SubjectType
 from cctv_api.models.tables import (
+    Alert,
     AuditHmacKey,
     AuditLog,
     BackupRun,
@@ -51,6 +52,13 @@ from cctv_api.security.audit import (
     AuditLogError,
     record_audit_event,
     verify_audit_chain_by_key_version,
+)
+from cctv_api.security.alerts import (
+    acknowledge_alert,
+    alert_to_response,
+    detect_alert_from_audit_event,
+    detect_alert_from_backup_status,
+    resolve_alert,
 )
 from cctv_api.security.dependencies import require_authenticated_user
 from cctv_api.security.identity import Principal
@@ -299,12 +307,13 @@ def admin_user_role(
         db.add(UserRole(user_id=target_uuid, role_id=role_row.id))
         db.flush()
         roles_after = sorted(get_user_roles(db, target_uuid))
-        _record_user_audit_required(
+        audit_log = _record_user_audit_required(
             db, settings=settings, request=request, actor_id=actor.id,
             action="admin.user.role.granted",
             resource=f"user:{target_uuid}",
             payload={"user_id": str(target_uuid), "role_name": body.role_name, "roles_before": roles_before, "roles_after": roles_after},
         )
+        _detect_alert_from_audit_safely(db, settings=settings, audit_log=audit_log)
     else:
         if existing is None:
             raise ProblemDetail(status=404, title="Not Found", detail="role-not-granted", type_uri="https://panoptix.local/problems/not-found")
@@ -653,12 +662,20 @@ def verify_admin_audit_chain(
         start_prev_hash=previous_hash,
     )
     actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
-    _record_user_audit_safely(
+    audit_log = _record_user_audit_safely(
         db, settings=settings, request=request, actor_id=actor.id,
         action="audit.log.verified",
         resource="audit-log",
-        payload={"start_id": start_id, "end_id": end_id, "checked": result.checked, "valid": result.valid},
+        payload={
+            "start_id": start_id,
+            "end_id": end_id,
+            "checked": result.checked,
+            "valid": result.valid,
+            "error": result.error,
+        },
     )
+    if not result.valid:
+        _detect_alert_from_audit_safely(db, settings=settings, audit_log=audit_log)
     return AuditVerificationResponse(valid=result.valid, checked=result.checked, error=result.error)
 
 
@@ -967,6 +984,42 @@ def _parse_uuid(value: str, detail: str) -> uuid.UUID:
         ) from exc
 
 
+def _parse_alert_status(value: str) -> AlertStatus:
+    try:
+        return AlertStatus(value)
+    except ValueError as exc:
+        raise ProblemDetail(
+            status=400,
+            title="Bad Request",
+            detail="alert-status-invalid",
+            type_uri="https://panoptix.local/problems/bad-request",
+        ) from exc
+
+
+def _parse_alert_severity(value: str) -> AlertSeverity:
+    try:
+        return AlertSeverity(value)
+    except ValueError as exc:
+        raise ProblemDetail(
+            status=400,
+            title="Bad Request",
+            detail="alert-severity-invalid",
+            type_uri="https://panoptix.local/problems/bad-request",
+        ) from exc
+
+
+def _parse_alert_category(value: str) -> AlertCategory:
+    try:
+        return AlertCategory(value)
+    except ValueError as exc:
+        raise ProblemDetail(
+            status=400,
+            title="Bad Request",
+            detail="alert-category-invalid",
+            type_uri="https://panoptix.local/problems/bad-request",
+        ) from exc
+
+
 def _normalize_invite_email(value: str) -> str:
     email = value.strip().lower()
     if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
@@ -992,9 +1045,9 @@ def _record_user_audit_safely(
     action: str,
     resource: str,
     payload: dict[str, object] | None = None,
-) -> None:
+) -> AuditLog | None:
     try:
-        record_audit_event(
+        return record_audit_event(
             db,
             actor_type=ActorType.user,
             audit_hmac_key_version=settings.AUDIT_HMAC_KEY_VERSION,
@@ -1008,7 +1061,7 @@ def _record_user_audit_safely(
             session_id=_audit_session_id(request),
         )
     except AuditLogError:
-        return
+        return None
 
 
 def _record_user_audit_required(
@@ -1020,9 +1073,9 @@ def _record_user_audit_required(
     action: str,
     resource: str,
     payload: dict[str, object] | None = None,
-) -> None:
+) -> AuditLog:
     try:
-        record_audit_event(
+        return record_audit_event(
             db,
             actor_type=ActorType.user,
             audit_hmac_key_version=settings.AUDIT_HMAC_KEY_VERSION,
@@ -1705,7 +1758,7 @@ def disable_gateway(
     removal = remove_gateway_participants(settings, gateway_id=gateway_uuid, room_names=list(assignment_rooms))
 
     actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
-    _record_user_audit_required(
+    audit_log = _record_user_audit_required(
         db,
         settings=settings,
         request=request,
@@ -1719,6 +1772,7 @@ def disable_gateway(
             "participant_errors": removal.errors,
         },
     )
+    _detect_alert_from_audit_safely(db, settings=settings, audit_log=audit_log)
     db.commit()
     return DisableGatewayResponse(
         gateway_id=str(gateway_uuid),
@@ -2457,7 +2511,7 @@ def admin_break_glass_open(
         reason=body.reason,
         window_minutes=settings.BREAK_GLASS_WINDOW_MINUTES,
     )
-    _record_user_audit_required(
+    audit_log = _record_user_audit_required(
         db,
         settings=settings,
         request=request,
@@ -2470,6 +2524,7 @@ def admin_break_glass_open(
             "auto_disable_at": usage.auto_disable_at.isoformat(),
         },
     )
+    _detect_alert_from_audit_safely(db, settings=settings, audit_log=audit_log)
     db.commit()
     return {
         "window_id": str(usage.id),
@@ -2608,6 +2663,20 @@ def _parse_dsr_subject_type(value: str) -> SubjectType:
             detail="subject-type-invalid",
             type_uri="https://panoptix.local/problems/bad-request",
         ) from exc
+
+
+def _detect_alert_from_audit_safely(
+    db: DbSession,
+    *,
+    settings: Settings,
+    audit_log: AuditLog | None,
+) -> None:
+    if audit_log is None:
+        return
+    try:
+        detect_alert_from_audit_event(db, settings=settings, audit_log=audit_log)
+    except Exception:
+        return
 
 
 def _parse_dsr_request_type(value: str) -> RequestType:
@@ -3129,10 +3198,109 @@ def admin_invite_user(
     )
 
 
+@v1_router.get("/admin/alerts")
+def list_admin_alerts(
+    status: str | None = Query(default=None),
+    severity: str | None = Query(default=None),
+    category: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    cursor: str | None = Query(default=None),
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    query = select(Alert)
+
+    if status is not None:
+        query = query.where(Alert.status == _parse_alert_status(status))
+    if severity is not None:
+        query = query.where(Alert.severity == _parse_alert_severity(severity))
+    if category is not None:
+        query = query.where(Alert.category == _parse_alert_category(category))
+    if cursor:
+        cursor_uuid = _parse_uuid(cursor, "alert-cursor-invalid")
+        cursor_row = db.execute(select(Alert).where(Alert.id == str(cursor_uuid))).scalar_one_or_none()
+        if cursor_row:
+            query = query.where(Alert.created_at < cursor_row.created_at)
+
+    rows = list(db.execute(query.order_by(Alert.created_at.desc()).limit(limit + 1)).scalars().all())
+    next_cursor = str(rows[-1].id) if len(rows) > limit else None
+    items = rows[:limit]
+    return {"items": [alert_to_response(row) for row in items], "next_cursor": next_cursor}
+
+
+@v1_router.get("/admin/alerts/{alert_id}")
+def get_admin_alert(
+    alert_id: str,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+) -> dict[str, object | None]:
+    require_role(principal, "admin")
+    alert_uuid = _parse_uuid(alert_id, "alert-id-invalid")
+    alert = db.execute(select(Alert).where(Alert.id == str(alert_uuid))).scalar_one_or_none()
+    if alert is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="alert-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+    return alert_to_response(alert)
+
+
+@v1_router.post("/admin/alerts/{alert_id}/acknowledge")
+def acknowledge_admin_alert(
+    alert_id: str,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object | None]:
+    require_role(principal, "admin")
+    alert_uuid = _parse_uuid(alert_id, "alert-id-invalid")
+    alert = db.execute(select(Alert).where(Alert.id == str(alert_uuid))).scalar_one_or_none()
+    if alert is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="alert-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    acknowledge_alert(db, settings=settings, actor_id=actor.id, alert=alert)
+    db.commit()
+    return alert_to_response(alert)
+
+
+@v1_router.post("/admin/alerts/{alert_id}/resolve")
+def resolve_admin_alert(
+    alert_id: str,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, object | None]:
+    require_role(principal, "admin")
+    alert_uuid = _parse_uuid(alert_id, "alert-id-invalid")
+    alert = db.execute(select(Alert).where(Alert.id == str(alert_uuid))).scalar_one_or_none()
+    if alert is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="alert-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    resolve_alert(db, settings=settings, actor_id=actor.id, alert=alert)
+    db.commit()
+    return alert_to_response(alert)
+
+
 @v1_router.get("/admin/backups/status")
 def admin_backups_status(
     principal: Principal = Depends(require_authenticated_user),
     db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
 ) -> dict[str, object]:
     require_role(principal, "admin")
 
@@ -3147,20 +3315,28 @@ def admin_backups_status(
     ).scalar_one_or_none()
 
     if latest_backup is None:
-        return {
+        checks: dict[str, object] = {
+            "has_backup": False,
+            "latest_upload_uploaded": False,
+            "latest_backup_finished": False,
+            "latest_restore_format_ok": False,
+            "restore_drill_recorded": False,
+            "latest_restore_schema_ok": False,
+            "latest_backup_age_hours": None,
+        }
+        response: dict[str, object] = {
             "status": "missing",
             "latest_backup": None,
             "latest_restore_drill": None,
-            "checks": {
-                "has_backup": False,
-                "latest_upload_uploaded": False,
-                "latest_backup_finished": False,
-                "latest_restore_format_ok": False,
-                "restore_drill_recorded": False,
-                "latest_restore_schema_ok": False,
-                "latest_backup_age_hours": None,
-            },
+            "checks": checks,
         }
+        detect_alert_from_backup_status(
+            db,
+            settings=settings,
+            status="missing",
+            checks=checks,
+        )
+        return response
 
     latest_upload_uploaded = latest_backup.upload_status == BackupUploadStatus.uploaded
     latest_backup_finished = latest_backup.finished_at is not None
@@ -3180,7 +3356,16 @@ def admin_backups_status(
         else "degraded"
     )
 
-    return {
+    checks = {
+        "has_backup": True,
+        "latest_upload_uploaded": latest_upload_uploaded,
+        "latest_backup_finished": latest_backup_finished,
+        "latest_restore_format_ok": latest_restore_format_ok,
+        "restore_drill_recorded": restore_drill_recorded,
+        "latest_restore_schema_ok": latest_restore_schema_ok,
+        "latest_backup_age_hours": _age_hours(latest_backup.started_at),
+    }
+    response = {
         "status": status,
         "latest_backup": _backup_run_to_response(latest_backup),
         "latest_restore_drill": (
@@ -3188,16 +3373,15 @@ def admin_backups_status(
             if latest_restore_drill is not None
             else None
         ),
-        "checks": {
-            "has_backup": True,
-            "latest_upload_uploaded": latest_upload_uploaded,
-            "latest_backup_finished": latest_backup_finished,
-            "latest_restore_format_ok": latest_restore_format_ok,
-            "restore_drill_recorded": restore_drill_recorded,
-            "latest_restore_schema_ok": latest_restore_schema_ok,
-            "latest_backup_age_hours": _age_hours(latest_backup.started_at),
-        },
+        "checks": checks,
     }
+    detect_alert_from_backup_status(
+        db,
+        settings=settings,
+        status=status,
+        checks=checks,
+    )
+    return response
 
 
 def _backup_run_to_response(row: BackupRun) -> dict[str, object]:

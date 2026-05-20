@@ -114,3 +114,30 @@ class EventCategory(str, enum.Enum):
     system = "system"
     compliance = "compliance"
 
+
+class AlertSeverity(str, enum.Enum):
+    informational = "informational"
+    low = "low"
+    medium = "medium"
+    high = "high"
+    critical = "critical"
+
+
+class AlertStatus(str, enum.Enum):
+    open = "open"
+    acknowledged = "acknowledged"
+    resolved = "resolved"
+
+
+class AlertCategory(str, enum.Enum):
+    security = "security"
+    operations = "operations"
+    compliance = "compliance"
+    availability = "availability"
+
+
+class AlertNotificationStatus(str, enum.Enum):
+    pending = "pending"
+    sent = "sent"
+    failed = "failed"
+

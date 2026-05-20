@@ -30,11 +30,12 @@ Design direction: new frontend work **must** follow [Panoptix Design System](PAN
 | Implemented and usable | `/api/v1/admin/dpa/export` | DPA export is wired after API contract fix | Verify downloaded/exported artifact count and error handling. |
 | Implemented but incomplete | `/api/v1/admin/sites/{site_id}/signage-attest` | Attestation call exists, but site listing source is missing | Disable or clearly mark until a real site list source exists, or add backend site listing later. |
 | Implemented and wired | `/api/v1/admin/backups/status` | Health/admin UI can read backup status | Browser smoke missing, degraded, and ok states. |
+| Implemented but missing UI | `/api/v1/admin/alerts`, detail, acknowledge, resolve | Backend alert records and SMTP email notification foundation exist; no complete alerts UI yet | Wire the existing Alerts page to real list/detail/ack/resolve APIs without adding browser-only notification providers. |
 | Frontend calls nonexistent endpoint | `/api/v1/admin/sites` | API client has `listSites()` but backend route is not present | Remove, disable, or mark planned until backend route exists. |
 | Implemented and wired | `/api/v1/admin/dsr-requests` | DSR list/create/detail/update API client exists and compliance UI uses the list | Browser smoke DSR case creation/update flow and validation states. |
 | Frontend calls nonexistent endpoint | `/api/v1/admin/exposure-check`, `/media-isolation-check`, `/origin-binding-check` | API client has security check calls but backend routes are not present | Remove, disable, or mark planned until backend routes exist. |
 | Backend/gateway-only | Gateway heartbeat, ingest token, camera status, gateway WebSocket, LiveKit webhook | Must not be browser-callable | Keep out of frontend UI and browser API client. |
-| Pilot/future only | Viewer watermark, alerts, incident workflow, analyst notes, behavior baseline | Not production-ready | Keep as pilot backlog until backend data sources and models exist. |
+| Pilot/future only | Viewer watermark, incident workflow, analyst notes, behavior baseline | Not production-ready | Keep as pilot backlog until backend data sources and models exist. Alert records now have a backend API, but frontend alert UI is still incomplete. |
 
 ## P0 Production Blockers
 
@@ -74,7 +75,7 @@ These belong to pilot/future work unless the team explicitly pulls them forward.
 | Task | Status | Notes |
 |---|---|---|
 | Viewer identity watermark | Pilot | Add visible viewer identity watermarking on video once live playback is wired. |
-| Alerts UI | Pilot | Surface suspicious activity, camera tamper, gateway degradation, and actor-risk detections when backend detection models exist. |
+| Alerts UI | Pilot backend foundation ready | Use `/api/v1/admin/alerts` plus detail, acknowledge, and resolve routes. Backend currently creates alerts for break-glass, invalid audit verification, admin role grants, gateway disable, rejected gateway command, and degraded/missing backup status. SMTP email is backend-only and disabled unless configured. |
 | Incident workflow | Pilot | Add incident list/detail screens after backend incident models exist. |
 | Analyst notes | Pilot | Add admin/security notes attached to actor profiles after backend note storage exists. |
 | Behavior baseline and actor risk score UI | Pilot | Display normal-vs-unusual actor behavior only after backend baselines and risk scoring exist. |

@@ -8,10 +8,12 @@ from datetime import datetime, timezone
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session as DbSession
 
+from cctv_api.core.config import get_settings
 from cctv_api.db import get_sessionmaker
 from cctv_api.gateway.models import GatewayCommandAck, GatewayCommandEnvelope
 from cctv_api.models.enums import CommandStatus
 from cctv_api.models.tables import GatewayCommandQueue
+from cctv_api.security.alerts import detect_alert_from_gateway_command_rejection
 
 
 @dataclass(frozen=True)
@@ -102,6 +104,8 @@ def db_ack_sink(db: DbSession) -> Callable[[str, GatewayCommandAck], AckSinkResu
             row.error = ack.error
         row.acked_at = now
         db.flush()
+        if row.status == CommandStatus.rejected:
+            detect_alert_from_gateway_command_rejection(db, settings=get_settings(), command=row)
         return AckSinkResult(applied=True, command_id=ack.command_id)
 
     return _sink

@@ -166,6 +166,22 @@ def test_critical_events_classified_correctly() -> None:
         assert defn.severity == EventSeverity.critical, f"{action} should be critical"
 
 
+def test_alert_events_registered() -> None:
+    expected = {
+        "admin.alert.acknowledged": (EventSeverity.medium, EventCategory.admin, EventOutcome.success),
+        "admin.alert.resolved": (EventSeverity.medium, EventCategory.admin, EventOutcome.success),
+        "system.alert.created": (EventSeverity.high, EventCategory.system, EventOutcome.success),
+        "system.alert.email.sent": (EventSeverity.medium, EventCategory.system, EventOutcome.success),
+        "system.alert.email.failed": (EventSeverity.high, EventCategory.system, EventOutcome.failure),
+    }
+    for action, (severity, category, outcome) in expected.items():
+        defn = classify_audit_event(action)
+        assert defn is not None, f"Missing: {action}"
+        assert defn.severity == severity
+        assert defn.category == category
+        assert defn.default_outcome == outcome
+
+
 # --- Phase 3: Auth failure events, audit-of-audit, before/after ---
 
 

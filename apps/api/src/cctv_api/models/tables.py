@@ -23,6 +23,10 @@ from sqlalchemy.orm import Mapped, mapped_column
 from cctv_api.models.base import Base
 from cctv_api.models.enums import (
     ActorType,
+    AlertCategory,
+    AlertNotificationStatus,
+    AlertSeverity,
+    AlertStatus,
     BackupUploadStatus,
     CameraEventKind,
     CameraPublishStatus,
@@ -324,6 +328,65 @@ class AuditLog(Base):
         Index("ix_audit_log_category_severity", "event_category", "event_severity"),
         Index("ix_audit_log_session_id", "session_id"),
     )
+
+
+class Alert(Base):
+    __tablename__ = "alerts"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    severity: Mapped[AlertSeverity] = mapped_column(
+        Enum(AlertSeverity, name="alert_severity"), nullable=False
+    )
+    category: Mapped[AlertCategory] = mapped_column(
+        Enum(AlertCategory, name="alert_category"), nullable=False
+    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[AlertStatus] = mapped_column(
+        Enum(AlertStatus, name="alert_status"), nullable=False, server_default=text("'open'")
+    )
+    source: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_event_id: Mapped[int | None] = mapped_column(BigInteger)
+    resource: Mapped[str | None] = mapped_column(String(256))
+    actor_type: Mapped[ActorType | None] = mapped_column(Enum(ActorType, name="actor_type"))
+    actor_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    metadata_json: Mapped[dict | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()"), nullable=False
+    )
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    acknowledged_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+
+    __table_args__ = (
+        UniqueConstraint("source", "source_event_id", name="uq_alerts_source_event"),
+        Index("ix_alerts_status_created_at", "status", "created_at"),
+        Index("ix_alerts_severity_created_at", "severity", "created_at"),
+    )
+
+
+class AlertNotification(Base):
+    __tablename__ = "alert_notifications"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    alert_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("alerts.id", ondelete="CASCADE"), nullable=False
+    )
+    channel: Mapped[str] = mapped_column(String(32), nullable=False, server_default=text("'email'"))
+    recipient: Mapped[str] = mapped_column(String(320), nullable=False)
+    status: Mapped[AlertNotificationStatus] = mapped_column(
+        Enum(AlertNotificationStatus, name="alert_notification_status"),
+        nullable=False,
+        server_default=text("'pending'"),
+    )
+    attempted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()"), nullable=False
+    )
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(String(256))
+
+    __table_args__ = (Index("ix_alert_notifications_alert_id", "alert_id"),)
 
 
 class BreakGlassUsage(Base):

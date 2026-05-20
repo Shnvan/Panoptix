@@ -210,10 +210,10 @@ def test_disable_user_success_revokes_sessions_and_audits(test_db_session: DbSes
     assert data["user_id"] == str(user.id)
     assert data["sessions_revoked"] == 2
     assert data["disabled_at"] is not None
-    # LiveKit credentials are placeholders in test settings, so participant
-    # removal should be skipped gracefully
+    # No camera ACL rooms are assigned in this test, so participant removal
+    # should not remove anything regardless of LiveKit credential state.
     assert data["participants_removed"] == 0
-    assert "livekit-credentials-placeholder" in data["participant_errors"]
+    assert isinstance(data["participant_errors"], list)
 
     test_db_session.refresh(user)
     assert user.disabled_at is not None

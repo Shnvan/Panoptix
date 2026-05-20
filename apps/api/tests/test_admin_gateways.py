@@ -258,7 +258,9 @@ def test_disable_gateway_succeeds_and_prevents_enabled_lookup(test_db_session: D
     assert gateway.status == GatewayStatus.disabled
     assert gateway.disabled_at is not None
     assert get_enabled_gateway(test_db_session, gateway.id) is None
-    assert _audit_actions(test_db_session) == ["gateway.disable"]
+    actions = _audit_actions(test_db_session)
+    assert "gateway.disable" in actions
+    assert "system.alert.created" in actions
 
 
 def test_disable_gateway_rejects_already_disabled(test_db_session: DbSession) -> None:

@@ -70,6 +70,10 @@ FastAPI remains the security authority. Browser responses must not expose RTSP U
 | `GET` | `/api/v1/admin/audit` | list scrubbed audit rows |
 | `GET` | `/api/v1/admin/audit/verify` | verify audit HMAC chain |
 | `GET` | `/api/v1/admin/audit/export` | export scrubbed audit JSONL |
+| `GET` | `/api/v1/admin/alerts` | list alert records with status/severity/category filters |
+| `GET` | `/api/v1/admin/alerts/{alert_id}` | alert detail |
+| `POST` | `/api/v1/admin/alerts/{alert_id}/acknowledge` | acknowledge an open alert |
+| `POST` | `/api/v1/admin/alerts/{alert_id}/resolve` | resolve an alert |
 | `POST` | `/api/v1/admin/livekit/fallback` | switch `media_plane_mode` between `cloud` and `fallback` |
 | `POST` | `/api/v1/admin/dpa/export` | export DPA artifacts |
 | `POST` | `/api/v1/admin/sites/{site_id}/signage-attest` | record bystander signage attestation |
@@ -117,6 +121,49 @@ Backup status:
 ```
 
 `status` is `missing` when no backup rows exist, `ok` when the latest backup is uploaded/finished with restore-format success and a successful schema restore drill is recorded, and `degraded` otherwise. The endpoint does not call R2 or return object paths, credentials, database URLs, backup artifacts, or decryption material.
+
+## Alert Routes
+
+Admin-only alert records are available under:
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/api/v1/admin/alerts` | list alerts; supports `status`, `severity`, `category`, `limit`, and `cursor` |
+| `GET` | `/api/v1/admin/alerts/{alert_id}` | view one alert |
+| `POST` | `/api/v1/admin/alerts/{alert_id}/acknowledge` | mark an open alert acknowledged and audit the action |
+| `POST` | `/api/v1/admin/alerts/{alert_id}/resolve` | mark an alert resolved and audit the action |
+
+Alert severities are `informational`, `low`, `medium`, `high`, and `critical`. Alert statuses are `open`, `acknowledged`, and `resolved`. Alert categories are `security`, `operations`, `compliance`, and `availability`.
+
+The backend currently creates alert records for high-value security and operations events: break-glass opened, invalid/tampered audit verification, admin role grant, gateway disable, rejected gateway command, and backup status `missing`/`degraded`. Duplicate source events are treated idempotently where the source event has a stable ID.
+
+Email notification is generic SMTP only and is disabled by default. When `ALERT_EMAIL_ENABLED=true`, only alerts at or above `ALERT_EMAIL_MIN_SEVERITY` are sent to `ALERT_EMAIL_TO`. Alert API responses, notification records, audit payloads, and email bodies must not include SMTP passwords, gateway tokens, LiveKit secrets, raw provider responses, database URLs, or RTSP credentials.
+
+Alert response shape:
+
+```json
+{
+  "alert_id": "uuid",
+  "severity": "critical",
+  "category": "security",
+  "title": "Break-glass access opened",
+  "message": "Emergency access was opened by an administrator.",
+  "status": "open",
+  "source": "system.break_glass.opened",
+  "source_event_id": "audit-log-id",
+  "resource": "break-glass",
+  "actor_type": "user",
+  "actor_id": "uuid",
+  "metadata": {
+    "reason": "sanitized reason"
+  },
+  "created_at": "2026-05-21T00:00:00+00:00",
+  "acknowledged_at": null,
+  "acknowledged_by": null,
+  "resolved_at": null,
+  "resolved_by": null
+}
+```
 
 ## DSR Workflow Routes
 
