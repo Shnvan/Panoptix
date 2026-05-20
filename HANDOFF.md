@@ -28,15 +28,15 @@ After that, inspect the source files related to the active task. Do not assume t
 
 Latest full-stack integration commits:
 
+- `41d80a7 docs: record local fullstack smoke evidence`
 - `f4de7c7 fix: align frontend backend integration wiring`
 - `cdb8aed docs: update fullstack integration status`
 - `7d56797 fix: remove unused frontend icon import`
 - `b896be6 Merge remote-tracking branch 'origin/integratedCompleteFrontend' into fullstack-integration`
-- `0b501b8 Frontend Integration Complete V1.O` from the coworker frontend branch
 
 ## Current Objective
 
-Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; the merged frontend V1 is available for local/staging smoke testing. Local admin smoke now works for Users & Access, Camera Management, and Gateways with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, backup restore-drill evidence, deployed frontend routing/staging browser smoke, and production deployment hardening.
+Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; the merged frontend V1 is available for local/staging smoke testing. Local same-origin smoke through Vite now passes for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, backup restore-drill evidence, deployed frontend routing/staging browser smoke, and production deployment hardening.
 
 The system is Panoptix, a secure live-view CCTV web monitoring system with three planes:
 
@@ -143,12 +143,12 @@ Current state:
 
 - `origin/integratedCompleteFrontend` has been merged into `fullstack-integration`
 - React/Vite frontend includes the login shell, viewer dashboard, camera modal, admin dashboard, users, cameras, gateways, audit/compliance, DSR, break-glass, health, settings, dev-auth headers, and same-origin API client
-- frontend lint/build passed after merge
-- local full-stack admin smoke has been partially verified: Users & Access, Camera Management, and Gateways load and perform core actions against a local backend with dev auth
+- frontend lint/build passed after merge and after local smoke cleanup
+- local same-origin smoke has passed through the Vite proxy for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health
 - local API configuration uses `apps/api/.env`, which is ignored by Git; do not commit database URLs, audit keys, LiveKit keys, GitHub tokens, R2 secrets, or gateway service tokens
 - local backend migration state was verified at Alembic head `0007_gateway_command_tables`
 - `github-invites-not-configured` is expected locally while `GITHUB_INVITES_ENABLED=false`
-- one-time gateway service tokens must never be screenshotted or committed; any exposed test token should be rotated or the test gateway disabled
+- one-time gateway service tokens must never be screenshotted or committed; the exposed local test gateway named `what` was disabled during smoke cleanup
 - camera modal can request a short-lived viewer token, but real LiveKit subscriber playback is still pending
 - do not add backend/security logic here; browsers remain viewers only
 

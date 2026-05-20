@@ -138,17 +138,17 @@ Open `http://localhost:3000`. The Vite dev server proxies `/api/v1/*` and `/heal
 
 ### Latest local smoke evidence
 
-Local full-stack admin smoke has been partially verified with an ignored `apps/api/.env`, a Neon-backed test database, and dev auth enabled. The backend reached Alembic head `0007_gateway_command_tables`. Users & Access, Camera Management, and Gateways load and perform core admin actions without the earlier broad Internal Server Error failures.
+Local full-stack smoke has been verified with an ignored `apps/api/.env`, a Neon-backed test database, dev auth enabled, and the Vite same-origin proxy. The backend reached Alembic head `0007_gateway_command_tables`. Dashboard/bootstrap, live-camera camera list, Users & Access, Camera Management, Gateways, Audit Logs, audit verification, DSR list, break-glass status, backup status, deep health, sessions, and health returned successful responses without the earlier broad Internal Server Error failures.
 
 Expected local-only limitations:
 
 - `github-invites-not-configured` is expected unless GitHub org invite settings are enabled.
 - Gateway health can be stale when no edge agent is heartbeating.
-- One-time gateway service tokens shown by create/rotate responses must not be screenshotted or stored in docs; rotate exposed test tokens or disable the test gateway.
+- One-time gateway service tokens shown by create/rotate responses must not be screenshotted or stored in docs; the exposed local test gateway named `what` was disabled during smoke cleanup.
 
 ### Current limits
 
-The frontend is integrated but not production-complete. Browser LiveKit subscriber playback is still pending; the camera modal can request a short-lived viewer token but does not yet render the real stream. Full staging/deployed frontend browser smoke and production routing are still pending. Browser code must never call gateway-only endpoints or receive publisher tokens.
+The frontend is integrated but not production-complete. Browser LiveKit subscriber playback is still pending; the camera modal can request a short-lived viewer token but does not yet render the real stream. Staging/deployed frontend browser smoke and production routing are still pending. Browser code must never call gateway-only endpoints or receive publisher tokens.
 
 ---
 

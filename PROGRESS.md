@@ -6,13 +6,13 @@ Current status and next steps for any session continuing this project.
 
 ## Overall Progress: ~92% to MVP
 
-Last updated: 2026-05-20
+Last updated: 2026-05-21
 
 | Area | Progress | Status | Notes |
 |------|----------|--------|-------|
 | **Backend API** | 99% | 🟢 Strong | Auth, RBAC, audit, actor investigation profiles/activity timeline, health, gateway, camera, command, webhook, session, admin, break-glass, search/filter, enrichment, LiveKit fallback, DPA export, DSR workflow tracking, signage attestation, credential rotation, MFA reset, GitHub-backed invites, camera/gateway lifecycle update and re-enable, and backup status reporting all done. Backend-controlled synthetic gateway publish smoke passed. 532 tests passing. |
 | **Edge Agent** | 88% | 🟢 Strong | Heartbeat, command signing, WebSocket control, FFmpeg frame source, LiveKit SDK bridge, per-camera credentials, supervisor, real FFmpeg integration tests, synthetic RTSP to LiveKit Cloud smoke, backend-command publish ACK, exponential backoff + jitter, mTLS cert bootstrap scaffold, cryptography dep all done. Missing: real CCTV hardware validation and production service deployment. |
-| **Frontend** | 74% | 🟡 Integrated, not production-complete | `integratedCompleteFrontend` is merged into `fullstack-integration`. The React/Vite app now has the login shell, viewer dashboard, camera detail modal, admin dashboard, users, cameras, gateways, audit/compliance, DSR, break-glass, health, settings, dev-auth headers, and same-origin API client. Local admin browser smoke now passes for Users & Access, Camera Management, and Gateways against a local FastAPI backend using an ignored `apps/api/.env` and dev auth. Missing: real LiveKit subscriber playback, full staging/deployed frontend browser smoke evidence, Playwright coverage, deployed frontend routing, and production polish. |
+| **Frontend** | 76% | 🟡 Integrated, not production-complete | `integratedCompleteFrontend` is merged into `fullstack-integration`. The React/Vite app now has the login shell, viewer dashboard, camera detail modal, admin dashboard, users, cameras, gateways, audit/compliance, DSR, break-glass, health, settings, dev-auth headers, and same-origin API client. Local same-origin smoke through the Vite proxy now passes for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health against a local FastAPI backend using an ignored `apps/api/.env` and dev auth. Missing: real LiveKit subscriber playback, staging/deployed frontend browser smoke evidence, Playwright coverage, deployed frontend routing, and production polish. |
 | **Database** | 97% | 🟢 Strong | Core schema plus `0007_gateway_command_tables` migration deployed on active DB; `gateway_command_queue`, `camera_publish_states`, and `backup_runs` model/schema verified. Backup status endpoint now reports database-known backup readiness from `backup_runs`. Missing: recorded restore drill evidence, backup worker automation, retention policy tables (pilot+). |
 | **Infrastructure** | 90% | 🟢 Strong | Cloudflare Access, Railway, Neon staging all live. Staging health check cron running (15 min). R2 backup bucket `panoptix-backups` provisioned via Terraform Cloud. LiveKit Cloud account provisioned (APAC). Semgrep CI token configured. Missing: paid Neon tier, final production Cloudflare/Railway/Neon hardening, and deployment approval. |
 | **Security** | 90% | 🟢 Strong | CF Access JWT, CSRF, HMAC audit chain, classified audit events with session/IP/UA metadata, audit-of-audit for profile/activity views, rate limiting (including admin mutations), security headers, service tokens, RBAC, break-glass, SCA/SAST CI, mediamtx threat model, mTLS cert bootstrap scaffold, CT-log monitoring all done. Missing: device posture enforcement production activation and browser security smoke evidence. |
@@ -24,7 +24,7 @@ Last updated: 2026-05-20
 | # | Blocker | Owner | Depends On |
 |---|---------|-------|------------|
 | 1 | Real LiveKit browser subscriber playback | Frontend/system owner | Backend viewer token endpoint done; frontend modal currently token-only |
-| 2 | Complete browser smoke test | System owner + Frontend | Local admin smoke partially verified; staging/deployed frontend smoke still pending |
+| 2 | Complete staging/deployed browser smoke test | System owner + Frontend | Local same-origin smoke passed; staging/deployed frontend smoke still pending |
 | 3 | Real camera → LiveKit publishing from edge agent | System owner | Synthetic backend path ✅, needs real camera hardware |
 | 4 | Production deployment hardening | System owner | Cloudflare/Railway/Neon/LiveKit/R2 settings and uptime/procurement gates |
 | 5 | ~~LiveKit Cloud provisioning (APAC region)~~ | System owner | ✅ Done |
@@ -34,9 +34,9 @@ Last updated: 2026-05-20
 ### What We Control vs What's Blocked
 
 **Can do now (no external dependencies):**
-- Keep static checks green, finish the remaining local browser smoke against the merged frontend, run staging/deployed frontend smoke when routing is available, run an isolated restore drill when R2 backup artifacts are available, and prepare production deployment hardening. The main product-path blockers are real LiveKit browser playback, real camera hardware validation, deployed frontend routing, and production hardening.
+- Keep static checks green, run staging/deployed frontend smoke when routing is available, run an isolated restore drill when R2 backup artifacts are available, and prepare production deployment hardening. The main product-path blockers are real LiveKit browser playback, real camera hardware validation, deployed frontend routing, and production hardening.
 - Local GitHub invite attempts should return `github-invites-not-configured` while `GITHUB_INVITES_ENABLED=false`; this is expected unless intentionally testing real GitHub organization invites.
-- Any one-time gateway service token displayed by the frontend must be treated as sensitive. Do not screenshot it; rotate exposed test credentials or disable the test gateway.
+- Any one-time gateway service token displayed by the frontend must be treated as sensitive. Do not screenshot it; rotate exposed test credentials or disable the test gateway. The exposed local test gateway named `what` was disabled during local smoke cleanup.
 
 **Blocked on external dependencies:**
 - Real CCTV hardware onboarding → hardware procurement
@@ -790,7 +790,7 @@ Work with the frontend coworker to build the admin camera management and user ma
 - [x] `PATCH /api/v1/admin/gateways/{gateway_id}` — update gateway display metadata without rotating credentials
 - [x] `POST /api/v1/admin/gateways/{gateway_id}/enable` — re-enable a disabled gateway without automatically restoring revoked assignments
 - [x] Successful lifecycle changes write `camera.update`, `camera.enable`, `gateway.update`, and `gateway.enable` audit rows with before/after payloads
-- [x] Focused camera/gateway lifecycle tests pass; frontend UI now has V1 wiring and still needs browser smoke evidence
+- [x] Focused camera/gateway lifecycle tests pass; frontend UI now has V1 wiring and local same-origin smoke evidence
 
 ### Camera Disable → Kill Viewer Participants ✅
 - [x] Added `remove_room_viewers()` to `security/livekit_rooms.py` — removes all `viewer:*` participants from a camera's single LiveKit room

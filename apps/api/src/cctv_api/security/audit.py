@@ -3,6 +3,7 @@ from __future__ import annotations
 import enum
 import hashlib
 import hmac
+import ipaddress
 import json
 import uuid
 from dataclasses import dataclass
@@ -237,7 +238,16 @@ def scrub_audit_payload(value: Any) -> Any:
         return [scrub_audit_payload(item) for item in value]
     if isinstance(value, tuple):
         return [scrub_audit_payload(item) for item in value]
-    if isinstance(value, uuid.UUID | datetime | date):
+    if isinstance(
+        value,
+        ipaddress.IPv4Address
+        | ipaddress.IPv6Address
+        | ipaddress.IPv4Network
+        | ipaddress.IPv6Network
+        | uuid.UUID
+        | datetime
+        | date,
+    ):
         return str(value)
     if isinstance(value, enum.Enum):
         return value.value
@@ -295,7 +305,7 @@ def _build_audit_hmac_with_key_bytes(
         "action": action,
         "resource": resource,
         "payload": _normalize_value(payload),
-        "ip": ip,
+        "ip": _normalize_value(ip),
         "ua": ua,
         "prev_hash": prev_hash,
         "hmac_key_version": hmac_key_version,
@@ -315,7 +325,15 @@ def _normalize_value(value: Any) -> Any:
         if value.tzinfo is None:
             value = value.replace(tzinfo=timezone.utc)
         return value.astimezone(timezone.utc).replace(tzinfo=None).isoformat(timespec="microseconds") + "Z"
-    if isinstance(value, uuid.UUID | date):
+    if isinstance(
+        value,
+        ipaddress.IPv4Address
+        | ipaddress.IPv6Address
+        | ipaddress.IPv4Network
+        | ipaddress.IPv6Network
+        | uuid.UUID
+        | date,
+    ):
         return str(value)
     if isinstance(value, enum.Enum):
         return value.value

@@ -26,14 +26,14 @@ Use this quick order before drilling into the detailed examples below:
 
 ### Local full-stack browser smoke
 
-Current evidence: local full-stack admin smoke has been partially verified with a local FastAPI backend, an ignored `apps/api/.env`, a Neon-backed test database, and frontend dev auth. Users & Access, Camera Management, and Gateways load and perform core admin actions without the earlier broad Internal Server Error failures.
+Current evidence: local full-stack smoke has been verified with a local FastAPI backend, an ignored `apps/api/.env`, a Neon-backed test database, frontend dev auth, and the Vite same-origin proxy. Dashboard/bootstrap, live-camera camera list, Users & Access, Camera Management, Gateways, Audit Logs, audit verification, DSR list, break-glass status, backup status, deep health, sessions, and health returned successful responses without the earlier broad Internal Server Error failures.
 
 Expected local-only limitations:
 
 - `POST /api/v1/admin/users/invite` returns `github-invites-not-configured` unless `GITHUB_INVITES_ENABLED=true` and GitHub org invite secrets are configured.
 - `GET /api/v1/admin/health/deep` may report gateway health as stale if no edge agent is heartbeating.
 - Real LiveKit browser subscriber playback remains pending; token minting may work before the UI renders live playback.
-- Any one-time gateway service token displayed after create/rotate must be copied securely, never screenshotted, and rotated or the test gateway disabled if exposed.
+- Any one-time gateway service token displayed after create/rotate must be copied securely, never screenshotted, and rotated or the test gateway disabled if exposed. The exposed local test gateway named `what` was disabled during smoke cleanup.
 
 Start the backend:
 

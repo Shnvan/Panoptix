@@ -17,7 +17,7 @@ Design direction: new frontend work **must** follow [Panoptix Design System](PAN
 | Implemented and wired | `/api/v1/admin/users`, role update, disable | User admin UI exists and local smoke has loaded real users/roles | Continue browser smoke for destructive actions, disable behavior, and edge-case error states. |
 | Implemented and wired | `/api/v1/admin/users/{user_id}/mfa/reset` | MFA reset modal calls the backend route | Browser smoke success/error states and audit copy. |
 | Implemented and wired | `/api/v1/admin/users/invite` | GitHub invite form calls the backend route; `github-invites-not-configured` is expected when local GitHub invites are disabled | Browser smoke success and validation states only when real GitHub invite config is intentionally enabled. |
-| Implemented but incomplete | `/api/v1/admin/audit`, verify, export | Audit table exists with limited filtering | Add full audit filters for actor, severity, category, outcome, resource, session, and date range. |
+| Implemented but incomplete | `/api/v1/admin/audit`, verify, export | Audit table and verify endpoint pass local same-origin smoke; filtering UI remains limited | Add full audit filters for actor, severity, category, outcome, resource, session, and date range. |
 | Implemented but missing UI | `/api/v1/admin/actors/{actor_type}/{actor_id}/profile` | No actor investigation UI | Add actor profile page/drawer linked from users, gateways, audit rows, and break-glass/system actors. |
 | Implemented but missing UI | `/api/v1/admin/actors/{actor_type}/{actor_id}/activity` | No actor activity timeline UI | Add activity timeline with cursor pagination and filters. |
 | Implemented and wired | `/api/v1/admin/dashboard` | Dashboard hook calls backend metrics | Browser smoke metrics and empty/degraded states. |
@@ -47,7 +47,7 @@ These must be resolved before treating the frontend as production-ready.
 | Verify viewer/admin camera split | Required | Viewer dashboard uses `/api/v1/cameras`; admin camera management uses `/api/v1/admin/cameras` and detail routes. |
 | Remove or disable nonexistent endpoint calls | Required | Security reports and site listing must not appear as broken production features. |
 | Expose or document remaining implemented admin actions | Required | Backup status has a UI path; actor profile/activity still needs a visible investigation path or documented no-UI decision. |
-| Full local smoke test | Partial | Local admin smoke has passed for Users & Access, Camera Management, and Gateways against a local backend with dev auth. Finish Dashboard, Live Cameras, Audit Logs, System Health, Break Glass, Settings, DSR/compliance, and page-specific action checks. |
+| Full local smoke test | Passed for current same-origin API surfaces | Dashboard/bootstrap, live-camera camera list, users, cameras, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health pass through Vite against a local backend with dev auth. Continue manual page-specific destructive/action smoke where data allows. |
 | Full staging smoke test | Required | Test with Cloudflare Access session cookies, CSRF, backend routes, SSE where applicable, and deployed frontend assets. |
 | Browser publishing absence check | Required | Confirm the browser bundle does not request camera/microphone permission and does not publish media to LiveKit. |
 | Sensitive-value exposure check | Required | Confirm no RTSP URLs, camera passwords, LiveKit admin secrets, Cloudflare service tokens, or long-lived auth tokens appear in frontend code, logs, storage, or UI. |
@@ -133,7 +133,7 @@ For the smoke test:
 7. Verify planned features are marked as planned or disabled.
 8. Confirm there are no React page errors, token leaks, or unexpected 4xx/5xx responses for implemented features.
 
-Current local evidence: Users & Access, Camera Management, and Gateways have been smoke-tested against a local FastAPI backend using an ignored `apps/api/.env` and dev auth. Treat `github-invites-not-configured` as expected unless GitHub invite settings are intentionally enabled. Treat any one-time gateway service token shown in the UI as sensitive; do not screenshot it, and rotate or disable any exposed test gateway.
+Current local evidence: Dashboard/bootstrap, live-camera camera list, Users & Access, Camera Management, Gateways, Audit Logs, audit verification, DSR list, break-glass status, backup status, deep health, sessions, and health have passed same-origin smoke against a local FastAPI backend using an ignored `apps/api/.env` and dev auth. Treat `github-invites-not-configured` as expected unless GitHub invite settings are intentionally enabled. Treat any one-time gateway service token shown in the UI as sensitive; do not screenshot it. The exposed local test gateway named `what` was disabled during smoke cleanup.
 
 ## Current Default Next Task
 

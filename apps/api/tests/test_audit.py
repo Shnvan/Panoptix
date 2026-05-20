@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import json
 import uuid
 
@@ -511,6 +512,12 @@ def test_audit_payload_scrubbing_redacts_sensitive_values() -> None:
     }
 
 
+def test_audit_payload_scrubbing_serializes_ip_address_values() -> None:
+    scrubbed = scrub_audit_payload({"client_ip": ipaddress.ip_address("127.0.0.1")})
+
+    assert scrubbed == {"client_ip": "127.0.0.1"}
+
+
 def test_record_audit_event_hashes_scrubbed_payload(test_db_session: DbSession) -> None:
     audit_log = record_audit_event(
         test_db_session,
@@ -524,6 +531,23 @@ def test_record_audit_event_hashes_scrubbed_payload(test_db_session: DbSession) 
 
     assert audit_log.payload == {"token": REDACTED_VALUE, "safe": "value"}
     result = verify_audit_chain([audit_log], audit_hmac_key=AUDIT_HMAC_KEY)
+    assert result.valid is True
+
+
+def test_audit_chain_verification_serializes_postgres_inet_values(test_db_session: DbSession) -> None:
+    audit_log = record_audit_event(
+        test_db_session,
+        actor_type=ActorType.user,
+        audit_hmac_key_version=AUDIT_HMAC_KEY_VERSION,
+        audit_hmac_key=AUDIT_HMAC_KEY,
+        action="test.audit.ip",
+        resource="test",
+        ip="127.0.0.1",
+    )
+    audit_log.ip = ipaddress.ip_address("127.0.0.1")
+
+    result = verify_audit_chain([audit_log], audit_hmac_key=AUDIT_HMAC_KEY)
+
     assert result.valid is True
 
 
