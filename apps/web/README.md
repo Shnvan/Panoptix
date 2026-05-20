@@ -4,7 +4,7 @@ React/Vite frontend integration branch for the Panoptix CCTV control plane.
 
 ## Current Status
 
-This branch contains the coworker frontend work merged for review. It is not ready to merge back into `backend` until the frontend build passes and API mismatches are resolved.
+This branch contains the coworker frontend work merged into `fullstack-integration` for combined backend/frontend testing. It should not be merged into `backend`; `backend` remains backend-only.
 
 Implemented UI areas:
 
@@ -13,12 +13,14 @@ Implemented UI areas:
 - Admin camera, gateway, user, audit, break-glass, and health screens
 - Same-origin API client for `/api/v1/*`
 - Dev-auth header support when `VITE_DEV_AUTH=true`
+- DSR request list/create/detail/update API wiring
 
 Known integration gaps:
 
 - Browser LiveKit playback is not wired yet. The camera modal can request a short-lived viewer token only.
-- Security check report endpoints are planned but not implemented in the backend branch.
-- Site listing and DSR request listing are planned but not implemented in the backend branch.
+- Security check report endpoints are planned but not implemented in the backend.
+- Site listing is planned but not implemented in the backend; signage attestation can only be used when a valid site ID is known.
+- Full local/staging browser smoke and production polish are still pending.
 
 ## Local Development
 

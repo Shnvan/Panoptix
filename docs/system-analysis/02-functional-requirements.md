@@ -23,7 +23,7 @@
 | FR-008 | The system shall issue short-lived LiveKit subscriber tokens only for cameras the viewer may access. | Streaming | Viewer | High | Existing |
 | FR-009 | The system shall reject viewer token requests for disabled users, missing cameras, retired cameras, or missing ACLs. | Streaming | Viewer | High | Existing |
 | FR-010 | The system shall expose camera status events to authorized viewers. | Camera events | Viewer | Medium | Existing |
-| FR-011 | The frontend shall display camera grid layouts, states, and fullscreen viewing. | Frontend | Viewer | High | Missing |
+| FR-011 | The frontend shall display camera grid layouts, states, and fullscreen viewing. | Frontend | Viewer | High | Partially Existing |
 
 ## Admin User Management
 

@@ -9,7 +9,7 @@ Panoptix is a secure live-view CCTV monitoring system. It connects fixed IP came
 | Control plane | FastAPI backend in `apps/api/src/cctv_api`, SQLAlchemy models, Alembic migrations, tests, Railway staging docs | Existing |
 | Media plane | LiveKit Cloud token minting, webhook receiver, room-presence command enqueue, fallback mode flag | Partially Existing |
 | Camera plane | Edge agent, outbound heartbeat/control, FFmpeg/LiveKit scaffolds, mediamtx local config | Partially Existing |
-| Frontend | `apps/web/README.md` placeholder and frontend docs | Missing implementation |
+| Frontend | React/Vite app in `apps/web`, merged coworker frontend branch, frontend docs | V1 integrated / production incomplete |
 
 The system is designed for browser viewing only. Browser, phone, and laptop camera publishing are explicitly out of scope.
 
@@ -34,15 +34,15 @@ Panoptix enables authorized users to view assigned CCTV cameras while keeping ca
 | Admin camera, gateway, and user onboarding | Backend supports camera/gateway lifecycle control and GitHub-backed user invites | Existing |
 | Gateway command/control | Persistent command queue plus WebSocket and heartbeat fallback | Existing |
 | Edge publishing | Agent verifies commands and has LiveKit/FFmpeg scaffolds; real hardware validation pending | Partially Existing |
-| Frontend | Required UX and integration docs exist; application code is not implemented | Missing |
+| Frontend | React/Vite frontend V1 exists for viewer/admin workflows; production smoke and LiveKit playback remain pending | Partially Existing |
 | Recording/playback/snapshots | Excluded from MVP | Out of scope |
 | Backup operations | R2 provisioning docs, scripts, and database-known backup status API exist; restore drill evidence pending | Partially Existing |
 
 ## Limitations
 
-- No implemented Next.js/React frontend was found in `apps/web/`.
+- The merged React/Vite frontend is integrated but still needs browser smoke evidence, Playwright coverage, and real LiveKit subscriber playback.
 - Real camera onboarding and production camera-to-LiveKit publishing require physical hardware.
-- Backend DSR workflow APIs exist; frontend DSR case management UI is still pending.
+- Backend DSR workflow APIs exist and frontend DSR API wiring is present; production browser smoke is still pending.
 - Self-hosted LiveKit fallback is represented by docs/configuration and a mode switch, not full operations.
 
 ## Users And Roles
@@ -73,9 +73,9 @@ Panoptix enables authorized users to view assigned CCTV cameras while keeping ca
 
 | Module | Rationale | Status |
 |---|---|---|
-| Frontend web application | Required for viewer dashboard and admin workflows | Missing |
+| Frontend web application | Required for viewer dashboard and admin workflows | V1 Integrated / Production Incomplete |
 | Real hardware onboarding workflow | Required to validate real camera publishing | Partially Existing |
-| DSR workflow UI | Backend DSR API exists; browser workflow is still frontend work | Missing |
+| DSR workflow UI | Backend DSR API exists and frontend DSR API wiring exists; production browser smoke is still pending | Partially Existing |
 | Backup worker and restore drill evidence | Status endpoint reads `backup_runs`, but production backup artifacts and restore evidence are pending | Partially Existing |
 | Production self-hosted LiveKit fallback runbook/execution | Fallback mode exists but full operations remain future work | Partially Existing |
 
@@ -103,10 +103,10 @@ flowchart LR
 
 | Risk | Impact | Recommendation |
 |---|---|---|
-| Frontend not implemented | MVP cannot be used by end users despite backend readiness | Build frontend against documented API contract |
+| Frontend production readiness incomplete | Users can test the merged UI, but production acceptance still needs LiveKit playback, browser smoke, and E2E coverage | Finish frontend production hardening against the documented API contract |
 | Hardware not onboarded | Real live camera behavior remains unproven | Procure and validate with supported RTSP cameras |
 | Documentation/code drift | Frontend or QA may build against wrong fields | Treat code and API tests as authoritative and update docs |
-| DSR workflow has no UI | Compliance case tracking is API-only until frontend work lands | Build DSR case management UI against the implemented backend routes |
+| DSR workflow needs browser evidence | Compliance case tracking should not be treated as production-ready until the merged UI flow is smoke-tested | Smoke-test DSR case management against the implemented backend routes |
 
 ## Constraints
 
@@ -121,7 +121,7 @@ flowchart LR
 
 - Use `docs/system-analysis/` as a handoff index for analysts, QA, frontend, and backend developers.
 - Fix the documented camera source type mismatch in `docs/frontend/BACKEND_STATUS.md`.
-- Add frontend implementation and E2E tests before MVP acceptance.
+- Complete frontend LiveKit playback, browser smoke, and E2E tests before MVP acceptance.
 - Treat real hardware onboarding as a release gate for camera streaming.
 - Keep Cloudflare Access policies aligned with the configured GitHub organization/team used for invites.
 
@@ -133,10 +133,10 @@ flowchart LR
 | Important source files | `apps/api/src/cctv_api/api/router.py`, `apps/api/src/cctv_api/api/gateways.py`, `apps/api/src/cctv_api/models/tables.py`, `apps/cctv-edge/agent/src/panoptix_edge_agent/cli.py` |
 | Existing documentation | `docs/index.md`, planning docs, API reference, test plan, frontend docs, runbooks, security docs, ADRs |
 | Database files | `apps/api/alembic/versions/*.py`, `apps/api/src/cctv_api/models/*.py`, `docs/architecture/erd.mmd` |
-| UI files | `apps/web/README.md` placeholder; frontend specs in `docs/frontend/` |
+| UI files | React/Vite app under `apps/web/`; frontend specs in `docs/frontend/` |
 | API files | FastAPI routers under `apps/api/src/cctv_api/api/` |
 | Reports/export logic | Audit export, DPA export, health dashboard data, backup scripts/status API |
 | Features confirmed from code | Auth, sessions, CSRF, RBAC, camera ACL, gateway control, LiveKit tokens/webhooks, audit, break-glass, DPA/signage |
-| Features documented but not found as complete code | Frontend UI, DSR workflow UI, full self-hosted fallback |
+| Features documented but not found as complete code | Real LiveKit browser playback, real hardware publishing evidence, full self-hosted fallback |
 | Features found in code but under-documented or inconsistent | No current camera source-type drift found; `docs/frontend/BACKEND_STATUS.md` now matches `CameraSourceType` |
 

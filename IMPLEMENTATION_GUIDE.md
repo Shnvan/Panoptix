@@ -48,7 +48,7 @@ docs/implementation/team-raci-checklist.md
 
 The rule is:
 
-- Frontend implementation is owned by the frontend coworker.
+- Frontend implementation is owned by the frontend coworker and is now merged into `fullstack-integration` for combined testing.
 - Database implementation is owned by the database coworker.
 - Backend, security, gateway, DevOps, LiveKit integration, audit logic, and coordination are owned by the system owner.
 
@@ -85,7 +85,7 @@ docs/
 Each folder has a clear purpose:
 
 - `apps/api/` — FastAPI backend/control plane
-- `apps/web/` — frontend placeholder owned by frontend coworker
+- `apps/web/` — React/Vite frontend owned by frontend coworker and merged for full-stack integration testing
 - `apps/cctv-edge/` — gateway/edge workspace
 - `apps/media-fallback/` — optional LiveKit fallback placeholder
 - `database/` — database placeholder owned by database coworker
@@ -95,6 +95,48 @@ Each folder has a clear purpose:
 ### Why it matters
 
 The structure mirrors the architecture of the real system. It separates frontend, backend, gateway, infrastructure, and database work so teams can work in parallel without stepping on each other.
+
+---
+
+## 3a. Full-Stack Frontend Integration
+
+### What was implemented
+
+The coworker frontend branch `integratedCompleteFrontend` was merged into `fullstack-integration`.
+
+The current frontend includes:
+
+- Cloudflare Access/dev-auth login shell
+- viewer camera dashboard and camera detail modal
+- admin dashboard, users, cameras, gateways, audit/compliance, DSR, break-glass, health, and settings screens
+- same-origin API client for `/api/v1/*`
+- dev-auth header support with `VITE_DEV_AUTH=true`
+
+### How it works
+
+Run the backend from `apps/api` and the frontend from `apps/web`:
+
+```powershell
+cd apps/api
+$env:PYTHONPATH = "src"
+python -m uvicorn cctv_api.main:app --host 127.0.0.1 --port 8000
+```
+
+In another terminal:
+
+```powershell
+cd apps/web
+$env:VITE_DEV_AUTH = "true"
+$env:VITE_DEV_EMAIL = "admin@example.test"
+$env:VITE_DEV_ROLES = "admin"
+npm run dev
+```
+
+Open `http://localhost:3000`. The Vite dev server proxies `/api/v1/*` and `/health` to the local backend.
+
+### Current limits
+
+The frontend is integrated but not production-complete. Browser LiveKit subscriber playback is still pending; the camera modal can request a short-lived viewer token but does not yet render the real stream. Browser code must never call gateway-only endpoints or receive publisher tokens.
 
 ---
 
@@ -638,13 +680,13 @@ If they do not match, the backend returns:
 403 Forbidden
 ```
 
-The ingest-token and WebSocket control channel routes currently return `501 Not Implemented` placeholders.
+The ingest-token route now mints short-lived gateway publisher tokens for assigned active cameras, and the WebSocket/heartbeat command path can deliver signed gateway commands backed by the persistent command queue.
 
 ### Why it matters
 
 The gateway is the bridge between private CCTV cameras and the cloud media plane. It must be authenticated carefully. A browser must never be able to call gateway routes and receive publish tokens.
 
-The placeholders are intentional because real LiveKit token minting, command dispatch, and database-backed gateway assignments come later.
+The browser still must never call these routes. They are gateway-only control and publishing surfaces, and the remaining gap is real hardware validation rather than backend command dispatch.
 
 ---
 

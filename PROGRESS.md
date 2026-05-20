@@ -4,7 +4,7 @@ Current status and next steps for any session continuing this project.
 
 ---
 
-## Overall Progress: ~88% to MVP
+## Overall Progress: ~92% to MVP
 
 Last updated: 2026-05-20
 
@@ -12,21 +12,21 @@ Last updated: 2026-05-20
 |------|----------|--------|-------|
 | **Backend API** | 99% | 🟢 Strong | Auth, RBAC, audit, actor investigation profiles/activity timeline, health, gateway, camera, command, webhook, session, admin, break-glass, search/filter, enrichment, LiveKit fallback, DPA export, DSR workflow tracking, signage attestation, credential rotation, MFA reset, GitHub-backed invites, camera/gateway lifecycle update and re-enable, and backup status reporting all done. Backend-controlled synthetic gateway publish smoke passed. 532 tests passing. |
 | **Edge Agent** | 88% | 🟢 Strong | Heartbeat, command signing, WebSocket control, FFmpeg frame source, LiveKit SDK bridge, per-camera credentials, supervisor, real FFmpeg integration tests, synthetic RTSP to LiveKit Cloud smoke, backend-command publish ACK, exponential backoff + jitter, mTLS cert bootstrap scaffold, cryptography dep all done. Missing: real CCTV hardware validation and production service deployment. |
-| **Frontend** | 0% | 🔴 Not started | Placeholder only. Owned by frontend coworker. Blocked until admin UI, camera grid viewer, and privacy notice flow are built. |
+| **Frontend** | 72% | 🟡 Integrated, not production-complete | `integratedCompleteFrontend` is merged into `fullstack-integration`. The React/Vite app now has the login shell, viewer dashboard, camera detail modal, admin dashboard, users, cameras, gateways, audit/compliance, DSR, break-glass, health, settings, dev-auth headers, and same-origin API client. Missing: real LiveKit subscriber playback, full local/staging browser smoke evidence, Playwright coverage, and production polish. |
 | **Database** | 97% | 🟢 Strong | Core schema plus `0007_gateway_command_tables` migration deployed on active DB; `gateway_command_queue`, `camera_publish_states`, and `backup_runs` model/schema verified. Backup status endpoint now reports database-known backup readiness from `backup_runs`. Missing: recorded restore drill evidence, backup worker automation, retention policy tables (pilot+). |
-| **Infrastructure** | 90% | 🟢 Strong | Cloudflare Access, Railway, Neon staging all live. Staging health check cron running (15 min). 7-day uptime clock started. R2 backup bucket `panoptix-backups` provisioned via Terraform Cloud. LiveKit Cloud account provisioned (APAC). Semgrep CI token configured. Missing: paid Neon tier, production Cloudflare/Railway/Neon environments (waits for 7-day gate). |
-| **Security** | 90% | 🟢 Strong | CF Access JWT, CSRF, HMAC audit chain, classified audit events with session/IP/UA metadata, audit-of-audit for profile/activity views, rate limiting (including admin mutations), security headers, service tokens, RBAC, break-glass, SCA/SAST CI, mediamtx threat model, mTLS cert bootstrap scaffold, CT-log monitoring all done. Missing: device posture enforcement (checklist done), WARP posture production activation. |
-| **Documentation** | 95% | 🟢 Strong | Full system plan, API reference, 51+ docs, all runbooks done (incl. break-glass, lost-MFA, IdP-outage, bus-factor, uptime monitoring, backup-restore DR schedule, Cloudflare WARP posture), mediamtx threat model, Terraform state security doc, IMPLEMENTATION_GUIDE fully up-to-date. |
+| **Infrastructure** | 90% | 🟢 Strong | Cloudflare Access, Railway, Neon staging all live. Staging health check cron running (15 min). R2 backup bucket `panoptix-backups` provisioned via Terraform Cloud. LiveKit Cloud account provisioned (APAC). Semgrep CI token configured. Missing: paid Neon tier, final production Cloudflare/Railway/Neon hardening, and deployment approval. |
+| **Security** | 90% | 🟢 Strong | CF Access JWT, CSRF, HMAC audit chain, classified audit events with session/IP/UA metadata, audit-of-audit for profile/activity views, rate limiting (including admin mutations), security headers, service tokens, RBAC, break-glass, SCA/SAST CI, mediamtx threat model, mTLS cert bootstrap scaffold, CT-log monitoring all done. Missing: device posture enforcement production activation and browser security smoke evidence. |
+| **Documentation** | 96% | 🟢 Strong | Full system plan, API reference, 51+ docs, all runbooks done (incl. break-glass, lost-MFA, IdP-outage, bus-factor, uptime monitoring, backup-restore DR schedule, Cloudflare WARP posture), mediamtx threat model, Terraform state security doc, frontend design guidance, and current full-stack status docs. |
 | **DevOps/CI** | 98% | 🟢 Strong | GitHub Actions CI covers both `main` and `backend` branches. Edge agent CI added (ruff, mypy, pytest, compileall, osv-scanner). Staging health check cron active. Production deploy workflow (manual) ready. Staging auto-deploy workflow added. Dependabot auto-merge workflow added (minor/patch auto, major manual). |
 
 ### Critical Path to MVP
 
 | # | Blocker | Owner | Depends On |
 |---|---------|-------|------------|
-| 1 | Frontend admin UI (camera/gateway/user management) | Frontend coworker | Backend API (done) |
-| 2 | Frontend camera grid viewer + LiveKit JS SDK | Frontend coworker | LiveKit Cloud provisioning ✅, backend synthetic publish ✅ |
+| 1 | Real LiveKit browser subscriber playback | Frontend/system owner | Backend viewer token endpoint done; frontend modal currently token-only |
+| 2 | Full local and staging browser smoke test | System owner + Frontend | Frontend build/lint done; backend ruff/mypy done |
 | 3 | Real camera → LiveKit publishing from edge agent | System owner | Synthetic backend path ✅, needs real camera hardware |
-| 4 | Privacy notice acceptance flow | System owner + Frontend | Database tables (done) |
+| 4 | Production deployment hardening | System owner | Cloudflare/Railway/Neon/LiveKit/R2 settings and uptime/procurement gates |
 | 5 | ~~LiveKit Cloud provisioning (APAC region)~~ | System owner | ✅ Done |
 | 6 | ~~Break-glass emergency access~~ | System owner | ✅ Done |
 | 7 | ~~Production deployment pipeline~~ | System owner | ✅ Done (manual workflow ready, 7-day staging clock running) |
@@ -34,19 +34,18 @@ Last updated: 2026-05-20
 ### What We Control vs What's Blocked
 
 **Can do now (no external dependencies):**
-- Keep static checks green, run an isolated restore drill when R2 backup artifacts are available, and prepare production deployment hardening. Backend DSR tracking is now available as an API; the DSR browser UI remains frontend work. The main product-path blockers now require frontend implementation and real camera hardware.
+- Keep static checks green, run full local browser smoke against the merged frontend, run an isolated restore drill when R2 backup artifacts are available, and prepare production deployment hardening. The main product-path blockers are real LiveKit browser playback, real camera hardware validation, and production hardening.
 
 **Blocked on external dependencies:**
-- Frontend UI → frontend coworker
-- Real camera onboarding → hardware procurement
-- Production environment (Cloudflare/Railway/Neon) → 7-day staging uptime gate (clears 2026-05-20)
+- Real CCTV hardware onboarding → hardware procurement
+- Production environment (Cloudflare/Railway/Neon) → final uptime/procurement approval
 - Paid Neon tier → procurement (post-pilot)
 
 ---
 
 ## Ownership Boundary
 
-- **Frontend implementation** (`apps/web/`) → owned by frontend coworker
+- **Frontend implementation** (`apps/web/`) → owned by frontend coworker; `fullstack-integration` now contains the merged V1 frontend for combined testing
 - **Database implementation** (`database/`) → owned by database coworker
 - **Everything else** → owned by system owner (us)
 
@@ -73,7 +72,7 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Media fallback placeholder created (`apps/media-fallback/`)
 - [x] Infrastructure placeholder created (`infra/`, `infra/terraform/`)
 - [x] Scripts placeholder created (`scripts/`)
-- [x] Frontend ownership placeholder created (`apps/web/README.md`)
+- [x] Frontend V1 integration merged into `fullstack-integration` and build/lint verified
 - [x] Database ownership placeholder created (`database/README.md`)
 - [x] `README.md` project structure diagram updated
 
@@ -788,7 +787,7 @@ Work with the frontend coworker to build the admin camera management and user ma
 - [x] `PATCH /api/v1/admin/gateways/{gateway_id}` — update gateway display metadata without rotating credentials
 - [x] `POST /api/v1/admin/gateways/{gateway_id}/enable` — re-enable a disabled gateway without automatically restoring revoked assignments
 - [x] Successful lifecycle changes write `camera.update`, `camera.enable`, `gateway.update`, and `gateway.enable` audit rows with before/after payloads
-- [x] Focused camera/gateway lifecycle tests pass; frontend UI remains pending
+- [x] Focused camera/gateway lifecycle tests pass; frontend UI now has V1 wiring and still needs browser smoke evidence
 
 ### Camera Disable → Kill Viewer Participants ✅
 - [x] Added `remove_room_viewers()` to `security/livekit_rooms.py` — removes all `viewer:*` participants from a camera's single LiveKit room

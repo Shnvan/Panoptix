@@ -10,7 +10,7 @@ The repository contains extensive backend and edge-agent tests:
 | Edge agent | `apps/cctv-edge/agent/tests/` | Existing |
 | Manual testing | `MANUAL_TESTING.md` | Existing |
 | QA strategy | `docs/implementation/test-plan.md` | Existing |
-| Browser E2E | No Playwright app tests found | Missing |
+| Browser E2E | React/Vite app exists; no Playwright tests found | Missing |
 | Load/security artifacts | k6/ZAP/SBOM noted as future gates | Missing |
 
 ## Acceptance Criteria
@@ -28,9 +28,9 @@ The repository contains extensive backend and edge-agent tests:
 | AC-009 | Gateway command queue supports enqueue, list, cancel, expire, deliver, and ACK. | Existing |
 | AC-010 | Edge agent rejects tampered, expired, or wrong-gateway commands. | Existing |
 | AC-010a | Admin user invite creates local role state, sends a GitHub organization invitation, and writes sanitized audit metadata. | Existing |
-| AC-011 | Frontend displays viewer/admin workflows using backend APIs. | Missing |
+| AC-011 | Frontend displays viewer/admin workflows using backend APIs. | Partially Existing |
 | AC-012 | Real camera publishes through edge agent to LiveKit with production-like settings. | Partially Existing |
-| AC-013 | Backup status is visible to admins. | Missing |
+| AC-013 | Backup status is visible to admins. | Partially Existing |
 | AC-014 | DSR workflow is usable through backend APIs. | Backend Complete |
 
 ## Test Scenarios
@@ -52,16 +52,16 @@ The repository contains extensive backend and edge-agent tests:
 | TS-012 | Disable camera stops viewers | Camera has active room viewers | Admin disables camera | Camera retired and viewer participants removed/skipped safely | `test_cameras.py`, `test_livekit_rooms.py` |
 | TS-013 | Disable gateway stops publishers | Gateway has assigned rooms | Admin disables gateway | Gateway disabled and publisher participants removed/skipped safely | `test_admin_gateways.py`, `test_livekit_rooms.py` |
 | TS-014 | Privacy notice acceptance idempotent | User accepts current version | Repeat acceptance | Accepted status remains valid | `test_privacy_admin_users.py` |
-| TS-015 | Frontend viewer dashboard | Frontend app exists | User logs in and opens dashboard | Grid, empty/error states, and LiveKit player render correctly | Missing |
+| TS-015 | Frontend viewer dashboard | Frontend app exists | User logs in and opens dashboard | Grid and empty/error states render; LiveKit player remains pending | Frontend lint/build passed; browser smoke pending |
 | TS-016 | Real camera publish | Real camera and gateway configured | Viewer joins room | Gateway publishes camera stream to LiveKit | Partially Existing smoke scaffolds |
 | TS-017 | Backup status | Backup run exists | Admin opens backup status | Latest status and restore checks display | `test_backup_status.py` |
 | TS-018 | DSR workflow | DSR request received | Admin records lifecycle | Request status/outcome and artifact link persist | `test_dsr_requests.py` |
 
 ## QA Recommendations
 
-- Add Playwright coverage when `apps/web/` is implemented.
+- Add Playwright coverage for the merged frontend.
 - Add hardware-backed smoke tests for real RTSP camera to LiveKit publishing.
 - Keep restore drill evidence as a manual operations artifact until backup automation records real rows.
-- Add frontend DSR case management tests when the browser UI is implemented.
+- Add frontend DSR case management tests after browser smoke confirms the V1 UI flow.
 - Keep manual evidence for staging health, restore drills, and production readiness gates.
 

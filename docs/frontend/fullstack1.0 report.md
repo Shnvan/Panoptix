@@ -18,9 +18,9 @@ This report documents the results of a comprehensive audit of the Panoptix front
 |---|---|---|---|
 | `/api/v1/me` | GET | App.tsx, SettingsSection | ✅ Live |
 | `/api/v1/cameras` | GET | useCameras hook | ✅ Live |
-| `/api/v1/cameras/{id}/view-token` | POST | CameraDetailModal | ✅ Live |
-| `/api/v1/privacy-notice` | GET | PrivacyNoticeModal | ✅ Live |
-| `/api/v1/privacy-notice/accept` | POST | PrivacyNoticeModal | ✅ Live |
+| `/api/v1/cameras/{id}/view-token` | GET | CameraDetailModal | ✅ Live |
+| `/api/v1/privacy/notice` | GET | PrivacyNoticeModal | ✅ Live |
+| `/api/v1/privacy/notice/accept` | POST | PrivacyNoticeModal | ✅ Live |
 | `/api/v1/sessions/active` | GET | SettingsSection | ✅ Live |
 | `/api/v1/sessions/revoke` | POST | SettingsSection | ✅ Live |
 | `/api/v1/admin/dashboard` | GET | App.tsx (useAdminDashboard) | ✅ Live |
@@ -38,7 +38,7 @@ This report documents the results of a comprehensive audit of the Panoptix front
 | `/api/v1/admin/gateways/{id}/commands` | GET | GatewaysSection (listGatewayCommands) | ✅ Live |
 | `/api/v1/admin/gateways/{id}/commands/{cid}/cancel` | POST | GatewaysSection (cancelGatewayCommand) | ✅ Live |
 | `/api/v1/admin/commands/cleanup` | POST | GatewaysSection (cleanupCommands) | ✅ Live |
-| `/api/v1/admin/maintenance` | POST | HealthSection, GatewaysSection | ✅ Live |
+| `/api/v1/admin/jobs/run-maintenance` | POST | HealthSection, GatewaysSection | ✅ Live |
 | `/api/v1/admin/users` | GET | UsersSection (useAdminUsers) | ✅ Live |
 | `/api/v1/admin/users/{id}/role` | POST | UsersSection (updateUserRole) | ✅ Live |
 | `/api/v1/admin/users/{id}/disable` | POST | UsersSection (disableUser) | ✅ Live |
@@ -46,13 +46,13 @@ This report documents the results of a comprehensive audit of the Panoptix front
 | `/api/v1/admin/users/invite` | POST | UsersSection (inviteUser) | ✅ Live |
 | `/api/v1/admin/audit` | GET | AuditLogTable (useAdminAudit) | ✅ Live |
 | `/api/v1/admin/audit/export` | POST | AuditLogTable (exportAudit) | ✅ Live |
-| `/api/v1/admin/audit/verify` | POST | AuditLogTable (verifyAuditChain) | ✅ Live |
+| `/api/v1/admin/audit/verify` | GET | AuditLogTable (verifyAuditChain) | ✅ Live |
 | `/api/v1/admin/dpa/export` | POST | AuditLogTable (exportDpa) | ✅ Live |
 | `/api/v1/admin/dsr-requests` | GET | AuditLogTable (useDsrRequests) | ✅ Live |
 | `/api/v1/admin/dsr-requests` | POST | api.ts (createDsrRequest) | ✅ Wired |
 | `/api/v1/admin/dsr-requests/{id}` | GET/PATCH | api.ts (getDsrRequest, updateDsrRequest) | ✅ Wired |
-| `/api/v1/admin/internal/break-glass` | POST (open) | BreakGlassSection | ✅ Live |
-| `/api/v1/admin/internal/break-glass/close` | POST | BreakGlassSection | ✅ Live |
+| `/api/v1/admin/break-glass/open` | POST | BreakGlassSection | ✅ Live |
+| `/api/v1/admin/break-glass/close` | POST | BreakGlassSection | ✅ Live |
 | `/api/v1/admin/internal/break-glass-status` | GET | BreakGlassSection (useBreakGlassStatus) | ✅ Live |
 | `/api/v1/admin/backups/status` | GET | HealthSection (useBackupStatus) | ✅ Live |
 | `/api/v1/admin/health/deep` | GET | HealthSection (getDeepHealth) | ✅ Live |
@@ -63,14 +63,14 @@ This report documents the results of a comprehensive audit of the Panoptix front
 
 ## ⚠ Backend Anomalies & Discrepancies
 
-### 1. `GET /admin/sites` — Endpoint Existence Uncertain
+### 1. `GET /admin/sites` — Planned Backend Gap
 
 **Severity:** Medium  
 **Description:** The `ux-product-spec.md` and `core-features.md` require a "Bystander Signage Attestation" feature which needs a `GET /admin/sites` endpoint to list physical camera sites. The frontend calls `api.listSites()` mapped to `/api/v1/admin/sites`.
 
-**Backend Status:** The `Site` model exists in `models/tables.py`, but it is unclear whether a dedicated listing endpoint for sites is exposed in the router. The frontend now calls the endpoint and gracefully degrades (shows "No sites found or endpoint unavailable") if it returns a 404.
+**Backend Status:** `GET /api/v1/admin/sites` is still not exposed by the backend. The frontend now calls the endpoint and gracefully degrades (shows "No sites found or endpoint unavailable") if it returns a 404.
 
-**Recommendation:** Backend team should verify whether `GET /api/v1/admin/sites` is implemented. If not, a simple paginated listing endpoint should be added.
+**Recommendation:** Add a simple paginated site listing endpoint later, or keep the signage UI clearly marked as unavailable until a valid site source exists.
 
 ---
 
@@ -79,9 +79,9 @@ This report documents the results of a comprehensive audit of the Panoptix front
 **Severity:** Medium  
 **Description:** The frontend now has a fully wired MFA Reset modal that calls `POST /api/v1/admin/users/{id}/mfa/reset`. Previous integration noted this as "In Progress" in `BACKEND_STATUS.md`.
 
-**Backend Status:** The endpoint may return a 501 Not Implemented or may now be functional depending on the current branch state. The frontend handles API errors gracefully.
+**Backend Status:** Implemented on `fullstack-integration`. The frontend modal calls the backend route and should be smoke-tested for success and problem-detail error states.
 
-**Recommendation:** Backend team should confirm this endpoint is functional or return a clear error message.
+**Recommendation:** Keep this in browser smoke coverage and verify audit rows during admin testing.
 
 ---
 
@@ -101,9 +101,9 @@ This report documents the results of a comprehensive audit of the Panoptix front
 **Severity:** Low  
 **Description:** The frontend now supports re-enabling retired cameras. This calls `POST /api/v1/admin/cameras/{id}/enable`. The backend may not have this endpoint since the v4 spec describes camera retirement as "permanent" in some sections.
 
-**Backend Status:** Uncertain. The `camera.retired_at` column exists, but whether clearing it via an admin endpoint is supported is unclear.
+**Backend Status:** Implemented on `fullstack-integration` as `POST /api/v1/admin/cameras/{id}/enable`, with admin authorization, conflict handling for already-enabled cameras, and audit rows.
 
-**Recommendation:** If camera re-enablement is not supported by backend, the frontend Enable button will gracefully show the API error. Backend team should decide policy.
+**Recommendation:** Keep camera enable/disable in browser smoke coverage.
 
 ---
 
@@ -112,9 +112,9 @@ This report documents the results of a comprehensive audit of the Panoptix front
 **Severity:** Low  
 **Description:** The frontend health section includes a LiveKit Cloud ↔ Self-Hosted Fallback toggle. This calls `POST /api/v1/admin/livekit/fallback`.
 
-**Backend Status:** The `set_media_plane_mode` function is imported in `router.py`, suggesting this is implemented. However, the response shape may differ from what the frontend expects.
+**Backend Status:** Implemented on `fullstack-integration`. The frontend API client expects the current backend fields: `media_plane_mode`, `previous_mode`, and `switched_at`.
 
-**Recommendation:** Verify response contract matches `{ mode: string, applied: boolean }`.
+**Recommendation:** Smoke-test the toggle and confirm mode, previous mode, and switched-at messaging render correctly.
 
 ---
 

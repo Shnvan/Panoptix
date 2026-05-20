@@ -24,7 +24,7 @@
 | FR-041 DPA/signage | BR-013 | Compliance | `/admin/dpa/export`, `/admin/sites/{id}/signage-attest` | `dpa_artifacts`, `sites` | `api/router.py` | TS-014 | Partial |
 | FR-042 DSR workflow | BR-015 | DSR ledger | `/api/v1/admin/dsr-requests*` | `dsr_requests`, `audit_log` | `api/router.py`, `models/tables.py` | TS-018 | Backend Complete |
 | FR-043 Backup status | BR-014 | Backup status | `/admin/backups/status` | `backup_runs` | `api/router.py` | TS-017 | Complete |
-| FR-011 Frontend dashboard | BR-003, BR-005 | Viewer dashboard | Uses browser APIs | N/A | `apps/web/README.md` only | TS-015 | Missing |
+| FR-011 Frontend dashboard | BR-003, BR-005 | Viewer dashboard | Uses `/api/v1/cameras` and viewer token route | N/A | `apps/web/src`, `apps/web/README.md` | TS-015 | Partial |
 | FR-030 Real camera publish | BR-004, BR-006, BR-012 | Viewer dashboard | Gateway + LiveKit | `stream_grants`, `camera_publish_states` | edge media modules | TS-016 | Partial |
 
 ## Validation Traceability
@@ -48,5 +48,5 @@
 | NFR-012 Hardware validation | FR-022, FR-030 | Edge smoke scaffolds, progress docs | Partial |
 | NFR-015 Maintainability | All implemented modules | CI workflow, pyproject files, tests | Complete |
 | NFR-023 Backup/recovery | FR-043 | Runbooks, scripts, R2 docs | Partial |
-| NFR-025 UI usability | FR-011 | Frontend specs only | Missing |
+| NFR-025 UI usability | FR-011 | Merged frontend V1 plus frontend specs | Partial |
 

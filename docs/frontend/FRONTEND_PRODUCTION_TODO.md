@@ -14,24 +14,24 @@ Design direction: new frontend work should follow [Panoptix Design System](PANOP
 | Implemented but incomplete | `/api/v1/cameras/events` | Disabled in dev-auth mode because EventSource cannot send custom headers | Keep production SSE path; test with Cloudflare/session cookies in staging. |
 | Implemented and usable | `/api/v1/privacy/notice`, `/api/v1/privacy/notice/accept` | Privacy notice gate exists | Verify notice mismatch and accepted states in browser. |
 | Implemented and usable | `/api/v1/sessions/active`, `/api/v1/sessions/revoke` | Settings/session UI exists | Verify revoke UX and session refresh behavior. |
-| Implemented but incomplete | `/api/v1/admin/users`, role update, disable | User admin UI exists | Add MFA reset and invite flows; fix stale copy that says MFA reset is not implemented. |
-| Implemented but missing UI | `/api/v1/admin/users/{user_id}/mfa/reset` | Marked as not implemented in current UI/report | Add admin-mediated MFA reset action and result messaging. |
-| Implemented but missing UI | `/api/v1/admin/users/invite` | No complete invite UI | Add GitHub organization invite form for email, roles, and reason. |
+| Implemented and wired | `/api/v1/admin/users`, role update, disable | User admin UI exists | Browser smoke role changes, disable behavior, and error states. |
+| Implemented and wired | `/api/v1/admin/users/{user_id}/mfa/reset` | MFA reset modal calls the backend route | Browser smoke success/error states and audit copy. |
+| Implemented and wired | `/api/v1/admin/users/invite` | GitHub invite form calls the backend route | Browser smoke disabled-config, success, and validation states. |
 | Implemented but incomplete | `/api/v1/admin/audit`, verify, export | Audit table exists with limited filtering | Add full audit filters for actor, severity, category, outcome, resource, session, and date range. |
 | Implemented but missing UI | `/api/v1/admin/actors/{actor_type}/{actor_id}/profile` | No actor investigation UI | Add actor profile page/drawer linked from users, gateways, audit rows, and break-glass/system actors. |
 | Implemented but missing UI | `/api/v1/admin/actors/{actor_type}/{actor_id}/activity` | No actor activity timeline UI | Add activity timeline with cursor pagination and filters. |
-| Implemented but incomplete | `/api/v1/admin/dashboard` | Dashboard currently uses local/frontend summaries | Wire dashboard metrics from backend. |
-| Implemented but incomplete | `/api/v1/admin/cameras`, detail, create, update, ACL, disable, enable | Camera management uses viewer camera list in places | Use admin camera list/detail for admin screens and viewer camera list only for viewer dashboard; add update and re-enable UI. |
-| Implemented but incomplete | `/api/v1/admin/gateways`, detail, create, update, disable, enable, rotate, assignment | Gateway screen has placeholder data comments | Replace placeholders with real list/detail data and production states; keep credential rotation separate from metadata update. |
+| Implemented and wired | `/api/v1/admin/dashboard` | Dashboard hook calls backend metrics | Browser smoke metrics and empty/degraded states. |
+| Implemented and wired | `/api/v1/admin/cameras`, detail, create, update, ACL, disable, enable | Admin camera management uses backend admin routes | Browser smoke create/update/disable/enable/ACL and validation states. |
+| Implemented and wired | `/api/v1/admin/gateways`, detail, create, update, disable, enable, rotate, assignment | Gateway screen uses real gateway data and command routes | Browser smoke list/detail, create/update/disable/enable, rotate, assignment, and command states. |
 | Implemented but incomplete | Gateway commands create/list/cancel, command cleanup, maintenance job | Some actions are wired | Verify command history, command creation, cancel, cleanup, and maintenance UX against real backend data. |
-| Implemented and usable | `/api/v1/admin/break-glass/open`, `/close` | Break-glass section exists | Add status read from internal break-glass status endpoint. |
-| Implemented but missing UI | `/api/v1/admin/internal/break-glass-status` | No clear live status integration | Display current emergency window status and expiry when available. |
+| Implemented and wired | `/api/v1/admin/break-glass/open`, `/close` | Break-glass section exists | Browser smoke open/close confirmation, checklist, and error states. |
+| Implemented and wired | `/api/v1/admin/internal/break-glass-status` | Break-glass status hook exists | Browser smoke current emergency window and expiry display. |
 | Implemented and usable | `/api/v1/admin/livekit/fallback` | Toggle is wired after API contract fix | Verify mode, reason, previous mode, and switched-at messaging. |
 | Implemented and usable | `/api/v1/admin/dpa/export` | DPA export is wired after API contract fix | Verify downloaded/exported artifact count and error handling. |
 | Implemented but incomplete | `/api/v1/admin/sites/{site_id}/signage-attest` | Attestation call exists, but site listing source is missing | Disable or clearly mark until a real site list source exists, or add backend site listing later. |
-| Implemented but missing UI | `/api/v1/admin/backups/status` | No production UI | Add backup status card or document why it stays admin/API-only. |
+| Implemented and wired | `/api/v1/admin/backups/status` | Health/admin UI can read backup status | Browser smoke missing, degraded, and ok states. |
 | Frontend calls nonexistent endpoint | `/api/v1/admin/sites` | API client has `listSites()` but backend route is not present | Remove, disable, or mark planned until backend route exists. |
-| Implemented but missing UI | `/api/v1/admin/dsr-requests` | Backend DSR list/create/detail/update routes are implemented; UI is not production-ready | Add DSR case management UI for requester, type, due date, status, outcome, and artifact link. |
+| Implemented and wired | `/api/v1/admin/dsr-requests` | DSR list/create/detail/update API client exists and compliance UI uses the list | Browser smoke DSR case creation/update flow and validation states. |
 | Frontend calls nonexistent endpoint | `/api/v1/admin/exposure-check`, `/media-isolation-check`, `/origin-binding-check` | API client has security check calls but backend routes are not present | Remove, disable, or mark planned until backend routes exist. |
 | Backend/gateway-only | Gateway heartbeat, ingest token, camera status, gateway WebSocket, LiveKit webhook | Must not be browser-callable | Keep out of frontend UI and browser API client. |
 | Pilot/future only | Viewer watermark, alerts, incident workflow, analyst notes, behavior baseline | Not production-ready | Keep as pilot backlog until backend data sources and models exist. |
@@ -43,10 +43,10 @@ These must be resolved before treating the frontend as production-ready.
 | Task | Status | Notes |
 |---|---|---|
 | Real LiveKit browser viewer playback | Not done | Use backend viewer tokens to connect with the LiveKit client as a subscriber only. |
-| Replace placeholder gateway UI | Required | Gateway list/detail, command history, assignment, update, disable, enable, and rotate views must use real `/api/v1/admin/gateways` data. |
-| Separate viewer camera data from admin camera data | Required | Viewer dashboard uses `/api/v1/cameras`; admin camera management uses `/api/v1/admin/cameras` and detail routes. |
-| Remove or disable nonexistent endpoint calls | Required | Security reports and site listing must not appear as broken production features; DSR now has backend routes but still needs UI integration. |
-| Expose missing implemented admin actions | Required | Add or document UI for user invite, MFA reset, backup status, break-glass status, and actor profile/activity. |
+| Verify real gateway UI data | Required | Gateway list/detail, command history, assignment, update, disable, enable, and rotate views are wired; smoke them against local/staging backend data. |
+| Verify viewer/admin camera split | Required | Viewer dashboard uses `/api/v1/cameras`; admin camera management uses `/api/v1/admin/cameras` and detail routes. |
+| Remove or disable nonexistent endpoint calls | Required | Security reports and site listing must not appear as broken production features. |
+| Expose or document remaining implemented admin actions | Required | Backup status has a UI path; actor profile/activity still needs a visible investigation path or documented no-UI decision. |
 | Full local smoke test | Required | Run the frontend against a local backend with dev auth and verify every sidebar page loads without React crashes or failed required calls. |
 | Full staging smoke test | Required | Test with Cloudflare Access session cookies, CSRF, backend routes, SSE where applicable, and deployed frontend assets. |
 | Browser publishing absence check | Required | Confirm the browser bundle does not request camera/microphone permission and does not publish media to LiveKit. |
@@ -60,7 +60,7 @@ These are important for production operations, but can follow the P0 blockers.
 |---|---|---|
 | Full audit filtering UI | Partial | Expose actor type/id, severity, category, outcome, resource, session ID, and date range filters supported by the backend. |
 | Actor investigation pages | Not done | Use `/api/v1/admin/actors/{actor_type}/{actor_id}/profile` and `/activity`; link from users, gateways, and audit rows. |
-| admin dashboard integration | Not done | Use `/api/v1/admin/dashboard` for backend-provided operational metrics. |
+| Admin dashboard integration | Wired; needs smoke | Use `/api/v1/admin/dashboard` for backend-provided operational metrics and verify empty/degraded states. |
 | Gateway command workflow | Partial | Verify command creation, list, cancel, cleanup, and maintenance against real backend data and production copy. |
 | Session management UI | Partial | Make active sessions and revoke behavior clear, including current-session consequences. |
 | Health and admin action polish | Partial | Keep destructive or risky admin actions behind confirmation states and show audit implications where relevant. |

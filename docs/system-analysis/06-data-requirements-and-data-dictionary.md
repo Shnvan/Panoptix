@@ -104,8 +104,8 @@ erDiagram
 
 | Gap | Impact | Recommendation |
 |---|---|---|
-| DSR API exists but no frontend UI was found | Compliance process is API-only until frontend work lands | Build DSR case management UI |
+| DSR API and frontend API wiring exist, but production browser smoke is pending | Compliance workflow should not be treated as production-ready until the UI flow is verified | Smoke-test DSR case management and add E2E coverage |
 | Backup metadata depends on backup job writes | Admin status is only as accurate as `backup_runs` rows written by the backup workflow | Keep backup job/runbook responsible for recording upload and restore validation evidence |
 | `sites.bystander_signage_attested_at` and `dpa_artifacts` both relate to signage | Risk of unclear source of truth | Confirm how site timestamp and artifact record should synchronize |
-| Frontend docs contain stale camera source type values | UI validation may reject valid values or submit invalid ones | Update docs/client types from actual enum |
+| Frontend source type docs were corrected; frontend runtime validation still needs smoke evidence | UI validation may still drift from backend enum if code is changed later | Keep docs/client types aligned with actual enum and cover camera create/update in browser smoke |
 

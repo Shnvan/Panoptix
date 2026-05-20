@@ -30,7 +30,9 @@ The backend is a FastAPI service. Most routes are mounted under `/api/v1`; `/hea
 | GET | `/api/v1/admin/gateways` | List gateways with filters/search | Existing |
 | POST | `/api/v1/admin/gateways` | Register gateway and return one-time service token | Existing |
 | GET | `/api/v1/admin/gateways/{gateway_id}` | Gateway detail | Existing |
+| PATCH | `/api/v1/admin/gateways/{gateway_id}` | Update gateway metadata | Existing |
 | POST | `/api/v1/admin/gateways/{gateway_id}/disable` | Disable gateway and remove publisher participants | Existing |
+| POST | `/api/v1/admin/gateways/{gateway_id}/enable` | Re-enable disabled gateway | Existing |
 | POST | `/api/v1/admin/gateways/{gateway_id}/rotate-credential` | Rotate one-time service token | Existing |
 | POST | `/api/v1/admin/gateways/{gateway_id}/cameras` | Grant/revoke gateway-camera assignment | Existing |
 | POST | `/api/v1/admin/gateways/{gateway_id}/commands` | Enqueue gateway command | Existing |
@@ -41,8 +43,10 @@ The backend is a FastAPI service. Most routes are mounted under `/api/v1`; `/hea
 | GET | `/api/v1/admin/cameras` | List cameras with filters/search | Existing |
 | POST | `/api/v1/admin/cameras` | Create camera | Existing |
 | GET | `/api/v1/admin/cameras/{camera_id}` | Camera detail | Existing |
+| PATCH | `/api/v1/admin/cameras/{camera_id}` | Update camera display/source metadata | Existing |
 | POST | `/api/v1/admin/cameras/{camera_id}/acl` | Grant/revoke camera ACL | Existing |
 | POST | `/api/v1/admin/cameras/{camera_id}/disable` | Retire camera and remove viewer participants | Existing |
+| POST | `/api/v1/admin/cameras/{camera_id}/enable` | Re-enable retired camera | Existing |
 | GET | `/api/v1/admin/audit` | List scrubbed audit rows | Existing |
 | GET | `/api/v1/admin/audit/verify` | Verify audit chain | Existing |
 | GET | `/api/v1/admin/audit/export` | Export signed scrubbed audit records | Existing |
@@ -53,6 +57,7 @@ The backend is a FastAPI service. Most routes are mounted under `/api/v1`; `/hea
 | POST | `/api/v1/admin/break-glass/close` | Close emergency access window | Existing |
 | GET | `/api/v1/admin/internal/break-glass-status` | Monitor break-glass state | Existing; unauthenticated monitor route |
 | GET | `/api/v1/admin/backups/status` | Backup status | Existing; reports `backup_runs` readiness |
+| GET/POST/PATCH | `/api/v1/admin/dsr-requests*` | DSR request workflow tracking | Existing |
 
 ## Gateway APIs
 
@@ -81,7 +86,7 @@ The backend is a FastAPI service. Most routes are mounted under `/api/v1`; `/hea
 
 ## Missing Or Unclear API Behavior
 
-- DSR request CRUD/workflow APIs now exist under `/api/v1/admin/dsr-requests`; frontend workflow integration is still pending.
-- Frontend-generated OpenAPI/TypeScript client is not implemented.
-- Documentation should be corrected where camera source type values differ from code.
+- The merged frontend uses a hand-written API client; generated OpenAPI/TypeScript client is still not implemented.
+- `GET /api/v1/admin/sites` and security report endpoints are still planned/nonexistent and must not appear as required production UI calls.
+- Real LiveKit browser subscriber playback is still pending even though viewer token and synthetic publish paths exist.
 

@@ -1,27 +1,56 @@
 # Panoptix Manual Testing Guide
 
-This guide helps you manually exercise the Panoptix backend API, the minimal gateway heartbeat agent, and the verification commands implemented so far.
+This guide helps you manually exercise the Panoptix backend API, the merged React/Vite frontend, the gateway/edge agent, and the verification commands implemented so far.
 
 ## Current Client-Visible Test Coverage
 
-There is no frontend UI yet. Current manual client testing is API-first through FastAPI Swagger UI, PowerShell/curl, and the edge-agent CLI.
+The `fullstack-integration` branch now includes a merged frontend V1. Manual testing should cover both API-first checks through FastAPI/PowerShell and browser checks through the React/Vite app.
 
 Use this quick order before drilling into the detailed examples below:
 
 1. Start the FastAPI backend with Uvicorn.
-2. Set local development auth headers for viewer, admin, and gateway identities.
-3. Test public health.
-4. Test browser/user endpoints.
-5. Test admin CRUD and control endpoints.
-6. Test gateway heartbeat, camera status, ingest token, and control endpoints.
-7. Test GitHub-backed user invite behavior and backup readiness reporting.
-8. Test audit verification and export.
-9. Test edge-agent CLI modes.
+2. Start the frontend dev server with `VITE_DEV_AUTH=true`.
+3. Test public health and browser login/bootstrap.
+4. Open every viewer/admin sidebar page and confirm there are no React crashes.
+5. Test browser/user endpoints.
+6. Test admin CRUD and control endpoints.
+7. Test gateway heartbeat, camera status, ingest token, and control endpoints.
+8. Test GitHub-backed user invite behavior and backup readiness reporting.
+9. Test audit verification and export.
+10. Test edge-agent CLI modes.
 
 ### Public and platform
 
 - `GET /health` - public platform health check.
 - `GET /api/v1/admin/health/deep` - admin deep health check for DB, LiveKit, and gateway freshness.
+
+### Local full-stack browser smoke
+
+Start the backend:
+
+```powershell
+cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m uvicorn cctv_api.main:app --host 127.0.0.1 --port 8000
+```
+
+Start the frontend in a second terminal:
+
+```powershell
+cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\web
+$env:VITE_DEV_AUTH = "true"
+$env:VITE_DEV_EMAIL = "admin@example.test"
+$env:VITE_DEV_ROLES = "admin"
+npm run dev
+```
+
+Open `http://localhost:3000` and verify:
+
+- login/session bootstrap loads with the dev-auth identity.
+- dashboard, cameras, gateways, users, audit/compliance, DSR, break-glass, health, and settings pages render.
+- implemented admin actions show readable success or problem-detail errors.
+- camera detail can request a viewer token, but real LiveKit browser playback remains pending.
+- no browser code requests camera/microphone permission or calls gateway-only publisher routes.
 
 ### Browser/user surfaces
 

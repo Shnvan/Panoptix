@@ -22,17 +22,23 @@ After that, inspect the source files related to the active task. Do not assume t
 ## Repository
 
 - Path: `C:\Users\Ivan\Downloads\panoptix-main\Panoptix`
-- Current branch: `backend`
+- Current branch: `fullstack-integration`
 - Remote: `https://github.com/Shnvan/Panoptix`
-- Current development mode: local-first backend and edge-agent foundation
+- Current development mode: combined backend/frontend integration and production-readiness hardening
+
+Latest full-stack integration commits:
+
+- `7d56797 fix: remove unused frontend icon import`
+- `b896be6 Merge remote-tracking branch 'origin/integratedCompleteFrontend' into fullstack-integration`
+- `0b501b8 Frontend Integration Complete V1.O` from the coworker frontend branch
 
 ## Current Objective
 
-Build the local-only secure CCTV control-plane and edge-agent foundation before moving to cloud accounts, real media publishing, mediamtx orchestration, or frontend UI.
+Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; the merged frontend V1 is available for local/staging smoke testing. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, backup restore-drill evidence, and production deployment hardening.
 
 The system is Panoptix, a secure live-view CCTV web monitoring system with three planes:
 
-- Control plane: FastAPI backend and future Next.js frontend
+- Control plane: FastAPI backend and React/Vite frontend
 - Media plane: LiveKit Cloud primary, self-hosted LiveKit fallback later
 - Camera plane: on-site edge gateway/NUC, mediamtx, isolated camera network
 
@@ -85,6 +91,10 @@ FastAPI backend currently implements:
 - DPA artifact export (`POST /admin/dpa/export` with kind filter)
 - bystander signage attestation (`POST /admin/sites/:id/signage-attest`)
 - admin-mediated MFA reset (`POST /admin/users/:id/mfa/reset` with self-reset prevention)
+- GitHub organization invite flow (`POST /admin/users/invite`)
+- camera and gateway update/re-enable lifecycle routes
+- DSR request workflow APIs (`/api/v1/admin/dsr-requests`)
+- backup status reporting from `backup_runs`
 
 ### Edge / Camera Plane
 
@@ -105,11 +115,11 @@ Current implemented code is in `apps/cctv-edge/agent/`:
 - `--control-once` CLI for one-shot WebSocket control check
 - `--control-loop-once` CLI for bounded reconnect/backoff control check
 
-Placeholders:
+Remaining edge/camera gaps:
 
-- `apps/cctv-edge/mediamtx/` is documentation-only for now
-- no real camera process management yet
-- no mediamtx runtime config generation yet
+- real CCTV hardware validation is still pending
+- production service deployment is still pending
+- mediamtx runtime generation remains future hardening
 
 ### Media Plane
 
@@ -118,8 +128,10 @@ Location: `apps/media-fallback/` and docs
 Current state:
 
 - LiveKit token minting exists in backend tests/source
-- LiveKit Cloud account is provisioned and synthetic publish smoke has passed
-- fallback LiveKit app remains placeholder
+- LiveKit Cloud account is provisioned and direct synthetic FFmpeg-to-LiveKit smoke has passed
+- backend-controlled gateway command publish smoke has passed with accepted ACK
+- frontend browser playback still needs real subscriber-only LiveKit integration
+- fallback LiveKit app remains operational future work
 
 ### Frontend
 
@@ -127,9 +139,11 @@ Location: `apps/web/`
 
 Current state:
 
-- placeholder only
-- frontend coworker ownership zone
-- do not add backend/security logic here
+- `origin/integratedCompleteFrontend` has been merged into `fullstack-integration`
+- React/Vite frontend includes the login shell, viewer dashboard, camera modal, admin dashboard, users, cameras, gateways, audit/compliance, DSR, break-glass, health, settings, dev-auth headers, and same-origin API client
+- frontend lint/build passed after merge
+- camera modal can request a short-lived viewer token, but real LiveKit subscriber playback is still pending
+- do not add backend/security logic here; browsers remain viewers only
 
 ### Database
 
@@ -178,7 +192,7 @@ Completed in this batch:
 - `tests/test_rate_limit_admin.py`: 6 new tests for admin rate limiting
 - `control.py`: Exponential backoff + jitter for WebSocket reconnect (`base * 2^attempt + jitter`)
 - `tests/test_control.py`: 3 new backoff tests (27 total)
-- `.github/workflows/ci.yml`: Pinned action versions, added edge-agent CI job (ruff, mypy, pytest, compileall, osv-scanner), triggered on backend branch
+- `.github/workflows/ci.yml`: Pinned action versions and added edge-agent CI job (ruff, mypy, pytest, compileall, osv-scanner)
 - `.github/dependabot.yml`: Added pip scope for `apps/cctv-edge/agent`
 
 **Round 2 — Threat models + runbooks:**

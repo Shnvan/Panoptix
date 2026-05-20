@@ -4,7 +4,7 @@
 |---|---|---|---|
 | NFR-001 | Security | Browser users shall authenticate through Cloudflare Access or development-only local auth. | Existing |
 | NFR-002 | Security | Authorization shall fail closed when roles, camera ACLs, or gateway assignments are missing. | Existing |
-| NFR-003 | Security | Browser clients shall never receive RTSP URLs, camera credentials, gateway publish tokens, raw database URLs, or long-lived auth secrets. | Existing in backend contract; frontend missing |
+| NFR-003 | Security | Browser clients shall never receive RTSP URLs, camera credentials, gateway publish tokens, raw database URLs, or long-lived auth secrets. | Existing in backend contract; frontend guardrails exist, browser smoke pending |
 | NFR-004 | Security | Unsafe browser mutations shall require CSRF protection. | Existing |
 | NFR-005 | Security | Security headers shall be applied to success and error responses. | Existing |
 | NFR-006 | Security | Gateway routes shall require gateway identity and route/principal ID matching. | Existing |
@@ -23,9 +23,9 @@
 | NFR-019 | Data integrity | Audit logs shall be tamper-evident through chained HMAC hashes. | Existing |
 | NFR-020 | Auditability | Privileged state changes shall write audit events and fail closed where audit is required. | Existing |
 | NFR-021 | Compatibility | Backend and edge agent shall run on Python 3.12+. | Existing |
-| NFR-022 | Compatibility | Frontend planned stack shall be Next.js/React/TypeScript but not assumed implemented. | Missing implementation |
+| NFR-022 | Compatibility | Frontend stack shall use React/TypeScript and remain compatible with same-origin backend API calls. | Vite/React implementation exists |
 | NFR-023 | Backup and recovery | R2 backup/restore procedures shall exist and be drillable. | Partially Existing |
-| NFR-024 | Backup and recovery | Backup status shall be available from admin API. | Missing |
-| NFR-025 | Usability | Viewer UI shall show loading, offline, degraded, unavailable, denied, and no-camera states. | Missing frontend |
-| NFR-026 | Usability | Admin UI shall show warnings for destructive or rotation-heavy actions. | Missing frontend |
+| NFR-024 | Backup and recovery | Backup status shall be available from admin API. | Existing |
+| NFR-025 | Usability | Viewer UI shall show loading, offline, degraded, unavailable, denied, and no-camera states. | Partially Existing; browser smoke pending |
+| NFR-026 | Usability | Admin UI shall show warnings for destructive or rotation-heavy actions. | Partially Existing; browser smoke pending |
 
