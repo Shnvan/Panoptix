@@ -2,7 +2,19 @@
 
 This document lists every implemented backend API endpoint, what the frontend can build against today, what is not ready yet, and local dev setup instructions.
 
-Last updated: 2026-05-13 (post LiveKit Cloud provisioning, R2 bucket provisioning, CI finalization)
+Last updated: 2026-05-21 (post local full-stack smoke, alert email pilot, DSR, GitHub invite, and backup status work)
+
+Read first: [Frontend Coworker Handoff](FRONTEND_HANDOFF.md).
+
+## Current Backend State For Frontend
+
+- Local full-stack smoke is working through Vite and FastAPI when `apps/api/.env` is configured locally. That file is ignored and must never be committed.
+- The active local database has reached Alembic head `0008_alerts_email`.
+- Admin users, cameras, gateways, DSR requests, backup status, break-glass, health, and alert APIs are backend-available.
+- `POST /api/v1/admin/users/invite` is implemented, but `github-invites-not-configured` is expected unless GitHub invite settings are intentionally enabled.
+- Alert records and backend SMTP email notification support are implemented. Email is backend-only and disabled by default until SMTP settings are configured.
+- Real LiveKit browser playback is still not production-complete. The backend mints subscriber-only viewer tokens; the frontend still needs the subscriber player.
+- Real CCTV hardware validation, deployed frontend routing, and staging/prod browser smoke are still pending.
 
 ---
 
@@ -183,7 +195,9 @@ All admin endpoints require the `admin` role.
 | Method | Path | Request | Response |
 |---|---|---|---|
 | `POST` | `/api/v1/admin/gateways` | `{ "name", "mtls_fingerprint"?, "cert_expires_at"? }` | gateway summary + one-time `service_token` |
+| `PATCH` | `/api/v1/admin/gateways/{gateway_id}` | `{ "name"?, "mtls_fingerprint"?, "cert_expires_at"? }` | gateway summary |
 | `POST` | `/api/v1/admin/gateways/{gateway_id}/disable` | `{ "reason" }` | disabled gateway |
+| `POST` | `/api/v1/admin/gateways/{gateway_id}/enable` | none | gateway summary |
 | `POST` | `/api/v1/admin/gateways/{gateway_id}/rotate-credential` | `{ "reason" }` | `{ "gateway_id", "service_token", "rotated_at" }` |
 | `POST` | `/api/v1/admin/gateways/{gateway_id}/cameras` | `{ "action": "grant"/"revoke", "camera_id" }` | assignment result |
 
@@ -211,6 +225,19 @@ All admin endpoints require the `admin` role.
 Runs expired-command cleanup and due publish-stop processing in a single admin call. Idempotent and safe to call repeatedly.
 
 The backend also has a disabled-by-default in-process maintenance scheduler controlled by `ENABLE_MAINTENANCE_SCHEDULER` and `MAINTENANCE_INTERVAL_SECONDS`; the admin endpoint remains available for manual runs.
+
+### Alerts
+
+| Method | Path | Request | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/admin/alerts` | query: `cursor`, `limit`, `status`, `severity`, `category` | `{ "items": [...], "next_cursor": null }` |
+| `GET` | `/api/v1/admin/alerts/{alert_id}` | none | alert detail |
+| `POST` | `/api/v1/admin/alerts/{alert_id}/acknowledge` | none | acknowledged alert |
+| `POST` | `/api/v1/admin/alerts/{alert_id}/resolve` | none | resolved alert |
+
+- Alert fields include `alert_id`, `severity`, `category`, `title`, `message`, `status`, `source`, linked resource fields, actor fields, timestamps, and sanitized metadata.
+- Backend creates alerts for break-glass open, invalid audit verification, admin role grants, gateway disable, rejected gateway commands, and degraded/missing backup status checks.
+- SMTP email notification is backend-only. The frontend should show alert records and statuses, not send email directly.
 
 ### Audit
 
@@ -323,11 +350,18 @@ List endpoints use cursor-based pagination:
 ### Admin Screens
 
 - [x] Basic user list
+- [x] GitHub organization invite form can call the backend route; local disabled-config error is expected unless invite env is enabled
+- [x] MFA reset action
 - [x] Create camera form
+- [x] Update camera supported fields
 - [x] Disable/retire camera
+- [x] Re-enable camera
 - [x] Grant/revoke camera ACL by user email
 - [x] Create gateway
+- [x] Update gateway supported fields
 - [x] Disable gateway
+- [x] Re-enable gateway
+- [x] Rotate gateway credential with one-time token display
 - [x] Assign/revoke camera to gateway
 - [x] List queued gateway commands with status filter
 - [x] Cancel pending commands
@@ -335,6 +369,9 @@ List endpoints use cursor-based pagination:
 - [x] Audit log viewer with action filter and pagination
 - [x] Audit chain verification display
 - [x] Audit JSONL export download
+- [x] DSR request list/create/detail/update APIs are backend-ready
+- [x] Backup status is implemented from database-known backup readiness
+- [ ] Alerts page should use the real alert list/detail/acknowledge/resolve APIs
 
 ### Session Management
 
@@ -348,22 +385,22 @@ List endpoints use cursor-based pagination:
 
 ---
 
-## What Is NOT Ready Yet
+## What Still Needs Caution
 
-Do not build against or depend on these:
+These features are either incomplete in the frontend, need staged/production smoke, or require external configuration before full use:
 
 | Feature | Status |
 |---|---|
-| Real LiveKit Cloud video playback | LiveKit Cloud account provisioned (APAC); direct synthetic FFmpeg-to-LiveKit and backend-controlled synthetic gateway publish smoke passed. Frontend still needs subscriber playback UI. |
+| Real LiveKit Cloud video playback | LiveKit Cloud account provisioned; direct synthetic FFmpeg-to-LiveKit and backend-controlled synthetic gateway publish smoke passed. Frontend still needs subscriber playback UI. |
 | Real camera streams | Edge agent supports opt-in `livekit-ffmpeg` publishing and synthetic RTSP smoke has passed. Real CCTV hardware validation is still pending. |
-| Full admin user management | role update, disable, MFA reset, and GitHub-backed invite flow implemented. |
+| Full admin user management | Role update, disable, MFA reset, and GitHub-backed invite flow are implemented. GitHub invite requires configured invite env before real emails are sent. |
 | Gateway credential rotation | `POST /api/v1/admin/gateways/{id}/rotate-credential` is **implemented** (generates new service token, revokes old hash, audit-logged) |
 | DPA/signage export | `POST /api/v1/admin/dpa/export` and `POST /api/v1/admin/sites/:id/signage-attest` are **implemented** (JSONL bundle with kind filter, audit-logged) |
 | LiveKit fallback mode | `POST /api/v1/admin/livekit/fallback` is **implemented** (DB flag flip between `cloud`/`fallback`, audit-logged) |
-| Production Cloudflare Access | Staging is live (`staging.panoptix.site`) with GitHub OAuth via Cloudflare Access. Production waits for 7-day gate (clears 2026-05-20) |
+| Production Cloudflare Access | Backend staging domain exists; deployed frontend routing and full staging browser smoke are still pending. |
 | Production scheduler | Maintenance scheduler is implemented (`ENABLE_MAINTENANCE_SCHEDULER`) but disabled by default. Manual admin endpoint `POST /api/v1/admin/jobs/run-maintenance` is available |
 
-Frontend can use placeholder/mock UI for these features and wire them when the backend adds them.
+Frontend should use real backend APIs for implemented features and show planned/disabled states only for routes that are not implemented.
 
 ---
 

@@ -1,5 +1,14 @@
 # Frontend Production TODO
 
+Start here for current frontend coordination: [Frontend Coworker Handoff](FRONTEND_HANDOFF.md).
+
+## What Frontend Should Do Next
+
+1. Wire the existing Alerts page to the backend alert APIs: `GET /api/v1/admin/alerts`, `GET /api/v1/admin/alerts/{alert_id}`, `POST /api/v1/admin/alerts/{alert_id}/acknowledge`, and `POST /api/v1/admin/alerts/{alert_id}/resolve`.
+2. Finish real LiveKit subscriber playback using `GET /api/v1/cameras/{camera_id}/view-token`. The browser must subscribe only and must never publish.
+3. Smoke every current sidebar page against the local backend: Dashboard, Live Cameras, Camera Management, Gateways, Users & Access, Audit Logs, Alerts, System Health, Break Glass, and Settings.
+4. Fix only API contract/wiring issues found during smoke. Do not add new roadmap pages or redesign UI/UX unless explicitly assigned.
+
 This is the frontend source of truth for production-readiness work on the combined `fullstack-integration` branch. It tracks every implemented backend capability and makes each one either usable in the frontend, intentionally hidden, or explicitly marked backend/gateway-only.
 
 Design direction: new frontend work **must** follow [Panoptix Design System](PANOPTIX_DESIGN_SYSTEM.md). The current UI uses blue-tinted slate backgrounds (`#020617`, `#0f172a`), cyan accents (`#06b6d4`), and rounded corners — all of which must be replaced with pure dark backgrounds (`#0A0A0A`, `#111111`, `#1A1A1A`), warm orange accent (`#F07C1E`), and sharp edges (`border-radius: 0`). See the design system doc for the complete migration mapping.
@@ -138,4 +147,4 @@ Current local evidence: Dashboard/bootstrap, live-camera camera list, Users & Ac
 
 ## Current Default Next Task
 
-The next frontend implementation task should be real LiveKit browser viewer playback. The backend already mints short-lived subscriber tokens; the frontend still needs the subscriber-only player.
+The next small integration task is wiring the existing Alerts page to real backend alert APIs. The top production blocker remains real LiveKit browser viewer playback. The backend already mints short-lived subscriber tokens; the frontend still needs the subscriber-only player.

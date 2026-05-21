@@ -17,6 +17,8 @@ Before making any changes, read this file completely, then read these files in o
 9. `docs/implementation/test-plan.md`
 10. `docs/runbooks/gateway-control-channel.md`
 
+For frontend coordination, start with `docs/frontend/FRONTEND_HANDOFF.md`, then follow the read order in that file.
+
 After that, inspect the source files related to the active task. Do not assume the whole repository has been loaded into context. Search and read files on demand.
 
 ## Repository
