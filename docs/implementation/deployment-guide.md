@@ -8,9 +8,9 @@ This guide defines the intended deployment shape before implementation starts.
 
 | Public route | Cloudflare Access | Railway service | Responsibility |
 |---|---|---|---|
-| `/`, `/dashboard`, `/admin`, `/admin-emergency`, `/privacy` | Required | `cctv-web` | Next.js UI shell and browser app. |
-| `/_next/*` and frontend static assets | Required | `cctv-web` | Versioned frontend assets with strict headers. |
-| `/api/v1/*` | Required unless gateway/webhook policy says otherwise | `cctv-api` | FastAPI protected API. |
+| `/`, `/dashboard`, `/admin`, `/admin-emergency`, `/privacy` | Required | `cctv-web` | React/Vite UI shell and browser app. |
+| `/assets/*` and frontend static assets | Required | `cctv-web` | Versioned frontend assets with strict headers. |
+| `/api/v1/*` | Required unless gateway/webhook policy says otherwise | `cctv-web` proxy to `cctv-api` or direct `cctv-api` route | FastAPI protected API. |
 | `/api/v1/gateway-control/ws` | Gateway policy | `cctv-api` | Gateway-initiated outbound WebSocket command channel. |
 | `/api/v1/webhooks/livekit` | HMAC, server-to-server | `cctv-api` | LiveKit webhook receiver. |
 | `/health` | Monitor service-token or non-sensitive platform health | `cctv-api` | Exact body `{ "status": "ok" }`. |
@@ -31,10 +31,23 @@ Required controls:
 
 ### `cctv-web`
 
-- Next.js frontend service.
+- React/Vite frontend service.
 - No authorization authority.
 - No long-lived browser tokens.
+- Serves the built frontend from `apps/web/dist`.
+- Proxies `/api/v1/*` and `/health` to `PANOPTIX_API_ORIGIN` so browser calls remain same-origin.
 - Direct Railway URL must not expose user data; only harmless shell/redirect behavior is allowed.
+
+Railway frontend service settings:
+
+```text
+Root directory: apps/web
+Build command: npm ci && npm run build
+Start command: npm start
+Environment: PANOPTIX_API_ORIGIN=https://<backend-service-domain>
+```
+
+Do not set `VITE_DEV_AUTH=true` in deployed frontend environments. Do not add backend-only secrets such as database URLs, LiveKit API secrets, R2 keys, GitHub invite tokens, gateway service tokens, or audit keys to the frontend service.
 
 ### `cctv-api`
 

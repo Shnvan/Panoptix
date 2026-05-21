@@ -49,6 +49,30 @@ npm run lint
 npm run build
 ```
 
+## Railway Deployment
+
+Deploy the frontend as a separate Railway service from the same GitHub repository.
+
+Railway service settings:
+
+```text
+Root directory: apps/web
+Build command: npm ci && npm run build
+Start command: npm start
+```
+
+Required frontend service environment variable:
+
+```text
+PANOPTIX_API_ORIGIN=https://staging.panoptix.site
+```
+
+Use the actual backend public origin if it differs. Do not include a trailing slash.
+
+The production `npm start` command runs `server.mjs`, which serves the built React files from `dist/` and proxies same-origin browser requests for `/api/v1/*` and `/health` to `PANOPTIX_API_ORIGIN`. This preserves the frontend API client's same-origin contract and avoids putting backend secrets in the browser.
+
+Do not set `VITE_DEV_AUTH=true` in a deployed frontend service. Dev-auth is local-only.
+
 ## Guardrails
 
 - Do not request browser camera or microphone permissions.
