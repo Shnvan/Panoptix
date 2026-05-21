@@ -148,6 +148,10 @@ Current production blockers:
 - Frontend Alerts page needs wiring to real backend alert APIs (currently shows frontend placeholder).
 - Production deployment: Neon production DB, Cloudflare Access production policies, R2 production token, and break-glass hardware key are still pending.
 
+GitHub invite staging verification - 2026-05-21:
+
+GitHub organization `panoptix-site` created (free tier). Fine-grained PAT generated with `Members: Read and Write` scope scoped to `panoptix-site` org. `GITHUB_INVITES_ENABLED=true`, `GITHUB_ORG=panoptix-site`, and `GITHUB_INVITE_TOKEN` set in Railway `cctv-api` env vars. Railway redeployed successfully. Staging smoke confirmed: two invited users (`jamesangelobolano` and `aequilibrium1714`) appeared in Users & Access with assigned roles, confirming the invite endpoint reaches the GitHub API and creates local user records correctly.
+
 ## Current Human Decisions
 
 - Legal/privacy owner naming is **not a current blocker** for the prototype.
