@@ -1,6 +1,6 @@
 # Frontend Coworker Handoff
 
-Last updated: 2026-05-21
+Last updated: 2026-05-21 (post staging smoke, GitHub invites live)
 
 This is the first document the frontend coworker should read before changing the React app on `fullstack-integration`. It summarizes what the system owner has verified, what backend APIs are ready, and what frontend work should happen next.
 
@@ -19,10 +19,11 @@ This is the first document the frontend coworker should read before changing the
 - Local backend uses ignored `apps/api/.env`; do not commit or copy real values.
 - Local database migration head has reached `0008_alerts_email`.
 - Local full-stack smoke through Vite and FastAPI has passed for the main same-origin admin surfaces already tested: dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health.
-- GitHub organization invites are implemented in the backend, but `github-invites-not-configured` is expected unless GitHub invite settings are intentionally enabled.
-- Alert records and backend SMTP email-notification foundation are implemented. SMTP email is backend-only and disabled by default until configured.
+- GitHub organization invites are live on staging (`panoptix-site` org). Inviting users through the Users & Access page creates local user records and sends GitHub org invitations.
+- Alert records and backend SMTP email-notification foundation are implemented. SMTP email is backend-only and disabled by default until configured. The Alerts page currently shows a frontend placeholder and needs wiring to the real backend alert APIs.
+- Staging deployed browser smoke passed 2026-05-21: all 10 sidebar pages loaded through Cloudflare Access at `staging.panoptix.site` with no 500/502 errors.
 - Real LiveKit browser subscriber playback is still not production-complete.
-- Real CCTV hardware validation, deployed frontend routing, and staging/prod smoke are still pending.
+- Real CCTV hardware validation is still pending.
 
 ## What To Do Next
 
@@ -81,7 +82,7 @@ http://localhost:3000
 
 Expected local-only behavior:
 
-- `github-invites-not-configured` is acceptable while GitHub invite settings are disabled.
+- GitHub invites are live on staging. Inviting a user should succeed and create the local profile. If testing locally without GitHub env vars, `github-invites-not-configured` is still acceptable.
 - Gateway health can be stale if no edge agent is heartbeating.
 - LiveKit playback can remain placeholder/pending until subscriber playback is implemented.
 - Current implemented pages should not show broad Internal Server Error failures.

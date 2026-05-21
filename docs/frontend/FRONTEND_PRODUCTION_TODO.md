@@ -25,7 +25,7 @@ Design direction: new frontend work **must** follow [Panoptix Design System](PAN
 | Implemented and usable | `/api/v1/sessions/active`, `/api/v1/sessions/revoke` | Settings/session UI exists | Verify revoke UX and session refresh behavior. |
 | Implemented and wired | `/api/v1/admin/users`, role update, disable | User admin UI exists and local smoke has loaded real users/roles | Continue browser smoke for destructive actions, disable behavior, and edge-case error states. |
 | Implemented and wired | `/api/v1/admin/users/{user_id}/mfa/reset` | MFA reset modal calls the backend route | Browser smoke success/error states and audit copy. |
-| Implemented and wired | `/api/v1/admin/users/invite` | GitHub invite form calls the backend route; `github-invites-not-configured` is expected when local GitHub invites are disabled | Browser smoke success and validation states only when real GitHub invite config is intentionally enabled. |
+| Implemented and wired | `/api/v1/admin/users/invite` | GitHub invite form calls the backend route; staging-verified with `panoptix-site` org (2026-05-21) | Browser smoke success and validation states. Invite should succeed on staging; `github-invites-not-configured` is acceptable locally without GitHub env vars. |
 | Implemented but incomplete | `/api/v1/admin/audit`, verify, export | Audit table and verify endpoint pass local same-origin smoke; filtering UI remains limited | Add full audit filters for actor, severity, category, outcome, resource, session, and date range. |
 | Implemented but missing UI | `/api/v1/admin/actors/{actor_type}/{actor_id}/profile` | No actor investigation UI | Add actor profile page/drawer linked from users, gateways, audit rows, and break-glass/system actors. |
 | Implemented but missing UI | `/api/v1/admin/actors/{actor_type}/{actor_id}/activity` | No actor activity timeline UI | Add activity timeline with cursor pagination and filters. |
@@ -58,7 +58,7 @@ These must be resolved before treating the frontend as production-ready.
 | Remove or disable nonexistent endpoint calls | Required | Security reports and site listing must not appear as broken production features. |
 | Expose or document remaining implemented admin actions | Required | Backup status has a UI path; actor profile/activity still needs a visible investigation path or documented no-UI decision. |
 | Full local smoke test | Passed for current same-origin API surfaces | Dashboard/bootstrap, live-camera camera list, users, cameras, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health pass through Vite against a local backend with dev auth. Continue manual page-specific destructive/action smoke where data allows. |
-| Full staging smoke test | Required | Test with Cloudflare Access session cookies, CSRF, backend routes, SSE where applicable, and deployed frontend assets. |
+| Full staging smoke test | ✅ Passed 2026-05-21 | All 10 sidebar pages loaded through Cloudflare Access at `staging.panoptix.site` with no 500/502 errors. Network tab confirmed all app API requests returned 200. |
 | Browser publishing absence check | Required | Confirm the browser bundle does not request camera/microphone permission and does not publish media to LiveKit. |
 | Sensitive-value exposure check | Required | Confirm no RTSP URLs, camera passwords, LiveKit admin secrets, Cloudflare service tokens, or long-lived auth tokens appear in frontend code, logs, storage, or UI. |
 
@@ -84,7 +84,7 @@ These belong to pilot/future work unless the team explicitly pulls them forward.
 | Task | Status | Notes |
 |---|---|---|
 | Viewer identity watermark | Pilot | Add visible viewer identity watermarking on video once live playback is wired. |
-| Alerts UI | Pilot backend foundation ready | Use `/api/v1/admin/alerts` plus detail, acknowledge, and resolve routes. Backend currently creates alerts for break-glass, invalid audit verification, admin role grants, gateway disable, rejected gateway command, and degraded/missing backup status. SMTP email is backend-only and disabled unless configured. |
+| Alerts UI | P0 — backend foundation ready | Use `/api/v1/admin/alerts` plus detail, acknowledge, and resolve routes. Backend currently creates alerts for break-glass, invalid audit verification, admin role grants, gateway disable, rejected gateway command, and degraded/missing backup status. SMTP email is backend-only and disabled unless configured. The current Alerts page shows a frontend placeholder and must be wired to these real APIs. |
 | Incident workflow | Pilot | Add incident list/detail screens after backend incident models exist. |
 | Analyst notes | Pilot | Add admin/security notes attached to actor profiles after backend note storage exists. |
 | Behavior baseline and actor risk score UI | Pilot | Display normal-vs-unusual actor behavior only after backend baselines and risk scoring exist. |
@@ -143,7 +143,7 @@ For the smoke test:
 7. Verify planned features are marked as planned or disabled.
 8. Confirm there are no React page errors, token leaks, or unexpected 4xx/5xx responses for implemented features.
 
-Current local evidence: Dashboard/bootstrap, live-camera camera list, Users & Access, Camera Management, Gateways, Audit Logs, audit verification, DSR list, break-glass status, backup status, deep health, sessions, and health have passed same-origin smoke against a local FastAPI backend using an ignored `apps/api/.env` and dev auth. Treat `github-invites-not-configured` as expected unless GitHub invite settings are intentionally enabled. Treat any one-time gateway service token shown in the UI as sensitive; do not screenshot it. The exposed local test gateway named `what` was disabled during smoke cleanup.
+Current local evidence: Dashboard/bootstrap, live-camera camera list, Users & Access, Camera Management, Gateways, Audit Logs, audit verification, DSR list, break-glass status, backup status, deep health, sessions, and health have passed same-origin smoke against a local FastAPI backend using an ignored `apps/api/.env` and dev auth. GitHub invites are live on staging (`panoptix-site` org, 2026-05-21). Staging deployed browser smoke passed 2026-05-21: all 10 sidebar pages loaded through Cloudflare Access at `staging.panoptix.site` with no 500/502 errors. Treat any one-time gateway service token shown in the UI as sensitive; do not screenshot it.
 
 ## Current Default Next Task
 
