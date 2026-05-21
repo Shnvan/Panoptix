@@ -50,6 +50,15 @@ class Settings(BaseSettings):
     ALERT_EMAIL_MIN_SEVERITY: str = "high"
     ALERT_EMAIL_TIMEOUT_SECONDS: int = Field(default=10, ge=1, le=60)
 
+    # ── Suspicious login detection (pilot) ──
+    SUSPICIOUS_LOGIN_DETECTION_ENABLED: bool = False
+    SUSPICIOUS_LOGIN_USUAL_HOURS_START: int = Field(default=6, ge=0, le=23)
+    SUSPICIOUS_LOGIN_USUAL_HOURS_END: int = Field(default=23, ge=0, le=23)
+    SUSPICIOUS_LOGIN_RAPID_SESSION_COUNT: int = Field(default=5, ge=2, le=50)
+    SUSPICIOUS_LOGIN_RAPID_SESSION_WINDOW_SECONDS: int = Field(default=300, ge=60)
+    SUSPICIOUS_LOGIN_IMPOSSIBLE_TRAVEL_MINUTES: int = Field(default=30, ge=5, le=120)
+    SUSPICIOUS_LOGIN_MAX_KNOWN_IPS: int = Field(default=100, ge=10, le=500)
+
     # ── Session / cookie ──
     SESSION_COOKIE_NAME: str = "panoptix_session"
     SESSION_SIGNING_KEY: str = "replace-me"

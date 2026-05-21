@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import Depends, Request, Response, WebSocket
 from sqlalchemy.orm import Session as DbSession
@@ -27,6 +28,7 @@ from cctv_api.security.sessions import (
     revoke_session,
     touch_session,
 )
+from cctv_api.security.suspicious_login import check_login_suspicion
 from cctv_api.security.users import get_or_create_user, get_user_roles
 
 
@@ -95,6 +97,21 @@ def require_authenticated_user(
             action="auth.session.created", detail=None,
             actor_id=user.id, session_id=session_row.id,
         )
+        # ── Suspicious login detection (pilot) ──
+        if settings.SUSPICIOUS_LOGIN_DETECTION_ENABLED:
+            try:
+                country = request.headers.get("cf-ipcountry")
+                check_login_suspicion(
+                    db,
+                    settings=settings,
+                    user_id=user.id,
+                    ip=ip,
+                    country=country,
+                    user_agent=ua,
+                    login_time=datetime.now(timezone.utc),
+                )
+            except Exception:
+                pass  # Never block authentication on detection failure
     else:
         # ── Session TTL enforcement (§16.4) ──
         expiry_reason = is_session_expired(

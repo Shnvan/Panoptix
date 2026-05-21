@@ -478,3 +478,23 @@ class WebhookReplayCache(Base):
     signature: Mapped[str] = mapped_column(String(256), primary_key=True)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class LoginBaseline(Base):
+    __tablename__ = "login_baselines"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    known_ips: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'[]'"))
+    known_countries: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'[]'"))
+    known_user_agents: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'[]'"))
+    usual_hours_start: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("6"))
+    usual_hours_end: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("23"))
+    last_login_ip: Mapped[str | None] = mapped_column(String(45))
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_login_country: Mapped[str | None] = mapped_column(String(2))
+    login_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()"), nullable=False
+    )
