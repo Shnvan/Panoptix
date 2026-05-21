@@ -124,11 +124,28 @@ Security and public-readiness notes:
 - Gateway publish tokens remain backend-to-gateway only and are not browser-facing.
 - Branch protection and ruleset restoration remain a GitHub console check.
 
+Staging deployed browser smoke - 2026-05-21:
+
+Operator authenticated through Cloudflare Access at `staging.panoptix.site` via GitHub OAuth. All sidebar pages loaded without 500/502 errors. Console warnings were from browser extensions only (QuillBot, Chrome translation), not from the Panoptix app.
+
+- Dashboard: loaded with admin layout after Cloudflare Access auth gate.
+- Live Cameras: sidebar accessible, LiveKit subscriber playback still pending.
+- Camera Management: 3 cameras visible (Ivan-test, smoke test retired, Synthetic Smoke Camera). ACL, Retire, Enable, Register Camera buttons rendered.
+- Gateways: 2 gateways visible (ivan-esting enabled, smoke-gateway retired). Register form, Control Channel "Connected", Assign/Cmds/Rotate/Disable buttons rendered.
+- Users & Access: 2 users visible (ivanliao41 admin/viewer, admin-smoke active). Edit Roles, MFA Reset, Disable, Invite User rendered.
+- Audit Logs: 32 events loaded. Timestamps, actors, actions, resources, IPs (100.64.0.x Cloudflare range) rendered. Verify Chain and Export JSONL buttons present. Chain verification showed "FAILED — integrity compromised" which is expected in staging due to HMAC key changes during development.
+- Alerts: "Active Alerts: 1 notification — System Ready". Frontend placeholder, not yet wired to real backend alert APIs (frontend coworker task).
+- System Health: "Operational, Uptime: 99.0%" shown in sidebar status.
+- Break Glass: "Break-Glass Inactive — No active emergency window". Security requirements, automatic safeguards, Open Emergency Window button, and rotation checklist (4 items) rendered.
+- Settings: Profile showing email, subject UUID, roles (admin/viewer), kind (user), permissions (Standard), auth mode (Cloudflare Access). Security information section. Active Sessions list with Revoke buttons.
+
+Network tab confirmed all app API requests returned 200. Failed network entries were from the QuillBot browser extension (initiator: `quillbot-content-c449`), not from Panoptix.
+
 Current production blockers:
 
 - Frontend LiveKit subscriber playback still needs implementation and browser smoke testing.
 - Real CCTV hardware validation is still pending; synthetic RTSP is verified.
-- Staging/deployed frontend browser smoke evidence is still pending (requires authenticated browser session against `staging.panoptix.site`).
+- Frontend Alerts page needs wiring to real backend alert APIs (currently shows frontend placeholder).
 - Production deployment: Neon production DB, Cloudflare Access production policies, R2 production token, and break-glass hardware key are still pending.
 
 ## Current Human Decisions
