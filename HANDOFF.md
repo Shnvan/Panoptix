@@ -146,7 +146,7 @@ Current state:
 - frontend lint/build passed after merge and after local smoke cleanup
 - local same-origin smoke has passed through the Vite proxy for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health
 - local API configuration uses `apps/api/.env`, which is ignored by Git; do not commit database URLs, audit keys, LiveKit keys, GitHub tokens, R2 secrets, or gateway service tokens
-- local backend migration state was verified at Alembic head `0007_gateway_command_tables`
+- local backend migration state was verified at Alembic head `0008_alerts_email`
 - `github-invites-not-configured` is expected locally while `GITHUB_INVITES_ENABLED=false`
 - one-time gateway service tokens must never be screenshotted or committed; the exposed local test gateway named `what` was disabled during smoke cleanup
 - camera modal can request a short-lived viewer token, but real LiveKit subscriber playback is still pending
@@ -162,9 +162,55 @@ Current state:
 - SQLAlchemy models exist
 - command queue model and migration exist (`GatewayCommandQueue`, `0007_gateway_command_tables`)
 - camera publish-state model and migration exist (`CameraPublishState`, `0007_gateway_command_tables`)
+- alert and alert notification models and migration exist (`Alert`, `AlertNotification`, `0008_alerts_email`)
 - DB coworker ownership is documented, but backend tests use database helpers where needed
 
 ## Recently Completed Milestones
+
+### Alert System & Email Notification Pilot (2026-05-21)
+
+Completed in this milestone:
+
+- `apps/api/src/cctv_api/api/router.py`: added endpoints for alert list, details, acknowledge, and resolve.
+- `apps/api/src/cctv_api/security/alerts.py`: business logic for alert detection, deduplication, and lifecycle transitions.
+- `apps/api/src/cctv_api/integrations/email_alerts.py`: SMTP-based email alert notification sender helper.
+- Applied migration `0008_alerts_email` on the active local database, adding `alerts` and `alert_notifications` tables. Apply separately in staging/production before deployed alert testing.
+- Auto-triggered alerts for critical security and operational events (break-glass open, tampered audit check, admin role grant, gateway disable, rejected commands, and degraded backups).
+- Redact-safe secrets validation ensuring no sensitive settings leak.
+- Added focused alert API, detection, and email-notification tests.
+
+### DSR Workflow API (2026-05-20)
+
+Completed in this milestone:
+
+- Added DSR request workflow endpoints (`GET/POST/PATCH /api/v1/admin/dsr-requests`) to track compliance cases.
+- Supports status transitions, requester contact, subject/request type, site/artifact links, camera scope notes, due/verified dates, and outcome tracking.
+- Audit logged DSR events (`admin.dsr.created`, `admin.dsr.viewed`, `admin.dsr.updated`).
+- Added comprehensive unit tests in `apps/api/tests/test_dsr_requests.py`.
+
+### GitHub Organization Invite Flow (2026-05-20)
+
+Completed in this milestone:
+
+- Implemented GitHub API integration in `github_invites.py` for inviting users to the organization (`POST /api/v1/admin/users/invite`).
+- Added config toggles and invite failure handles (`github-invites-not-configured`).
+- Audit logged the invite transactions and added unit tests in `test_stub_endpoints.py`.
+
+### Camera and Gateway Lifecycle Endpoints (2026-05-19)
+
+Completed in this milestone:
+
+- Added `PATCH` endpoints for metadata modifications and `POST /enable` endpoints to support re-enabling previously disabled gateways and cameras.
+- Ensured state transitions correctly update supported metadata fields and audit logged modifications.
+- Handled viewer/publisher participant cleanup on gateway/camera disablement.
+
+### Backup Status Reporting (2026-05-19)
+
+Completed in this milestone:
+
+- Implemented `GET /api/v1/admin/backups/status` returning JSON containing `status` (`ok`, `degraded`, `missing`) and latest backup age.
+- Reads backup run history from database without exposing object paths or credentials.
+- Added unit tests in `tests/test_backup_status.py` verifying status transitions.
 
 ### Actor Investigation Profile and Activity API (2026-05-14)
 

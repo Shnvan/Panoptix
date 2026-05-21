@@ -3912,3 +3912,218 @@ All four must be present for the backup job to function. Do not verify values by
 - R2 free tier: 10 GB storage + 10 million requests/month.
 - Production decryption keys for backup restore must not be stored on the backup job host.
 - Never commit R2 credentials to the repository.
+
+---
+
+## Verification of Camera and Gateway Lifecycle Endpoints
+
+The examples below use local dev auth. For staging/production, authenticate through Cloudflare Access instead of sending dev-auth headers.
+
+### 1. Gateway Lifecycle Management
+
+To update supported gateway metadata:
+
+```powershell
+curl.exe -X PATCH "http://127.0.0.1:8000/api/v1/admin/gateways/<gateway_id>" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-email: admin-smoke@example.test" `
+  -H "x-panoptix-dev-subject: admin-smoke" `
+  -H "x-panoptix-dev-roles: admin" `
+  -H "Content-Type: application/json" `
+  -d '{"name":"Updated Gateway Name","mtls_fingerprint":"sha256:example","cert_expires_at":null}'
+```
+
+Expected response: JSON with updated gateway fields and `200 OK`.
+
+To disable a gateway:
+
+```powershell
+curl.exe -X POST "http://127.0.0.1:8000/api/v1/admin/gateways/<gateway_id>/disable" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-email: admin-smoke@example.test" `
+  -H "x-panoptix-dev-subject: admin-smoke" `
+  -H "x-panoptix-dev-roles: admin" `
+  -H "Content-Type: application/json" `
+  -d '{"reason":"manual local lifecycle smoke"}'
+```
+
+Expected response: `200 OK`. Disabling a gateway revokes the gateway credential and stops active publish state for its assigned cameras.
+
+To re-enable a gateway:
+
+```powershell
+curl.exe -X POST "http://127.0.0.1:8000/api/v1/admin/gateways/<gateway_id>/enable" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-email: admin-smoke@example.test" `
+  -H "x-panoptix-dev-subject: admin-smoke" `
+  -H "x-panoptix-dev-roles: admin"
+```
+
+Expected response: `200 OK` when the gateway was disabled, or `409 Conflict` when it is already enabled.
+
+### 2. Camera Lifecycle Management
+
+To update supported camera fields:
+
+```powershell
+curl.exe -X PATCH "http://127.0.0.1:8000/api/v1/admin/cameras/<camera_id>" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-email: admin-smoke@example.test" `
+  -H "x-panoptix-dev-subject: admin-smoke" `
+  -H "x-panoptix-dev-roles: admin" `
+  -H "Content-Type: application/json" `
+  -d '{"display_name":"New Camera Name","source_type":"synthetic_rtsp_test_source","livekit_room_name":"room-main-entrance"}'
+```
+
+Expected response: JSON with updated camera fields.
+
+To disable a camera:
+
+```powershell
+curl.exe -X POST "http://127.0.0.1:8000/api/v1/admin/cameras/<camera_id>/disable" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-email: admin-smoke@example.test" `
+  -H "x-panoptix-dev-subject: admin-smoke" `
+  -H "x-panoptix-dev-roles: admin" `
+  -H "Content-Type: application/json" `
+  -d '{"reason":"manual local lifecycle smoke"}'
+```
+
+Expected response: `200 OK`. Active viewer connections in the camera's LiveKit room are removed.
+
+To re-enable a camera:
+
+```powershell
+curl.exe -X POST "http://127.0.0.1:8000/api/v1/admin/cameras/<camera_id>/enable" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-email: admin-smoke@example.test" `
+  -H "x-panoptix-dev-subject: admin-smoke" `
+  -H "x-panoptix-dev-roles: admin"
+```
+
+Expected response: `200 OK` when the camera was retired, or `409 Conflict` when it is already enabled.
+
+---
+
+## Verification of GitHub Organization Invite Flow
+
+To prepare a local user and send a GitHub organization invitation by email:
+
+```powershell
+curl.exe -X POST "http://127.0.0.1:8000/api/v1/admin/users/invite" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-email: admin-smoke@example.test" `
+  -H "x-panoptix-dev-subject: admin-smoke" `
+  -H "x-panoptix-dev-roles: admin" `
+  -H "Content-Type: application/json" `
+  -d '{"email":"newuser@example.com","role_names":["viewer"],"reason":"manual local invite smoke"}'
+```
+
+If GitHub invites are disabled in configuration (`GITHUB_INVITES_ENABLED=false`), expected response is `503 Service Unavailable` with `detail` set to `github-invites-not-configured`.
+
+If enabled with valid GitHub org invite settings, the backend sends an email-based GitHub organization invitation, creates or reuses the local user, assigns existing Panoptix roles, and writes a sanitized audit event.
+
+---
+
+## Verification of Data Subject Request (DSR) Workflow
+
+### 1. Create a DSR request
+
+```powershell
+curl.exe -X POST "http://127.0.0.1:8000/api/v1/admin/dsr-requests" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-email: admin-smoke@example.test" `
+  -H "x-panoptix-dev-subject: admin-smoke" `
+  -H "x-panoptix-dev-roles: admin" `
+  -H "Content-Type: application/json" `
+  -d '{
+    "requester_contact": "john.doe@example.com",
+    "subject_type": "user",
+    "request_type": "access",
+    "camera_scope_note": "Access request for lobby footage on 2026-05-19.",
+    "due_at": "2026-06-19T00:00:00Z",
+    "status": "open",
+    "outcome": null,
+    "artifact_id": null
+  }'
+```
+
+Expected response: `201 Created` with DSR detail.
+
+### 2. List DSR requests
+
+```powershell
+curl.exe -X GET "http://127.0.0.1:8000/api/v1/admin/dsr-requests" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-email: admin-smoke@example.test" `
+  -H "x-panoptix-dev-subject: admin-smoke" `
+  -H "x-panoptix-dev-roles: admin"
+```
+
+Expected response: object containing `items` and `next_cursor`.
+
+### 3. Update DSR status or outcome
+
+```powershell
+curl.exe -X PATCH "http://127.0.0.1:8000/api/v1/admin/dsr-requests/<request_id>" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-email: admin-smoke@example.test" `
+  -H "x-panoptix-dev-subject: admin-smoke" `
+  -H "x-panoptix-dev-roles: admin" `
+  -H "Content-Type: application/json" `
+  -d '{
+    "status": "in_progress",
+    "verified_at": "2026-05-21T00:00:00Z",
+    "outcome": "Identity verified; collecting responsive records."
+  }'
+```
+
+Expected response: `200 OK` with updated DSR fields.
+
+---
+
+## Verification of Alert System & Email Notifications
+
+### 1. Retrieve the alert list
+
+```powershell
+curl.exe -X GET "http://127.0.0.1:8000/api/v1/admin/alerts" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-email: admin-smoke@example.test" `
+  -H "x-panoptix-dev-subject: admin-smoke" `
+  -H "x-panoptix-dev-roles: admin"
+```
+
+Expected response: object containing `items` and `next_cursor`. Each alert item includes fields such as `alert_id`, `severity`, `category`, `title`, `message`, `status`, `source`, `resource`, and event timestamps.
+
+### 2. Acknowledge an alert
+
+```powershell
+curl.exe -X POST "http://127.0.0.1:8000/api/v1/admin/alerts/<alert_id>/acknowledge" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-email: admin-smoke@example.test" `
+  -H "x-panoptix-dev-subject: admin-smoke" `
+  -H "x-panoptix-dev-roles: admin"
+```
+
+Expected response: `200 OK` with status `acknowledged`.
+
+### 3. Resolve an alert
+
+```powershell
+curl.exe -X POST "http://127.0.0.1:8000/api/v1/admin/alerts/<alert_id>/resolve" `
+  -H "x-panoptix-dev-auth: 1" `
+  -H "x-panoptix-dev-email: admin-smoke@example.test" `
+  -H "x-panoptix-dev-subject: admin-smoke" `
+  -H "x-panoptix-dev-roles: admin"
+```
+
+Expected response: `200 OK` with status `resolved`.
+
+### 4. Verify SMTP email notifications
+
+Email delivery is disabled by default. When `ALERT_EMAIL_ENABLED=true` and SMTP settings are configured, critical/high alerts at or above `ALERT_EMAIL_MIN_SEVERITY` create `alert_notifications` rows and send an email.
+
+Expected email content:
+- **Subject**: `[Panoptix <SEVERITY>] <Alert Title>`
+- **Body**: Lists alert severity, category, status, resource, message, and timestamp without secrets, database URLs, tokens, or raw provider responses.

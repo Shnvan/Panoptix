@@ -3613,6 +3613,114 @@ Success: no issues found in 44 source files
 
 ---
 
+## Backup Status Reporting
+
+The backend now exposes an admin-only endpoint to report database-known backup status from `backup_runs` to support health monitoring without exposing credentials or bucket structures:
+
+```text
+GET /api/v1/admin/backups/status
+```
+
+The status can be `ok`, `degraded`, or `missing`. `ok` is returned when the latest backup run has completed successfully, verified the restore format, and has a recorded schema restore drill.
+
+Implementation files:
+- `apps/api/src/cctv_api/api/router.py`
+- `apps/api/tests/test_backup_status.py`
+
+Verification:
+- `python -m pytest tests/test_backup_status.py -v` (5 passed)
+
+---
+
+## Camera and Gateway Lifecycle Endpoints
+
+Added metadata update and re-enabling support for gateway and camera lifecycles:
+
+- `PATCH /api/v1/admin/gateways/{id}`: Update gateway `name`, `mtls_fingerprint`, and `cert_expires_at` without rotating credentials.
+- `POST /api/v1/admin/gateways/{id}/enable`: Re-enable a disabled/retired gateway.
+- `PATCH /api/v1/admin/cameras/{id}`: Update camera `display_name`, `source_type`, and `livekit_room_name` without accepting RTSP credentials.
+- `POST /api/v1/admin/cameras/{id}/enable`: Re-enable a disabled/retired camera.
+
+Successful updates and enable actions write audit logs. Viewer/publisher cleanup is tied to disable/retire flows, not normal metadata updates.
+
+Implementation files:
+- `apps/api/src/cctv_api/api/router.py`
+- `apps/api/tests/test_admin_gateways.py`
+- `apps/api/tests/test_cameras.py`
+
+Verification:
+- `python -m pytest tests/test_admin_gateways.py -v` (40 passed)
+
+---
+
+## GitHub Organization Invite Flow
+
+Added GitHub organization invite capabilities to support admin-controlled user onboarding:
+
+```text
+POST /api/v1/admin/users/invite
+```
+
+Invites a user by email through the configured GitHub organization, assigns existing local Panoptix roles, and keeps identity binding for first Cloudflare/GitHub login. It returns the safe fallback `github-invites-not-configured` if GitHub invite settings are disabled.
+
+Implementation files:
+- `apps/api/src/cctv_api/api/router.py`
+- `apps/api/src/cctv_api/integrations/github_invites.py`
+- `apps/api/tests/test_stub_endpoints.py`
+
+Verification:
+- `python -m pytest tests/test_stub_endpoints.py -v` (12 passed)
+
+---
+
+## DSR Workflow API
+
+Added a complete set of endpoints for tracking Data Subject Access Requests (DSR) lifecycle:
+
+```text
+GET /api/v1/admin/dsr-requests
+POST /api/v1/admin/dsr-requests
+GET /api/v1/admin/dsr-requests/{request_id}
+PATCH /api/v1/admin/dsr-requests/{request_id}
+```
+
+Audit logs `admin.dsr.created`, `admin.dsr.viewed`, `admin.dsr.updated` upon interaction.
+
+Implementation files:
+- `apps/api/src/cctv_api/api/router.py`
+- `apps/api/tests/test_dsr_requests.py`
+
+Verification:
+- `python -m pytest tests/test_dsr_requests.py -v` (9 passed)
+
+---
+
+## Alert System & Email Notification Pilot
+
+Exposed an alerting model with optional SMTP email integration for critical system events:
+
+- Database migration `0008_alerts_email` added `alerts` and `alert_notifications` tables.
+- Alert detection from security/operational events (break-glass open, audit verification failure, admin role grant, gateway disable, command rejection, and degraded backups).
+- SMTP notification support in `integrations/email_alerts.py`; delivery is disabled by default until SMTP settings are configured.
+- Endpoints:
+  ```text
+  GET /api/v1/admin/alerts
+  GET /api/v1/admin/alerts/{alert_id}
+  POST /api/v1/admin/alerts/{alert_id}/acknowledge
+  POST /api/v1/admin/alerts/{alert_id}/resolve
+  ```
+
+Implementation files:
+- `apps/api/src/cctv_api/security/alerts.py`
+- `apps/api/src/cctv_api/integrations/email_alerts.py`
+- `apps/api/tests/test_alerts.py`
+- `apps/api/alembic/versions/0008_alerts_email.py`
+
+Verification:
+- `python -m pytest tests/test_alerts.py -v` (15 passed)
+
+---
+
 ## What Is Not Implemented Yet
 
 The following are intentionally not done yet:
@@ -3716,6 +3824,11 @@ The system now has:
 - Cloudflare R2 backup bucket `panoptix-backups` provisioned via Terraform Cloud with scoped API tokens
 - Terraform Cloud backend configured for `infra/terraform/modules/backup-r2` remote state management
 - staging health verified end-to-end through Cloudflare Access (`staging.panoptix.site/health` returns `{"status":"ok"}`)
+- backup status reporting endpoint (`GET /api/v1/admin/backups/status`) exposing DB-known backup status without security credential leaks
+- camera and gateway lifecycle update (`PATCH`) and re-enabling (`POST /enable`) endpoints, with audit logging; LiveKit connection cleanup remains tied to disable/retire paths
+- admin-initiated user onboarding via GitHub organization invite integration (`POST /api/v1/admin/users/invite`)
+- Data Subject Access Request (DSR) workflow endpoints (`GET/POST/PATCH /api/v1/admin/dsr-requests`) for compliance case tracking
+- alert pilot with migration `0008_alerts_email`, automatic detection of critical events, and disabled-by-default SMTP email notification support
 
 The most important security idea so far is:
 

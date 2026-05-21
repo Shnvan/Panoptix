@@ -13,7 +13,7 @@ Last updated: 2026-05-21
 | **Backend API** | 99% | 🟢 Strong | Auth, RBAC, audit, actor investigation profiles/activity timeline, health, gateway, camera, command, webhook, session, admin, break-glass, search/filter, enrichment, LiveKit fallback, DPA export, DSR workflow tracking, signage attestation, credential rotation, MFA reset, GitHub-backed invites, camera/gateway lifecycle update and re-enable, backup status reporting, and pilot alert records with SMTP email notification foundation all done. Backend-controlled synthetic gateway publish smoke passed. Targeted alert/backend suites passing. |
 | **Edge Agent** | 88% | 🟢 Strong | Heartbeat, command signing, WebSocket control, FFmpeg frame source, LiveKit SDK bridge, per-camera credentials, supervisor, real FFmpeg integration tests, synthetic RTSP to LiveKit Cloud smoke, backend-command publish ACK, exponential backoff + jitter, mTLS cert bootstrap scaffold, cryptography dep all done. Missing: real CCTV hardware validation and production service deployment. |
 | **Frontend** | 76% | 🟡 Integrated, not production-complete | `integratedCompleteFrontend` is merged into `fullstack-integration`. The React/Vite app now has the login shell, viewer dashboard, camera detail modal, admin dashboard, users, cameras, gateways, audit/compliance, DSR, break-glass, health, settings, dev-auth headers, and same-origin API client. Local same-origin smoke through the Vite proxy now passes for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health against a local FastAPI backend using an ignored `apps/api/.env` and dev auth. Missing: real LiveKit subscriber playback, staging/deployed frontend browser smoke evidence, Playwright coverage, deployed frontend routing, and production polish. |
-| **Database** | 97% | 🟢 Strong | Core schema plus `0007_gateway_command_tables` deployed on active DB; new pilot migration `0008_alerts_email` adds `alerts` and `alert_notifications`. `gateway_command_queue`, `camera_publish_states`, and `backup_runs` model/schema verified. Backup status endpoint now reports database-known backup readiness from `backup_runs`. Missing: applying `0008_alerts_email` to active DB, recorded restore drill evidence, backup worker automation, retention policy tables (pilot+). |
+| **Database** | 99% | 🟢 Strong | Core schema plus `0007_gateway_command_tables` and pilot migration `0008_alerts_email` applied on the active local DB. `alerts`, `alert_notifications`, `gateway_command_queue`, `camera_publish_states`, and `backup_runs` model/schema verified. Backup status endpoint now reports database-known backup readiness from `backup_runs`. Missing: staging/production migration application evidence, recorded restore drill evidence, backup worker automation, retention policy tables (pilot+). |
 | **Infrastructure** | 90% | 🟢 Strong | Cloudflare Access, Railway, Neon staging all live. Staging health check cron running (15 min). R2 backup bucket `panoptix-backups` provisioned via Terraform Cloud. LiveKit Cloud account provisioned (APAC). Semgrep CI token configured. Missing: paid Neon tier, final production Cloudflare/Railway/Neon hardening, and deployment approval. |
 | **Security** | 90% | 🟢 Strong | CF Access JWT, CSRF, HMAC audit chain, classified audit events with session/IP/UA metadata, audit-of-audit for profile/activity views, rate limiting (including admin mutations), security headers, service tokens, RBAC, break-glass, SCA/SAST CI, mediamtx threat model, mTLS cert bootstrap scaffold, CT-log monitoring all done. Missing: device posture enforcement production activation and browser security smoke evidence. |
 | **Documentation** | 96% | 🟢 Strong | Full system plan, API reference, 51+ docs, all runbooks done (incl. break-glass, lost-MFA, IdP-outage, bus-factor, uptime monitoring, backup-restore DR schedule, Cloudflare WARP posture), mediamtx threat model, Terraform state security doc, frontend design guidance, and current full-stack status docs. |
@@ -920,6 +920,33 @@ Work with the frontend coworker to build the admin camera management and user ma
 - [x] Documented shared foundations, conceptual upgrades, forbidden lab patterns, and quick-reference mapping
 - [x] Updated `docs/procurement/camera-spec.md` with crosswalk reference for RTSP URL formats
 - [x] Updated `docs/index.md` with crosswalk navigation entry
+
+### Backup Status Reporting ✅
+- [x] Implemented `GET /api/v1/admin/backups/status` reporting DB-known backup readiness status from `backup_runs`
+- [x] Returns status (`ok`, `degraded`, `missing`) and latest backup age without exposing decryption keys or file paths
+- [x] Added unit tests verifying status transitions and DB fallback scenarios
+
+### Camera and Gateway Lifecycle Endpoints ✅
+- [x] Added `PATCH` endpoints for gateways and cameras to allow supported metadata updates without credential rotation
+- [x] Added `/enable` `POST` endpoints for gateways and cameras to support re-enabling previously disabled resources
+- [x] Audit logged all lifecycle events and added unit tests validating state modifications
+
+### GitHub Organization Invite Flow ✅
+- [x] Added `POST /api/v1/admin/users/invite` allowing admin-initiated user onboarding via GitHub API integration
+- [x] Handled `github-invites-not-configured` gracefully when invites are disabled in settings
+- [x] Added audit log recording for successful invites and user creations
+
+### DSR Workflow API ✅
+- [x] Added DSR request workflow endpoints (`GET/POST/PATCH /api/v1/admin/dsr-requests`)
+- [x] Implemented DSR request CRUD operations, status tracking, camera scope notes, and outcome fields
+- [x] Audit logged all actions (`admin.dsr.created`, `admin.dsr.viewed`, `admin.dsr.updated`) and added comprehensive test coverage
+
+### Alert System & Email Notification Pilot ✅
+- [x] Applied database migration `0008_alerts_email` locally, adding `alerts` and `alert_notifications` tables
+- [x] Implemented auto-detection of alerts from critical events (break-glass open, audit verification failure, admin role grant, gateway disable, command rejection, backup status degraded)
+- [x] Added SMTP email alert notification integration with redact-safe configuration and disabled-by-default delivery
+- [x] Exposed API endpoints: list, view, acknowledge (`POST /api/v1/admin/alerts/{id}/acknowledge`), and resolve (`POST /api/v1/admin/alerts/{id}/resolve`)
+- [x] Added focused backend tests for alert APIs, detection, email-disabled behavior, SMTP success/failure, and token redaction
 
 ---
 
