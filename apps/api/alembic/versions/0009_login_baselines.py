@@ -1,15 +1,15 @@
 """Add login_baselines table for suspicious login detection.
 
-Revision ID: 0009
-Revises: 0008
+Revision ID: 0009_login_baselines
+Revises: 0008_alerts_email
 """
 
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
 
-revision = "0009"
-down_revision = "0008"
+revision = "0009_login_baselines"
+down_revision = "0008_alerts_email"
 branch_labels = None
 depends_on = None
 
