@@ -148,7 +148,138 @@ Current state:
 - frontend lint/build passed after merge and after local smoke cleanup
 - local same-origin smoke has passed through the Vite proxy for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health
 - local API configuration uses `apps/api/.env`, which is ignored by Git; do not commit database URLs, audit keys, LiveKit keys, GitHub tokens, R2 secrets, or gateway service tokens
-- local backend migration state was verified at Alembic head `0008_alerts_email`
+- local backend migration state was verified at Alembic head `0009_login_baselines` (production migration head confirmed 2026-05-22)
+- `github-invites-not-configured` is expected locally while `GITHUB_INVITES_ENABLED=false`
+- one-time gateway service tokens must never be screenshotted or committed; the exposed local test gateway named `what` was disabled during smoke cleanup
+
+## Repository
+
+- Path: `C:\Users\Ivan\Downloads\panoptix-main\Panoptix`
+- Current branch: `fullstack-integration`
+- Remote: `https://github.com/Shnvan/Panoptix`
+- Current development mode: combined backend/frontend integration and production-readiness hardening
+
+Latest full-stack integration commits:
+
+- `41d80a7 docs: record local fullstack smoke evidence`
+- `f4de7c7 fix: align frontend backend integration wiring`
+- `cdb8aed docs: update fullstack integration status`
+- `7d56797 fix: remove unused frontend icon import`
+- `b896be6 Merge remote-tracking branch 'origin/integratedCompleteFrontend' into fullstack-integration`
+
+## Current Objective
+
+Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; the merged frontend V1 is available for local/staging smoke testing. Local same-origin smoke through Vite now passes for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, backup restore-drill evidence, deployed frontend routing/staging browser smoke, and production deployment hardening.
+
+The system is Panoptix, a secure live-view CCTV web monitoring system with three planes:
+
+- Control plane: FastAPI backend and React/Vite frontend
+- Media plane: LiveKit Cloud primary, self-hosted LiveKit fallback later
+- Camera plane: on-site edge gateway/NUC, mediamtx, isolated camera network
+
+Permanent product constraint: browsers are viewers only. No browser, phone, or laptop camera publishing.
+
+## High-Level Architecture
+
+### Control Plane
+
+Location: `apps/api/`
+
+FastAPI backend currently implements:
+
+- app factory
+- configuration loading
+- health endpoints
+- RFC 9457-style problem details
+- local development auth
+- Cloudflare Access JWT verification scaffolding
+- session cookie helpers
+- RBAC/policy placeholders
+- gateway heartbeat endpoint
+- gateway camera status endpoint
+- LiveKit viewer token endpoint
+- LiveKit gateway ingest token endpoint
+- gateway control WebSocket skeleton
+- gateway command signing helpers
+- in-memory/test-scaffolded WebSocket command dispatch + ACK handling
+- in-memory/test-scaffolded heartbeat command fallback
+- persistent gateway command queue model with DB-backed provider and ACK sink
+- command queue wired into app factory (auto-activates when DATABASE_URL is configured)
+- admin command enqueue endpoint (`POST /admin/gateways/{gateway_id}/commands`)
+- admin command listing endpoint (`GET /admin/gateways/{gateway_id}/commands`)
+- admin command cancellation endpoint (`POST /admin/gateways/{gateway_id}/commands/{command_id}/cancel`)
+- admin expired-command cleanup endpoint (`POST /admin/commands/cleanup`)
+- HMAC-SHA-256 audit hash chain writer and verifier helpers
+- read-only admin audit verification endpoint with optional ID ranges and key-version handling
+- admin audit export endpoint returning scrubbed JSONL rows
+- admin audit row listing endpoint with cursor pagination
+- admin actor investigation profile endpoint (`GET /api/v1/admin/actors/{actor_type}/{actor_id}/profile`)
+- admin actor investigation activity endpoint (`GET /api/v1/admin/actors/{actor_type}/{actor_id}/activity`)
+- LiveKit webhook receiver with Authorization JWT validation, replay cache, audit, and camera event persistence
+- room-presence-driven gateway publish command enqueue from LiveKit webhooks
+- break-glass emergency access (open/close/status endpoints + request-time enforcement gate)
+- admin camera search/filter (`search`, `source_type`, `gateway_id` params)
+- admin gateway search (`search` param)
+- admin camera list enrichment (`gateway_id`, `acl_count`)
+- admin gateway list enrichment (`camera_count`)
+- LiveKit fallback toggle (`POST /admin/livekit/fallback` with `SystemConfig` DB flag)
+- DPA artifact export (`POST /admin/dpa/export` with kind filter)
+- bystander signage attestation (`POST /admin/sites/:id/signage-attest`)
+- admin-mediated MFA reset (`POST /admin/users/:id/mfa/reset` with self-reset prevention)
+- GitHub organization invite flow (`POST /admin/users/invite`)
+- camera and gateway update/re-enable lifecycle routes
+- DSR request workflow APIs (`/api/v1/admin/dsr-requests`)
+- backup status reporting from `backup_runs`
+
+### Edge / Camera Plane
+
+Location: `apps/cctv-edge/`
+
+Current implemented code is in `apps/cctv-edge/agent/`:
+
+- environment-driven agent config
+- HTTP client for backend heartbeat/status calls
+- one-shot and continuous heartbeat runner
+- command envelope verifier
+- gateway control WebSocket client skeleton
+- heartbeat pending-command verifier
+- command execution dispatcher for verified `start_publish` / `stop_publish`
+- in-memory edge publish-state tracker
+- stub media controller for safe local execution tests
+- `--once` CLI for heartbeat
+- `--control-once` CLI for one-shot WebSocket control check
+- `--control-loop-once` CLI for bounded reconnect/backoff control check
+
+Remaining edge/camera gaps:
+
+- real CCTV hardware validation is still pending
+- production service deployment is still pending
+- mediamtx runtime generation remains future hardening
+
+### Media Plane
+
+Location: `apps/media-fallback/` and docs
+
+Current state:
+
+- LiveKit token minting exists in backend tests/source
+- LiveKit Cloud account is provisioned and direct synthetic FFmpeg-to-LiveKit smoke has passed
+- backend-controlled gateway command publish smoke has passed with accepted ACK
+- frontend browser playback still needs real subscriber-only LiveKit integration
+- fallback LiveKit app remains operational future work
+
+### Frontend
+
+Location: `apps/web/`
+
+Current state:
+
+- `origin/integratedCompleteFrontend` has been merged into `fullstack-integration`
+- React/Vite frontend includes the login shell, viewer dashboard, camera modal, admin dashboard, users, cameras, gateways, audit/compliance, DSR, break-glass, health, settings, dev-auth headers, and same-origin API client
+- frontend lint/build passed after merge and after local smoke cleanup
+- local same-origin smoke has passed through the Vite proxy for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health
+- local API configuration uses `apps/api/.env`, which is ignored by Git; do not commit database URLs, audit keys, LiveKit keys, GitHub tokens, R2 secrets, or gateway service tokens
+- local backend migration state was verified at Alembic head `0009_login_baselines` (production migration head confirmed 2026-05-22)
 - `github-invites-not-configured` is expected locally while `GITHUB_INVITES_ENABLED=false`
 - one-time gateway service tokens must never be screenshotted or committed; the exposed local test gateway named `what` was disabled during smoke cleanup
 - camera modal can request a short-lived viewer token, but real LiveKit subscriber playback is still pending
@@ -157,7 +288,6 @@ Current state:
 ### Database
 
 Location: `database/`, `apps/api/alembic/`, `apps/api/src/cctv_api/models/`
-
 Current state:
 
 - Alembic migrations exist
@@ -165,9 +295,35 @@ Current state:
 - command queue model and migration exist (`GatewayCommandQueue`, `0007_gateway_command_tables`)
 - camera publish-state model and migration exist (`CameraPublishState`, `0007_gateway_command_tables`)
 - alert and alert notification models and migration exist (`Alert`, `AlertNotification`, `0008_alerts_email`)
+- suspicious login detection model and migration exist (`LoginBaseline`, `0009_login_baselines`) — applied on staging and production Neon branches (2026-05-22)
 - DB coworker ownership is documented, but backend tests use database helpers where needed
 
 ## Recently Completed Milestones
+
+### Production Go-Live (2026-05-22)
+
+Completed in this milestone:
+
+- **Cloudflare Access**: Created "Panoptix Production" app for `panoptix.site` with GitHub org (`panoptix-site`) policy. AUD tag configured in Railway.
+- **Railway production variables**: New `SESSION_SIGNING_KEY`, `CSRF_SIGNING_KEY`, `AUDIT_HMAC_KEY` (version 2), `GATEWAY_COMMAND_SIGNING_KEY`. `APP_ENV=production`, `ALLOW_DEV_AUTH=false`, `APP_PUBLIC_BASE_URL=https://panoptix.site`.
+- **Production Neon branch**: `0009_login_baselines` migration applied — production DB at head.
+- **DNS**: Promoted `staging.panoptix.site` → `panoptix.site` as frontend custom domain.
+- **Admin seeding**: `ivanlia041@gmail.com` assigned `admin` role. Coworker accounts seeded via Users & Access dashboard.
+- **AUDIT_HMAC_KEY_VERSION=2**: Fixed unique constraint conflict where production DB already had version 1 key from staging data.
+- **Suspicious login detection**: `SUSPICIOUS_LOGIN_DETECTION_ENABLED=true` set in production Railway variables.
+- **Smoke test passed**: Database CONNECTED, LiveKit CONNECTED, Audit Logs 50 events with valid HMAC chain, Administrator role confirmed at `panoptix.site`.
+
+### Suspicious Login Detection (2026-05-21)
+
+Completed in this milestone:
+
+- `apps/api/src/cctv_api/models/tables.py`: Added `LoginBaseline` model for per-user IP/country/UA fingerprint baselines.
+- `apps/api/src/cctv_api/core/config.py`: Added `SUSPICIOUS_LOGIN_DETECTION_ENABLED`, `LOGIN_BASELINE_MIN_LOGINS`, `LOGIN_BASELINE_SUSPICION_THRESHOLD_DAYS` settings.
+- `apps/api/alembic/versions/0009_login_baselines.py`: Migration adding `login_baselines` table.
+- `apps/api/src/cctv_api/security/suspicious_login.py`: Detection engine with IP/country/UA fingerprinting and alert integration.
+- `apps/api/src/cctv_api/security/dependencies.py`: Hooked `check_login_suspicion` into session creation (never blocks auth on detection failure).
+- `apps/api/tests/test_suspicious_login.py`: 25 unit tests — all passing.
+- Applied `0009_login_baselines` on staging and production Neon branches.
 
 ### Alert System & Email Notification Pilot (2026-05-21)
 
@@ -180,11 +336,6 @@ Completed in this milestone:
 - Auto-triggered alerts for critical security and operational events (break-glass open, tampered audit check, admin role grant, gateway disable, rejected commands, and degraded backups).
 - Redact-safe secrets validation ensuring no sensitive settings leak.
 - Added focused alert API, detection, and email-notification tests.
-
-### DSR Workflow API (2026-05-20)
-
-Completed in this milestone:
-
 - Added DSR request workflow endpoints (`GET/POST/PATCH /api/v1/admin/dsr-requests`) to track compliance cases.
 - Supports status transitions, requester contact, subject/request type, site/artifact links, camera scope notes, due/verified dates, and outcome tracking.
 - Audit logged DSR events (`admin.dsr.created`, `admin.dsr.viewed`, `admin.dsr.updated`).

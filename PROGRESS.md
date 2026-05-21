@@ -1,20 +1,6 @@
-# Panoptix Implementation Progress
-
-Current status and next steps for any session continuing this project.
-
----
-
-## Overall Progress: ~92% to MVP
-
-Last updated: 2026-05-21
-
-| Area | Progress | Status | Notes |
-|------|----------|--------|-------|
-| **Backend API** | 99% | 🟢 Strong | Auth, RBAC, audit, actor investigation profiles/activity timeline, health, gateway, camera, command, webhook, session, admin, break-glass, search/filter, enrichment, LiveKit fallback, DPA export, DSR workflow tracking, signage attestation, credential rotation, MFA reset, GitHub-backed invites (staging-verified 2026-05-21 with `panoptix-site` org), camera/gateway lifecycle update and re-enable, backup status reporting, and pilot alert records with SMTP email notification foundation all done. Backend-controlled synthetic gateway publish smoke passed. Targeted alert/backend suites passing. |
-| **Edge Agent** | 88% | 🟢 Strong | Heartbeat, command signing, WebSocket control, FFmpeg frame source, LiveKit SDK bridge, per-camera credentials, supervisor, real FFmpeg integration tests, synthetic RTSP to LiveKit Cloud smoke, backend-command publish ACK, exponential backoff + jitter, mTLS cert bootstrap scaffold, cryptography dep all done. Missing: real CCTV hardware validation and production service deployment. |
 | **Frontend** | 80% | 🟡 Integrated, staging smoke passed | `integratedCompleteFrontend` is merged into `fullstack-integration`. The React/Vite app now has the login shell, viewer dashboard, camera detail modal, admin dashboard, users, cameras, gateways, audit/compliance, DSR, break-glass, health, settings, dev-auth headers, and same-origin API client. Local same-origin smoke through the Vite proxy passes. Staging deployed browser smoke passed 2026-05-21: all 10 sidebar pages loaded through Cloudflare Access at `staging.panoptix.site` with no 500/502 errors. Frontend production proxy server (`server.mjs`) serves Vite dist and proxies API calls. Missing: real LiveKit subscriber playback, Alerts page wiring to real backend APIs, Playwright coverage, and production polish. |
-| **Database** | 99% | 🟢 Strong | Core schema plus `0007_gateway_command_tables` and pilot migration `0008_alerts_email` applied on the active local DB. `alerts`, `alert_notifications`, `gateway_command_queue`, `camera_publish_states`, and `backup_runs` model/schema verified. Backup status endpoint now reports database-known backup readiness from `backup_runs`. Missing: staging/production migration application evidence, recorded restore drill evidence, backup worker automation, retention policy tables (pilot+). |
-| **Infrastructure** | 90% | 🟢 Strong | Cloudflare Access, Railway, Neon staging all live. Staging health check cron running (15 min). R2 backup bucket `panoptix-backups` provisioned via Terraform Cloud. LiveKit Cloud account provisioned (APAC). Semgrep CI token configured. Missing: paid Neon tier, final production Cloudflare/Railway/Neon hardening, and deployment approval. |
+| **Database** | 100% | 🟢 Strong | Core schema plus `0007_gateway_command_tables`, `0008_alerts_email`, and `0009_login_baselines` applied on staging and production Neon branches. `alerts`, `alert_notifications`, `gateway_command_queue`, `camera_publish_states`, `backup_runs`, and `login_baselines` model/schema verified. Production migration head confirmed at `0009_login_baselines`. Missing: recorded restore drill evidence, backup worker automation, retention policy tables (pilot+). |
+| **Infrastructure** | 100% | 🟢 Strong | **Production live at `panoptix.site` (2026-05-22).** Cloudflare Access "Panoptix Production" app protecting `panoptix.site` with GitHub org policy. Railway production backend + frontend deployed with new cryptographic keys. Neon production branch fully migrated. DNS promoted from `staging.panoptix.site` to `panoptix.site`. `SUSPICIOUS_LOGIN_DETECTION_ENABLED=true` in production. Staging health check cron running. R2 backup bucket provisioned. LiveKit Cloud (APAC) live. Missing: break-glass YubiKey hardware, physical gateways, first R2 backup run. |
 | **Security** | 90% | 🟢 Strong | CF Access JWT, CSRF, HMAC audit chain, classified audit events with session/IP/UA metadata, audit-of-audit for profile/activity views, rate limiting (including admin mutations), security headers, service tokens, RBAC, break-glass, SCA/SAST CI, mediamtx threat model, mTLS cert bootstrap scaffold, CT-log monitoring all done. Missing: device posture enforcement production activation and browser security smoke evidence. |
 | **Documentation** | 96% | 🟢 Strong | Full system plan, API reference, 51+ docs, all runbooks done (incl. break-glass, lost-MFA, IdP-outage, bus-factor, uptime monitoring, backup-restore DR schedule, Cloudflare WARP posture), mediamtx threat model, Terraform state security doc, frontend design guidance, and current full-stack status docs. |
 | **DevOps/CI** | 98% | 🟢 Strong | GitHub Actions CI covers both `main` and `backend` branches. Edge agent CI added (ruff, mypy, pytest, compileall, osv-scanner). Staging health check cron active. Production deploy workflow (manual) ready. Staging auto-deploy workflow added. Dependabot auto-merge workflow added (minor/patch auto, major manual). |
@@ -26,7 +12,7 @@ Last updated: 2026-05-21
 | 1 | Real LiveKit browser subscriber playback | Frontend/system owner | Backend viewer token endpoint done; frontend modal currently token-only |
 | 2 | ~~Complete staging/deployed browser smoke test~~ | System owner + Frontend | ✅ Done — all 10 sidebar pages pass on `staging.panoptix.site` (2026-05-21) |
 | 3 | Real camera → LiveKit publishing from edge agent | System owner | Synthetic backend path ✅, needs real camera hardware |
-| 4 | Production deployment hardening | System owner | Cloudflare/Railway/Neon/LiveKit/R2 settings and uptime/procurement gates |
+| 4 | ~~Production deployment hardening~~ | System owner | ✅ Done — `panoptix.site` live (2026-05-22), Cloudflare Access, Railway, Neon, signing keys, migration all complete |
 | 5 | ~~LiveKit Cloud provisioning (APAC region)~~ | System owner | ✅ Done |
 | 6 | ~~Break-glass emergency access~~ | System owner | ✅ Done |
 | 7 | ~~Production deployment pipeline~~ | System owner | ✅ Done (manual workflow ready, 7-day staging clock running) |
