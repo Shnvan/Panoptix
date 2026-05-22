@@ -143,7 +143,7 @@ Provider handling for the first rollout:
 
 ## Public Visitor Collector Pilot
 
-The first collector rollout requires a separate public entry host such as `entry.panoptix.site`. Keep the protected app host behind Cloudflare Access and enable the backend collector only after the entry page shows the visible notice before posting browser-side signals.
+The first collector rollout uses the existing frontend service on separate public host `entry.panoptix.site`. Keep the protected app host behind Cloudflare Access and enable the backend collector only after the entry page shows the visible notice before its explicit Continue action posts browser-side signals. Collector failure should still redirect the visitor into secure sign-in.
 
 ```text
 VISITOR_COLLECTOR_ENABLED=true

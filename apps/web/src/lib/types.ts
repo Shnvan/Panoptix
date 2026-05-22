@@ -110,6 +110,30 @@ export interface PrivacyNoticeAcceptResponse {
   status: string;
 }
 
+// Visitor Entry
+
+export interface VisitorNoticeResponse {
+  notice_version: string;
+  title: string;
+  body: string;
+}
+
+export interface VisitorCollectRequest {
+  notice_version: string;
+  notice_acknowledged: true;
+  page_path: string;
+  screen_width: number | null;
+  screen_height: number | null;
+  timezone: string | null;
+  language: string | null;
+}
+
+export interface VisitorCollectResponse {
+  visit_id: string;
+  status: string;
+  collected_at: string;
+}
+
 // ── Admin Users ──
 
 export interface AdminUser {

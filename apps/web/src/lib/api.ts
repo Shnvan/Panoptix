@@ -125,6 +125,16 @@ export const api = {
       method: 'POST', body: JSON.stringify({ notice_version: version }),
     }),
 
+  // Visitor entry
+  getVisitorNotice: () =>
+    apiFetch<import('./types').VisitorNoticeResponse>('/api/v1/visitor/notice'),
+
+  collectVisitorVisit: (body: import('./types').VisitorCollectRequest) =>
+    apiFetch<import('./types').VisitorCollectResponse>('/api/v1/visitor/collect', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
   // ── Admin: Users ──
   listAdminUsers: (cursor?: string, limit = 50, email?: string) => {
     const p = new URLSearchParams();

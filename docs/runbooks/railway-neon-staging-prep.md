@@ -136,7 +136,7 @@ Rules:
 
 ## Public Visitor Collector Pilot
 
-Migration `0010_visitor_visits` adds backend storage for the disabled-by-default collector. Keep `VISITOR_COLLECTOR_ENABLED=false` until a separate public entry host has a visible notice flow, a shared cookie domain, and the trusted Cloudflare client-IP boundary required for the public collector route.
+Migration `0010_visitor_visits` adds backend storage for the disabled-by-default collector. Keep `VISITOR_COLLECTOR_ENABLED=false` until the existing frontend service is reachable at a separate public `entry.panoptix.site` host with the visible notice-before-Continue flow, a shared cookie domain, and the trusted Cloudflare client-IP boundary required for the public collector route.
 
 ---
 

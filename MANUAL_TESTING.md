@@ -3739,9 +3739,9 @@ Expected behavior:
 - Successful profile views write `admin.actor.profile.viewed`.
 - Successful activity views write `admin.actor.activity.viewed`.
 
-## Public Visitor Collector Backend Pilot
+## Public Visitor Collector Pilot
 
-This pilot is disabled by default and is designed for a separate public entry host such as `entry.panoptix.site`. Direct visits to the Cloudflare Access challenge on `panoptix.site` do not run the entry-page browser collector.
+This pilot is disabled by default and uses the separate public `entry.panoptix.site` view on the existing frontend service. Direct visits to the Cloudflare Access challenge on `panoptix.site` do not run the entry-page browser collector.
 
 Backend setup:
 
@@ -3755,11 +3755,14 @@ TRUST_CF_CONNECTING_IP=true
 
 Public entry smoke:
 
-1. Fetch `GET /api/v1/visitor/notice` through the public entry route.
-2. After the entry page shows that notice, post `POST /api/v1/visitor/collect` with the returned `notice_version`, `notice_acknowledged: true`, `page_path`, screen width/height, timezone, and language.
-3. Confirm the response returns `201`, `status = "recorded"`, and an HttpOnly visitor cookie is set.
-4. Continue into the Cloudflare Access-protected app and create a fresh authenticated browser session.
-5. As an admin, fetch `GET /api/v1/admin/visitor-visits` and `GET /api/v1/admin/visitor-visits/<visit-id>`.
+1. Open `https://entry.panoptix.site` outside the protected app session. For local frontend smoke, open `/entry`.
+2. Confirm the public entry view renders the `GET /api/v1/visitor/notice` title/body before collection and its Continue button remains disabled while the notice request is loading.
+3. Click `Continue to secure sign-in`.
+4. Confirm the browser posts `POST /api/v1/visitor/collect` with only the returned `notice_version`, `notice_acknowledged: true`, `page_path`, screen width/height, timezone, and language.
+5. Confirm a successful collect returns `201`, `status = "recorded"`, sets an HttpOnly visitor cookie, and redirects to Cloudflare Access on `panoptix.site`.
+6. Confirm a failed/disabled collector attempt still lets the entry page continue into Cloudflare Access rather than blocking sign-in.
+7. Complete Cloudflare Access and create a fresh authenticated browser session.
+8. As an admin, fetch `GET /api/v1/admin/visitor-visits` and `GET /api/v1/admin/visitor-visits/<visit-id>`.
 
 Expected behavior:
 
