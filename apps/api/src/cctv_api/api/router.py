@@ -18,6 +18,7 @@ from cctv_api.api.errors import ProblemDetail
 from cctv_api.api.actor_profile import router as actor_profile_router
 from cctv_api.api.gateways import router as gateway_router
 from cctv_api.api.livekit_webhooks import router as livekit_webhook_router
+from cctv_api.api.visitors import router as visitor_router
 from cctv_api.core.config import Settings, get_settings
 from cctv_api.db import db_session
 from cctv_api.gateway.command_queue import enqueue_command, expire_stale_commands
@@ -87,6 +88,7 @@ v1_router = APIRouter(prefix="/api/v1")
 v1_router.include_router(actor_profile_router)
 v1_router.include_router(gateway_router)
 v1_router.include_router(livekit_webhook_router)
+v1_router.include_router(visitor_router)
 
 CURRENT_PRIVACY_NOTICE_VERSION = "2026-05-10"
 CURRENT_PRIVACY_NOTICE_TITLE = "Panoptix CCTV Operator Privacy Notice"
@@ -1382,6 +1384,7 @@ def expire_pending_commands(
 class MaintenanceResponse(BaseModel):
     expired_commands: int
     stops_enqueued: int
+    purged_visitor_visits: int
 
 
 @v1_router.post("/admin/jobs/run-maintenance")
@@ -1405,7 +1408,11 @@ def run_maintenance(
             payload=payload,
         )
 
-    result = run_admin_maintenance_job(db, audit=_audit)
+    result = run_admin_maintenance_job(
+        db,
+        audit=_audit,
+        visitor_retention_days=settings.VISITOR_RETENTION_DAYS,
+    )
     _record_user_audit_required(
         db,
         settings=settings,
@@ -1413,10 +1420,18 @@ def run_maintenance(
         actor_id=user.id,
         action="admin.maintenance.run",
         resource="maintenance",
-        payload={"expired_commands": result.expired_commands, "stops_enqueued": result.stops_enqueued},
+        payload={
+            "expired_commands": result.expired_commands,
+            "stops_enqueued": result.stops_enqueued,
+            "purged_visitor_visits": result.purged_visitor_visits,
+        },
     )
     db.commit()
-    return MaintenanceResponse(expired_commands=result.expired_commands, stops_enqueued=result.stops_enqueued)
+    return MaintenanceResponse(
+        expired_commands=result.expired_commands,
+        stops_enqueued=result.stops_enqueued,
+        purged_visitor_visits=result.purged_visitor_visits,
+    )
 
 
 # ── Admin Camera CRUD ──

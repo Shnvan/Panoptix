@@ -3739,6 +3739,36 @@ Expected behavior:
 - Successful profile views write `admin.actor.profile.viewed`.
 - Successful activity views write `admin.actor.activity.viewed`.
 
+## Public Visitor Collector Backend Pilot
+
+This pilot is disabled by default and is designed for a separate public entry host such as `entry.panoptix.site`. Direct visits to the Cloudflare Access challenge on `panoptix.site` do not run the entry-page browser collector.
+
+Backend setup:
+
+```text
+VISITOR_COLLECTOR_ENABLED=true
+VISITOR_COOKIE_SIGNING_KEY=<new-random-backend-secret>
+VISITOR_COOKIE_DOMAIN=panoptix.site
+VISITOR_RETENTION_DAYS=30
+TRUST_CF_CONNECTING_IP=true
+```
+
+Public entry smoke:
+
+1. Fetch `GET /api/v1/visitor/notice` through the public entry route.
+2. After the entry page shows that notice, post `POST /api/v1/visitor/collect` with the returned `notice_version`, `notice_acknowledged: true`, `page_path`, screen width/height, timezone, and language.
+3. Confirm the response returns `201`, `status = "recorded"`, and an HttpOnly visitor cookie is set.
+4. Continue into the Cloudflare Access-protected app and create a fresh authenticated browser session.
+5. As an admin, fetch `GET /api/v1/admin/visitor-visits` and `GET /api/v1/admin/visitor-visits/<visit-id>`.
+
+Expected behavior:
+
+- The admin detail response shows collected page/time, request IP, approved stored Ipregistry subset when configured, browser/OS/device parsing, screen/timezone/language, and linked user/session fields after successful login correlation.
+- The response does not include raw Ipregistry payload fields, WebRTC candidate IPs, reverse-geocoded addresses, coordinates, or broad fingerprint signals.
+- Stale notice versions return `409 visitor-notice-version-mismatch`; missing notice acknowledgement returns `400 visitor-notice-acknowledgement-required`.
+- Admin detail reads write `admin.visitor.visit.viewed`.
+- `POST /api/v1/admin/jobs/run-maintenance` returns `purged_visitor_visits` and removes visitor rows older than `VISITOR_RETENTION_DAYS`.
+
 ## Gateway Credential Rotation Testing
 
 ### Automated tests

@@ -8,6 +8,7 @@ This guide defines the intended deployment shape before implementation starts.
 
 | Public route | Cloudflare Access | Railway service | Responsibility |
 |---|---|---|---|
+| `entry.panoptix.site` entry UI and `/api/v1/visitor/*` | Public collector policy/WAF | public entry UI plus `cctv-api` route | Visitor notice/approved entry signals before redirecting to protected app. |
 | `/`, `/dashboard`, `/admin`, `/admin-emergency`, `/privacy` | Required | `cctv-web` | React/Vite UI shell and browser app. |
 | `/assets/*` and frontend static assets | Required | `cctv-web` | Versioned frontend assets with strict headers. |
 | `/api/v1/*` | Required unless gateway/webhook policy says otherwise | `cctv-web` proxy to `cctv-api` or direct `cctv-api` route | FastAPI protected API. |
@@ -26,6 +27,7 @@ Required controls:
 - DNS is orange-clouded for the application domain.
 - CAA and CT-log monitoring are enabled before pilot.
 - Separate Access policies exist for normal users, admins, break-glass, monitors, and gateways.
+- The public visitor collector entry host must stay narrow: only the notice/entry UI and `/api/v1/visitor/*` collector contract are public; the app host remains Access-protected.
 
 ## Railway services
 

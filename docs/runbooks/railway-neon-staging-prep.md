@@ -97,6 +97,7 @@ Key groups:
 - **Session/CSRF**: signing keys (generated, not placeholder)
 - **Audit**: HMAC key and version
 - **Actor IP enrichment**: Ipregistry enable flag and API key
+- **Visitor collector**: disabled-by-default public entry flag, cookie key/domain, retention, and collector rate limit if a public entry host is being trialed
 - **Database**: runtime and migration connection strings
 - **LiveKit**: cloud URL, API key, API secret, webhook secret
 - **R2 Backup**: account ID, bucket name, access key, secret key
@@ -130,6 +131,12 @@ Rules:
 - Set `TRUST_CF_CONNECTING_IP=true` only for the Cloudflare-bound backend route where the trusted-header boundary is enforced.
 - Actor profile reads send only the bounded recent-session IPs selected by the backend to Ipregistry for admin investigation context.
 - If the API key is missing or Ipregistry is unavailable, the actor profile should remain readable with `ip_details.status` of `not_configured` or `unavailable`.
+
+---
+
+## Public Visitor Collector Pilot
+
+Migration `0010_visitor_visits` adds backend storage for the disabled-by-default collector. Keep `VISITOR_COLLECTOR_ENABLED=false` until a separate public entry host has a visible notice flow, a shared cookie domain, and the trusted Cloudflare client-IP boundary required for the public collector route.
 
 ---
 

@@ -383,7 +383,11 @@ def test_browser_admin_post_accepts_valid_csrf(test_db_session: DbSession, monke
     )
 
     assert response.status_code == 200
-    assert response.json() == {"expired_commands": 0, "stops_enqueued": 0}
+    assert response.json() == {
+        "expired_commands": 0,
+        "stops_enqueued": 0,
+        "purged_visitor_visits": 0,
+    }
 
 
 def test_dev_auth_admin_post_does_not_require_csrf(test_db_session: DbSession) -> None:

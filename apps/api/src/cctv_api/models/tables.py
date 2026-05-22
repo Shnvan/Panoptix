@@ -107,6 +107,40 @@ class Session(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class VisitorVisit(Base):
+    __tablename__ = "visitor_visits"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    collected_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()"), nullable=False
+    )
+    page_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    notice_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    ip: Mapped[str | None] = mapped_column(INET)
+    ua: Mapped[str | None] = mapped_column(String(512))
+    screen_width: Mapped[int | None] = mapped_column(Integer)
+    screen_height: Mapped[int | None] = mapped_column(Integer)
+    browser_timezone: Mapped[str | None] = mapped_column(String(128))
+    browser_language: Mapped[str | None] = mapped_column(String(64))
+    ip_enrichment_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    ip_enrichment_provider: Mapped[str | None] = mapped_column(String(64))
+    ip_enrichment: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'")
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    session_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("sessions.id", ondelete="SET NULL"), unique=True
+    )
+    logged_in_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        Index("ix_visitor_visits_collected_at", "collected_at"),
+        Index("ix_visitor_visits_user_id", "user_id"),
+    )
+
+
 class Site(Base):
     __tablename__ = "sites"
 

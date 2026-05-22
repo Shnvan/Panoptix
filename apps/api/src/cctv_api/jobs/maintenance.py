@@ -11,12 +11,14 @@ from cctv_api.gateway.command_queue import expire_stale_commands
 from cctv_api.gateway.publish_state import enqueue_due_publish_stops
 from cctv_api.models.enums import ActorType
 from cctv_api.security.audit import AuditLogError, record_audit_event
+from cctv_api.security.visitor_visits import purge_expired_visitor_visits
 
 
 @dataclass(frozen=True)
 class MaintenanceJobResult:
     expired_commands: int
     stops_enqueued: int
+    purged_visitor_visits: int
     error: str | None = None
 
 
@@ -28,10 +30,19 @@ def run_admin_maintenance_job(
     db: DbSession,
     *,
     audit: AuditRecorder,
+    visitor_retention_days: int = 30,
 ) -> MaintenanceJobResult:
     expired_count = expire_stale_commands(db)
     stop_results = enqueue_due_publish_stops(db, audit=audit)
-    return MaintenanceJobResult(expired_commands=expired_count, stops_enqueued=len(stop_results))
+    purged_visitor_visits = purge_expired_visitor_visits(
+        db,
+        retention_days=visitor_retention_days,
+    )
+    return MaintenanceJobResult(
+        expired_commands=expired_count,
+        stops_enqueued=len(stop_results),
+        purged_visitor_visits=purged_visitor_visits,
+    )
 
 
 def run_scheduled_maintenance_job(
@@ -49,6 +60,7 @@ def run_scheduled_maintenance_job(
                 resource=resource,
                 payload=payload,
             ),
+            visitor_retention_days=settings.VISITOR_RETENTION_DAYS,
         )
         _record_system_audit(
             db,
@@ -58,16 +70,27 @@ def run_scheduled_maintenance_job(
             payload={
                 "expired_commands": result.expired_commands,
                 "stops_enqueued": result.stops_enqueued,
+                "purged_visitor_visits": result.purged_visitor_visits,
             },
         )
         db.commit()
         return result
     except AuditLogError as exc:
         db.rollback()
-        return MaintenanceJobResult(expired_commands=0, stops_enqueued=0, error=str(exc))
+        return MaintenanceJobResult(
+            expired_commands=0,
+            stops_enqueued=0,
+            purged_visitor_visits=0,
+            error=str(exc),
+        )
     except Exception:
         db.rollback()
-        return MaintenanceJobResult(expired_commands=0, stops_enqueued=0, error="maintenance-job-failed")
+        return MaintenanceJobResult(
+            expired_commands=0,
+            stops_enqueued=0,
+            purged_visitor_visits=0,
+            error="maintenance-job-failed",
+        )
 
 
 async def maintenance_scheduler_loop(

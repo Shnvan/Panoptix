@@ -153,6 +153,7 @@ _r("audit.log.verified", S.high, C.compliance, O.success)
 
 _r("admin.actor.profile.viewed", S.medium, C.compliance, O.success)
 _r("admin.actor.activity.viewed", S.medium, C.compliance, O.success)
+_r("admin.visitor.visit.viewed", S.medium, C.compliance, O.success)
 
 # Clean up module-level shorthand aliases.
 del S, C, O

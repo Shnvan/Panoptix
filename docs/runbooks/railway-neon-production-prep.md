@@ -102,6 +102,7 @@ Key groups (values must be distinct from staging):
 - **Session/CSRF**: signing keys (distinct from staging)
 - **Audit**: HMAC key and version (distinct from staging)
 - **Actor IP enrichment**: Ipregistry enable flag and API key
+- **Visitor collector**: disabled-by-default public entry flag, cookie key/domain, retention, and collector rate limit if a public entry host is approved
 - **Database**: production runtime and migration connection strings
 - **LiveKit**: cloud URL (can be same project; API key/secret may be same or production-specific)
 - **R2 Backup**: account ID (same), bucket name (`panoptix-backups`), access key/secret (production-specific recommended)
@@ -137,6 +138,23 @@ Provider handling for the first rollout:
 - Do not capture raw provider payloads or API keys in frontend config, screenshots, or release notes.
 - Actor profile reads send only the backend-selected bounded recent-session IPs for admin investigation context.
 - If a legacy `/data/maxmind` pilot volume exists from the replaced rollout path, detach/remove it after the Ipregistry rollout no longer needs a rollback comparison.
+
+---
+
+## Public Visitor Collector Pilot
+
+The first collector rollout requires a separate public entry host such as `entry.panoptix.site`. Keep the protected app host behind Cloudflare Access and enable the backend collector only after the entry page shows the visible notice before posting browser-side signals.
+
+```text
+VISITOR_COLLECTOR_ENABLED=true
+VISITOR_COOKIE_SIGNING_KEY=<new-random-backend-secret>
+VISITOR_COOKIE_DOMAIN=panoptix.site
+VISITOR_RETENTION_DAYS=30
+RATE_LIMIT_VISITOR_COLLECT_MAX=20
+RATE_LIMIT_VISITOR_COLLECT_WINDOW=60
+```
+
+Apply migration `0010_visitor_visits` before enabling this flag. Use the existing Ipregistry actor-enrichment key path for stored normalized IP context; never send raw provider payloads to frontend config or rollout evidence.
 
 ---
 

@@ -6,10 +6,10 @@ FastAPI remains the security authority. Browser responses must not expose RTSP U
 
 ## Shared Rules
 
-- Browser routes require Cloudflare Access/app-session auth, or dev auth only in local development.
+- Browser routes require Cloudflare Access/app-session auth, or dev auth only in local development, except the explicit public visitor entry endpoints.
 - Admin routes require the `admin` role unless explicitly marked as monitor/internal.
 - Gateway HTTP and WebSocket routes require gateway identity.
-- Unsafe browser mutations require CSRF protection.
+- Unsafe authenticated browser mutations require CSRF protection.
 - Errors use RFC 9457-style Problem Details.
 - Lists use cursor pagination where implemented.
 - Viewer and gateway LiveKit tokens are short-lived and kind-distinct.
@@ -34,6 +34,17 @@ FastAPI remains the security authority. Browser responses must not expose RTSP U
 | `POST` | `/api/v1/privacy/notice/accept` | authenticated user | records current notice acceptance |
 | `GET` | `/api/v1/sessions/active` | authenticated user | active app sessions |
 | `POST` | `/api/v1/sessions/revoke` | authenticated user | revokes one owned session |
+
+## Public Visitor Entry Routes
+
+The visitor collector pilot is intended for a separate public entry host such as `entry.panoptix.site`. It covers entry-flow visits only; direct visits to the Cloudflare Access-protected app host remain outside browser-side collector coverage.
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| `GET` | `/api/v1/visitor/notice` | public when collector enabled | current visitor security notice version/text |
+| `POST` | `/api/v1/visitor/collect` | public when collector enabled | records approved entry signals after notice acknowledgement and sets signed visitor correlation cookie |
+
+`POST /api/v1/visitor/collect` accepts the notice version, `notice_acknowledged = true`, entry `page_path`, screen width/height, browser timezone, and language. The backend records the trusted request IP, request user-agent, timestamp, and a stored normalized Ipregistry subset when available. WebRTC candidate IPs, raw Ipregistry payloads, coordinates, reverse-geocoded addresses, and broad fingerprint signals are not part of this pilot.
 
 ## Admin Routes
 
@@ -67,6 +78,8 @@ FastAPI remains the security authority. Browser responses must not expose RTSP U
 | `POST` | `/api/v1/admin/cameras/{camera_id}/enable` | re-enable a retired camera; viewer access still depends on camera ACLs |
 | `GET` | `/api/v1/admin/actors/{actor_type}/{actor_id}/profile` | composite actor investigation profile |
 | `GET` | `/api/v1/admin/actors/{actor_type}/{actor_id}/activity` | actor-scoped audit activity timeline |
+| `GET` | `/api/v1/admin/visitor-visits` | list collected public entry visits |
+| `GET` | `/api/v1/admin/visitor-visits/{visit_id}` | collected public entry visit detail; detail view is audited |
 | `GET` | `/api/v1/admin/audit` | list scrubbed audit rows |
 | `GET` | `/api/v1/admin/audit/verify` | verify audit HMAC chain |
 | `GET` | `/api/v1/admin/audit/export` | export scrubbed audit JSONL |
@@ -384,6 +397,8 @@ Actor notes:
 - User actor profiles expose bounded `ip_details` and `device_details` from the latest 10 stored sessions. `device_details` parses stored session user agents. `ip_details` uses optional Ipregistry backend lookups and returns `status` of `ok`, `not_configured`, or `unavailable` without failing the profile read.
 - Gateway and system-like actor profiles keep `ip_details: null` and `device_details: null`.
 - Profile and activity reads write `admin.actor.profile.viewed` and `admin.actor.activity.viewed` audit events.
+
+Visitor visit admin responses expose collected time/page, the approved IP enrichment subset, parsed browser/OS/device summary, screen/timezone/language observations, and whether the signed entry visit later linked to an authenticated Panoptix user/session. Anonymous visitor rows are retained by maintenance for configured `VISITOR_RETENTION_DAYS`, default 30 days.
 
 Gateway command envelope:
 

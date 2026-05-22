@@ -5,7 +5,6 @@ from collections.abc import Sequence
 
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session as DbSession
-from ua_parser import parse
 
 from cctv_api.core.config import Settings
 from cctv_api.models.enums import (
@@ -35,7 +34,9 @@ from cctv_api.security.ip_intelligence import (
     IpIntelligenceProviderState,
     IpIntelligenceResult,
     get_ip_intelligence_provider,
+    ip_intelligence_payload,
 )
+from cctv_api.security.device_intelligence import device_detail_payload
 
 MAX_DISTINCT_IPS = 50
 MAX_DISTINCT_USER_AGENTS = 20
@@ -231,7 +232,7 @@ def _get_user_ip_details(sessions: list[Session], settings: Settings) -> dict[st
             {
                 **_session_enrichment_context(session),
                 "ip": ip,
-                **_ip_detail_payload(lookups.get(ip) if ip is not None else None),
+                **ip_intelligence_payload(lookups.get(ip) if ip is not None else None),
             }
             for session, ip in zip(sessions, ips, strict=True)
         ],
@@ -262,80 +263,6 @@ def _close_ip_provider(provider_state: IpIntelligenceProviderState) -> None:
         close()
 
 
-def _ip_detail_payload(result: IpIntelligenceResult | None) -> dict[str, object]:
-    if result is None:
-        return {
-            "ip_type": None,
-            "location": {
-                "continent": None,
-                "country_code": None,
-                "country": None,
-                "region": None,
-                "city": None,
-                "timezone": None,
-            },
-            "network": {
-                "asn": None,
-                "organization": None,
-                "domain": None,
-                "connection_type": None,
-            },
-            "company": {
-                "name": None,
-                "domain": None,
-                "type": None,
-            },
-            "carrier": {"name": None},
-            "security": {
-                "is_anonymous": None,
-                "is_vpn": None,
-                "is_proxy": None,
-                "is_tor": None,
-                "is_tor_exit": None,
-                "is_cloud_provider": None,
-                "is_relay": None,
-                "is_threat": None,
-                "is_attacker": None,
-                "is_abuser": None,
-            },
-        }
-    return {
-        "ip_type": result.ip_type,
-        "location": {
-            "continent": result.location.continent,
-            "country_code": result.location.country_code,
-            "country": result.location.country,
-            "region": result.location.region,
-            "city": result.location.city,
-            "timezone": result.location.timezone,
-        },
-        "network": {
-            "asn": result.network.asn,
-            "organization": result.network.organization,
-            "domain": result.network.domain,
-            "connection_type": result.network.connection_type,
-        },
-        "company": {
-            "name": result.company.name,
-            "domain": result.company.domain,
-            "type": result.company.type,
-        },
-        "carrier": {"name": result.carrier.name},
-        "security": {
-            "is_anonymous": result.security.is_anonymous,
-            "is_vpn": result.security.is_vpn,
-            "is_proxy": result.security.is_proxy,
-            "is_tor": result.security.is_tor,
-            "is_tor_exit": result.security.is_tor_exit,
-            "is_cloud_provider": result.security.is_cloud_provider,
-            "is_relay": result.security.is_relay,
-            "is_threat": result.security.is_threat,
-            "is_attacker": result.security.is_attacker,
-            "is_abuser": result.security.is_abuser,
-        },
-    }
-
-
 def _get_user_device_details(sessions: list[Session]) -> dict[str, object]:
     user_agents = [session.ua_fp for session in sessions if session.ua_fp]
     return {
@@ -345,60 +272,11 @@ def _get_user_device_details(sessions: list[Session]) -> dict[str, object]:
             {
                 **_session_enrichment_context(session),
                 "ua_fp": session.ua_fp,
-                **_device_detail_payload(session.ua_fp),
+                **device_detail_payload(session.ua_fp),
             }
             for session in sessions
         ],
     }
-
-
-def _device_detail_payload(user_agent: str | None) -> dict[str, dict[str, object | None]]:
-    parsed = parse(user_agent or "")
-    parsed_browser = parsed.user_agent
-    parsed_os = parsed.os
-    parsed_device = parsed.device
-    return {
-        "browser": {
-            "family": parsed_browser.family if parsed_browser else None,
-            "version": _parsed_version(parsed_browser),
-        },
-        "os": {
-            "family": parsed_os.family if parsed_os else None,
-            "version": _parsed_version(parsed_os),
-        },
-        "device": {
-            "family": parsed_device.family if parsed_device else None,
-            "brand": parsed_device.brand if parsed_device else None,
-            "model": parsed_device.model if parsed_device else None,
-            "device_class": _device_class(user_agent, parsed_os.family if parsed_os else None),
-        },
-    }
-
-
-def _parsed_version(parsed: object | None) -> str | None:
-    if parsed is None:
-        return None
-    parts = [
-        getattr(parsed, "major", None),
-        getattr(parsed, "minor", None),
-        getattr(parsed, "patch", None),
-        getattr(parsed, "patch_minor", None),
-    ]
-    version = ".".join(str(part) for part in parts if part is not None)
-    return version or None
-
-
-def _device_class(user_agent: str | None, os_family: str | None) -> str:
-    if not user_agent:
-        return "unknown"
-    lowered = user_agent.lower()
-    if "ipad" in lowered or "tablet" in lowered:
-        return "tablet"
-    if "mobile" in lowered or "iphone" in lowered:
-        return "mobile"
-    if os_family in {"Windows", "Mac OS X", "Linux", "Ubuntu", "Chrome OS"}:
-        return "desktop"
-    return "unknown"
 
 
 def _session_enrichment_context(session: Session) -> dict[str, str | None]:

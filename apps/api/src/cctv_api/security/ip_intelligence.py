@@ -130,6 +130,80 @@ def get_ip_intelligence_provider(settings: Settings) -> IpIntelligenceProviderSt
     )
 
 
+def ip_intelligence_payload(result: IpIntelligenceResult | None) -> dict[str, object]:
+    if result is None:
+        return {
+            "ip_type": None,
+            "location": {
+                "continent": None,
+                "country_code": None,
+                "country": None,
+                "region": None,
+                "city": None,
+                "timezone": None,
+            },
+            "network": {
+                "asn": None,
+                "organization": None,
+                "domain": None,
+                "connection_type": None,
+            },
+            "company": {
+                "name": None,
+                "domain": None,
+                "type": None,
+            },
+            "carrier": {"name": None},
+            "security": {
+                "is_anonymous": None,
+                "is_vpn": None,
+                "is_proxy": None,
+                "is_tor": None,
+                "is_tor_exit": None,
+                "is_cloud_provider": None,
+                "is_relay": None,
+                "is_threat": None,
+                "is_attacker": None,
+                "is_abuser": None,
+            },
+        }
+    return {
+        "ip_type": result.ip_type,
+        "location": {
+            "continent": result.location.continent,
+            "country_code": result.location.country_code,
+            "country": result.location.country,
+            "region": result.location.region,
+            "city": result.location.city,
+            "timezone": result.location.timezone,
+        },
+        "network": {
+            "asn": result.network.asn,
+            "organization": result.network.organization,
+            "domain": result.network.domain,
+            "connection_type": result.network.connection_type,
+        },
+        "company": {
+            "name": result.company.name,
+            "domain": result.company.domain,
+            "type": result.company.type,
+        },
+        "carrier": {"name": result.carrier.name},
+        "security": {
+            "is_anonymous": result.security.is_anonymous,
+            "is_vpn": result.security.is_vpn,
+            "is_proxy": result.security.is_proxy,
+            "is_tor": result.security.is_tor,
+            "is_tor_exit": result.security.is_tor_exit,
+            "is_cloud_provider": result.security.is_cloud_provider,
+            "is_relay": result.security.is_relay,
+            "is_threat": result.security.is_threat,
+            "is_attacker": result.security.is_attacker,
+            "is_abuser": result.security.is_abuser,
+        },
+    }
+
+
 def _ipregistry_result(payload: Mapping[str, object]) -> IpIntelligenceResult:
     location = _mapping(payload.get("location"))
     continent = _mapping(location.get("continent"))

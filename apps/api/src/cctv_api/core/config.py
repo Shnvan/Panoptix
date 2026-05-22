@@ -64,6 +64,14 @@ class Settings(BaseSettings):
     ACTOR_IP_ENRICHMENT_ENABLED: bool = False
     ACTOR_IP_IPREGISTRY_API_KEY: str = ""
 
+    # -- Public visitor collector (pilot) --
+    VISITOR_COLLECTOR_ENABLED: bool = False
+    VISITOR_NOTICE_VERSION: str = "2026-05-22"
+    VISITOR_COOKIE_NAME: str = "panoptix_visitor"
+    VISITOR_COOKIE_DOMAIN: str = ""
+    VISITOR_COOKIE_SIGNING_KEY: str = "replace-me"
+    VISITOR_RETENTION_DAYS: int = Field(default=30, ge=1, le=365)
+
     # ── Session / cookie ──
     SESSION_COOKIE_NAME: str = "panoptix_session"
     SESSION_SIGNING_KEY: str = "replace-me"
@@ -113,6 +121,8 @@ class Settings(BaseSettings):
     RATE_LIMIT_GATEWAY_INGEST_WINDOW: int = Field(default=60, ge=10)
     RATE_LIMIT_ADMIN_MUTATION_MAX: int = Field(default=10, ge=1)
     RATE_LIMIT_ADMIN_MUTATION_WINDOW: int = Field(default=60, ge=10)
+    RATE_LIMIT_VISITOR_COLLECT_MAX: int = Field(default=20, ge=1)
+    RATE_LIMIT_VISITOR_COLLECT_WINDOW: int = Field(default=60, ge=10)
 
     @property
     def cf_access_browser_audiences(self) -> list[str]:
@@ -170,6 +180,9 @@ class Settings(BaseSettings):
             ):
                 if not getattr(self, field_name, "").strip():
                     unsafe.append(field_name)
+
+        if self.VISITOR_COLLECTOR_ENABLED:
+            _GUARDED_FIELDS.append("VISITOR_COOKIE_SIGNING_KEY")
 
         for field_name in _GUARDED_FIELDS:
             value = getattr(self, field_name, "")

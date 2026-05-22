@@ -15,6 +15,7 @@ Read first: [Frontend Coworker Handoff](FRONTEND_HANDOFF.md).
 - Alert records and backend SMTP email notification support are implemented. Email is backend-only and disabled by default until SMTP settings are configured.
 - Real LiveKit browser playback is still not production-complete. The backend mints subscriber-only viewer tokens; the frontend still needs the subscriber player.
 - Real CCTV hardware validation is still pending. Staging browser smoke passed 2026-05-21. Production deployed at `panoptix.site` 2026-05-22.
+- A backend-only public visitor collector pilot is available for a separate public entry host such as `entry.panoptix.site`; the public entry notice page and future admin visitor dashboard are frontend handoff work.
 
 ---
 
@@ -159,6 +160,17 @@ These are the endpoints the frontend consumes directly.
 - **Use:** record current privacy notice acceptance
 - **Note:** repeated acceptance for the same current version is idempotent
 
+### Public visitor entry handoff
+
+The Cloudflare Access-protected app host cannot run pre-auth frontend JavaScript. A future public entry page should use the separate visitor collector contract only on an intentionally public entry host.
+
+| Method | Path | Auth | Use |
+|---|---|---|---|
+| `GET` | `/api/v1/visitor/notice` | public when collector enabled | render the current visitor security notice |
+| `POST` | `/api/v1/visitor/collect` | public when collector enabled | record approved entry-page signals after the visitor continues |
+
+The collect request carries `notice_version`, `notice_acknowledged`, `page_path`, screen width/height, timezone, and language. The backend adds request IP, user-agent, Ipregistry subset when configured, and an HttpOnly visitor cookie for later login correlation. Do not add WebRTC collection or raw Ipregistry payload rendering for this pilot.
+
 ---
 
 ## Implemented Admin Endpoints
@@ -220,9 +232,9 @@ All admin endpoints require the `admin` role.
 
 | Method | Path | Request | Response |
 |---|---|---|---|
-| `POST` | `/api/v1/admin/jobs/run-maintenance` | none | `{ "expired_commands", "stops_enqueued" }` |
+| `POST` | `/api/v1/admin/jobs/run-maintenance` | none | `{ "expired_commands", "stops_enqueued", "purged_visitor_visits" }` |
 
-Runs expired-command cleanup and due publish-stop processing in a single admin call. Idempotent and safe to call repeatedly.
+Runs expired-command cleanup, due publish-stop processing, and anonymous visitor retention cleanup in a single admin call. Idempotent and safe to call repeatedly.
 
 The backend also has a disabled-by-default in-process maintenance scheduler controlled by `ENABLE_MAINTENANCE_SCHEDULER` and `MAINTENANCE_INTERVAL_SECONDS`; the admin endpoint remains available for manual runs.
 
@@ -265,6 +277,17 @@ The backend also has a disabled-by-default in-process maintenance scheduler cont
 - Non-user profiles keep `ip_details: null` and `device_details: null`. Unsupported enrichment sections remain top-level `null` fields for `mfa_details`, `threat_intelligence`, `incidents`, and `analyst_notes`.
 - These are admin-only read endpoints. They are not covered by the admin mutation rate limiter.
 - Successful views create audit events `admin.actor.profile.viewed` and `admin.actor.activity.viewed`.
+
+### Visitor Entry Investigation
+
+| Method | Path | Request | Response |
+|---|---|---|---|
+| `GET` | `/api/v1/admin/visitor-visits` | query: `cursor`, `limit` | paginated collected entry visits |
+| `GET` | `/api/v1/admin/visitor-visits/{visit_id}` | path visit ID | approved entry visit detail and login correlation |
+
+- Admin detail reads write `admin.visitor.visit.viewed`.
+- Returned records include page/time, request IP and stored normalized Ipregistry subset, parsed browser/OS/device summary, screen/timezone/language, and linked user/session fields when the visitor later logs in.
+- The first pilot covers users who enter through the public entry host. Direct Cloudflare Access challenge visits to `panoptix.site` do not run browser-side collector code.
 
 ---
 

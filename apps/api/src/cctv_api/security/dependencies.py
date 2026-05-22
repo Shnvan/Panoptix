@@ -31,6 +31,7 @@ from cctv_api.security.sessions import (
 )
 from cctv_api.security.suspicious_login import check_login_suspicion
 from cctv_api.security.users import get_or_create_user, get_user_roles
+from cctv_api.security.visitor_visits import link_visitor_visit_to_session
 
 
 def _auth_problem(detail: str, *, status: int = 401) -> ProblemDetail:
@@ -99,6 +100,16 @@ def require_authenticated_user(
             actor_id=user.id, session_id=session_row.id,
         )
         # ── Suspicious login detection (pilot) ──
+        try:
+            link_visitor_visit_to_session(
+                db,
+                cookie_value=request.cookies.get(settings.VISITOR_COOKIE_NAME),
+                settings=settings,
+                user_id=user.id,
+                session_row=session_row,
+            )
+        except Exception:
+            db.rollback()
         if settings.SUSPICIOUS_LOGIN_DETECTION_ENABLED:
             try:
                 country = request.headers.get("cf-ipcountry")

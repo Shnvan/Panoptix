@@ -25,6 +25,7 @@ from cctv_api.models.tables import (
     EdgeGateway,
     GatewayCameraAssignment,
     GatewayCommandQueue,
+    VisitorVisit,
 )
 
 
@@ -108,7 +109,7 @@ def test_maintenance_empty_returns_zeros(test_db_session: DbSession) -> None:
     response = client.post("/api/v1/admin/jobs/run-maintenance", headers=_ADMIN_HEADERS)
     assert response.status_code == 200
     data = response.json()
-    assert data == {"expired_commands": 0, "stops_enqueued": 0}
+    assert data == {"expired_commands": 0, "stops_enqueued": 0, "purged_visitor_visits": 0}
 
 
 def test_maintenance_expires_stale_commands(test_db_session: DbSession) -> None:
@@ -181,6 +182,37 @@ def test_maintenance_writes_audit(test_db_session: DbSession) -> None:
     ).scalar_one()
     assert audit.payload["expired_commands"] == 0
     assert audit.payload["stops_enqueued"] == 0
+
+
+def test_maintenance_purges_expired_visitor_visits(test_db_session: DbSession) -> None:
+    now = datetime.now(timezone.utc)
+    test_db_session.add_all([
+        VisitorVisit(
+            id=uuid.uuid4(),
+            collected_at=now - timedelta(days=31),
+            page_path="/old",
+            notice_version="2026-05-22",
+            ip_enrichment_status="not_configured",
+            ip_enrichment={},
+        ),
+        VisitorVisit(
+            id=uuid.uuid4(),
+            collected_at=now - timedelta(days=1),
+            page_path="/recent",
+            notice_version="2026-05-22",
+            ip_enrichment_status="not_configured",
+            ip_enrichment={},
+        ),
+    ])
+    test_db_session.commit()
+
+    client = _client(test_db_session)
+    response = client.post("/api/v1/admin/jobs/run-maintenance", headers=_ADMIN_HEADERS)
+
+    assert response.status_code == 200
+    assert response.json()["purged_visitor_visits"] == 1
+    remaining = test_db_session.execute(select(VisitorVisit)).scalar_one()
+    assert remaining.page_path == "/recent"
 
 
 def test_scheduled_maintenance_expires_stale_commands(test_db_session: DbSession) -> None:

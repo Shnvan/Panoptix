@@ -947,6 +947,13 @@ Work with the frontend coworker to build the admin camera management and user ma
 - [x] Parsed stored session user agents into browser, OS, and conservative device summaries without new alerts or database schema
 - [x] Kept non-user actor enrichment null and left actor investigation frontend work as handoff scope
 
+### Public Visitor Collector Backend Pilot
+- [x] Added disabled-by-default public visitor entry notice and collector APIs for approved security-core browser signals
+- [x] Added anonymous visitor visit persistence, signed entry cookie correlation to later authenticated sessions, and admin visitor list/detail APIs with detail-view audit
+- [x] Reused the normalized Ipregistry subset and user-agent parser without storing raw provider payloads, WebRTC candidate IPs, reverse-geocoded addresses, or broader fingerprint signals
+- [x] Added 30-day default visitor retention cleanup through the existing maintenance path
+- [x] Kept the public entry UI and admin visitor dashboard as frontend handoff work; the collector covers the separate entry flow rather than direct Cloudflare Access challenge visits
+
 ---
 
 ## Key References
