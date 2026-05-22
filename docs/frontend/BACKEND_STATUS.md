@@ -2,7 +2,7 @@
 
 This document lists every implemented backend API endpoint, what the frontend can build against today, what is not ready yet, and local dev setup instructions.
 
-Last updated: 2026-05-21 (post local full-stack smoke, alert email pilot, DSR, GitHub invite, and backup status work)
+Last updated: 2026-05-22 (production live at panoptix.site, login baselines migration 0009 deployed)
 
 Read first: [Frontend Coworker Handoff](FRONTEND_HANDOFF.md).
 
@@ -14,7 +14,7 @@ Read first: [Frontend Coworker Handoff](FRONTEND_HANDOFF.md).
 - `POST /api/v1/admin/users/invite` is implemented, but `github-invites-not-configured` is expected unless GitHub invite settings are intentionally enabled.
 - Alert records and backend SMTP email notification support are implemented. Email is backend-only and disabled by default until SMTP settings are configured.
 - Real LiveKit browser playback is still not production-complete. The backend mints subscriber-only viewer tokens; the frontend still needs the subscriber player.
-- Real CCTV hardware validation, deployed frontend routing, and staging/prod browser smoke are still pending.
+- Real CCTV hardware validation is still pending. Staging browser smoke passed 2026-05-21. Production deployed at `panoptix.site` 2026-05-22.
 
 ---
 
@@ -399,7 +399,7 @@ These features are either incomplete in the frontend, need staged/production smo
 | Gateway credential rotation | `POST /api/v1/admin/gateways/{id}/rotate-credential` is **implemented** (generates new service token, revokes old hash, audit-logged) |
 | DPA/signage export | `POST /api/v1/admin/dpa/export` and `POST /api/v1/admin/sites/:id/signage-attest` are **implemented** (JSONL bundle with kind filter, audit-logged) |
 | LiveKit fallback mode | `POST /api/v1/admin/livekit/fallback` is **implemented** (DB flag flip between `cloud`/`fallback`, audit-logged) |
-| Production Cloudflare Access | Backend staging domain exists; deployed frontend routing and full staging browser smoke are still pending. |
+| Production Cloudflare Access | Production live at `panoptix.site` (2026-05-22). Staging smoke passed 2026-05-21. Production browser smoke needed. |
 | Production scheduler | Maintenance scheduler is implemented (`ENABLE_MAINTENANCE_SCHEDULER`) but disabled by default. Manual admin endpoint `POST /api/v1/admin/jobs/run-maintenance` is available |
 
 Frontend should use real backend APIs for implemented features and show planned/disabled states only for routes that are not implemented.

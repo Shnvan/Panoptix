@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Video, Server, Users, FileText,
-  Activity, Settings, ChevronLeft, Shield, Sun, Moon,
+  Activity, Settings, ChevronLeft, Sun, Moon,
   Camera, ShieldAlert, AlertTriangle,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -54,9 +54,7 @@ export function Sidebar({ activeSection, onSectionChange, isAdmin, systemStatus 
       }`}>
         {!collapsed && (
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg flex items-center justify-center shadow-lg shadow-orange-500/25">
-              <Shield className="w-6 h-6 text-white" />
-            </div>
+            <img src="/logo.png" alt="Panoptix" className="w-10 h-10 rounded-lg shadow-lg shadow-orange-500/25" />
             <div>
               <h1 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Panoptix</h1>
               <p className={`text-xs ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>CCTV Monitor</p>
@@ -64,9 +62,7 @@ export function Sidebar({ activeSection, onSectionChange, isAdmin, systemStatus 
           </div>
         )}
         {collapsed && (
-          <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg flex items-center justify-center shadow-lg shadow-orange-500/25 mx-auto">
-            <Shield className="w-6 h-6 text-white" />
-          </div>
+          <img src="/logo.png" alt="Panoptix" className="w-10 h-10 rounded-lg shadow-lg shadow-orange-500/25 mx-auto" />
         )}
         <button onClick={() => setCollapsed(!collapsed)}
           className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors ${

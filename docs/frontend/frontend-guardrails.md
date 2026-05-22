@@ -8,7 +8,7 @@ This document tells the frontend owner what **not** to do so `cctv-web` does not
 
 Frontend owns:
 
-- Next.js routes and layouts.
+- React routes and layouts.
 - React components.
 - Tailwind styling.
 - Camera grid and tile states.
@@ -24,7 +24,7 @@ Do not:
 - Call database providers directly from frontend code.
 - Call LiveKit admin APIs from the browser.
 - Call gateway endpoints directly from browser code.
-- Implement Next.js API routes for protected backend actions.
+- Implement frontend API routes for protected backend actions.
 - Store authorization rules only in React state.
 - Decide camera access in the UI without backend confirmation.
 

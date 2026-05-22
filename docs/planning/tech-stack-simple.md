@@ -7,7 +7,7 @@ This is the current easy-to-understand technology stack after the decision to us
 ```text
 User opens CCTV website
 → Cloudflare checks if the user is allowed
-→ Google Workspace confirms the user's identity
+→ IdP confirms the user's identity (GitHub OAuth on staging; Google Workspace planned for production)
 → Railway runs our Python web app
 → The user sees the CCTV dashboard
 → LiveKit sends live video to the browser
@@ -25,11 +25,11 @@ The system has three parts:
 
 ---
 
-## 1. Google Workspace
+## 1. Identity Provider (IdP)
 
-**What it is:** The school's existing Google account system.
+> **Note:** Staging currently uses **GitHub OAuth**. Google Workspace is planned for production.
 
-**Purpose:** Users log in with their school Google account.
+**What it is:** The school's existing Google account system (production) or GitHub OAuth (staging).
 
 **Why we use it:** The school already has it, so it is low-cost. It supports strong login security like passkeys and hardware keys.
 
@@ -77,10 +77,10 @@ The system has three parts:
 
 Railway hosts:
 
-- Next.js dashboard pages
-- Next.js admin pages
+- React dashboard pages
+- React admin pages
 - API endpoints
-- Next.js privacy pages
+- React privacy pages
 - token minting
 - gateway heartbeats
 - LiveKit webhook receiver
@@ -110,7 +110,7 @@ Used for:
 
 **Why we use it:** The project now requires Python. It is readable, mature, and has good backend/security libraries.
 
-**Why not Node.js/TypeScript for backend now:** Node/TypeScript is used only for the selected Next.js frontend. Python remains the chosen backend/security-authoritative language.
+**Why not Node.js/TypeScript for backend now:** Node/TypeScript is used only for the React + Vite frontend build tooling. Python remains the chosen backend/security-authoritative language.
 
 ---
 
@@ -128,19 +128,19 @@ Used for:
 
 ---
 
-## 7. Next.js, React, and Tailwind
+## 7. React, Vite, and Tailwind
 
 **What they are:** Tools for building the web dashboard.
 
 | Tool | Purpose |
 |---|---|
-| Next.js | Provides the frontend app, routing, and page structure |
 | React | Builds interactive dashboard, admin, and video-viewer components |
+| Vite | Provides the frontend build tool, dev server, and module bundling |
 | Tailwind | Styles the dashboard |
 
 **Purpose:** Build the MVP dashboard and admin UI as a dedicated frontend application.
 
-**Why we use them:** The team now has a dedicated frontend coworker. Next.js/React gives that teammate a clear UI surface while FastAPI remains the backend/security authority.
+**Why we use them:** The team now has a dedicated frontend coworker. React + Vite gives that teammate a clear UI surface while FastAPI remains the backend/security authority.
 
 **Security rule:** The frontend displays state and calls same-origin `/api/v1/*` routes, but it never decides permissions, never mints stream tokens, never receives gateway-publish tokens, and never receives camera RTSP credentials.
 
@@ -451,10 +451,10 @@ Tools:
 Current stack:
 
 ```text
-Google Workspace
+GitHub OAuth (staging) / Google Workspace (production)
 + Cloudflare Access/DNS/WAF
 + Railway
-+ Next.js/React/Tailwind
++ React + Vite/Tailwind
 + Python FastAPI
 + Neon Postgres
 + LiveKit Cloud
@@ -465,4 +465,4 @@ Google Workspace
 + GitHub Actions CI/CD
 ```
 
-This stack keeps the system secure while using Railway for the Next.js frontend and Python/FastAPI backend control-plane services.
+This stack keeps the system secure while using Railway for the React + Vite frontend and Python/FastAPI backend control-plane services.

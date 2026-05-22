@@ -14,7 +14,7 @@ The system is a security-critical CCTV monitoring platform. After ADR 0014, its 
 - **Python** (control-plane runtime)
 - **FastAPI** (control-plane framework)
 - **Node.js** (frontend runtime/build runtime)
-- **Next.js / React / Tailwind** (MVP UI)
+- **React 19 / Vite / Tailwind** (MVP UI)
 - **LiveKit JavaScript client** (browser viewer only)
 - **mediamtx** (edge gateway RTSP bridge — single Go binary)
 - **FFmpeg** (synthetic RTSP source for dev/CI)
@@ -51,7 +51,7 @@ Until those gates are implemented, references below describe the accepted target
 |---|---|---|---|
 | Python Docker base | Exact Python patch + digest | `python:3.12.7-slim-bookworm@sha256:abc...` | Dependabot PR; CI fails on floating tag |
 | Node.js runtime | Exact major/minor/patch + digest where containerized | `node:22.11.0-bookworm-slim@sha256:abc...` | Dependabot/Renovate PR; CI fails on floating tag |
-| Next.js | Exact version in frontend lockfile | `next x.y.z` | Dependabot/Renovate PR |
+| Vite | Exact version in frontend lockfile | `vite x.y.z` | Dependabot/Renovate PR |
 | React / React DOM | Exact versions in frontend lockfile | `react x.y.z`, `react-dom x.y.z` | Dependabot/Renovate PR |
 | FastAPI | Exact version in lockfile | `fastapi==0.x.y` | Dependabot/Renovate PR |
 | Pydantic | Exact version in lockfile | `pydantic==2.x.y` | Dependabot/Renovate PR |
@@ -71,14 +71,14 @@ Until those gates are implemented, references below describe the accepted target
 
 1. **Floating-tag lint**: a CI step scans `Dockerfile*` for floating tags (`latest`, `slim` without a patch version, `python:3.12` without patch). Fails the build.
 2. **Lockfile integrity**: Python dependencies install only from the committed lockfile. Frontend dependencies install only from the committed lockfile.
-3. **Frontend dependency scanning**: Next.js/React dependencies are scanned with Dependabot/Renovate and osv/npm-audit-equivalent CI checks.
+3. **Frontend dependency scanning**: React/Vite dependencies are scanned with Dependabot/Renovate and osv/npm-audit-equivalent CI checks.
 4. **Frontend bundle scan**: built browser bundles are scanned for forbidden camera-publisher APIs, RTSP credential strings, gateway-publish token paths, and accidental secrets.
 5. **Semgrep rule `ban-experimental-imports`**: flags experimental or unstable framework/library APIs in security-critical paths (auth, token-mint, audit, gateway API).
 6. **SBOM generation**: every release build produces an SBOM (CycloneDX or SPDX) listing all pinned versions. The SBOM is committed as a release artefact.
 
 ### Experimental API ban
 
-Experimental or unstable APIs from FastAPI, Starlette, Pydantic, JWT/JWKS libraries, SQLAlchemy, LiveKit SDKs, Next.js/React routing/runtime features, or browser media libraries are **banned in security-critical code paths**:
+Experimental or unstable APIs from FastAPI, Starlette, Pydantic, JWT/JWKS libraries, SQLAlchemy, LiveKit SDKs, React/Vite routing/runtime features, or browser media libraries are **banned in security-critical code paths**:
 
 - Authentication / JWT verification
 - Token minting (viewer-subscribe, gateway-publish)
@@ -105,7 +105,7 @@ The following exact versions are recorded in this ADR at Phase 0 exit (after pro
 - FastAPI / Pydantic / SQLAlchemy / Alembic exact versions (to be determined)
 - LiveKit Python Server SDK exact version, if used (to be determined)
 - Node.js exact version (to be determined)
-- Next.js / React / React DOM exact versions (to be determined)
+- Vite / React / React DOM exact versions (to be determined)
 - Tailwind exact version (to be determined)
 - LiveKit JavaScript client exact version (to be determined)
 - mediamtx: `vX.Y.Z` (to be determined; latest stable at procurement)

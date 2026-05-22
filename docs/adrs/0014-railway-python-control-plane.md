@@ -3,13 +3,13 @@
 - **Status**: Accepted
 - **Date**: 2026-05-07
 - **Decision-makers**: System Owner, Software Architect
-- **Decision**: Railway-hosted FastAPI backend with same-domain Next.js/React frontend
-- **Supersedes**: portions of ADR 0007 and plan §12 that assumed a single server-rendered FastAPI/Jinja2/HTMX UI or the older Next.js/Node/Fly control-plane default
+- **Decision**: Railway-hosted FastAPI backend with same-domain React + Vite frontend
+- **Supersedes**: portions of ADR 0007 and plan §12 that assumed a single server-rendered FastAPI/Jinja2/HTMX UI or the older Next.js/Node/Fly control-plane default (frontend subsequently implemented with React + Vite, not Next.js)
 - **Plan references**: §10.1–§10.4; §11; §12; §15; §16; §20; ADR 0002; ADR 0003; ADR 0008; ADR 0010
 
 ## Context
 
-The previous v4.1 plan used a Next.js/Node.js control-plane application hosted on Fly.io. The project direction changed to **Railway** for hosting and **Python/FastAPI** for the backend. The team has now selected a dedicated frontend split: **Next.js/React** for the UI and **FastAPI** for all backend/security-authoritative control-plane logic.
+The previous v4.1 plan used a Next.js/Node.js control-plane application hosted on Fly.io. The project direction changed to **Railway** for hosting and **Python/FastAPI** for the backend. The team has now selected a dedicated frontend split: **React + Vite** for the UI and **FastAPI** for all backend/security-authoritative control-plane logic.
 
 The non-negotiable security architecture remains unchanged:
 
@@ -21,18 +21,18 @@ The non-negotiable security architecture remains unchanged:
 - Production cameras still publish only through on-site gateways.
 - Browsers remain viewers only; browser/phone/laptop publishing remains banned.
 
-The key architectural question is how to use Next.js/React for the frontend without weakening origin-binding, trusted-header validation, token minting, audit logging, gateway identity, or the CCTV-only invariant.
+The key architectural question is how to use React + Vite for the frontend without weakening origin-binding, trusted-header validation, token minting, audit logging, gateway identity, or the CCTV-only invariant.
 
 ## Decision
 
-**Use Railway to host the control plane as two services: a Next.js/React frontend service and a Python/FastAPI backend service. Serve both through the same Cloudflare Access protected custom domain. The frontend owns the dashboard/admin/privacy UI; FastAPI remains the only authority for authentication verification, authorization, session validation, token minting, gateway identity, webhooks, audit, and database writes.**
+**Use Railway to host the control plane as two services: a React + Vite frontend service and a Python/FastAPI backend service. Serve both through the same Cloudflare Access protected custom domain. The frontend owns the dashboard/admin/privacy UI; FastAPI remains the only authority for authentication verification, authorization, session validation, token minting, gateway identity, webhooks, audit, and database writes.**
 
 The revised control-plane stack is:
 
 | Layer | Decision |
 |---|---|
 | App hosting | Railway |
-| Frontend framework | Next.js + React |
+| Frontend framework | React + Vite |
 | Frontend styling | Tailwind CSS |
 | Backend framework | Python FastAPI |
 | ASGI server | Uvicorn, with Gunicorn/Uvicorn workers if required by deployment mode |
@@ -50,9 +50,9 @@ The revised control-plane stack is:
 
 Railway hosts the **control plane** only:
 
-- Next.js dashboard pages
-- Next.js admin pages
-- Next.js privacy notice pages
+- React dashboard pages
+- React admin pages
+- React privacy notice pages
 - React camera-grid and LiveKit viewer components
 - FastAPI API endpoints
 - Cloudflare Access JWT verification in FastAPI
@@ -92,7 +92,7 @@ Browser
 → Cloudflare DNS/WAF
 → Cloudflare Access
 → Google Workspace login/MFA
-→ Railway-hosted Next.js frontend
+→ Railway-hosted React + Vite frontend
 → same-origin `/api/v1/*` routes to Railway-hosted FastAPI backend
 ```
 
@@ -115,9 +115,9 @@ If Railway supports private networking or ingress restrictions sufficient to acc
 
 ## UI approach
 
-MVP uses Next.js/React from day one because a dedicated frontend developer owns the UI implementation.
+MVP uses React + Vite from day one because a dedicated frontend developer owns the UI implementation.
 
-- Next.js renders the dashboard, admin, emergency, and privacy pages.
+- React renders the dashboard, admin, emergency, and privacy pages.
 - React components implement camera grids, live video tiles, status panels, forms, and admin workflows.
 - Tailwind provides styling.
 - The LiveKit JavaScript client is used only inside viewer components for browser-side WebRTC subscription.
@@ -130,10 +130,10 @@ The frontend is not a security authority. It displays state and calls same-origi
 The preferred production shape is:
 
 ```text
-https://<app-domain>/dashboard        → Next.js frontend
-https://<app-domain>/admin            → Next.js frontend
-https://<app-domain>/admin-emergency  → Next.js frontend shell
-https://<app-domain>/privacy          → Next.js frontend
+https://<app-domain>/dashboard        → React + Vite frontend
+https://<app-domain>/admin            → React + Vite frontend
+https://<app-domain>/admin-emergency  → React + Vite frontend shell
+https://<app-domain>/privacy          → React + Vite frontend
 https://<app-domain>/api/v1/*         → FastAPI backend
 https://<app-domain>/health           → FastAPI backend
 ```
@@ -161,7 +161,7 @@ The database security requirements remain unchanged:
 
 ADR 0008 remains valid.
 
-The gateway API endpoints are FastAPI endpoints, never Next.js API routes. The same rules remain:
+The gateway API endpoints are FastAPI endpoints, never frontend API routes. The same rules remain:
 
 - browser sessions cannot call gateway token endpoints,
 - gateway identity is required,
@@ -204,7 +204,7 @@ The frontend security rules are:
 ### Positive
 
 - **Matches project constraint**: uses Railway and Python/FastAPI for the backend as requested.
-- **Supports team ownership**: gives the dedicated frontend developer a React/Next.js UI surface.
+- **Supports team ownership**: gives the dedicated frontend developer a React + Vite UI surface.
 - **Simpler backend security model**: FastAPI is explicit and well suited for API-heavy control-plane logic.
 - **Same-origin frontend/API model**: keeps browser API calls simple and reduces CORS risk compared with separate subdomains.
 - **Keeps previous security decisions**: IdP, database, gateway identity, camera isolation, and LiveKit primary stay intact.
@@ -212,15 +212,15 @@ The frontend security rules are:
 
 ### Migration notes
 
-- **Existing FastAPI/Jinja2/HTMX content is amended**: version pinning, stack docs, CI, and deployment references now point to Railway + Next.js frontend + FastAPI backend.
-- **Browser-security details change**: CSP, bundle scanning, frontend dependency scanning, and same-origin API routing must be implemented for Next.js.
+- **Existing FastAPI/Jinja2/HTMX content is amended**: version pinning, stack docs, CI, and deployment references now point to Railway + React + Vite frontend + FastAPI backend.
+- **Browser-security details change**: CSP, bundle scanning, frontend dependency scanning, and same-origin API routing must be implemented for the React + Vite frontend.
 - **Type sharing is possible through OpenAPI**: frontend types should be generated from FastAPI OpenAPI output when implementation begins.
 - **Railway origin-binding differs from Fly**: Railway may expose a public origin URL, so app-level fail-closed CF JWT verification becomes even more important.
 - **LiveKit fallback hosting is separate from Railway**: DigitalOcean Singapore is the first procurement candidate, but UDP/media-port and TCP/TLS:443 behaviour must still be verified before pilot.
 
 ### Risks accepted
 
-- Next.js/React adds a Node.js/frontend dependency surface. This is accepted because the team has a dedicated frontend owner, and ADR 0007 requires exact pins, lockfile-only installs, bundle scanning, and dependency review.
+- React + Vite adds a Node.js/frontend dependency surface. This is accepted because the team has a dedicated frontend owner, and ADR 0007 requires exact pins, lockfile-only installs, bundle scanning, and dependency review.
 - A same-domain split adds service-routing complexity. This is accepted because it preserves a simpler browser security model than separate app/API subdomains.
 
 ## Alternatives considered
@@ -239,11 +239,11 @@ The frontend security rules are:
 
 ### D. Railway + FastAPI backend + server-rendered Jinja2/HTMX frontend
 
-- **Rejected after team decision**: still simpler, but the project now has a dedicated frontend developer and selects Next.js/React for UI ownership and richer dashboard implementation.
+- **Rejected after team decision**: still simpler, but the project now has a dedicated frontend developer and selects React + Vite for UI ownership and richer dashboard implementation.
 
-### E. Railway + FastAPI backend + React/Vite frontend
+### E. Railway + FastAPI backend + Next.js frontend
 
-- **Rejected in favor of Next.js**: Vite is simpler for a pure SPA, but Next.js gives routing conventions, SSR/static rendering options, middleware/proxy options, and a more complete frontend application structure.
+- **Rejected in favor of React + Vite**: Next.js gives routing conventions and SSR/static rendering options, but adds unnecessary complexity for a client-rendered SPA. React + Vite is simpler, faster to build, and sufficient for this dashboard.
 
 ### F. Railway for both control plane and LiveKit fallback
 
@@ -254,7 +254,7 @@ The frontend security rules are:
 - Protected route without Cloudflare Access JWT is rejected.
 - Protected route with invalid `iss`, `aud`, `exp`, `nbf`, or signature is rejected.
 - Valid Google Workspace/Cloudflare Access login reaches dashboard.
-- Next.js dashboard calls FastAPI through same-origin `/api/v1/*` routes.
+- React frontend calls FastAPI through same-origin `/api/v1/*` routes.
 - Browser user can request viewer-subscribe token only for assigned cameras.
 - Browser user cannot request gateway-publish token.
 - Gateway can request gateway-publish token only with valid gateway identity and assignment.
@@ -266,10 +266,10 @@ The frontend security rules are:
 
 ## Follow-up changes completed
 
-- ADR 0007 pins Python/FastAPI dependencies and Next.js/React frontend dependencies.
+- ADR 0007 pins Python/FastAPI dependencies and React + Vite frontend dependencies.
 - ADR 0010 uses Railway-compatible origin-binding language.
 - ADR 0004 decouples LiveKit fallback from Fly.io/Railway and records DigitalOcean Singapore or equivalent UDP-capable APAC host as the fallback candidate.
-- Tech stack documentation now points to Railway + Next.js frontend + FastAPI backend sources of truth.
+- Tech stack documentation now points to Railway + React + Vite frontend + FastAPI backend sources of truth.
 - Main plan §10, §12, and §20 deployment references now reflect Railway-hosted frontend/backend control-plane services.
 - Procurement guide includes Railway account setup and the temporary Railway URL.
 
@@ -280,7 +280,7 @@ The frontend security rules are:
 - ADR 0008 — Gateway Identity and mTLS CA Design
 - ADR 0010 — Origin-Binding and Trusted-Header Policy
 - FastAPI documentation
-- Next.js documentation
+- Vite documentation
 - React documentation
 - Railway documentation
 - Cloudflare Access JWT validation documentation

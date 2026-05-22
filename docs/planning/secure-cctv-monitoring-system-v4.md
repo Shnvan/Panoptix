@@ -64,7 +64,7 @@ In-place revision of v4 closing every actionable finding from the external diagn
 | **H-04** `stream_grants` cleanup home | High | Section 14.3; T-50 update | **Closed** - scheduled cleanup job every 5 min; external-cron fallback documented |
 | **H-05** LiveKit room model | High | New Section 13.10 LiveKit Room Model; `cameras.livekit_room_name` in Section 14.1 | **Closed** - one room per camera, presence-driven publish, 10-s grace on last-viewer |
 | **H-06** `mediamtx` version pin | High | Section 22 ADR 0007 rename; Section 12 stack table | **Closed** - covered by ADR 0007; Renovate watcher for `bluenviron/mediamtx` |
-| **H-07** CSP nonce | High | Section 16.5 | **Closed** - Next.js-compatible strict CSP and nonce/hash strategy specified |
+| **H-07** CSP nonce | High | Section 16.5 | **Closed** - React + Vite-compatible strict CSP and nonce/hash strategy specified |
 | **H-08** Webhook replay window + CORS | High | Section 13.5 hard rule 13; Section 15.1 webhook receiver; Section 16.13 CORS; new T-63 | **Closed** - 60-s window; webhook empty allow-origin; preflight 405 |
 | **H-09** `pg_dump` backup host | High | Section 20.7 | **Closed** - scheduled backup job separate from web process |
 | **M-01** Bus-factor runbook | Medium | New Section 20.19 | **Closed** |
@@ -427,7 +427,7 @@ Rules:
 **Included**:
 
 1. Cloudflare Access on three policies (App A `/dashboard`, App B `/admin`, App C `/admin-emergency`) in front of the Railway-hosted control plane. **Google Workspace is the primary IdP (Section 11.2).**
-2. Same-domain control-plane services: Next.js frontend for `/dashboard`, `/admin`, `/admin-emergency`, and `/privacy`; FastAPI backend for `/api/v1/*` and `/health`.
+2. Same-domain control-plane services: React + Vite frontend for `/dashboard`, `/admin`, `/admin-emergency`, and `/privacy`; FastAPI backend for `/api/v1/*` and `/health`.
 3. Postgres (Neon free = prototype only; **paid managed Postgres before pilot** per Section 12).
 4. **Media plane: LiveKit Cloud (APAC) primary**; **self-hosted LiveKit fallback on DigitalOcean Singapore or equivalent UDP-capable APAC host** (only media ports public, no shared trust with control plane).
 5. **Edge gateway** (dev/CI synthetic host or on-site Linux) running `mediamtx`, RTSP-first; in MVP it ingests one real RTSP camera **and** one `synthetic_rtsp_test_source` for CI/dev.
@@ -500,7 +500,7 @@ Rules:
        |  - Cf-* headers ignored unless JWT verification succeeds         |
        |  - verify Cf-Access-Jwt-Assertion vs CF JWKS (aud+iss pinned;    |
        |    exp/nbf with CLOCK_SKEW_SECONDS = 30; fail-closed JWKS cache) |
-       |  - Next.js/React/Tailwind frontend for UI routes                 |
+       |  - React + Vite/Tailwind frontend for UI routes                  |
        |  - FastAPI + SQLAlchemy/Alembic backend for /api/v1/*            |
        |  - mints VIEWER tokens (<=60 s, subscriber-only, jti, session-bd) |
        |  - mints GATEWAY tokens (<=60 s, publisher-only, gateway+camera)  |
@@ -547,7 +547,7 @@ Rules:
 ### 10.2 Component responsibilities
 
 - **Cloudflare Access (IAP)** - control-plane identity-aware proxy. Federates to the IdP. WAF / bot per selected plan. Issues a **Service-Token policy** for the `/health` endpoint used by external monitors (Better Stack / UptimeRobot).
-- **Railway-hosted Next.js frontend** - dashboard, admin, emergency, privacy, camera-grid, status, forms, and LiveKit viewer components. It displays state and calls same-origin `/api/v1/*`; it never decides authorization, mints stream tokens, stores long-lived auth tokens, or receives camera RTSP credentials.
+- **Railway-hosted React + Vite frontend** - dashboard, admin, emergency, privacy, camera-grid, status, forms, and LiveKit viewer components. It displays state and calls same-origin `/api/v1/*`; it never decides authorization, mints stream tokens, stores long-lived auth tokens, or receives camera RTSP credentials.
 - **Railway-hosted FastAPI backend (cctv-api)** - API, authz, session validation, viewer-token + gateway-token minting, audit writes, LiveKit room management on user/gateway disable, LiveKit webhook receiver, gateway endpoints, and database access. Origin-bound by fail-closed CF Access JWT verification (Inv 14 / ADR 0010). JWKS cache 10 min, **fail-closed with bounded staleness**. No passwords. No self-service MFA reset. No recording.
 - **Postgres** - primary store; audit hash-chained with DB-enforced immutability + `hmac_key_version`. **Runtime role least-priv** (Inv 15). Neon free = prototype; paid managed PG with PITR for pilot.
 - **LiveKit Cloud (primary media plane)** - public TURN/SFU; gateways and viewers connect directly; `iceTransportPolicy: 'relay'` enforced server-side on minted tokens (F-009 fix); 60-second tokens minted by the control plane.
@@ -558,7 +558,7 @@ Rules:
 
 ### 10.3 Data flows
 
-- **User auth flow**: Browser -> CF Access -> chosen IdP (challenge + MFA) -> IdP redirect -> CF mints JWT -> Railway-hosted Next.js frontend renders UI; same-origin FastAPI backend verifies CF JWT (`aud`+`iss` pinned, `exp`/`nbf` ± `CLOCK_SKEW_SECONDS`) on protected API routes.
+- **User auth flow**: Browser -> CF Access -> chosen IdP (challenge + MFA) -> IdP redirect -> CF mints JWT -> Railway-hosted React + Vite frontend renders UI; same-origin FastAPI backend verifies CF JWT (`aud`+`iss` pinned, `exp`/`nbf` ± `CLOCK_SKEW_SECONDS`) on protected API routes.
 - **Viewer-token issuance**: viewer requests `GET /api/v1/cameras/:id/view-token` -> app authorizes against `camera_acl` AND camera-not-retired AND user-not-disabled AND session-not-revoked -> mints LiveKit JWT (<=60 s, subscriber-only, opaque room UUID, `jti` recorded in `stream_grants`) -> returns to client.
 - **Gateway-ingest issuance**: gateway calls `POST /api/v1/gateways/:id/ingest-token` with service-token / mTLS client cert -> app validates gateway identity, gateway-not-disabled, camera-not-retired, `gateway_camera_assignments` row exists and not revoked -> mints LiveKit JWT (<=60 s, publisher-only, opaque room UUID, `jti` recorded) -> returns to gateway.
 - **Media flow (direct, bypasses control plane)**: gateway and viewer use their tokens to connect directly to LiveKit Cloud or fallback. Tokens refresh every <=60 s. **Camera credentials never leave the gateway.**
@@ -668,10 +668,10 @@ Only a verified `Cf-Access-Jwt-Assertion` establishes identity (Inv 14). Headers
 
 | Layer | Choice | Why | Security notes |
 |---|---|---|---|
-| Frontend framework | **Railway-hosted Next.js + React + Tailwind** (pinned exact versions) | Dedicated frontend owner gets a clear UI surface for dashboard/admin/video components. | Frontend is not security authority; no browser-stored auth tokens; bundle scan bans publisher APIs and RTSP secrets. |
+| Frontend framework | **Railway-hosted React + Vite + Tailwind** (pinned exact versions) | Dedicated frontend owner gets a clear UI surface for dashboard/admin/video components. | Frontend is not security authority; no browser-stored auth tokens; bundle scan bans publisher APIs and RTSP secrets. |
 | Backend framework | **Railway-hosted Python FastAPI** (pinned exact versions) | FastAPI provides explicit API routes, Pydantic validation, and clear auth middleware. | Security-critical paths avoid experimental APIs; protected API routes verify CF Access JWT fail-closed. |
 | Browser video client | **LiveKit JavaScript client inside React viewer components only** | Browser still needs JS for WebRTC playback. | Viewer-only; no browser publishing; Permissions-Policy denies camera/microphone. |
-| API style | FastAPI route handlers with Pydantic schemas; same-domain `/api/v1/*` routing from Next.js/frontend paths. | Explicit Python API surface ships quickly and is easy to test. | Same-origin by default to avoid CORS complexity; FastAPI remains the security authority. |
+| API style | FastAPI route handlers with Pydantic schemas; same-domain `/api/v1/*` routing from React frontend paths. | Explicit Python API surface ships quickly and is easy to test. | Same-origin by default to avoid CORS complexity; FastAPI remains the security authority. |
 | Database (prototype) | **Neon Postgres free tier (APAC)** - prototype only | Free; fine for early dev | Cold-starts + no PITR disqualify it from production pilot. |
 | Database (pilot, pick one) | **Neon Launch / paid equivalent** (~$19/mo, PITR, no cold-starts) primary if checks pass · **Supabase Pro** (~$25/mo, PITR) fallback · Railway-compatible PG or enterprise PG later if needed | Production needs PITR + no cold-starts + SLA | `sslmode=require`; **least-privilege app role (Inv 15)**; audit table grants `INSERT/SELECT` only. |
 | ORM | SQLAlchemy 2.x + Alembic | Standard Python Postgres stack; migrations are explicit. | Prepared statements; no raw SQL in handlers except reviewed migrations. |
@@ -682,7 +682,7 @@ Only a verified `Cf-Access-Jwt-Assertion` establishes identity (Inv 14). Headers
 | Media plane (fallback) | Self-hosted LiveKit on **DigitalOcean Singapore or equivalent UDP-capable APAC host** | Same SDKs and room model; provider-exit path. | Railway is not selected for fallback; only media ports public; T-37 + T-45 acceptance. |
 | **Edge camera gateway** | **`mediamtx vX.Y.Z`** (exact version pinned in ADR 0007 at Phase 0 exit; Renovate watcher tracks `bluenviron/mediamtx` releases) in camera VLAN - **RTSP-first**; ONVIF after spike (Section 13.3) | Mature; single Go binary | Read-only FS; outbound-only auth to control plane; no inbound RTSP from internet; HTTP API bound to `127.0.0.1:9997` only OR disabled (Section 13.8 / Section 20.14). |
 | Control-plane ingress | Cloudflare Access in front of Railway custom domain | Identity-aware gate before app; app still verifies CF JWT fail-closed. | Railway origin URL is not a supported entry point; direct origin requests reject protected routes. |
-| Hosting (control plane app) | Railway control-plane services: `cctv-web` Next.js frontend + `cctv-api` FastAPI backend | Matches team split while keeping Railway as the control-plane host. | Inv 14: protected API routes require verified CF Access JWT; public user entry remains Cloudflare Access custom domain. |
+| Hosting (control plane app) | Railway control-plane services: `cctv-web` React + Vite frontend + `cctv-api` FastAPI backend | Matches team split while keeping Railway as the control-plane host. | Inv 14: protected API routes require verified CF Access JWT; public user entry remains Cloudflare Access custom domain. |
 | Hosting (media plane fallback) | DigitalOcean Singapore first candidate; equivalent UDP-capable APAC VPS/provider fallback | LiveKit fallback needs media networking not guaranteed by Railway. | Public on media ports only. |
 | Hosting (edge gateway - **dev / CI / synthetic only**) | Chosen dev/CI host, FFmpeg synthetic-RTSP source (Section 13.7) | Consistent tests; no real cameras | Outbound-only auth to `cctv-api`; LiveKit publish; **never connected to real cameras**; CI artefacts only. |
 | **Hosting (edge gateway - production)** | **On-site NUC-class mini-PC**, Ubuntu 22.04 LTS x86_64, single Docker image; per-site box (Section 13.8); ADR 0013 | Co-located with cameras; LAN-side RTSP; survives WAN flap | Outbound-only auth to `cctv-api`; LiveKit publish; RTSP pull from camera VLAN only; no inbound WAN ports; secret store at `/etc/cctv-gateway/gateway.env` 0600 + systemd EnvironmentFile (Section 11.5). |
@@ -1134,12 +1134,12 @@ The two endpoints **do not share** a token-mint code path. A browser session cal
 - COOP `same-origin`, COEP `require-corp`, CORP, Referrer-Policy `no-referrer`.
 - `X-Content-Type-Options: nosniff`; no `Server`/`X-Powered-By` banners; no version endpoint.
 
-**CSP mechanism (Next.js + FastAPI, H-07)**:
+**CSP mechanism (React + Vite + FastAPI, H-07)**:
 
-- Next.js frontend responses and FastAPI backend responses both emit the strict security-header set.
+- React + Vite frontend responses and FastAPI backend responses both emit the strict security-header set.
 - Frontend route middleware or the selected Railway/Cloudflare header layer generates a cryptographically random nonce or approved hash policy for each HTML response and passes it only to allowed framework script/style outputs.
 - FastAPI emits compatible CSP headers on API/error responses and never relaxes the policy for API routes.
-- **CSP spike** (Phase 2 sub-task): assert the selected Next.js rendering mode can enforce strict CSP without `unsafe-inline` or `unsafe-eval`; assert LiveKit JS works with the `connect-src` / `media-src` restrictions; assert the approach matches the exact Next.js/React/Tailwind versions locked in ADR 0007.
+- **CSP spike** (Phase 2 sub-task): assert the selected Vite build mode can enforce strict CSP without `unsafe-inline` or `unsafe-eval`; assert LiveKit JS works with the `connect-src` / `media-src` restrictions; assert the approach matches the exact React/Vite/Tailwind versions locked in ADR 0007.
 - **No `'unsafe-inline'` fallback** even temporarily - CI fails the build if the response CSP header contains `'unsafe-inline'` for `script-src` or `style-src`.
 
 **Dynamic `connect-src` for media-plane fallback (M-08)**:
@@ -1235,7 +1235,7 @@ The two endpoints **do not share** a token-mint code path. A browser session cal
 
 ### 16.13 CORS policy
 
-- Same-origin by default: the Next.js frontend and FastAPI backend are exposed under the same Cloudflare-protected app domain, with browser calls to `/api/v1/*`.
+- Same-origin by default: the React + Vite frontend and FastAPI backend are exposed under the same Cloudflare-protected app domain, with browser calls to `/api/v1/*`.
 - Authenticated API routes set:
   - `Access-Control-Allow-Origin: https://<app-domain>` (exact).
   - `Access-Control-Allow-Credentials: true`.
@@ -1816,7 +1816,7 @@ Each phase has an explicit **Exit Criteria**. Do not proceed to the next phase u
 
 ### Phase 1 - Repo, IaC, and CI skeleton (2-4 days)
 
-- Create monorepo: `/apps/web` (Next.js frontend), `/apps/api` (FastAPI backend), `/apps/media-fallback` (DigitalOcean/equivalent UDP-capable LiveKit config), `/apps/cctv-edge` (`mediamtx` config + gateway agent), `/infra/terraform`, `/docs/{adrs,runbooks,privacy}`, `/scripts`.
+- Create monorepo: `/apps/web` (React + Vite frontend), `/apps/api` (FastAPI backend), `/apps/media-fallback` (DigitalOcean/equivalent UDP-capable LiveKit config), `/apps/cctv-edge` (`mediamtx` config + gateway agent), `/infra/terraform`, `/docs/{adrs,runbooks,privacy}`, `/scripts`.
 - GitHub Actions: lint / typecheck / unit / integration / browser-bundle scan / SAST / SCA / container scan / secret scan / Docker-base pin check / Dependabot config.
 - Base Dockerfile/runtime pinned to exact Python and Node.js patch versions where containerized; non-root UID where applicable; read-only FS where containerized; drop caps where containerized.
 - Base Semgrep ruleset + custom rules (require-cf-jwt-verification, no-experimental-framework-apis-in-security-critical-paths, no-raw-sql, no-unsafe-template-rendering).
@@ -1835,7 +1835,7 @@ Each phase has an explicit **Exit Criteria**. Do not proceed to the next phase u
 
 ### Phase 2.5 - Architecture checkpoint (1 day)
 
-- Review: does the same-domain Next.js frontend + FastAPI backend split remain secure and worth the service-routing complexity?
+- Review: does the same-domain React + Vite frontend + FastAPI backend split remain secure and worth the service-routing complexity?
 - Validate: same-domain `/api/v1/*` routing, Cloudflare Access policy coverage, CSRF/cookie model, strict CSP feasibility, frontend bundle scan, and FastAPI fail-closed JWT verification.
 - Output: ADR 0014 addendum if the routing/security model changes.
 - **Exit**: same-domain split validation complete; any routing/security changes recorded.
@@ -2006,7 +2006,7 @@ Once this plan is approved, the following execution artefacts are produced **bef
 ```
 /cctv/
   /apps/
-    /web/                # Next.js + React + Tailwind frontend
+    /web/                # React + Vite + Tailwind frontend
       /app/              # dashboard, admin, emergency, privacy routes
       /components/       # camera grid, video tiles, status panels, forms
       /lib/              # API client, LiveKit viewer helpers

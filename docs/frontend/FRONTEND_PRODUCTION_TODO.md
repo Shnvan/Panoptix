@@ -59,6 +59,7 @@ These must be resolved before treating the frontend as production-ready.
 | Expose or document remaining implemented admin actions | Required | Backup status has a UI path; actor profile/activity still needs a visible investigation path or documented no-UI decision. |
 | Full local smoke test | Passed for current same-origin API surfaces | Dashboard/bootstrap, live-camera camera list, users, cameras, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health pass through Vite against a local backend with dev auth. Continue manual page-specific destructive/action smoke where data allows. |
 | Full staging smoke test | ✅ Passed 2026-05-21 | All 10 sidebar pages loaded through Cloudflare Access at `staging.panoptix.site` with no 500/502 errors. Network tab confirmed all app API requests returned 200. |
+| Full production smoke test | Required | Production live at `panoptix.site` (2026-05-22). Test all 10 sidebar pages through production Cloudflare Access. Verify no 500/502 errors and no sensitive data leaks. |
 | Browser publishing absence check | Required | Confirm the browser bundle does not request camera/microphone permission and does not publish media to LiveKit. |
 | Sensitive-value exposure check | Required | Confirm no RTSP URLs, camera passwords, LiveKit admin secrets, Cloudflare service tokens, or long-lived auth tokens appear in frontend code, logs, storage, or UI. |
 

@@ -893,7 +893,7 @@ Implemented:
 
 Not included:
 
-- CSP nonces (requires Next.js frontend integration — frontend coworker)
+- CSP nonces (requires React + Vite frontend integration — frontend coworker)
 - Trusted Types (requires frontend integration)
 - COEP `require-corp` (deferred until LiveKit SDK compatibility is verified)
 

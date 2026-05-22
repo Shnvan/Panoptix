@@ -39,7 +39,7 @@ Before production setup begins, confirm:
 | Health check path | `/health` |
 | Deploy trigger | Manual only (require explicit approval for production) |
 
-### `cctv-web` (Next.js frontend)
+### `cctv-web` (React + Vite frontend)
 
 | Setting | Value |
 |---------|-------|

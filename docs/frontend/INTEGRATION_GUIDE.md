@@ -2,7 +2,7 @@
 
 <!-- PE-FIX: Created integration guide for frontend coworker covering auth, LiveKit, camera grid, and error handling -->
 
-This guide explains how the Next.js frontend (`cctv-web`) integrates with the FastAPI backend (`cctv-api`). It complements `BACKEND_STATUS.md` (endpoint reference) and `frontend-guardrails.md` (security rules).
+This guide explains how the React + Vite frontend (`cctv-web`) integrates with the FastAPI backend (`cctv-api`). It complements `BACKEND_STATUS.md` (endpoint reference) and `frontend-guardrails.md` (security rules).
 
 ---
 
@@ -390,14 +390,14 @@ If any request returns 401 with `session-idle-expired` or `session-absolute-expi
 
 ## Environment Variables
 
-The frontend Next.js app needs these environment variables at build time:
+The frontend Vite app needs these environment variables at build time:
 
 ```env
 # Required
-NEXT_PUBLIC_API_BASE_URL=/api/v1  # same-origin; no external domain needed
+VITE_API_BASE_URL=/api/v1  # same-origin; no external domain needed
 
 # Optional (development only)
-NEXT_PUBLIC_DEV_AUTH_EMAIL=admin@example.test
+VITE_DEV_AUTH_EMAIL=admin@example.test
 ```
 
 **Do NOT put in frontend env:**

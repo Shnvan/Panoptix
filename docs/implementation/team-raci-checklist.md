@@ -8,7 +8,7 @@ This checklist maps the agreed three-person team split into concrete responsibil
 
 > **Important context for all sessions and contributors:**
 >
-> - **Frontend implementation** (`cctv-web`, Next.js UI, React components, Tailwind styling, LiveKit JS viewer) is owned by the **frontend coworker**. The system owner must not implement frontend code.
+> - **Frontend implementation** (`cctv-web`, React + Vite UI, React components, Tailwind styling, LiveKit JS viewer) is owned by the **frontend coworker**. The system owner must not implement frontend code.
 > - **Database implementation** (schema design, Alembic migrations, triggers, indexes, DB roles) is owned by the **database coworker**. The system owner must not implement database code.
 > - **System owner scope** covers: backend/control-plane (`cctv-api`), security/auth/RBAC, Cloudflare Access verification, LiveKit token minting, gateway command/control logic, audit logic, DevOps/Railway/deployment setup, runbooks, CI/CD, integration contracts, and coordination.
 > - Frontend and database documentation may still be updated for coordination purposes, but actual implementation belongs to the assigned teammates.
@@ -31,7 +31,7 @@ This checklist maps the agreed three-person team split into concrete responsibil
 ## Frontend checklist
 
 - Read `docs/frontend/frontend-guardrails.md` before implementation.
-- Build Next.js routes for dashboard, admin, privacy, and emergency shell.
+- Build React routes for dashboard, admin, privacy, and emergency shell.
 - Consume only `docs/implementation/api-reference.md` contracts.
 - Implement camera tile states and responsive layouts from `docs/frontend/ux-product-spec.md`.
 - Use LiveKit JS client for viewer-subscribe only.

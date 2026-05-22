@@ -2,7 +2,7 @@
 
 Panoptix is a live-view CCTV monitoring system that connects IP cameras to authenticated browser viewers through a security-first, three-plane architecture.
 
-> **Status:** Backend control plane, edge-agent foundation, staging deployment, CI/security scans, LiveKit Cloud provisioning, and R2 backup bucket provisioning are in place on the `backend` branch. Frontend UI and real CCTV hardware onboarding are still pending.
+> **Status:** Production live at `panoptix.site` (2026-05-22). Backend control plane, edge-agent, CI/security scans, LiveKit Cloud, and R2 backup provisioning complete. Frontend integrated (staging smoke passed); real CCTV hardware onboarding still pending.
 
 ## Architecture
 
@@ -18,7 +18,7 @@ Browsers are **viewers only**. Browser, phone, and laptop camera publishing are 
 
 - **Backend:** Python 3.12, FastAPI, SQLAlchemy 2.x, Alembic, PyJWT, Pydantic Settings
 - **Gateway agent:** Python 3.12, outbound HTTP/WebSocket control, FFmpeg/LiveKit scaffolds, local mediamtx process scaffolds
-- **Frontend:** placeholder only in `apps/web/`; planned Next.js/React/LiveKit viewer UI owned by the frontend coworker
+- **Frontend:** React 19, Vite, Tailwind CSS 4, TypeScript in `apps/web/`; LiveKit viewer UI owned by the frontend coworker
 - **Database:** Neon Postgres staging, SQLAlchemy models and Alembic migrations
 - **Identity:** Cloudflare Access with GitHub OAuth on staging; Google Workspace planned for production
 - **Media:** LiveKit Cloud APAC primary

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Video, Server, Shield, Grid2x2, Grid3x3, Square, Command } from 'lucide-react';
+import { Video, Server, Grid2x2, Grid3x3, Square, Command } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { StatCard } from './components/StatCard';
@@ -51,9 +51,7 @@ export function App() {
     return (
       <div className={`h-full flex items-center justify-center ${theme === 'dark' ? 'bg-slate-950' : 'bg-slate-50'}`}>
         <div className="text-center">
-          <div className="w-16 h-16 mx-auto bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg flex items-center justify-center mb-4 shadow-xl shadow-orange-500/30 animate-pulse">
-            <Shield className="w-8 h-8 text-white" />
-          </div>
+          <img src="/logo.png" alt="Panoptix" className="w-16 h-16 mx-auto rounded-lg mb-4 shadow-xl shadow-orange-500/30 animate-pulse" />
           <p className={theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}>Initializing secure connection...</p>
         </div>
       </div>

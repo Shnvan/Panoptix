@@ -1,6 +1,6 @@
 ﻿# STRIDE Threat Model - Secure CCTV Monitoring System
 
-<!-- PE-FIX: Updated Fly.io/Next.js references to Railway/Python per ADR 0014 -->
+<!-- PE-FIX: Updated Fly.io/Next.js references to Railway/Python per ADR 0014; Next.js → React + Vite -->
 
 This document captures the v4.1 STRIDE threat model for the secure CCTV monitoring system across the control plane, media plane, and camera plane.
 

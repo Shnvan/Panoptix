@@ -8,7 +8,7 @@ Key terms used throughout the Panoptix CCTV monitoring system documentation.
 
 | Term | Definition |
 |------|------------|
-| **Control plane** | The Railway-hosted application layer: `cctv-web` provides the Next.js/React UI, while `cctv-api` provides the Python/FastAPI security-authoritative API for authentication verification, authorization, token minting, audit logging, gateway control, and database access. |
+| **Control plane** | The Railway-hosted application layer: `cctv-web` provides the React + Vite UI, while `cctv-api` provides the Python/FastAPI security-authoritative API for authentication verification, authorization, token minting, audit logging, gateway control, and database access. |
 | **Media plane** | The LiveKit-based video delivery layer. LiveKit Cloud (APAC) is the primary SFU; a self-hosted LiveKit instance is the fallback. Carries WebRTC media traffic only. |
 | **Camera plane** | The on-site infrastructure: IP cameras, the camera VLAN, and the edge gateway mini-PC. Isolated from the internet and the operator LAN. |
 | **SFU** | Selective Forwarding Unit. A server that receives media streams from publishers and forwards them to subscribers without mixing. LiveKit is the SFU used in this system. |

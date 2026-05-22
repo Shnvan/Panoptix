@@ -15,7 +15,7 @@ This file lists the tools and package managers currently used by the repository.
 | Terraform | latest stable | Cloudflare R2 module operations |
 | AWS CLI or rclone | latest stable | R2 backup verification and restore drills |
 
-Node.js is only needed by the frontend coworker once `apps/web/` becomes a real Next.js app. There is currently no `package.json` or frontend lockfile in the repository.
+Node.js is required for the frontend (`apps/web/`). Package manager: `npm` using `package.json`.
 
 ## Backend - `apps/api/`
 
@@ -101,15 +101,16 @@ python -m pip install -e ".[livekit]"
 
 ## Frontend - `apps/web/`
 
-The frontend folder is currently a placeholder owned by the frontend coworker. Planned stack:
+The frontend is owned by the frontend coworker. Current stack:
 
-- Next.js
-- React
+- React 19
+- Vite 6
 - TypeScript
-- Tailwind CSS
-- `livekit-client` for viewer-subscribe only
-
-Do not run `npm install` or document frontend lockfile commands until `apps/web/package.json` exists.
+- Tailwind CSS 4
+- Lucide React (icons)
+- Recharts (charts)
+- Motion (animations)
+- `livekit-client` for viewer-subscribe only (planned)
 
 ## Database
 

@@ -69,14 +69,14 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       >
         {/* Logo & Title */}
         <div className="text-center mb-8">
-          <motion.div
+          <motion.img
+            src="/logo.png"
+            alt="Panoptix"
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-            className="inline-flex w-20 h-20 bg-gradient-to-br from-orange-500 to-amber-600 rounded-2xl items-center justify-center mb-6 shadow-2xl shadow-orange-500/50"
-          >
-            <Shield className="w-10 h-10 text-white" />
-          </motion.div>
+            className="inline-block w-20 h-20 rounded-2xl mb-6 shadow-2xl shadow-orange-500/50"
+          />
           <h1 className={`text-3xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
             Panoptix
           </h1>

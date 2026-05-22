@@ -36,7 +36,7 @@ Before staging setup begins, confirm:
 | Health check path | `/health` |
 | Deploy trigger | Push to `main` or manual |
 
-### `cctv-web` (Next.js frontend — future)
+### `cctv-web` (React + Vite frontend)
 
 | Setting | Value |
 |---------|-------|
