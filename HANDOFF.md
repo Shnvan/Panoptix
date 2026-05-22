@@ -370,17 +370,17 @@ Completed in this milestone:
 Completed in this milestone:
 
 - `apps/api/src/cctv_api/api/actor_profile.py`: new admin-only actor investigation router.
-- `apps/api/src/cctv_api/security/actor_investigation.py`: service layer aggregating identity, roles, sessions, camera access, stream grants, audit activity summaries, risk indicators, and containment status.
+- `apps/api/src/cctv_api/security/actor_investigation.py`: service layer aggregating identity, roles, sessions, camera access, stream grants, audit activity summaries, risk indicators, containment status, direct actor-linked alert summaries, and safe user login-baseline summaries.
 - `GET /api/v1/admin/actors/{actor_type}/{actor_id}/profile`: composite actor profile for `user`, `gateway`, `system`, `break_glass`, and `service_token_monitor` actors.
 - `GET /api/v1/admin/actors/{actor_type}/{actor_id}/activity`: actor-scoped audit timeline with cursor pagination and filters for action, severity, category, outcome, resource, session, and timestamp range.
 - System-like actors accept the literal path segment `none` for null `actor_id`.
 - Profile and activity views write audit-of-audit events: `admin.actor.profile.viewed` and `admin.actor.activity.viewed`.
-- `apps/api/tests/test_actor_profile.py`: 17 tests covering auth/RBAC, validation, user/gateway/system/break-glass profiles, activity pagination/filtering, stream-grant actor isolation, and audit-of-view rows.
+- `apps/api/tests/test_actor_profile.py`: 21 tests covering auth/RBAC, validation, user/gateway/system/break-glass profiles, direct actor-linked alert isolation, safe login-baseline summaries, activity pagination/filtering, stream-grant actor isolation, and audit-of-view rows.
 
 Verification:
 
 ```text
-backend pytest: 532 passed
+backend pytest: 606 passed
 ruff: all checks passed
 mypy: no issues found in 44 source files
 ```
@@ -1894,7 +1894,7 @@ $env:PYTHONPATH = "src"; python -m compileall src alembic scripts
 Latest result:
 
 ```text
-pytest: 532 passed
+pytest: 606 passed
 ruff: all checks passed
 mypy: no issues found in 44 source files
 compileall: passed

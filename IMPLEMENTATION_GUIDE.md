@@ -3547,7 +3547,7 @@ CI run #10: ALL 8 JOBS GREEN
 Backend (`apps/api/`):
 
 ```text
-pytest: 532 passed
+pytest: 606 passed
 ruff: all checks passed
 mypy: no issues found in 44 source files
 compileall: passed
@@ -3577,10 +3577,12 @@ Supported `actor_type` values are `user`, `gateway`, `system`, `break_glass`, an
 
 The profile endpoint aggregates only existing data:
 
-- users: identity, roles, sessions, camera ACLs, stream grants, audit activity summary, risk indicators, and containment status
-- gateways: identity, camera assignments, stream grants, audit activity summary, risk indicators, and containment status
-- system-like actors: audit activity summary and risk indicators
-- unsupported sections return top-level `null` fields for IP enrichment, device details, MFA details, threat intelligence, alerts, incidents, analyst notes, and behavior baseline
+- users: identity, roles, sessions, camera ACLs, stream grants, audit activity summary, risk indicators, containment status, direct actor-linked alert summaries, and safe login-baseline summaries
+- gateways: identity, camera assignments, stream grants, audit activity summary, risk indicators, containment status, and direct actor-linked alert summaries
+- system-like actors: audit activity summary, risk indicators, and direct actor-linked alert summaries
+- alert summaries include counts by status/severity plus up to 10 recent rows, using exact stored actor linkage only
+- user `behavior_baseline` summaries expose login count, last-login context, and known-value counts without exposing raw IP or user-agent history
+- unsupported sections return top-level `null` fields for IP enrichment, device details, MFA details, threat intelligence, incidents, and analyst notes
 
 The activity endpoint returns the same safe audit row shape as `GET /api/v1/admin/audit`, pre-filtered by actor. It supports `cursor`, `limit`, `action`, `severity`, `category`, `outcome`, `resource`, `session_id`, `ts_from`, and `ts_to`, using descending `AuditLog.id` cursor pagination.
 
@@ -3599,10 +3601,10 @@ Verification:
 
 ```text
 python -m pytest tests/test_actor_profile.py -q
-17 passed
+21 passed
 
 python -m pytest tests/ -q
-532 passed
+606 passed
 
 python -m ruff check src/ tests/
 All checks passed

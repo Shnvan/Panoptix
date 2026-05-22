@@ -49,7 +49,7 @@ def get_actor_profile(
 
     if actor_type_enum == ActorType.user:
         assert actor_uuid is not None
-        profile = build_user_actor_profile(db, actor_uuid)
+        profile = build_user_actor_profile(db, actor_uuid, settings)
         if profile is None:
             raise _not_found("user-not-found")
     elif actor_type_enum == ActorType.gateway:

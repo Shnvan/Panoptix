@@ -101,6 +101,7 @@ Key groups (values must be distinct from staging):
 - **Cloudflare Access**: production issuer, audience IDs, JWKS URL (distinct from staging)
 - **Session/CSRF**: signing keys (distinct from staging)
 - **Audit**: HMAC key and version (distinct from staging)
+- **Actor IP enrichment**: Ipregistry enable flag and API key
 - **Database**: production runtime and migration connection strings
 - **LiveKit**: cloud URL (can be same project; API key/secret may be same or production-specific)
 - **R2 Backup**: account ID (same), bucket name (`panoptix-backups`), access key/secret (production-specific recommended)
@@ -108,6 +109,32 @@ Key groups (values must be distinct from staging):
 - **Security headers**: CSP report URI, LiveKit connect-src
 
 The backend [production auth guardrails](../runbooks/cloudflare-production-setup.md) will reject startup if any guarded value still contains `replace-me` or `example.cloudflareaccess.com`.
+
+---
+
+## Actor IP Enrichment Pilot
+
+Production enablement follows a successful staging validation for the same backend contract and Ipregistry response subset.
+
+Production rollout:
+
+1. Create or select the production Ipregistry API key for backend-only use.
+2. Set the production Railway backend variables:
+
+```text
+ACTOR_IP_ENRICHMENT_ENABLED=true
+ACTOR_IP_IPREGISTRY_API_KEY=<ipregistry-api-key>
+```
+
+3. Redeploy the production backend.
+4. Validate one admin user actor profile through Cloudflare Access and record the deployment date, returned `ip_details.status`, and rollback path in release notes.
+
+Provider handling for the first rollout:
+
+- Keep the Ipregistry API key in Railway backend variables only.
+- Do not capture raw provider payloads or API keys in frontend config, screenshots, or release notes.
+- Actor profile reads send only the backend-selected bounded recent-session IPs for admin investigation context.
+- If a legacy `/data/maxmind` pilot volume exists from the replaced rollout path, detach/remove it after the Ipregistry rollout no longer needs a rollback comparison.
 
 ---
 
@@ -171,6 +198,7 @@ After first production deploy, verify:
 - [ ] Security headers present on all responses.
 - [ ] R2 backup connectivity verified (write a test object, verify, delete).
 - [ ] Deep health returns `livekit: connected` and `db: connected`.
+- [ ] Admin user actor profile smoke confirms Ipregistry-backed `ip_details.available = true`, `provider = "ipregistry"`, and `status = "ok"` after enrichment enablement.
 - [ ] Break-glass window can be opened and closed by an admin.
 - [ ] Audit export returns signed data.
 
@@ -195,6 +223,7 @@ Promotion from staging → production (clears 2026-05-20):
 ## Rollback
 
 - Railway: redeploy previous known-good commit or image.
+- Actor IP enrichment only: set `ACTOR_IP_ENRICHMENT_ENABLED=false` or remove `ACTOR_IP_IPREGISTRY_API_KEY`, redeploy `cctv-api`, and confirm user actor profiles return a degraded IP enrichment state instead of failing.
 - Neon: use point-in-time recovery (PITR) if available, or restore from R2 backup.
 - Cloudflare: see [CF Access Rollback](cf-access-rollback.md).
 - Full procedure: [Deploy and Rollback](deploy-rollback.md).

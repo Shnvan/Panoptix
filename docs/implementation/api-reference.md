@@ -244,14 +244,108 @@ Actor investigation profile:
   "activity_summary": {},
   "risk_indicators": {},
   "containment_status": {},
-  "ip_details": null,
-  "device_details": null,
+  "ip_details": {
+    "available": true,
+    "status": "ok",
+    "provider": "ipregistry",
+    "distinct_ip_count": 1,
+    "enriched_ip_count": 1,
+    "recent_sessions": [
+      {
+        "session_id": "uuid",
+        "created_at": "2026-05-22T03:30:00Z",
+        "last_seen_at": "2026-05-22T03:35:00Z",
+        "revoked_at": null,
+        "ip": "203.0.113.10",
+        "ip_type": "IPv4",
+        "location": {
+          "continent": "Asia",
+          "country_code": "PH",
+          "country": "Philippines",
+          "region": "Calabarzon",
+          "city": "Santa Rosa",
+          "timezone": "Asia/Manila"
+        },
+        "network": {
+          "asn": 64500,
+          "organization": "Example Network",
+          "domain": "network.example",
+          "connection_type": "isp"
+        },
+        "company": {
+          "name": "Example ISP",
+          "domain": "network.example",
+          "type": "isp"
+        },
+        "carrier": {
+          "name": null
+        },
+        "security": {
+          "is_anonymous": false,
+          "is_vpn": false,
+          "is_proxy": false,
+          "is_tor": false,
+          "is_tor_exit": false,
+          "is_cloud_provider": false,
+          "is_relay": false,
+          "is_threat": false,
+          "is_attacker": false,
+          "is_abuser": false
+        }
+      }
+    ]
+  },
+  "device_details": {
+    "available": true,
+    "distinct_user_agent_count": 1,
+    "recent_sessions": [
+      {
+        "session_id": "uuid",
+        "created_at": "2026-05-22T03:30:00Z",
+        "last_seen_at": "2026-05-22T03:35:00Z",
+        "revoked_at": null,
+        "ua_fp": "browser",
+        "browser": { "family": "Chrome", "version": "148.0.0.0" },
+        "os": { "family": "Windows", "version": "10" },
+        "device": {
+          "family": null,
+          "brand": null,
+          "model": null,
+          "device_class": "desktop"
+        }
+      }
+    ]
+  },
   "mfa_details": null,
   "threat_intelligence": null,
-  "alerts": null,
+  "alerts": {
+    "total_count": 2,
+    "counts_by_status": {
+      "open": 1,
+      "acknowledged": 1,
+      "resolved": 0
+    },
+    "counts_by_severity": {
+      "informational": 0,
+      "low": 0,
+      "medium": 1,
+      "high": 1,
+      "critical": 0
+    },
+    "recent": []
+  },
   "incidents": null,
   "analyst_notes": null,
-  "behavior_baseline": null
+  "behavior_baseline": {
+    "available": true,
+    "login_count": 12,
+    "last_login_at": "2026-05-22T03:30:00Z",
+    "last_login_country": "PH",
+    "known_ip_count": 2,
+    "known_country_count": 1,
+    "known_user_agent_count": 2,
+    "updated_at": "2026-05-22T03:30:00Z"
+  }
 }
 ```
 
@@ -285,6 +379,10 @@ Actor notes:
 - `actor_type` supports `user`, `gateway`, `system`, `break_glass`, and `service_token_monitor`.
 - `user` and `gateway` require UUID actor IDs and existing backing rows.
 - System-like actors may use `none` as the path actor ID to inspect audit rows where `actor_id` is null.
+- Profile `alerts` summarize only alerts directly linked by matching stored `actor_type` and `actor_id`; the recent list uses the alert response shape and is capped at 10 rows.
+- User actor profiles summarize stored login-baseline counts in `behavior_baseline` without returning raw known IP, country, or user-agent lists. Profiles without a baseline return `available: false`. Non-user actor profiles keep `behavior_baseline: null`.
+- User actor profiles expose bounded `ip_details` and `device_details` from the latest 10 stored sessions. `device_details` parses stored session user agents. `ip_details` uses optional Ipregistry backend lookups and returns `status` of `ok`, `not_configured`, or `unavailable` without failing the profile read.
+- Gateway and system-like actor profiles keep `ip_details: null` and `device_details: null`.
 - Profile and activity reads write `admin.actor.profile.viewed` and `admin.actor.activity.viewed` audit events.
 
 Gateway command envelope:

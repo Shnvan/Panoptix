@@ -96,6 +96,7 @@ Key groups:
 - **Cloudflare Access**: issuer, audience IDs, JWKS URL
 - **Session/CSRF**: signing keys (generated, not placeholder)
 - **Audit**: HMAC key and version
+- **Actor IP enrichment**: Ipregistry enable flag and API key
 - **Database**: runtime and migration connection strings
 - **LiveKit**: cloud URL, API key, API secret, webhook secret
 - **R2 Backup**: account ID, bucket name, access key, secret key
@@ -103,6 +104,30 @@ Key groups:
 - **Security headers**: CSP report URI, LiveKit connect-src
 
 The backend [production auth guardrails](../runbooks/cloudflare-production-setup.md) will reject startup if any guarded value still contains `replace-me` or `example.cloudflareaccess.com`.
+
+---
+
+## Actor IP Enrichment Pilot
+
+Enable the actor IP enrichment pilot only after the backend release that supports `ip_details` is deployed and an Ipregistry API key is ready for the backend environment.
+
+Staging rollout:
+
+1. Create a dedicated Ipregistry API key for the target backend environment.
+2. Set these Railway backend variables from the placeholder template:
+
+```text
+ACTOR_IP_ENRICHMENT_ENABLED=true
+ACTOR_IP_IPREGISTRY_API_KEY=<ipregistry-api-key>
+```
+
+3. Redeploy `cctv-api` and run the actor investigation verification in `MANUAL_TESTING.md`.
+
+Rules:
+
+- Do not commit Ipregistry API keys or provider responses to the repository, frontend config, screenshots, or release notes.
+- Actor profile reads send only the bounded recent-session IPs selected by the backend to Ipregistry for admin investigation context.
+- If the API key is missing or Ipregistry is unavailable, the actor profile should remain readable with `ip_details.status` of `not_configured` or `unavailable`.
 
 ---
 
@@ -128,6 +153,7 @@ After first staging deploy, verify:
 - [ ] `/api/v1/me` returns valid principal for authenticated user.
 - [ ] Direct Railway URL returns fail-closed for protected routes.
 - [ ] Database connection works (health or `/api/v1/cameras` returns empty list, not 500).
+- [ ] Admin actor profile smoke confirms Ipregistry-backed user `ip_details.status` is `ok` after the actor IP enrichment pilot is enabled.
 - [ ] Gateway heartbeat endpoint accepts valid gateway identity.
 - [ ] Security headers present on all responses.
 
@@ -151,6 +177,7 @@ Promotion from staging → production:
 ## Rollback
 
 - Railway: redeploy previous known-good commit or image.
+- Actor IP enrichment only: set `ACTOR_IP_ENRICHMENT_ENABLED=false` or remove `ACTOR_IP_IPREGISTRY_API_KEY`, redeploy `cctv-api`, and confirm actor profiles degrade instead of failing.
 - Neon: use point-in-time recovery (PITR) if available, or restore from backup.
 - Cloudflare: see [CF Access Rollback](cf-access-rollback.md).
 - Full procedure: [Deploy and Rollback](deploy-rollback.md).

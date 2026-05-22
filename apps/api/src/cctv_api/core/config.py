@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     SUSPICIOUS_LOGIN_IMPOSSIBLE_TRAVEL_MINUTES: int = Field(default=30, ge=5, le=120)
     SUSPICIOUS_LOGIN_MAX_KNOWN_IPS: int = Field(default=100, ge=10, le=500)
 
+    # -- Actor IP enrichment (pilot) --
+    ACTOR_IP_ENRICHMENT_ENABLED: bool = False
+    ACTOR_IP_IPREGISTRY_API_KEY: str = ""
+
     # ── Session / cookie ──
     SESSION_COOKIE_NAME: str = "panoptix_session"
     SESSION_SIGNING_KEY: str = "replace-me"

@@ -3647,7 +3647,7 @@ $env:PYTHONPATH = "src"
 python -m pytest tests/test_actor_profile.py -v
 ```
 
-Expected: all 17 tests pass.
+Expected: all 26 tests pass.
 
 ### Manual verification
 
@@ -3699,6 +3699,28 @@ Invoke-RestMethod -Method GET `
   -Headers $AdminHeaders
 ```
 
+Verify Railway Ipregistry enablement after staging or production rollout:
+
+1. Authenticate to the target environment through Cloudflare Access as an admin.
+2. Fetch a user actor profile for a user with at least one recent authenticated session.
+3. Inspect the returned `ip_details` and `device_details` sections without capturing raw API keys or provider payloads in test notes.
+
+Expected Ipregistry-enabled profile state:
+
+- `ip_details.available = true`
+- `ip_details.provider = "ipregistry"`
+- `ip_details.status = "ok"` when `ACTOR_IP_ENRICHMENT_ENABLED=true`, the Ipregistry API key is valid, and lookups are available
+- Latest bounded `ip_details.recent_sessions` items keep session context and expose only the normalized `ip_type`, `location`, `network`, `company`, `carrier`, and `security` fields without changing alert or baseline behavior
+- `device_details.recent_sessions` still contains parsed browser, OS, and conservative device context for recent stored user agents
+
+Rollback smoke:
+
+1. Set `ACTOR_IP_ENRICHMENT_ENABLED=false` or remove `ACTOR_IP_IPREGISTRY_API_KEY` from the target Railway backend environment.
+2. Redeploy `cctv-api`.
+3. Fetch the same user actor profile again.
+
+Expected rollback state: the actor profile still returns successfully and `ip_details` reports a degraded state such as `not_configured` instead of requiring a code rollback.
+
 Expected behavior:
 
 - All actor investigation endpoints require admin role; non-admin callers receive `403 role-required`.
@@ -3706,7 +3728,10 @@ Expected behavior:
 - Missing users return `404 user-not-found`; missing gateways return `404 gateway-not-found`.
 - System-like actors (`system`, `break_glass`, `service_token_monitor`) accept `none` for null `actor_id`.
 - Profile responses aggregate identity, access, sessions where applicable, stream grants, audit summary, risk indicators, and containment status.
-- Unsupported enrichment sections are top-level `null` fields.
+- Profile `alerts` contain direct actor-linked alert counts and up to 10 recent linked alerts; rows that only mention an actor in alert metadata or resource text are not inferred as linked.
+- User actor `behavior_baseline` summarizes stored login-baseline counts and last-login context without exposing stored known IP, country, or user-agent lists. Users with no baseline return `available = false`; non-user actors keep `behavior_baseline = null`.
+- User actor `device_details` parse the latest 10 stored session user agents. User actor `ip_details` enrich the same bounded session set when `ACTOR_IP_ENRICHMENT_ENABLED=true` and the Ipregistry API key is configured; otherwise the profile still succeeds with visible `not_configured` or `unavailable` status.
+- Gateway and system-like actor profiles keep `ip_details = null` and `device_details = null`. Unsupported enrichment sections remain top-level `null` fields for MFA details, threat intelligence, incidents, and analyst notes.
 - Activity responses use descending audit ID cursor pagination and support filters: `action`, `severity`, `category`, `outcome`, `resource`, `session_id`, `ts_from`, and `ts_to`.
 - Successful profile views write `admin.actor.profile.viewed`.
 - Successful activity views write `admin.actor.activity.viewed`.

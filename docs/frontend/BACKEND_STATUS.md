@@ -259,8 +259,10 @@ The backend also has a disabled-by-default in-process maintenance scheduler cont
 - Supported `actor_type` values: `user`, `gateway`, `system`, `break_glass`, `service_token_monitor`.
 - `user` and `gateway` require UUID actor IDs and return `404 user-not-found` or `404 gateway-not-found` when missing.
 - System-like actors can use `none` as the path ID to request rows with null `actor_id`, for example `/api/v1/admin/actors/system/none/profile`.
-- Profile fields include `identity`, `roles`, `sessions`, `camera_access`, `stream_grants`, `activity_summary`, `risk_indicators`, and `containment_status`.
-- Unsupported enrichment sections are present as top-level `null` fields: `ip_details`, `device_details`, `mfa_details`, `threat_intelligence`, `alerts`, `incidents`, `analyst_notes`, and `behavior_baseline`.
+- Profile fields include `identity`, `roles`, `sessions`, `camera_access`, `stream_grants`, `activity_summary`, `risk_indicators`, `containment_status`, and direct actor-linked `alerts` summaries with up to 10 recent alert rows.
+- User profiles expose a safe `behavior_baseline` summary from stored login baseline counts and last-login context; non-user actor profiles keep `behavior_baseline: null`.
+- User profiles expose bounded `ip_details` and `device_details` over the latest 10 stored sessions. IP enrichment uses configured Ipregistry actor-profile lookups and may report `not_configured` or `unavailable`; device detail is parsed from stored session user agents.
+- Non-user profiles keep `ip_details: null` and `device_details: null`. Unsupported enrichment sections remain top-level `null` fields for `mfa_details`, `threat_intelligence`, `incidents`, and `analyst_notes`.
 - These are admin-only read endpoints. They are not covered by the admin mutation rate limiter.
 - Successful views create audit events `admin.actor.profile.viewed` and `admin.actor.activity.viewed`.
 

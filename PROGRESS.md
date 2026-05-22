@@ -934,6 +934,18 @@ Work with the frontend coworker to build the admin camera management and user ma
 - [x] Exposed API endpoints: list, view, acknowledge (`POST /api/v1/admin/alerts/{id}/acknowledge`), and resolve (`POST /api/v1/admin/alerts/{id}/resolve`)
 - [x] Added focused backend tests for alert APIs, detection, email-disabled behavior, SMTP success/failure, and token redaction
 
+### Actor Profile Stored-Data Enrichment ✅
+- [x] Enriched admin actor profiles with direct actor-linked alert counts and recent alert rows from stored `alerts` data
+- [x] Added safe user `behavior_baseline` summaries from `login_baselines` without exposing raw known IP, country, or user-agent history
+- [x] Kept external IP intelligence, MFA/device enrichment, incidents, analyst notes, frontend UI, and new schema work out of this backend slice
+- [x] Expanded focused actor profile coverage for user/gateway/system alert isolation and baseline privacy summary behavior
+
+### Actor IP and Device Enrichment Pilot
+- [x] Added bounded user actor `ip_details` and `device_details` over the latest 10 stored authenticated sessions
+- [x] Added optional Ipregistry provider wiring for normalized recent-session location, network, company, carrier, and security context with visible degraded states when enrichment is not configured or unavailable
+- [x] Parsed stored session user agents into browser, OS, and conservative device summaries without new alerts or database schema
+- [x] Kept non-user actor enrichment null and left actor investigation frontend work as handoff scope
+
 ---
 
 ## Key References

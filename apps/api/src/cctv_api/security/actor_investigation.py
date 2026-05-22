@@ -5,27 +5,50 @@ from collections.abc import Sequence
 
 from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session as DbSession
+from ua_parser import parse
 
-from cctv_api.models.enums import ActorType, EventCategory, EventOutcome, EventSeverity
+from cctv_api.core.config import Settings
+from cctv_api.models.enums import (
+    ActorType,
+    AlertSeverity,
+    AlertStatus,
+    EventCategory,
+    EventOutcome,
+    EventSeverity,
+)
 from cctv_api.models.tables import (
+    Alert,
     AuditLog,
     Camera,
     CameraAcl,
     EdgeGateway,
     GatewayCameraAssignment,
+    LoginBaseline,
     Role,
     Session,
     StreamGrant,
     User,
     UserRole,
 )
+from cctv_api.security.alerts import alert_to_response
+from cctv_api.security.ip_intelligence import (
+    IpIntelligenceProviderState,
+    IpIntelligenceResult,
+    get_ip_intelligence_provider,
+)
 
 MAX_DISTINCT_IPS = 50
 MAX_DISTINCT_USER_AGENTS = 20
+MAX_RECENT_ALERTS = 10
+MAX_RECENT_ENRICHED_SESSIONS = 10
 MAX_RECENT_STREAM_GRANTS = 10
 
 
-def build_user_actor_profile(db: DbSession, user_id: uuid.UUID) -> dict[str, object] | None:
+def build_user_actor_profile(
+    db: DbSession,
+    user_id: uuid.UUID,
+    settings: Settings,
+) -> dict[str, object] | None:
     user = db.execute(select(User).where(User.id == str(user_id))).scalar_one_or_none()
     if user is None:
         return None
@@ -38,6 +61,7 @@ def build_user_actor_profile(db: DbSession, user_id: uuid.UUID) -> dict[str, obj
     is_disabled = user.disabled_at is not None
     risk = _compute_risk_indicators(activity, is_disabled=is_disabled)
     containment = _build_user_containment_status(user, sessions)
+    recent_sessions = _get_recent_user_sessions(db, user_id)
 
     return {
         "actor_type": ActorType.user.value,
@@ -58,7 +82,11 @@ def build_user_actor_profile(db: DbSession, user_id: uuid.UUID) -> dict[str, obj
         "activity_summary": activity,
         "risk_indicators": risk,
         "containment_status": containment,
+        "alerts": _get_actor_alerts(db, ActorType.user, user_id),
+        "behavior_baseline": _get_user_behavior_baseline(db, user_id),
         **_unsupported_stub_fields(),
+        "ip_details": _get_user_ip_details(recent_sessions, settings),
+        "device_details": _get_user_device_details(recent_sessions),
     }
 
 
@@ -95,6 +123,8 @@ def build_gateway_actor_profile(db: DbSession, gateway_id: uuid.UUID) -> dict[st
         "activity_summary": activity,
         "risk_indicators": risk,
         "containment_status": containment,
+        "alerts": _get_actor_alerts(db, ActorType.gateway, gateway_id),
+        "behavior_baseline": None,
         **_unsupported_stub_fields(),
     }
 
@@ -116,6 +146,8 @@ def build_system_actor_profile(
         "activity_summary": activity,
         "risk_indicators": risk,
         "containment_status": None,
+        "alerts": _get_actor_alerts(db, actor_type, actor_id),
+        "behavior_baseline": None,
         **_unsupported_stub_fields(),
     }
 
@@ -159,6 +191,227 @@ def _get_user_sessions(db: DbSession, user_id: uuid.UUID) -> dict[str, object]:
         "total_count": len(rows),
         "revoked_count": len(revoked),
     }
+
+
+def _get_recent_user_sessions(db: DbSession, user_id: uuid.UUID) -> list[Session]:
+    return list(
+        db.execute(
+            select(Session)
+            .where(Session.user_id == str(user_id))
+            .order_by(Session.created_at.desc(), Session.id.desc())
+            .limit(MAX_RECENT_ENRICHED_SESSIONS)
+        ).scalars().all()
+    )
+
+
+def _get_user_ip_details(sessions: list[Session], settings: Settings) -> dict[str, object]:
+    provider_state = get_ip_intelligence_provider(settings)
+    ips = [_session_ip(session) for session in sessions]
+    distinct_ips = list(dict.fromkeys(ip for ip in ips if ip is not None))
+    try:
+        lookups, lookup_unavailable = _lookup_recent_ips(distinct_ips, provider_state)
+    finally:
+        _close_ip_provider(provider_state)
+    enriched_results = [
+        result for result in lookups.values() if result is not None and result.has_data
+    ]
+    status = (
+        "unavailable"
+        if lookup_unavailable and not enriched_results
+        else provider_state.status
+    )
+
+    return {
+        "available": provider_state.available and status == "ok",
+        "status": status,
+        "provider": provider_state.provider_name,
+        "distinct_ip_count": len(distinct_ips),
+        "enriched_ip_count": len(enriched_results),
+        "recent_sessions": [
+            {
+                **_session_enrichment_context(session),
+                "ip": ip,
+                **_ip_detail_payload(lookups.get(ip) if ip is not None else None),
+            }
+            for session, ip in zip(sessions, ips, strict=True)
+        ],
+    }
+
+
+def _lookup_recent_ips(
+    ips: list[str],
+    provider_state: IpIntelligenceProviderState,
+) -> tuple[dict[str, IpIntelligenceResult | None], bool]:
+    if provider_state.provider is None:
+        return {}, False
+
+    results: dict[str, IpIntelligenceResult | None] = {}
+    lookup_unavailable = False
+    for ip in ips:
+        try:
+            results[ip] = provider_state.provider.lookup(ip)
+        except Exception:
+            results[ip] = None
+            lookup_unavailable = True
+    return results, lookup_unavailable
+
+
+def _close_ip_provider(provider_state: IpIntelligenceProviderState) -> None:
+    close = getattr(provider_state.provider, "close", None)
+    if callable(close):
+        close()
+
+
+def _ip_detail_payload(result: IpIntelligenceResult | None) -> dict[str, object]:
+    if result is None:
+        return {
+            "ip_type": None,
+            "location": {
+                "continent": None,
+                "country_code": None,
+                "country": None,
+                "region": None,
+                "city": None,
+                "timezone": None,
+            },
+            "network": {
+                "asn": None,
+                "organization": None,
+                "domain": None,
+                "connection_type": None,
+            },
+            "company": {
+                "name": None,
+                "domain": None,
+                "type": None,
+            },
+            "carrier": {"name": None},
+            "security": {
+                "is_anonymous": None,
+                "is_vpn": None,
+                "is_proxy": None,
+                "is_tor": None,
+                "is_tor_exit": None,
+                "is_cloud_provider": None,
+                "is_relay": None,
+                "is_threat": None,
+                "is_attacker": None,
+                "is_abuser": None,
+            },
+        }
+    return {
+        "ip_type": result.ip_type,
+        "location": {
+            "continent": result.location.continent,
+            "country_code": result.location.country_code,
+            "country": result.location.country,
+            "region": result.location.region,
+            "city": result.location.city,
+            "timezone": result.location.timezone,
+        },
+        "network": {
+            "asn": result.network.asn,
+            "organization": result.network.organization,
+            "domain": result.network.domain,
+            "connection_type": result.network.connection_type,
+        },
+        "company": {
+            "name": result.company.name,
+            "domain": result.company.domain,
+            "type": result.company.type,
+        },
+        "carrier": {"name": result.carrier.name},
+        "security": {
+            "is_anonymous": result.security.is_anonymous,
+            "is_vpn": result.security.is_vpn,
+            "is_proxy": result.security.is_proxy,
+            "is_tor": result.security.is_tor,
+            "is_tor_exit": result.security.is_tor_exit,
+            "is_cloud_provider": result.security.is_cloud_provider,
+            "is_relay": result.security.is_relay,
+            "is_threat": result.security.is_threat,
+            "is_attacker": result.security.is_attacker,
+            "is_abuser": result.security.is_abuser,
+        },
+    }
+
+
+def _get_user_device_details(sessions: list[Session]) -> dict[str, object]:
+    user_agents = [session.ua_fp for session in sessions if session.ua_fp]
+    return {
+        "available": bool(user_agents),
+        "distinct_user_agent_count": len(set(user_agents)),
+        "recent_sessions": [
+            {
+                **_session_enrichment_context(session),
+                "ua_fp": session.ua_fp,
+                **_device_detail_payload(session.ua_fp),
+            }
+            for session in sessions
+        ],
+    }
+
+
+def _device_detail_payload(user_agent: str | None) -> dict[str, dict[str, object | None]]:
+    parsed = parse(user_agent or "")
+    parsed_browser = parsed.user_agent
+    parsed_os = parsed.os
+    parsed_device = parsed.device
+    return {
+        "browser": {
+            "family": parsed_browser.family if parsed_browser else None,
+            "version": _parsed_version(parsed_browser),
+        },
+        "os": {
+            "family": parsed_os.family if parsed_os else None,
+            "version": _parsed_version(parsed_os),
+        },
+        "device": {
+            "family": parsed_device.family if parsed_device else None,
+            "brand": parsed_device.brand if parsed_device else None,
+            "model": parsed_device.model if parsed_device else None,
+            "device_class": _device_class(user_agent, parsed_os.family if parsed_os else None),
+        },
+    }
+
+
+def _parsed_version(parsed: object | None) -> str | None:
+    if parsed is None:
+        return None
+    parts = [
+        getattr(parsed, "major", None),
+        getattr(parsed, "minor", None),
+        getattr(parsed, "patch", None),
+        getattr(parsed, "patch_minor", None),
+    ]
+    version = ".".join(str(part) for part in parts if part is not None)
+    return version or None
+
+
+def _device_class(user_agent: str | None, os_family: str | None) -> str:
+    if not user_agent:
+        return "unknown"
+    lowered = user_agent.lower()
+    if "ipad" in lowered or "tablet" in lowered:
+        return "tablet"
+    if "mobile" in lowered or "iphone" in lowered:
+        return "mobile"
+    if os_family in {"Windows", "Mac OS X", "Linux", "Ubuntu", "Chrome OS"}:
+        return "desktop"
+    return "unknown"
+
+
+def _session_enrichment_context(session: Session) -> dict[str, str | None]:
+    return {
+        "session_id": str(session.id),
+        "created_at": session.created_at.isoformat() if session.created_at else None,
+        "last_seen_at": session.last_seen_at.isoformat() if session.last_seen_at else None,
+        "revoked_at": session.revoked_at.isoformat() if session.revoked_at else None,
+    }
+
+
+def _session_ip(session: Session) -> str | None:
+    return str(session.ip) if session.ip is not None else None
 
 
 def _get_user_camera_access(db: DbSession, user_id: uuid.UUID) -> dict[str, object]:
@@ -258,6 +511,83 @@ def _get_stream_grants(
             }
             for g in recent_rows
         ],
+    }
+
+
+def _get_actor_alerts(
+    db: DbSession,
+    actor_type: ActorType,
+    actor_id: uuid.UUID | None,
+) -> dict[str, object]:
+    actor_filter = Alert.actor_type == actor_type
+    if actor_id is None:
+        actor_filter = actor_filter & Alert.actor_id.is_(None)
+    else:
+        actor_filter = actor_filter & (Alert.actor_id == str(actor_id))
+
+    status_cols = {
+        status.value: func.sum(case((Alert.status == status, 1), else_=0))
+        for status in AlertStatus
+    }
+    severity_cols = {
+        severity.value: func.sum(case((Alert.severity == severity, 1), else_=0))
+        for severity in AlertSeverity
+    }
+    aggregate = db.execute(
+        select(
+            func.count().label("total"),
+            *[col.label(f"status_{key}") for key, col in status_cols.items()],
+            *[col.label(f"severity_{key}") for key, col in severity_cols.items()],
+        ).where(actor_filter)
+    ).one()
+
+    recent: Sequence[Alert] = list(
+        db.execute(
+            select(Alert)
+            .where(actor_filter)
+            .order_by(Alert.created_at.desc(), Alert.id.desc())
+            .limit(MAX_RECENT_ALERTS)
+        ).scalars().all()
+    )
+    return {
+        "total_count": aggregate.total or 0,
+        "counts_by_status": {
+            key: int(getattr(aggregate, f"status_{key}") or 0) for key in status_cols
+        },
+        "counts_by_severity": {
+            key: int(getattr(aggregate, f"severity_{key}") or 0) for key in severity_cols
+        },
+        "recent": [alert_to_response(alert) for alert in recent],
+    }
+
+
+def _get_user_behavior_baseline(db: DbSession, user_id: uuid.UUID) -> dict[str, object]:
+    baseline = db.execute(
+        select(LoginBaseline).where(LoginBaseline.user_id == str(user_id))
+    ).scalar_one_or_none()
+    if baseline is None:
+        return {
+            "available": False,
+            "login_count": 0,
+            "last_login_at": None,
+            "last_login_country": None,
+            "known_ip_count": 0,
+            "known_country_count": 0,
+            "known_user_agent_count": 0,
+            "updated_at": None,
+        }
+
+    return {
+        "available": True,
+        "login_count": baseline.login_count or 0,
+        "last_login_at": baseline.last_login_at.isoformat() if baseline.last_login_at else None,
+        "last_login_country": baseline.last_login_country,
+        "known_ip_count": len(baseline.known_ips) if baseline.known_ips else 0,
+        "known_country_count": len(baseline.known_countries) if baseline.known_countries else 0,
+        "known_user_agent_count": (
+            len(baseline.known_user_agents) if baseline.known_user_agents else 0
+        ),
+        "updated_at": baseline.updated_at.isoformat() if baseline.updated_at else None,
     }
 
 
@@ -426,8 +756,6 @@ def _unsupported_stub_fields() -> dict[str, None]:
         "device_details": None,
         "mfa_details": None,
         "threat_intelligence": None,
-        "alerts": None,
         "incidents": None,
         "analyst_notes": None,
-        "behavior_baseline": None,
     }
