@@ -1,6 +1,6 @@
 # Frontend Coworker Handoff
 
-Last updated: 2026-05-22 (production live at panoptix.site, login baselines deployed)
+Last updated: 2026-05-23 (production `/entry` visitor flow verified)
 
 This is the first document the frontend coworker should read before changing the React app on `fullstack-integration`. It summarizes what the system owner has verified, what backend APIs are ready, and what frontend work should happen next.
 
@@ -24,6 +24,7 @@ This is the first document the frontend coworker should read before changing the
 - Staging deployed browser smoke passed 2026-05-21: all 10 sidebar pages loaded through Cloudflare Access at `staging.panoptix.site` with no 500/502 errors.
 - **Production is now live at `panoptix.site` (2026-05-22)** behind Cloudflare Access with GitHub OAuth. Railway production backend + frontend deployed with new cryptographic keys.
 - `SUSPICIOUS_LOGIN_DETECTION_ENABLED=true` in production (login baselines track normal device/IP patterns).
+- The same-domain public visitor entry flow is operational at `https://panoptix.site/entry`. First-time root visits redirect to `/entry` only when `panoptix_visitor` is absent. Only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect` bypass Cloudflare Access.
 - Real LiveKit browser subscriber playback is still not production-complete.
 - Real CCTV hardware validation is still pending.
 
@@ -35,7 +36,11 @@ This is the first document the frontend coworker should read before changing the
    - `POST /api/v1/admin/alerts/{alert_id}/acknowledge`
    - `POST /api/v1/admin/alerts/{alert_id}/resolve`
 2. Finish real LiveKit subscriber playback using `GET /api/v1/cameras/{camera_id}/view-token`.
-3. Browser-smoke every current sidebar page against the local backend:
+3. Build the backend-ready investigation UIs when assigned:
+   - actor profile/activity drawer or page
+   - admin visitor visit list/detail UI
+   - full audit filter controls
+4. Browser-smoke every current sidebar page against the local backend:
    - Dashboard
    - Live Cameras
    - Camera Management
@@ -46,7 +51,7 @@ This is the first document the frontend coworker should read before changing the
    - System Health
    - Break Glass
    - Settings
-4. Fix only API contract and wiring issues found during smoke. Do not redesign UI/UX or add roadmap-only pages unless explicitly assigned.
+5. Fix only API contract and wiring issues found during smoke. Do not redesign UI/UX or add roadmap-only pages unless explicitly assigned.
 
 ## Hard Guardrails
 
@@ -55,6 +60,7 @@ This is the first document the frontend coworker should read before changing the
 - Do not store auth tokens in `localStorage`, `sessionStorage`, or IndexedDB.
 - Do not expose RTSP URLs, LiveKit API secrets, gateway service tokens, R2 keys, database URLs, or `.env` values in frontend code, logs, screenshots, storage, or UI.
 - Do not call gateway-only endpoints from browser code.
+- Never make broad `/api/v1/*` public or browser-call protected API groups from public entry code; only the documented visitor entry endpoints are public.
 - Do not treat email alerts as frontend-delivered. Email delivery is backend SMTP only.
 - Do not redesign the coworker UI/UX unless the assigned task is explicitly design-system migration.
 

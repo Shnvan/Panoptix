@@ -6,8 +6,9 @@ Start here for current frontend coordination: [Frontend Coworker Handoff](FRONTE
 
 1. Wire the existing Alerts page to the backend alert APIs: `GET /api/v1/admin/alerts`, `GET /api/v1/admin/alerts/{alert_id}`, `POST /api/v1/admin/alerts/{alert_id}/acknowledge`, and `POST /api/v1/admin/alerts/{alert_id}/resolve`.
 2. Finish real LiveKit subscriber playback using `GET /api/v1/cameras/{camera_id}/view-token`. The browser must subscribe only and must never publish.
-3. Smoke every current sidebar page against the local backend: Dashboard, Live Cameras, Camera Management, Gateways, Users & Access, Audit Logs, Alerts, System Health, Break Glass, and Settings.
-4. Fix only API contract/wiring issues found during smoke. Do not add new roadmap pages or redesign UI/UX unless explicitly assigned.
+3. Add backend-ready investigation UI only when assigned: actor profile/activity, admin visitor visits, and full audit filters.
+4. Smoke every current sidebar page against the local backend: Dashboard, Live Cameras, Camera Management, Gateways, Users & Access, Audit Logs, Alerts, System Health, Break Glass, and Settings.
+5. Fix only API contract/wiring issues found during smoke. Do not add new roadmap pages or redesign UI/UX unless explicitly assigned.
 
 This is the frontend source of truth for production-readiness work on the combined `fullstack-integration` branch. It tracks every implemented backend capability and makes each one either usable in the frontend, intentionally hidden, or explicitly marked backend/gateway-only.
 
@@ -22,6 +23,7 @@ Design direction: new frontend work **must** follow [Panoptix Design System](PAN
 | Implemented but incomplete | `/api/v1/cameras/{camera_id}/view-token` | Token request works, playback placeholder remains | Wire real subscriber-only LiveKit browser viewer. |
 | Implemented but incomplete | `/api/v1/cameras/events` | Disabled in dev-auth mode because EventSource cannot send custom headers | Keep production SSE path; test with Cloudflare/session cookies in staging. |
 | Implemented and usable | `/api/v1/privacy/notice`, `/api/v1/privacy/notice/accept` | Privacy notice gate exists | Verify notice mismatch and accepted states in browser. |
+| Implemented and operational | `/entry`, `/api/v1/visitor/notice`, `/api/v1/visitor/collect` | Production same-domain entry flow works before Cloudflare Access | Keep public handling limited to `/entry`, `/assets/*`, `/logo.png`, and the two visitor API endpoints. |
 | Implemented and usable | `/api/v1/sessions/active`, `/api/v1/sessions/revoke` | Settings/session UI exists | Verify revoke UX and session refresh behavior. |
 | Implemented and wired | `/api/v1/admin/users`, role update, disable | User admin UI exists and local smoke has loaded real users/roles | Continue browser smoke for destructive actions, disable behavior, and edge-case error states. |
 | Implemented and wired | `/api/v1/admin/users/{user_id}/mfa/reset` | MFA reset modal calls the backend route | Browser smoke success/error states and audit copy. |
@@ -40,6 +42,7 @@ Design direction: new frontend work **must** follow [Panoptix Design System](PAN
 | Implemented but incomplete | `/api/v1/admin/sites/{site_id}/signage-attest` | Attestation call exists, but site listing source is missing | Disable or clearly mark until a real site list source exists, or add backend site listing later. |
 | Implemented and wired | `/api/v1/admin/backups/status` | Health/admin UI can read backup status | Browser smoke missing, degraded, and ok states. |
 | Implemented but missing UI | `/api/v1/admin/alerts`, detail, acknowledge, resolve | Backend alert records and SMTP email notification foundation exist; no complete alerts UI yet | Wire the existing Alerts page to real list/detail/ack/resolve APIs without adding browser-only notification providers. |
+| Implemented but missing UI | `/api/v1/admin/visitor-visits`, detail | Backend records approved public entry visits and later login correlation | Add admin visitor investigation list/detail UI when assigned. |
 | Frontend calls nonexistent endpoint | `/api/v1/admin/sites` | API client has `listSites()` but backend route is not present | Remove, disable, or mark planned until backend route exists. |
 | Implemented and wired | `/api/v1/admin/dsr-requests` | DSR list/create/detail/update API client exists and compliance UI uses the list | Browser smoke DSR case creation/update flow and validation states. |
 | Frontend calls nonexistent endpoint | `/api/v1/admin/exposure-check`, `/media-isolation-check`, `/origin-binding-check` | API client has security check calls but backend routes are not present | Remove, disable, or mark planned until backend routes exist. |
@@ -57,6 +60,7 @@ These must be resolved before treating the frontend as production-ready.
 | Verify viewer/admin camera split | Required | Viewer dashboard uses `/api/v1/cameras`; admin camera management uses `/api/v1/admin/cameras` and detail routes. |
 | Remove or disable nonexistent endpoint calls | Required | Security reports and site listing must not appear as broken production features. |
 | Expose or document remaining implemented admin actions | Required | Backup status has a UI path; actor profile/activity still needs a visible investigation path or documented no-UI decision. |
+| Visitor entry protected-route smoke | Done for current rollout | Same-domain `/entry` works; first-time root redirect uses `panoptix_visitor`; protected app and protected APIs remain behind Cloudflare Access. |
 | Full local smoke test | Passed for current same-origin API surfaces | Dashboard/bootstrap, live-camera camera list, users, cameras, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health pass through Vite against a local backend with dev auth. Continue manual page-specific destructive/action smoke where data allows. |
 | Full staging smoke test | ✅ Passed 2026-05-21 | All 10 sidebar pages loaded through Cloudflare Access at `staging.panoptix.site` with no 500/502 errors. Network tab confirmed all app API requests returned 200. |
 | Full production smoke test | Required | Production live at `panoptix.site` (2026-05-22). Test all 10 sidebar pages through production Cloudflare Access. Verify no 500/502 errors and no sensitive data leaks. |

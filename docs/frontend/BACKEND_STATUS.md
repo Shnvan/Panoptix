@@ -2,20 +2,20 @@
 
 This document lists every implemented backend API endpoint, what the frontend can build against today, what is not ready yet, and local dev setup instructions.
 
-Last updated: 2026-05-22 (production live at panoptix.site, visitor visits migration 0010 deployed)
+Last updated: 2026-05-23 (production `/entry` visitor flow and first-visit redirect verified)
 
 Read first: [Frontend Coworker Handoff](FRONTEND_HANDOFF.md).
 
 ## Current Backend State For Frontend
 
 - Local full-stack smoke is working through Vite and FastAPI when `apps/api/.env` is configured locally. That file is ignored and must never be committed.
-- The active local database has reached Alembic head `0008_alerts_email`.
+- Production database has reached Alembic head `0010_visitor_visits`; local dev databases should run `alembic upgrade head`.
 - Admin users, cameras, gateways, DSR requests, backup status, break-glass, health, and alert APIs are backend-available.
 - `POST /api/v1/admin/users/invite` is implemented, but `github-invites-not-configured` is expected unless GitHub invite settings are intentionally enabled.
 - Alert records and backend SMTP email notification support are implemented. Email is backend-only and disabled by default until SMTP settings are configured.
 - Real LiveKit browser playback is still not production-complete. The backend mints subscriber-only viewer tokens; the frontend still needs the subscriber player.
 - Real CCTV hardware validation is still pending. Staging browser smoke passed 2026-05-21. Production deployed at `panoptix.site` 2026-05-22.
-- The public visitor collector pilot has backend APIs plus a first same-domain `/entry` entry view on the existing web service; the future admin visitor dashboard remains frontend handoff work.
+- The public visitor collector pilot is operational on same-domain `/entry`. First-time root visits redirect to `/entry` only when `panoptix_visitor` is absent; the future admin visitor dashboard remains frontend handoff work.
 
 ---
 
@@ -162,7 +162,9 @@ These are the endpoints the frontend consumes directly.
 
 ### Public visitor entry
 
-The Cloudflare Access-protected app root cannot run pre-auth frontend JavaScript. The first frontend entry view runs on narrowly public `https://panoptix.site/entry`, shows the backend notice before its explicit Continue action, and redirects to `https://panoptix.site/` after the collection attempt. Cloudflare must bypass only `/entry`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect`; broad `/api/v1/*` bypass is not allowed.
+The Cloudflare Access-protected app root cannot run pre-auth frontend JavaScript. The first frontend entry view runs on narrowly public `https://panoptix.site/entry`, shows the backend notice before its explicit Continue action, and redirects to `https://panoptix.site/` after the collection attempt. Production Cloudflare redirects first-time root requests to `/entry` only when `panoptix_visitor` is absent; the protected root itself does not collect browser signals.
+
+Cloudflare must make only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect` public; broad `/api/v1/*` must remain private. `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` remain protected.
 
 | Method | Path | Auth | Use |
 |---|---|---|---|
@@ -287,7 +289,7 @@ The backend also has a disabled-by-default in-process maintenance scheduler cont
 
 - Admin detail reads write `admin.visitor.visit.viewed`.
 - Returned records include page/time, request IP and stored normalized Ipregistry subset, parsed browser/OS/device summary, screen/timezone/language, and linked user/session fields when the visitor later logs in.
-- The first pilot covers users who enter through `/entry`. Collector failure on that entry page must not block the redirect into secure sign-in. Direct Cloudflare Access challenge visits to the protected app root do not run browser-side collector code.
+- The first pilot covers users who enter through `/entry`, including first-time root visitors redirected there by Cloudflare when `panoptix_visitor` is absent. Collector failure on that entry page must not block the redirect into secure sign-in. The protected app root does not run browser-side collector code directly.
 
 ---
 
@@ -397,6 +399,9 @@ List endpoints use cursor-based pagination:
 - [x] DSR request list/create/detail/update APIs are backend-ready
 - [x] Backup status is implemented from database-known backup readiness
 - [ ] Alerts page should use the real alert list/detail/acknowledge/resolve APIs
+- [ ] Actor investigation should use the real profile/activity APIs
+- [ ] Admin visitor investigation should use the real visitor visit list/detail APIs
+- [ ] Audit log UI should expose the full backend-supported filter set
 
 ### Session Management
 
@@ -424,6 +429,20 @@ These features are either incomplete in the frontend, need staged/production smo
 | LiveKit fallback mode | `POST /api/v1/admin/livekit/fallback` is **implemented** (DB flag flip between `cloud`/`fallback`, audit-logged) |
 | Production Cloudflare Access | Production live at `panoptix.site` (2026-05-22). Staging smoke passed 2026-05-21. Production browser smoke needed. |
 | Production scheduler | Maintenance scheduler is implemented (`ENABLE_MAINTENANCE_SCHEDULER`) but disabled by default. Manual admin endpoint `POST /api/v1/admin/jobs/run-maintenance` is available |
+
+## Backend-Ready / Frontend-Needed Gap Matrix
+
+| Area | Backend status | Frontend gap |
+|---|---|---|
+| Alerts | List/detail/acknowledge/resolve APIs exist. | Current Alerts page still uses placeholder/default/camera-event-derived alerts instead of backend alert records. |
+| Actor investigation | Profile and activity APIs exist with alerts, login baseline, IP/device, and audit context. | No actor profile drawer/page or activity timeline UI. |
+| Admin visitor visits | List/detail APIs exist and detail reads are audited. | No admin visitor investigation UI. |
+| LiveKit playback | Viewer token endpoint exists and returns subscriber-only LiveKit tokens. | Browser subscriber player remains incomplete. |
+| Audit filters | Backend supports actor, severity, category, outcome, resource, session, and date filters. | Frontend currently exposes limited filtering. |
+| Admin camera detail/update | Backend supports admin camera detail and `PATCH`. | Verify all fields and edge states are fully covered in UI smoke. |
+| Site listing | `POST /api/v1/admin/sites/{site_id}/signage-attest` exists. | `GET /api/v1/admin/sites` is not implemented; any site-list UI/client call must remain disabled/planned until a backend source exists. |
+
+Gateway heartbeat, gateway ingest-token, gateway camera status, gateway control WebSocket, and LiveKit webhook routes are backend/gateway-only. They must not be called from browser code.
 
 Frontend should use real backend APIs for implemented features and show planned/disabled states only for routes that are not implemented.
 

@@ -97,7 +97,7 @@ Key groups:
 - **Session/CSRF**: signing keys (generated, not placeholder)
 - **Audit**: HMAC key and version
 - **Actor IP enrichment**: Ipregistry enable flag and API key
-- **Visitor collector**: disabled-by-default public entry flag, cookie key/domain, retention, and collector rate limit if a narrow `/entry` public bypass is being trialed
+- **Visitor collector**: same-domain `/entry` public entry flag, cookie key/domain, retention, collector rate limit, and trusted Cloudflare client-IP flag if the production public entry pattern is being mirrored
 - **Database**: runtime and migration connection strings
 - **LiveKit**: cloud URL, API key, API secret, webhook secret
 - **R2 Backup**: account ID, bucket name, access key, secret key
@@ -136,7 +136,17 @@ Rules:
 
 ## Public Visitor Collector Pilot
 
-Migration `0010_visitor_visits` adds backend storage for the disabled-by-default collector. Keep `VISITOR_COLLECTOR_ENABLED=false` until the existing frontend service is reachable at narrowly public `/entry` with the visible notice-before-Continue flow, the exact public visitor API bypasses, a shared cookie domain, and the trusted Cloudflare client-IP boundary required for the public collector route.
+Migration `0010_visitor_visits` adds backend storage for the collector. If staging mirrors the current production rollout, use the same-domain `/entry` pattern:
+
+- First-time root requests redirect to `/entry` only when `panoptix_visitor` is absent.
+- Returning visitors with `panoptix_visitor` go directly to the protected Cloudflare Access flow.
+- The root `/` stays protected and does not collect browser signals directly.
+- Cloudflare Access bypasses exactly `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect`.
+- `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` remain protected. Never make broad `/api/v1/*` public.
+
+Enable `VISITOR_COLLECTOR_ENABLED=true` only after those narrow bypasses, the visible notice-before-Continue flow, a shared cookie domain, and the trusted Cloudflare client-IP boundary are in place.
+
+Rollback: disable/delete the first-visit Redirect Rule first if root navigation breaks. If collection itself breaks, set `VISITOR_COLLECTOR_ENABLED=false` and redeploy the backend.
 
 ---
 

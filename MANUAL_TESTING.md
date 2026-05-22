@@ -3741,17 +3741,29 @@ Expected behavior:
 
 ## Public Visitor Collector Pilot
 
-This pilot is disabled by default and uses a narrowly public same-domain `https://panoptix.site/entry` view on the existing frontend service. Direct visits to the protected root `https://panoptix.site/` do not run the entry-page browser collector.
+This pilot uses a narrowly public same-domain `https://panoptix.site/entry` view on the existing frontend service. Production Cloudflare now redirects first-time `https://panoptix.site/` requests to `/entry` only when the signed `panoptix_visitor` cookie is absent. The protected root itself does not collect browser signals; it remains Cloudflare Access-protected.
 
 Cloudflare Access must bypass only these exact public paths:
 
 ```text
 /entry
+/assets/*
+/logo.png
 /api/v1/visitor/notice
 /api/v1/visitor/collect
 ```
 
-Do not bypass `/api/v1/*`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, or `/api/v1/sessions/*`.
+Keep `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` protected. Never make broad `/api/v1/*` public.
+
+First-visit redirect smoke:
+
+1. Open a fresh incognito browser with no Panoptix cookies.
+2. Visit `https://panoptix.site/`.
+3. Confirm Cloudflare redirects to `https://panoptix.site/entry` before the Access login challenge.
+4. Click `Continue to secure sign-in`.
+5. Confirm the page redirects to `https://panoptix.site/`, then Cloudflare Access appears.
+6. Complete sign-in and confirm the dashboard loads.
+7. In the same browser profile, visit `https://panoptix.site/` again and confirm it goes directly to Cloudflare Access/protected app flow because `panoptix_visitor` is already present.
 
 Backend setup:
 

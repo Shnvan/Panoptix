@@ -37,7 +37,9 @@ FastAPI remains the security authority. Browser responses must not expose RTSP U
 
 ## Public Visitor Entry Routes
 
-The visitor collector pilot uses the narrowly public same-domain `https://panoptix.site/entry` frontend entry view. That page fetches the notice first and posts collection only after the visitor explicitly continues. It covers entry-flow visits only; direct visits to the Cloudflare Access-protected app root remain outside browser-side collector coverage.
+The visitor collector pilot uses the narrowly public same-domain `https://panoptix.site/entry` frontend entry view. That page fetches the notice first and posts collection only after the visitor explicitly continues. Production Cloudflare redirects first-time `https://panoptix.site/` requests to `/entry` only when `panoptix_visitor` is absent; returning visitors with that signed cookie go directly to the protected Cloudflare Access flow. The protected root itself does not collect visitor browser signals.
+
+Public Access exceptions are limited to `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect`. Keep `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` protected. Never make broad `/api/v1/*` public.
 
 | Method | Path | Auth | Notes |
 |---|---|---|---|

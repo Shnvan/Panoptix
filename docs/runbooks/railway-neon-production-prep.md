@@ -102,7 +102,7 @@ Key groups (values must be distinct from staging):
 - **Session/CSRF**: signing keys (distinct from staging)
 - **Audit**: HMAC key and version (distinct from staging)
 - **Actor IP enrichment**: Ipregistry enable flag and API key
-- **Visitor collector**: disabled-by-default public entry flag, cookie key/domain, retention, and collector rate limit after the narrow `/entry` Cloudflare bypass is approved
+- **Visitor collector**: same-domain `/entry` public entry flag, cookie key/domain, retention, collector rate limit, and trusted Cloudflare client-IP flag after the narrow public bypass/redirect rules are in place
 - **Database**: production runtime and migration connection strings
 - **LiveKit**: cloud URL (can be same project; API key/secret may be same or production-specific)
 - **R2 Backup**: account ID (same), bucket name (`panoptix-backups`), access key/secret (production-specific recommended)
@@ -143,7 +143,15 @@ Provider handling for the first rollout:
 
 ## Public Visitor Collector Pilot
 
-The first collector rollout uses the existing frontend service on same-domain public path `https://panoptix.site/entry`. Keep the protected app root behind Cloudflare Access and enable the backend collector only after Cloudflare bypasses exactly `/entry`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect`. Do not bypass broad `/api/v1/*`. The entry page shows the visible notice before its explicit Continue action posts browser-side signals. Collector failure should still redirect the visitor into secure sign-in.
+The first collector rollout uses the existing frontend service on same-domain public path `https://panoptix.site/entry`. Production behavior is:
+
+- First-time `https://panoptix.site/` requests redirect to `/entry` only when `panoptix_visitor` is absent.
+- Returning visitors with `panoptix_visitor` go directly to the protected Cloudflare Access flow.
+- The root `/` remains protected and does not collect browser signals directly.
+- Cloudflare Access bypasses exactly `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect`.
+- `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` remain protected. Never make broad `/api/v1/*` public.
+
+The entry page shows the visible notice before its explicit Continue action posts browser-side signals. Collector failure should still redirect the visitor into secure sign-in.
 
 ```text
 VISITOR_COLLECTOR_ENABLED=true
@@ -152,9 +160,12 @@ VISITOR_COOKIE_DOMAIN=panoptix.site
 VISITOR_RETENTION_DAYS=30
 RATE_LIMIT_VISITOR_COLLECT_MAX=20
 RATE_LIMIT_VISITOR_COLLECT_WINDOW=60
+TRUST_CF_CONNECTING_IP=true
 ```
 
 Apply migration `0010_visitor_visits` before enabling this flag. Use the existing Ipregistry actor-enrichment key path for stored normalized IP context; never send raw provider payloads to frontend config or rollout evidence.
+
+Rollback: disable/delete the Cloudflare first-visit Redirect Rule first if root navigation is affected. If collection itself is the issue, set `VISITOR_COLLECTOR_ENABLED=false` and redeploy the backend while leaving protected Access rules intact.
 
 ---
 

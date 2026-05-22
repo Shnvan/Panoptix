@@ -8,9 +8,9 @@ This guide defines the intended deployment shape before implementation starts.
 
 | Public route | Cloudflare Access | Railway service | Responsibility |
 |---|---|---|---|
-| `/entry`, `/api/v1/visitor/notice`, `/api/v1/visitor/collect` | Public collector policy/WAF | `cctv-web` entry view plus proxied `cctv-api` route | Visitor notice/approved entry signals before redirecting to protected app. |
+| `/entry`, `/assets/*`, `/logo.png` | Public visitor entry exception | `cctv-web` | Entry notice shell and static assets required before Cloudflare Access sign-in. |
+| `/api/v1/visitor/notice`, `/api/v1/visitor/collect` | Public collector policy/WAF | `cctv-web` proxy to `cctv-api` | Visitor notice and approved entry signal collection before redirecting to protected app. |
 | `/`, `/dashboard`, `/admin`, `/admin-emergency`, `/privacy` | Required | `cctv-web` | React/Vite UI shell and browser app. |
-| `/assets/*` and frontend static assets | Required | `cctv-web` | Versioned frontend assets with strict headers. |
 | `/api/v1/*` | Required unless gateway/webhook policy says otherwise | `cctv-web` proxy to `cctv-api` or direct `cctv-api` route | FastAPI protected API. |
 | `/api/v1/gateway-control/ws` | Gateway policy | `cctv-api` | Gateway-initiated outbound WebSocket command channel. |
 | `/api/v1/webhooks/livekit` | HMAC, server-to-server | `cctv-api` | LiveKit webhook receiver. |
@@ -27,7 +27,8 @@ Required controls:
 - DNS is orange-clouded for the application domain.
 - CAA and CT-log monitoring are enabled before pilot.
 - Separate Access policies exist for normal users, admins, break-glass, monitors, and gateways.
-- The public visitor collector exception must stay narrow: only `/entry`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect` are public; the app root and all other API routes remain Access-protected. Do not bypass broad `/api/v1/*`. The entry view continues into secure sign-in after its collection attempt, including fail-soft collector errors.
+- The public visitor collector exception must stay narrow: only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect` are public; the app root and all other API routes remain Access-protected. Never make broad `/api/v1/*` public. The entry view continues into secure sign-in after its collection attempt, including fail-soft collector errors.
+- A Cloudflare Redirect Rule sends first-time root requests to `/entry` only when the signed visitor cookie is absent: `http.host eq "panoptix.site" and http.request.uri.path eq "/" and not http.cookie contains "panoptix_visitor="`. Use `302`, not `301`, because this decision depends on cookies.
 
 ## Railway services
 
@@ -91,7 +92,7 @@ Promotion to production requires:
 Rollback order:
 
 1. Stop promotion.
-2. Revert Cloudflare routing change if routing caused the incident.
+2. Revert Cloudflare routing change if routing caused the incident. For visitor-entry incidents, disable/delete the first-visit Redirect Rule first; separately set `VISITOR_COLLECTOR_ENABLED=false` if the collector backend should stop recording entries.
 3. Roll back Railway service to previous known-good deployment.
 4. If migration involved expand/contract schema, use the documented compatible rollback step only.
 5. Run T-30 and API smoke tests.

@@ -38,7 +38,7 @@ Latest full-stack integration commits:
 
 ## Current Objective
 
-Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; the merged frontend V1 is available for local/staging smoke testing. Local same-origin smoke through Vite now passes for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, backup restore-drill evidence, deployed frontend routing/staging browser smoke, and production deployment hardening.
+Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, backup restore-drill evidence, Alerts page backend API wiring, actor investigation UI, and admin visitor investigation UI.
 
 The system is Panoptix, a secure live-view CCTV web monitoring system with three planes:
 
@@ -148,7 +148,7 @@ Current state:
 - frontend lint/build passed after merge and after local smoke cleanup
 - local same-origin smoke has passed through the Vite proxy for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health
 - local API configuration uses `apps/api/.env`, which is ignored by Git; do not commit database URLs, audit keys, LiveKit keys, GitHub tokens, R2 secrets, or gateway service tokens
-- local backend migration state was verified at Alembic head `0009_login_baselines` (production migration head confirmed 2026-05-22)
+- production backend migration state is at Alembic head `0010_visitor_visits` after visitor collector rollout (confirmed 2026-05-23)
 - `github-invites-not-configured` is expected locally while `GITHUB_INVITES_ENABLED=false`
 - one-time gateway service tokens must never be screenshotted or committed; the exposed local test gateway named `what` was disabled during smoke cleanup
 
@@ -169,7 +169,7 @@ Latest full-stack integration commits:
 
 ## Current Objective
 
-Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; the merged frontend V1 is available for local/staging smoke testing. Local same-origin smoke through Vite now passes for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, backup restore-drill evidence, deployed frontend routing/staging browser smoke, and production deployment hardening.
+Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, backup restore-drill evidence, Alerts page backend API wiring, actor investigation UI, and admin visitor investigation UI.
 
 The system is Panoptix, a secure live-view CCTV web monitoring system with three planes:
 
@@ -279,7 +279,7 @@ Current state:
 - frontend lint/build passed after merge and after local smoke cleanup
 - local same-origin smoke has passed through the Vite proxy for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health
 - local API configuration uses `apps/api/.env`, which is ignored by Git; do not commit database URLs, audit keys, LiveKit keys, GitHub tokens, R2 secrets, or gateway service tokens
-- local backend migration state was verified at Alembic head `0009_login_baselines` (production migration head confirmed 2026-05-22)
+- production backend migration state is at Alembic head `0010_visitor_visits` after visitor collector rollout (confirmed 2026-05-23)
 - `github-invites-not-configured` is expected locally while `GITHUB_INVITES_ENABLED=false`
 - one-time gateway service tokens must never be screenshotted or committed; the exposed local test gateway named `what` was disabled during smoke cleanup
 - camera modal can request a short-lived viewer token, but real LiveKit subscriber playback is still pending
@@ -312,6 +312,17 @@ Completed in this milestone:
 - **AUDIT_HMAC_KEY_VERSION=2**: Fixed unique constraint conflict where production DB already had version 1 key from staging data.
 - **Suspicious login detection**: `SUSPICIOUS_LOGIN_DETECTION_ENABLED=true` set in production Railway variables.
 - **Smoke test passed**: Database CONNECTED, LiveKit CONNECTED, Audit Logs 50 events with valid HMAC chain, Administrator role confirmed at `panoptix.site`.
+
+### Public Visitor Entry and Collector Rollout (2026-05-23)
+
+Completed in this milestone:
+
+- **Same-domain entry**: `https://panoptix.site/entry` is operational on the existing frontend service.
+- **First-visit redirect**: Cloudflare redirects `https://panoptix.site/` to `/entry` only when the signed `panoptix_visitor` cookie is absent. Returning visitors go directly to the protected app/Access flow.
+- **Public bypass scope**: Only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect` bypass Cloudflare Access.
+- **Protected scope**: `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` remain protected. Never make broad `/api/v1/*` public.
+- **Backend collector**: Visitor notice/collect APIs, `0010_visitor_visits`, signed visitor cookie correlation, admin visitor visit list/detail APIs, and maintenance retention cleanup are implemented.
+- **Frontend handoff**: Admin visitor investigation UI is still coworker-owned frontend work. No WebRTC leak collection, reverse geocoding, raw Ipregistry payload display, or broader fingerprint warehouse is part of this rollout.
 
 ### Suspicious Login Detection (2026-05-21)
 
