@@ -32,13 +32,19 @@ AUDIT_HMAC_KEY_VERSION_2 = 2
 AUDIT_HMAC_KEY_2 = "test-second-audit-hmac-key-with-enough-entropy"
 
 
-def _client_with_db(test_db_session: DbSession, *, audit_hmac_key: str = AUDIT_HMAC_KEY) -> TestClient:
+def _client_with_db(
+    test_db_session: DbSession,
+    *,
+    audit_hmac_key: str = AUDIT_HMAC_KEY,
+    **setting_overrides: object,
+) -> TestClient:
     app = create_app(
         settings=Settings(
             APP_ENV="development",
             ALLOW_DEV_AUTH=True,
             AUDIT_HMAC_KEY_VERSION=AUDIT_HMAC_KEY_VERSION,
             AUDIT_HMAC_KEY=audit_hmac_key,
+            **setting_overrides,
         )
     )
 
@@ -1068,6 +1074,19 @@ def test_audit_list_endpoint_generates_audit_of_audit_event(test_db_session: DbS
     assert len(viewed_events) == 1
     assert viewed_events[0].event_severity == EventSeverity.medium
     assert viewed_events[0].event_category == EventCategory.compliance
+
+
+def test_audit_list_endpoint_uses_trusted_cf_client_ip(test_db_session: DbSession) -> None:
+    _record_test_audit_row(test_db_session, "test.some.action")
+    client = _client_with_db(test_db_session, TRUST_CF_CONNECTING_IP=True)
+    headers = {**_admin_headers(), "cf-connecting-ip": "203.0.113.77"}
+
+    response = client.get("/api/v1/admin/audit", headers=headers)
+
+    assert response.status_code == 200
+    audit_rows = test_db_session.execute(select(AuditLog).order_by(AuditLog.id)).scalars().all()
+    viewed_event = next(row for row in audit_rows if row.action == "audit.log.viewed")
+    assert viewed_event.ip == "203.0.113.77"
 
 
 def test_audit_export_endpoint_generates_audit_of_audit_event(test_db_session: DbSession) -> None:

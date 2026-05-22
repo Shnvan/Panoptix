@@ -943,6 +943,7 @@ Work with the frontend coworker to build the admin camera management and user ma
 ### Actor IP and Device Enrichment Pilot
 - [x] Added bounded user actor `ip_details` and `device_details` over the latest 10 stored authenticated sessions
 - [x] Added optional Ipregistry provider wiring for normalized recent-session location, network, company, carrier, and security context with visible degraded states when enrichment is not configured or unavailable
+- [x] Added explicit Cloudflare trusted client-IP capture for fresh browser sessions and user/admin audit writes so public session IPs can feed actor Ipregistry enrichment instead of Railway proxy-hop IPs
 - [x] Parsed stored session user agents into browser, OS, and conservative device summaries without new alerts or database schema
 - [x] Kept non-user actor enrichment null and left actor investigation frontend work as handoff scope
 

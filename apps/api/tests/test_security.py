@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
 import cctv_api.security.dependencies as dependencies
 from cctv_api.core.config import Settings
 from cctv_api.db import db_session
 from cctv_api.main import create_app
-from cctv_api.models.tables import Role, User, UserRole
+from cctv_api.models.tables import LoginBaseline, Role, Session as UserSession, User, UserRole
 from cctv_api.security.identity import Principal, PrincipalKind
 
 
@@ -42,16 +43,22 @@ _SAFE_PRODUCTION_OVERRIDES = {
 }
 
 
-def _browser_client(test_db_session: DbSession, monkeypatch) -> TestClient:  # type: ignore[no-untyped-def]
+def _browser_client(
+    test_db_session: DbSession,
+    monkeypatch,  # type: ignore[no-untyped-def]
+    **setting_overrides: object,
+) -> TestClient:
     monkeypatch.setattr(dependencies, "CloudflareAccessVerifier", _StubVerifier)
     app = create_app(
         settings=Settings(
             APP_ENV="production",
+            ALLOW_DEV_AUTH=False,
             SESSION_SIGNING_KEY=SESSION_SIGNING_KEY,
             CSRF_SIGNING_KEY=CSRF_SIGNING_KEY,
             AUDIT_HMAC_KEY_VERSION=1,
             AUDIT_HMAC_KEY="test-audit-key-with-enough-entropy",
             **_SAFE_PRODUCTION_OVERRIDES,
+            **setting_overrides,
         )
     )
 
@@ -307,6 +314,31 @@ def test_browser_get_sets_session_and_csrf_cookies(test_db_session: DbSession, m
     assert response.status_code == 200
     assert client.cookies.get("panoptix_session") is not None
     assert client.cookies.get("panoptix_csrf") is not None
+
+
+def test_browser_session_and_login_baseline_use_trusted_cf_client_ip(
+    test_db_session: DbSession,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    _grant_admin_role(test_db_session)
+    client = _browser_client(
+        test_db_session,
+        monkeypatch,
+        TRUST_CF_CONNECTING_IP=True,
+        SUSPICIOUS_LOGIN_DETECTION_ENABLED=True,
+    )
+
+    response = client.get(
+        "/api/v1/me",
+        headers={"cf-connecting-ip": "203.0.113.42", "cf-ipcountry": "PH"},
+    )
+
+    assert response.status_code == 200
+    session_row = test_db_session.execute(select(UserSession)).scalar_one()
+    baseline = test_db_session.execute(select(LoginBaseline)).scalar_one()
+    assert session_row.ip == "203.0.113.42"
+    assert baseline.known_ips == ["203.0.113.42"]
+    assert baseline.last_login_country == "PH"
 
 
 def test_browser_admin_post_requires_csrf(test_db_session: DbSession, monkeypatch) -> None:  # type: ignore[no-untyped-def]

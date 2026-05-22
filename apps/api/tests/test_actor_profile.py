@@ -1086,10 +1086,11 @@ def test_actor_activity_returns_404_for_missing_backing_actor(test_db_session: D
 def test_profile_and_activity_views_are_audited(test_db_session: DbSession) -> None:
     user = _user(test_db_session, "audited@example.test")
     _audit(test_db_session, actor_type=ActorType.user, actor_id=user.id, action="test.target")
-    client = _client_with_db(test_db_session)
+    client = _client_with_db(test_db_session, TRUST_CF_CONNECTING_IP=True)
+    headers = {**_admin_headers(), "cf-connecting-ip": "203.0.113.88"}
 
-    profile = client.get(f"/api/v1/admin/actors/user/{user.id}/profile", headers=_admin_headers())
-    activity = client.get(f"/api/v1/admin/actors/user/{user.id}/activity?limit=10", headers=_admin_headers())
+    profile = client.get(f"/api/v1/admin/actors/user/{user.id}/profile", headers=headers)
+    activity = client.get(f"/api/v1/admin/actors/user/{user.id}/activity?limit=10", headers=headers)
 
     assert profile.status_code == 200
     assert activity.status_code == 200
@@ -1103,7 +1104,9 @@ def test_profile_and_activity_views_are_audited(test_db_session: DbSession) -> N
         select(AuditLog).where(AuditLog.action == "admin.actor.activity.viewed")
     ).scalar_one()
     assert profile_row.resource == f"actor:user:{user.id}"
+    assert profile_row.ip == "203.0.113.88"
     assert profile_row.payload == {"actor_type": "user", "actor_id": str(user.id)}
+    assert activity_row.ip == "203.0.113.88"
     assert activity_row.payload["actor_type"] == "user"
     assert activity_row.payload["actor_id"] == str(user.id)
     assert activity_row.payload["limit"] == 10

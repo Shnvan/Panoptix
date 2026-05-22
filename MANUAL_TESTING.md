@@ -3702,14 +3702,17 @@ Invoke-RestMethod -Method GET `
 Verify Railway Ipregistry enablement after staging or production rollout:
 
 1. Authenticate to the target environment through Cloudflare Access as an admin.
-2. Fetch a user actor profile for a user with at least one recent authenticated session.
-3. Inspect the returned `ip_details` and `device_details` sections without capturing raw API keys or provider payloads in test notes.
+2. Confirm the Cloudflare-bound backend environment has `TRUST_CF_CONNECTING_IP=true`.
+3. Create a fresh authenticated browser session after deploy so the session stores the Cloudflare client IP instead of an origin/proxy hop IP.
+4. Fetch a user actor profile for a user with that recent authenticated session.
+5. Inspect the returned `ip_details` and `device_details` sections without capturing raw API keys or provider payloads in test notes.
 
 Expected Ipregistry-enabled profile state:
 
 - `ip_details.available = true`
 - `ip_details.provider = "ipregistry"`
 - `ip_details.status = "ok"` when `ACTOR_IP_ENRICHMENT_ENABLED=true`, the Ipregistry API key is valid, and lookups are available
+- Fresh Cloudflare-bound browser sessions use a public client IP from `CF-Connecting-IP` when `TRUST_CF_CONNECTING_IP=true`; historical proxy-side session IPs such as `100.64.0.x` remain unchanged and may keep null enrichment fields
 - Latest bounded `ip_details.recent_sessions` items keep session context and expose only the normalized `ip_type`, `location`, `network`, `company`, `carrier`, and `security` fields without changing alert or baseline behavior
 - `device_details.recent_sessions` still contains parsed browser, OS, and conservative device context for recent stored user agents
 
@@ -3730,7 +3733,7 @@ Expected behavior:
 - Profile responses aggregate identity, access, sessions where applicable, stream grants, audit summary, risk indicators, and containment status.
 - Profile `alerts` contain direct actor-linked alert counts and up to 10 recent linked alerts; rows that only mention an actor in alert metadata or resource text are not inferred as linked.
 - User actor `behavior_baseline` summarizes stored login-baseline counts and last-login context without exposing stored known IP, country, or user-agent lists. Users with no baseline return `available = false`; non-user actors keep `behavior_baseline = null`.
-- User actor `device_details` parse the latest 10 stored session user agents. User actor `ip_details` enrich the same bounded session set when `ACTOR_IP_ENRICHMENT_ENABLED=true` and the Ipregistry API key is configured; otherwise the profile still succeeds with visible `not_configured` or `unavailable` status.
+- User actor `device_details` parse the latest 10 stored session user agents. User actor `ip_details` enrich the same bounded session set when `ACTOR_IP_ENRICHMENT_ENABLED=true`, the Ipregistry API key is configured, and new Cloudflare-bound browser sessions store a public client IP; otherwise the profile still succeeds with visible `not_configured`, `unavailable`, or null per-session enrichment fields.
 - Gateway and system-like actor profiles keep `ip_details = null` and `device_details = null`. Unsupported enrichment sections remain top-level `null` fields for MFA details, threat intelligence, incidents, and analyst notes.
 - Activity responses use descending audit ID cursor pagination and support filters: `action`, `severity`, `category`, `outcome`, `resource`, `session_id`, `ts_from`, and `ts_to`.
 - Successful profile views write `admin.actor.profile.viewed`.

@@ -93,7 +93,7 @@ docs/runbooks/templates/railway-api.env.example
 Key groups:
 
 - **Environment**: `APP_ENV=staging`, `ALLOW_DEV_AUTH=0`
-- **Cloudflare Access**: issuer, audience IDs, JWKS URL
+- **Cloudflare Access**: issuer, audience IDs, JWKS URL, trusted client-IP flag where origin binding is confirmed
 - **Session/CSRF**: signing keys (generated, not placeholder)
 - **Audit**: HMAC key and version
 - **Actor IP enrichment**: Ipregistry enable flag and API key
@@ -119,6 +119,7 @@ Staging rollout:
 ```text
 ACTOR_IP_ENRICHMENT_ENABLED=true
 ACTOR_IP_IPREGISTRY_API_KEY=<ipregistry-api-key>
+TRUST_CF_CONNECTING_IP=true
 ```
 
 3. Redeploy `cctv-api` and run the actor investigation verification in `MANUAL_TESTING.md`.
@@ -126,6 +127,7 @@ ACTOR_IP_IPREGISTRY_API_KEY=<ipregistry-api-key>
 Rules:
 
 - Do not commit Ipregistry API keys or provider responses to the repository, frontend config, screenshots, or release notes.
+- Set `TRUST_CF_CONNECTING_IP=true` only for the Cloudflare-bound backend route where the trusted-header boundary is enforced.
 - Actor profile reads send only the bounded recent-session IPs selected by the backend to Ipregistry for admin investigation context.
 - If the API key is missing or Ipregistry is unavailable, the actor profile should remain readable with `ip_details.status` of `not_configured` or `unavailable`.
 
@@ -153,7 +155,7 @@ After first staging deploy, verify:
 - [ ] `/api/v1/me` returns valid principal for authenticated user.
 - [ ] Direct Railway URL returns fail-closed for protected routes.
 - [ ] Database connection works (health or `/api/v1/cameras` returns empty list, not 500).
-- [ ] Admin actor profile smoke confirms Ipregistry-backed user `ip_details.status` is `ok` after the actor IP enrichment pilot is enabled.
+- [ ] After creating a fresh Cloudflare browser session with `TRUST_CF_CONNECTING_IP=true`, admin actor profile smoke confirms a recent session IP is not a proxy hop such as `100.64.0.x` and Ipregistry-backed user `ip_details.status` is `ok`.
 - [ ] Gateway heartbeat endpoint accepts valid gateway identity.
 - [ ] Security headers present on all responses.
 

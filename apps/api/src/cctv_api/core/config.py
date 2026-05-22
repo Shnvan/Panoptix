@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     CF_ACCESS_AUD_ADMIN: str = "replace-me"
     CF_ACCESS_AUD_GATEWAY: str = "replace-me"
     CF_ACCESS_JWKS_URL: str = "https://example.cloudflareaccess.com/cdn-cgi/access/certs"
+    TRUST_CF_CONNECTING_IP: bool = False
 
     # ── Local development auth ──
     ALLOW_DEV_AUTH: bool = False

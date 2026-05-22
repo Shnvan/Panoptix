@@ -14,6 +14,7 @@ def test_settings_defaults() -> None:
     assert settings.AUDIT_HMAC_KEY == "replace-me"
     assert settings.LIVEKIT_MODE == "cloud"
     assert settings.GATEWAY_HEARTBEAT_INTERVAL_SECONDS == 10
+    assert settings.TRUST_CF_CONNECTING_IP is False
 
 
 def test_settings_override_via_env(monkeypatch: object) -> None:

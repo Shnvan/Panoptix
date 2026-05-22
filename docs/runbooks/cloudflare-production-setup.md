@@ -107,6 +107,7 @@ Production routing must preserve these boundaries:
 
 - Only Cloudflare should reach the public origin path intended for protected UI/API traffic.
 - Do not trust client-supplied identity headers unless they are produced and protected by Cloudflare Access.
+- Enable backend `TRUST_CF_CONNECTING_IP=true` only after that same origin-binding boundary is confirmed so browser session and audit IP capture may trust Cloudflare `CF-Connecting-IP`.
 - Do not expose a direct public origin bypass that skips Cloudflare Access.
 - Do not allow alternate hostnames to route to the same Railway service without the same Access policy.
 - Keep any origin-bypass or provider-console access path documented, restricted, and audited.

@@ -98,7 +98,7 @@ docs/runbooks/templates/railway-api.env.example
 Key groups (values must be distinct from staging):
 
 - **Environment**: `APP_ENV=production`, `ALLOW_DEV_AUTH=0`
-- **Cloudflare Access**: production issuer, audience IDs, JWKS URL (distinct from staging)
+- **Cloudflare Access**: production issuer, audience IDs, JWKS URL, and trusted client-IP flag (distinct from staging where applicable)
 - **Session/CSRF**: signing keys (distinct from staging)
 - **Audit**: HMAC key and version (distinct from staging)
 - **Actor IP enrichment**: Ipregistry enable flag and API key
@@ -124,6 +124,7 @@ Production rollout:
 ```text
 ACTOR_IP_ENRICHMENT_ENABLED=true
 ACTOR_IP_IPREGISTRY_API_KEY=<ipregistry-api-key>
+TRUST_CF_CONNECTING_IP=true
 ```
 
 3. Redeploy the production backend.
@@ -132,6 +133,7 @@ ACTOR_IP_IPREGISTRY_API_KEY=<ipregistry-api-key>
 Provider handling for the first rollout:
 
 - Keep the Ipregistry API key in Railway backend variables only.
+- Set `TRUST_CF_CONNECTING_IP=true` only when Cloudflare origin-binding keeps direct clients from supplying trusted-header values to the backend.
 - Do not capture raw provider payloads or API keys in frontend config, screenshots, or release notes.
 - Actor profile reads send only the backend-selected bounded recent-session IPs for admin investigation context.
 - If a legacy `/data/maxmind` pilot volume exists from the replaced rollout path, detach/remove it after the Ipregistry rollout no longer needs a rollback comparison.
@@ -198,7 +200,7 @@ After first production deploy, verify:
 - [ ] Security headers present on all responses.
 - [ ] R2 backup connectivity verified (write a test object, verify, delete).
 - [ ] Deep health returns `livekit: connected` and `db: connected`.
-- [ ] Admin user actor profile smoke confirms Ipregistry-backed `ip_details.available = true`, `provider = "ipregistry"`, and `status = "ok"` after enrichment enablement.
+- [ ] After creating a fresh Cloudflare browser session with `TRUST_CF_CONNECTING_IP=true`, admin user actor profile smoke confirms a new recent session IP is not an origin/proxy hop such as `100.64.0.x` and Ipregistry-backed `ip_details.available = true`, `provider = "ipregistry"`, and `status = "ok"` after enrichment enablement.
 - [ ] Break-glass window can be opened and closed by an admin.
 - [ ] Audit export returns signed data.
 

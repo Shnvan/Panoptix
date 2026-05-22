@@ -66,6 +66,7 @@ from cctv_api.security.livekit_rooms import remove_gateway_participants, remove_
 from cctv_api.security.livekit_tokens import LiveKitTokenConfigError, mint_viewer_subscribe_token
 from cctv_api.security.policy import require_role
 from cctv_api.security.rate_limit import RateLimitConfig, get_rate_limiter
+from cctv_api.security.request_ip import browser_request_ip
 from cctv_api.security.service_tokens import generate_service_token, hash_service_token
 from cctv_api.security.sessions import list_active_sessions, revoke_all_user_sessions, revoke_session
 from cctv_api.security.stream_access import (
@@ -1056,7 +1057,7 @@ def _record_user_audit_safely(
             action=action,
             resource=resource,
             payload=payload,
-            ip=_request_ip(request),
+            ip=browser_request_ip(request, settings),
             ua=_request_ua(request),
             session_id=_audit_session_id(request),
         )
@@ -1084,7 +1085,7 @@ def _record_user_audit_required(
             action=action,
             resource=resource,
             payload=payload,
-            ip=_request_ip(request),
+            ip=browser_request_ip(request, settings),
             ua=_request_ua(request),
             session_id=_audit_session_id(request),
         )
@@ -1095,10 +1096,6 @@ def _record_user_audit_required(
             detail="audit-log-write-failed",
             type_uri="https://panoptix.local/problems/service-unavailable",
         ) from exc
-
-
-def _request_ip(request: Request) -> str | None:
-    return request.client.host if request.client is not None else None
 
 
 def _request_ua(request: Request) -> str | None:

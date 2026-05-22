@@ -21,6 +21,7 @@ from cctv_api.security.audit import AuditLogError, record_audit_event
 from cctv_api.security.dependencies import require_authenticated_user
 from cctv_api.security.identity import Principal
 from cctv_api.security.policy import require_role
+from cctv_api.security.request_ip import browser_request_ip
 from cctv_api.security.users import get_or_create_user
 
 router = APIRouter(prefix="/admin/actors")
@@ -319,16 +320,12 @@ def _record_user_audit_safely(
             action=action,
             resource=resource,
             payload=payload,
-            ip=_request_ip(request),
+            ip=browser_request_ip(request, settings),
             ua=_request_ua(request),
             session_id=_audit_session_id(request),
         )
     except AuditLogError:
         return
-
-
-def _request_ip(request: Request) -> str | None:
-    return request.client.host if request.client is not None else None
 
 
 def _request_ua(request: Request) -> str | None:

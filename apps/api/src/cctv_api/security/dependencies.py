@@ -20,6 +20,7 @@ from cctv_api.security.csrf import (
     verify_csrf_token,
 )
 from cctv_api.security.identity import Principal, PrincipalKind
+from cctv_api.security.request_ip import browser_request_ip
 from cctv_api.security.session_cookie import create_session_cookie, read_session_cookie
 from cctv_api.security.sessions import (
     create_session,
@@ -80,7 +81,7 @@ def require_authenticated_user(
                 actor_id=user.id,
             )
             raise _auth_problem("csrf-token-required", status=403)
-        ip = request.client.host if request.client else None
+        ip = browser_request_ip(request, settings)
         ua = request.headers.get("user-agent", "")[:255]
         session_row = create_session(db, user_id=user.id, ua_fp=ua, ip=ip)
         signed = create_session_cookie(session_row.id, settings.SESSION_SIGNING_KEY)
@@ -261,7 +262,7 @@ def _record_auth_audit_safely(
     session_id: uuid.UUID | None = None,
 ) -> None:
     try:
-        ip = request.client.host if request.client else None
+        ip = browser_request_ip(request, settings)
         ua = request.headers.get("user-agent")
         record_audit_event(
             db,
