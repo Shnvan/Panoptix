@@ -3741,7 +3741,17 @@ Expected behavior:
 
 ## Public Visitor Collector Pilot
 
-This pilot is disabled by default and uses the separate public `entry.panoptix.site` view on the existing frontend service. Direct visits to the Cloudflare Access challenge on `panoptix.site` do not run the entry-page browser collector.
+This pilot is disabled by default and uses a narrowly public same-domain `https://panoptix.site/entry` view on the existing frontend service. Direct visits to the protected root `https://panoptix.site/` do not run the entry-page browser collector.
+
+Cloudflare Access must bypass only these exact public paths:
+
+```text
+/entry
+/api/v1/visitor/notice
+/api/v1/visitor/collect
+```
+
+Do not bypass `/api/v1/*`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, or `/api/v1/sessions/*`.
 
 Backend setup:
 
@@ -3755,11 +3765,11 @@ TRUST_CF_CONNECTING_IP=true
 
 Public entry smoke:
 
-1. Open `https://entry.panoptix.site` outside the protected app session. For local frontend smoke, open `/entry`.
+1. Open `https://panoptix.site/entry` outside the protected app session. For local frontend smoke, open `/entry`.
 2. Confirm the public entry view renders the `GET /api/v1/visitor/notice` title/body before collection and its Continue button remains disabled while the notice request is loading.
 3. Click `Continue to secure sign-in`.
 4. Confirm the browser posts `POST /api/v1/visitor/collect` with only the returned `notice_version`, `notice_acknowledged: true`, `page_path`, screen width/height, timezone, and language.
-5. Confirm a successful collect returns `201`, `status = "recorded"`, sets an HttpOnly visitor cookie, and redirects to Cloudflare Access on `panoptix.site`.
+5. Confirm a successful collect returns `201`, `status = "recorded"`, sets an HttpOnly visitor cookie, and redirects to Cloudflare Access on `https://panoptix.site/`.
 6. Confirm a failed/disabled collector attempt still lets the entry page continue into Cloudflare Access rather than blocking sign-in.
 7. Complete Cloudflare Access and create a fresh authenticated browser session.
 8. As an admin, fetch `GET /api/v1/admin/visitor-visits` and `GET /api/v1/admin/visitor-visits/<visit-id>`.

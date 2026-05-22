@@ -102,7 +102,7 @@ Key groups (values must be distinct from staging):
 - **Session/CSRF**: signing keys (distinct from staging)
 - **Audit**: HMAC key and version (distinct from staging)
 - **Actor IP enrichment**: Ipregistry enable flag and API key
-- **Visitor collector**: disabled-by-default public entry flag, cookie key/domain, retention, and collector rate limit if a public entry host is approved
+- **Visitor collector**: disabled-by-default public entry flag, cookie key/domain, retention, and collector rate limit after the narrow `/entry` Cloudflare bypass is approved
 - **Database**: production runtime and migration connection strings
 - **LiveKit**: cloud URL (can be same project; API key/secret may be same or production-specific)
 - **R2 Backup**: account ID (same), bucket name (`panoptix-backups`), access key/secret (production-specific recommended)
@@ -143,7 +143,7 @@ Provider handling for the first rollout:
 
 ## Public Visitor Collector Pilot
 
-The first collector rollout uses the existing frontend service on separate public host `entry.panoptix.site`. Keep the protected app host behind Cloudflare Access and enable the backend collector only after the entry page shows the visible notice before its explicit Continue action posts browser-side signals. Collector failure should still redirect the visitor into secure sign-in.
+The first collector rollout uses the existing frontend service on same-domain public path `https://panoptix.site/entry`. Keep the protected app root behind Cloudflare Access and enable the backend collector only after Cloudflare bypasses exactly `/entry`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect`. Do not bypass broad `/api/v1/*`. The entry page shows the visible notice before its explicit Continue action posts browser-side signals. Collector failure should still redirect the visitor into secure sign-in.
 
 ```text
 VISITOR_COLLECTOR_ENABLED=true

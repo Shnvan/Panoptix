@@ -952,7 +952,7 @@ Work with the frontend coworker to build the admin camera management and user ma
 - [x] Added anonymous visitor visit persistence, signed entry cookie correlation to later authenticated sessions, and admin visitor list/detail APIs with detail-view audit
 - [x] Reused the normalized Ipregistry subset and user-agent parser without storing raw provider payloads, WebRTC candidate IPs, reverse-geocoded addresses, or broader fingerprint signals
 - [x] Added 30-day default visitor retention cleanup through the existing maintenance path
-- [x] Added a public `entry.panoptix.site` frontend entry view on the existing web service that shows the backend notice before explicit Continue collection and redirects into protected Cloudflare Access sign-in
+- [x] Added a same-domain `/entry` frontend entry view on the existing web service that shows the backend notice before explicit Continue collection and redirects into protected Cloudflare Access sign-in
 - [x] Kept the admin visitor dashboard as frontend handoff work; the collector covers the separate entry flow rather than direct Cloudflare Access challenge visits
 
 ---

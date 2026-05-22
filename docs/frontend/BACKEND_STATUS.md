@@ -15,7 +15,7 @@ Read first: [Frontend Coworker Handoff](FRONTEND_HANDOFF.md).
 - Alert records and backend SMTP email notification support are implemented. Email is backend-only and disabled by default until SMTP settings are configured.
 - Real LiveKit browser playback is still not production-complete. The backend mints subscriber-only viewer tokens; the frontend still needs the subscriber player.
 - Real CCTV hardware validation is still pending. Staging browser smoke passed 2026-05-21. Production deployed at `panoptix.site` 2026-05-22.
-- The public visitor collector pilot has backend APIs plus a first public `entry.panoptix.site` entry view on the existing web service; the future admin visitor dashboard remains frontend handoff work.
+- The public visitor collector pilot has backend APIs plus a first same-domain `/entry` entry view on the existing web service; the future admin visitor dashboard remains frontend handoff work.
 
 ---
 
@@ -162,7 +162,7 @@ These are the endpoints the frontend consumes directly.
 
 ### Public visitor entry
 
-The Cloudflare Access-protected app host cannot run pre-auth frontend JavaScript. The first frontend entry view runs on the intentionally public `entry.panoptix.site` host, shows the backend notice before its explicit Continue action, and redirects to `panoptix.site` after the collection attempt.
+The Cloudflare Access-protected app root cannot run pre-auth frontend JavaScript. The first frontend entry view runs on narrowly public `https://panoptix.site/entry`, shows the backend notice before its explicit Continue action, and redirects to `https://panoptix.site/` after the collection attempt. Cloudflare must bypass only `/entry`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect`; broad `/api/v1/*` bypass is not allowed.
 
 | Method | Path | Auth | Use |
 |---|---|---|---|
@@ -287,7 +287,7 @@ The backend also has a disabled-by-default in-process maintenance scheduler cont
 
 - Admin detail reads write `admin.visitor.visit.viewed`.
 - Returned records include page/time, request IP and stored normalized Ipregistry subset, parsed browser/OS/device summary, screen/timezone/language, and linked user/session fields when the visitor later logs in.
-- The first pilot covers users who enter through the public entry host. Collector failure on that entry page must not block the redirect into secure sign-in. Direct Cloudflare Access challenge visits to `panoptix.site` do not run browser-side collector code.
+- The first pilot covers users who enter through `/entry`. Collector failure on that entry page must not block the redirect into secure sign-in. Direct Cloudflare Access challenge visits to the protected app root do not run browser-side collector code.
 
 ---
 

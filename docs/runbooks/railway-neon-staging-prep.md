@@ -97,7 +97,7 @@ Key groups:
 - **Session/CSRF**: signing keys (generated, not placeholder)
 - **Audit**: HMAC key and version
 - **Actor IP enrichment**: Ipregistry enable flag and API key
-- **Visitor collector**: disabled-by-default public entry flag, cookie key/domain, retention, and collector rate limit if a public entry host is being trialed
+- **Visitor collector**: disabled-by-default public entry flag, cookie key/domain, retention, and collector rate limit if a narrow `/entry` public bypass is being trialed
 - **Database**: runtime and migration connection strings
 - **LiveKit**: cloud URL, API key, API secret, webhook secret
 - **R2 Backup**: account ID, bucket name, access key, secret key
@@ -136,7 +136,7 @@ Rules:
 
 ## Public Visitor Collector Pilot
 
-Migration `0010_visitor_visits` adds backend storage for the disabled-by-default collector. Keep `VISITOR_COLLECTOR_ENABLED=false` until the existing frontend service is reachable at a separate public `entry.panoptix.site` host with the visible notice-before-Continue flow, a shared cookie domain, and the trusted Cloudflare client-IP boundary required for the public collector route.
+Migration `0010_visitor_visits` adds backend storage for the disabled-by-default collector. Keep `VISITOR_COLLECTOR_ENABLED=false` until the existing frontend service is reachable at narrowly public `/entry` with the visible notice-before-Continue flow, the exact public visitor API bypasses, a shared cookie domain, and the trusted Cloudflare client-IP boundary required for the public collector route.
 
 ---
 
