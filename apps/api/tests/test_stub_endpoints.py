@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -157,6 +158,40 @@ def test_invite_existing_user_is_idempotent_for_local_roles(test_db_session: DbS
         select(UserRole).where(UserRole.user_id == str(existing_user.id), UserRole.role_id == role.id)
     ).scalars().all()
     assert len(role_count) == 1
+
+
+def test_invite_rejects_existing_disabled_user_without_roles_or_github_call(test_db_session: DbSession) -> None:
+    role = _seed_role(test_db_session, role_id=2, name="viewer")
+    disabled_user = User(
+        id=uuid4(),
+        email="new-user@example.test",
+        idp_subject=None,
+        disabled_at=datetime.now(timezone.utc),
+    )
+    test_db_session.add(disabled_user)
+    test_db_session.commit()
+
+    client = _client(test_db_session, github_invites_enabled=True)
+    with patch("cctv_api.api.router.create_github_org_invitation") as mock_invite:
+        response = client.post("/api/v1/admin/users/invite", headers=_ADMIN_HEADERS, json=_invite_body())
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "user-disabled"
+    mock_invite.assert_not_called()
+
+    role_count = test_db_session.execute(
+        select(UserRole).where(UserRole.user_id == disabled_user.id, UserRole.role_id == role.id)
+    ).scalars().all()
+    assert role_count == []
+    test_db_session.refresh(disabled_user)
+    assert disabled_user.disabled_at is not None
+
+    audit = test_db_session.execute(
+        select(AuditLog).where(AuditLog.action == "admin.user.invite.denied.user_disabled")
+    ).scalar_one()
+    assert audit.resource == f"user:{disabled_user.id}"
+    assert audit.payload["target_email"] == "new-user@example.test"
+    assert audit.payload["reason"] == "new operator"
 
 
 def test_invite_rejects_empty_roles(test_db_session: DbSession) -> None:

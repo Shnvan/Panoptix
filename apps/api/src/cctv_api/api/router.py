@@ -3151,6 +3151,26 @@ def admin_invite_user(
         target_user = User(id=uuid.uuid4(), email=email, idp_subject=None)
         db.add(target_user)
         db.flush()
+    elif target_user.disabled_at is not None:
+        _record_user_audit_safely(
+            db,
+            settings=settings,
+            request=request,
+            actor_id=actor.id,
+            action="admin.user.invite.denied.user_disabled",
+            resource=f"user:{target_user.id}",
+            payload={
+                "target_user_id": str(target_user.id),
+                "target_email": email,
+                "reason": body.reason,
+            },
+        )
+        raise ProblemDetail(
+            status=409,
+            title="Conflict",
+            detail="user-disabled",
+            type_uri="https://panoptix.local/problems/conflict",
+        )
 
     existing_role_ids = set(
         db.execute(select(UserRole.role_id).where(UserRole.user_id == str(target_user.id))).scalars().all()
