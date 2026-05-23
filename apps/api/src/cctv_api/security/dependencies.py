@@ -34,7 +34,12 @@ from cctv_api.security.users import get_or_create_user, get_user_roles
 from cctv_api.security.visitor_visits import link_visitor_visit_to_session
 
 
-def _auth_problem(detail: str, *, status: int = 401) -> ProblemDetail:
+def _auth_problem(
+    detail: str,
+    *,
+    status: int = 401,
+    delete_cookies: list[dict[str, object]] | None = None,
+) -> ProblemDetail:
     title = "Forbidden" if status == 403 else "Unauthorized"
     type_uri = "https://panoptix.local/problems/forbidden" if status == 403 else "https://panoptix.local/problems/unauthorized"
     return ProblemDetail(
@@ -42,6 +47,7 @@ def _auth_problem(detail: str, *, status: int = 401) -> ProblemDetail:
         title=title,
         detail=detail,
         type_uri=type_uri,
+        delete_cookies=delete_cookies,
     )
 
 
@@ -67,12 +73,31 @@ def require_authenticated_user(
         return principal
 
     user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
-    db_roles = get_user_roles(db, user.id)
-
     cookie_value = request.cookies.get(settings.SESSION_COOKIE_NAME)
     session_id = read_session_cookie(cookie_value or "", settings.SESSION_SIGNING_KEY) if cookie_value else None
-
     session_row = get_active_session(db, session_id) if session_id else None
+
+    if user.disabled_at is not None:
+        revoked_session_id: uuid.UUID | None = None
+        if session_row is not None and session_row.user_id == user.id:
+            revoked_session_id = session_row.id
+            revoke_session(db, session_row.id)
+        _record_auth_audit_safely(
+            db,
+            settings=settings,
+            request=request,
+            action="auth.login.denied.user_disabled",
+            detail="user-disabled",
+            actor_id=user.id,
+            session_id=revoked_session_id,
+        )
+        raise _auth_problem(
+            "user-disabled",
+            status=403,
+            delete_cookies=_browser_session_cookie_delete_specs(settings),
+        )
+
+    db_roles = get_user_roles(db, user.id)
 
     if session_row is None:
         if _csrf_required(request):
@@ -259,6 +284,24 @@ def _set_csrf_cookie(response: Response, session_id: uuid.UUID, settings: Settin
         samesite="lax",
         path="/",
     )
+
+
+def _browser_session_cookie_delete_specs(settings: Settings) -> list[dict[str, object]]:
+    return [
+        {
+            "key": settings.SESSION_COOKIE_NAME,
+            "httponly": True,
+            "secure": True,
+            "samesite": "lax",
+            "path": "/",
+        },
+        {
+            "key": CSRF_COOKIE_NAME,
+            "secure": True,
+            "samesite": "lax",
+            "path": "/",
+        },
+    ]
 
 
 def _record_auth_audit_safely(

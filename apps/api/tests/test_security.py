@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
@@ -8,7 +10,7 @@ import cctv_api.security.dependencies as dependencies
 from cctv_api.core.config import Settings
 from cctv_api.db import db_session
 from cctv_api.main import create_app
-from cctv_api.models.tables import LoginBaseline, Role, Session as UserSession, User, UserRole
+from cctv_api.models.tables import AuditLog, LoginBaseline, Role, Session as UserSession, User, UserRole
 from cctv_api.security.identity import Principal, PrincipalKind
 
 
@@ -314,6 +316,91 @@ def test_browser_get_sets_session_and_csrf_cookies(test_db_session: DbSession, m
     assert response.status_code == 200
     assert client.cookies.get("panoptix_session") is not None
     assert client.cookies.get("panoptix_csrf") is not None
+
+
+def test_disabled_browser_user_is_denied_without_creating_session(
+    test_db_session: DbSession,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    test_db_session.add(
+        User(
+            email="admin@example.test",
+            idp_subject="admin@example.test",
+            disabled_at=datetime.now(timezone.utc),
+        )
+    )
+    test_db_session.commit()
+    client = _browser_client(test_db_session, monkeypatch)
+
+    response = client.get("/api/v1/me")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "user-disabled"
+    assert test_db_session.execute(select(UserSession)).scalars().all() == []
+
+    audit = test_db_session.execute(
+        select(AuditLog).where(AuditLog.action == "auth.login.denied.user_disabled")
+    ).scalar_one()
+    assert audit.payload == {"detail": "user-disabled"}
+    assert audit.actor_id is not None
+    assert audit.session_id is None
+
+
+def test_disabled_browser_user_active_session_is_revoked_and_cookies_cleared(
+    test_db_session: DbSession,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    _grant_admin_role(test_db_session)
+    client = _browser_client(test_db_session, monkeypatch)
+    assert client.get("/api/v1/me").status_code == 200
+    assert client.cookies.get("panoptix_session") is not None
+    assert client.cookies.get("panoptix_csrf") is not None
+
+    user = test_db_session.execute(select(User).where(User.email == "admin@example.test")).scalar_one()
+    session_row = test_db_session.execute(select(UserSession)).scalar_one()
+    user.disabled_at = datetime.now(timezone.utc)
+    test_db_session.commit()
+
+    response = client.get("/api/v1/me")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "user-disabled"
+    test_db_session.refresh(session_row)
+    assert session_row.revoked_at is not None
+    set_cookie_headers = response.headers.get_list("set-cookie")
+    assert any(header.startswith("panoptix_session=") and "Max-Age=0" in header for header in set_cookie_headers)
+    assert any(header.startswith("panoptix_csrf=") and "Max-Age=0" in header for header in set_cookie_headers)
+
+    audit = test_db_session.execute(
+        select(AuditLog)
+        .where(AuditLog.action == "auth.login.denied.user_disabled")
+        .order_by(AuditLog.ts.desc())
+    ).scalars().first()
+    assert audit is not None
+    assert str(audit.actor_id) == str(user.id)
+    assert str(audit.session_id) == str(session_row.id)
+
+
+def test_disabled_browser_user_malformed_session_cookie_does_not_create_session(
+    test_db_session: DbSession,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    test_db_session.add(
+        User(
+            email="admin@example.test",
+            idp_subject="admin@example.test",
+            disabled_at=datetime.now(timezone.utc),
+        )
+    )
+    test_db_session.commit()
+    client = _browser_client(test_db_session, monkeypatch)
+    client.cookies.set("panoptix_session", "not-a-valid-cookie", domain="testserver.local", path="/")
+
+    response = client.get("/api/v1/me")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "user-disabled"
+    assert test_db_session.execute(select(UserSession)).scalars().all() == []
 
 
 def test_browser_session_and_login_baseline_use_trusted_cf_client_ip(

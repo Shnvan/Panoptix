@@ -18,6 +18,7 @@ class ProblemDetail(Exception):
         type_uri: str = "about:blank",
         extra: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
+        delete_cookies: list[dict[str, Any]] | None = None,
     ) -> None:
         self.status = status
         self.title = title
@@ -25,6 +26,7 @@ class ProblemDetail(Exception):
         self.type_uri = type_uri
         self.extra = extra or {}
         self.headers = headers or {}
+        self.delete_cookies = delete_cookies or []
         super().__init__(detail)
 
 
@@ -37,4 +39,7 @@ async def problem_detail_handler(_request: Request, exc: Exception) -> JSONRespo
         "detail": exc.detail,
     }
     body.update(exc.extra)
-    return JSONResponse(status_code=exc.status, content=body, headers=exc.headers or None)
+    response = JSONResponse(status_code=exc.status, content=body, headers=exc.headers or None)
+    for cookie in exc.delete_cookies:
+        response.delete_cookie(**cookie)
+    return response
