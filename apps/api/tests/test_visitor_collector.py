@@ -52,7 +52,12 @@ class _Provider:
             raise RuntimeError("provider-down")
         return IpIntelligenceResult(
             ip_type="IPv4",
-            location=IpLocation(country_code="PH", country="Philippines", city="Santa Rosa"),
+            location=IpLocation(
+                country_code="PH",
+                country="Philippines",
+                city="Santa Rosa",
+                timezone="Asia/Manila",
+            ),
             network=IpNetwork(asn=9299, organization="PLDT"),
             security=IpSecurity(is_vpn=False, is_proxy=False, is_threat=False),
         )
@@ -166,6 +171,115 @@ def test_visitor_notice_and_collection_store_security_core_subset(
     assert provider.lookups == ["122.54.90.97"]
 
 
+def test_visitor_collection_stores_expanded_context_and_server_headers(
+    test_db_session: DbSession,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    _patch_provider(monkeypatch, _Provider())
+    client = _client(test_db_session, TRUST_CF_CONNECTING_IP=True)
+    payload = _collect_payload(
+        page_path="/entry",
+        referrer="https://example.test/source",
+        viewport_width=1440,
+        viewport_height=900,
+        device_pixel_ratio=1.25,
+        touch_supported=True,
+        max_touch_points=5,
+        color_scheme="dark",
+        cookies_enabled=True,
+        do_not_track="1",
+        global_privacy_control=True,
+        languages=["en-PH", "fil-PH"],
+        network_context={
+            "effective_type": "4g",
+            "downlink_mbps": 10.5,
+            "rtt_ms": 75,
+            "save_data": False,
+        },
+        timing_context={
+            "notice_loaded_at_ms": 30,
+            "continue_clicked_at_ms": 2500,
+            "collect_started_at_ms": 2510,
+            "webrtc_elapsed_ms": 900,
+        },
+        webrtc_context={
+            "available": True,
+            "tested": True,
+            "candidate_count": 3,
+            "candidate_types": ["host", "srflx", "relay"],
+            "local_ip_candidates": ["192.168.1.10"],
+            "public_ip_candidates": ["122.54.90.97"],
+            "relay_ip_candidates": ["203.0.113.20"],
+            "mdns_hostname_seen": True,
+            "error": None,
+        },
+    )
+
+    response = client.post(
+        "/api/v1/visitor/collect",
+        headers={
+            "cf-connecting-ip": "122.54.90.97",
+            "cf-ray": "abc123-MNL",
+            "cf-ipcountry": "PH",
+        },
+        json=payload,
+    )
+
+    assert response.status_code == 201
+    row = test_db_session.execute(select(VisitorVisit)).scalar_one()
+    assert row.browser_context["referrer"] == "https://example.test/source"
+    assert row.browser_context["viewport"] == {"width": 1440, "height": 900}
+    assert row.browser_context["privacy"] == {
+        "do_not_track": "1",
+        "global_privacy_control": True,
+    }
+    assert row.network_context == {
+        "effective_type": "4g",
+        "downlink_mbps": 10.5,
+        "rtt_ms": 75,
+        "save_data": False,
+    }
+    assert row.timing_context["webrtc_elapsed_ms"] == 900
+    assert row.webrtc_context["public_ip_candidates"] == ["122.54.90.97"]
+    assert row.server_context == {"cf_ray_id": "abc123-MNL", "cf_country": "PH"}
+
+
+def test_visitor_collection_filters_raw_or_invalid_webrtc_values(
+    test_db_session: DbSession,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    _patch_provider(monkeypatch, _Provider())
+    client = _client(test_db_session)
+
+    response = client.post(
+        "/api/v1/visitor/collect",
+        json=_collect_payload(
+            webrtc_context={
+                "available": True,
+                "tested": True,
+                "candidate_count": 2,
+                "candidate_types": ["host", "made-up-type"],
+                "local_ip_candidates": ["192.168.1.10", "candidate:raw 1 udp 1 192.168.1.11"],
+                "public_ip_candidates": ["122.54.90.97", "not-an-ip"],
+                "relay_ip_candidates": ["203.0.113.20"],
+                "mdns_hostname_seen": True,
+                "error": "some verbose provider/browser failure detail",
+                "raw_sdp": "v=0...",
+                "raw_candidates": ["candidate:raw"],
+            }
+        ),
+    )
+
+    assert response.status_code == 201
+    row = test_db_session.execute(select(VisitorVisit)).scalar_one()
+    assert row.webrtc_context["candidate_types"] == ["host", "unknown"]
+    assert row.webrtc_context["local_ip_candidates"] == ["192.168.1.10"]
+    assert row.webrtc_context["public_ip_candidates"] == ["122.54.90.97"]
+    assert row.webrtc_context["error"] == "unknown"
+    assert "raw_sdp" not in row.webrtc_context
+    assert "raw_candidates" not in row.webrtc_context
+
+
 def test_visitor_collection_requires_current_acknowledged_notice(test_db_session: DbSession) -> None:
     client = _client(test_db_session)
 
@@ -249,11 +363,76 @@ def test_admin_visitor_read_apis_require_admin_and_audit_detail(
     assert data["visit_id"] == str(visit.id)
     assert data["ip_details"]["ip"] == "203.0.113.5"
     assert data["screen"] == {"width": 1366, "height": 768}
+    assert data["browser_context"] == {}
+    assert data["risk_context"]["repeat_visitor_count"] == 1
     assert "known_ips" not in data
     audit = test_db_session.execute(
         select(AuditLog).where(AuditLog.action == "admin.visitor.visit.viewed")
     ).scalar_one()
     assert audit.resource == f"visitor-visit:{visit.id}"
+
+
+def test_admin_visitor_detail_returns_expanded_risk_context(
+    test_db_session: DbSession,
+) -> None:
+    user = User(email="admin@example.test", idp_subject="admin@example.test")
+    test_db_session.add(user)
+    test_db_session.flush()
+    session = UserSession(user_id=user.id, ip="122.54.90.98", ua_fp="Mozilla/5.0 Chrome/148.0")
+    visit = VisitorVisit(
+        id=uuid.uuid4(),
+        page_path="/entry",
+        notice_version="2026-05-22",
+        ip="122.54.90.97",
+        ua="Mozilla/5.0 Chrome/148.0",
+        screen_width=1366,
+        screen_height=768,
+        browser_timezone="America/New_York",
+        browser_language="en-US",
+        ip_enrichment_status="ok",
+        ip_enrichment_provider="ipregistry",
+        ip_enrichment={
+            "ip_type": "IPv4",
+            "location": {
+                "country_code": "PH",
+                "country": "Philippines",
+                "timezone": "Asia/Manila",
+            },
+            "network": {},
+            "company": {},
+            "carrier": {},
+            "security": {},
+        },
+        browser_context={"languages": ["en-US"], "referrer": "https://example.test"},
+        network_context={"effective_type": "4g"},
+        webrtc_context={"public_ip_candidates": ["122.54.90.99"]},
+        timing_context={"collect_started_at_ms": 1200},
+        server_context={"cf_ray_id": "abc123-MNL", "cf_country": "PH"},
+    )
+    test_db_session.add(session)
+    test_db_session.flush()
+    visit.user_id = user.id
+    visit.session_id = session.id
+    test_db_session.add(visit)
+    test_db_session.commit()
+    client = _client(test_db_session)
+
+    response = client.get(f"/api/v1/admin/visitor-visits/{visit.id}", headers=_ADMIN_HEADERS)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["entry_context"]["referrer"] == "https://example.test"
+    assert data["network_context"] == {"effective_type": "4g"}
+    assert data["webrtc_details"] == {"public_ip_candidates": ["122.54.90.99"]}
+    assert data["server_context"] == {"cf_ray_id": "abc123-MNL", "cf_country": "PH"}
+    assert data["login"]["ip"] == "122.54.90.98"
+    assert data["risk_context"] == {
+        "timezone_ip_mismatch": True,
+        "language_country_mismatch": True,
+        "webrtc_public_ip_request_ip_mismatch": True,
+        "ip_changed_between_entry_and_login": True,
+        "repeat_visitor_count": 1,
+    }
 
 
 def test_new_authenticated_session_links_entry_visit(

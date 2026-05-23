@@ -2,14 +2,14 @@
 
 This document lists every implemented backend API endpoint, what the frontend can build against today, what is not ready yet, and local dev setup instructions.
 
-Last updated: 2026-05-23 (production `/entry` visitor flow and first-visit redirect verified)
+Last updated: 2026-05-24 (expanded `/entry` visitor signal contract prepared)
 
 Read first: [Frontend Coworker Handoff](FRONTEND_HANDOFF.md).
 
 ## Current Backend State For Frontend
 
 - Local full-stack smoke is working through Vite and FastAPI when `apps/api/.env` is configured locally. That file is ignored and must never be committed.
-- Production database has reached Alembic head `0010_visitor_visits`; local dev databases should run `alembic upgrade head`.
+- Expanded visitor context uses Alembic migration `0011_visitor_expanded_signals`; production and local dev databases should run `alembic upgrade head`.
 - Admin users, cameras, gateways, DSR requests, backup status, break-glass, health, and alert APIs are backend-available.
 - `POST /api/v1/admin/users/invite` is implemented, but `github-invites-not-configured` is expected unless GitHub invite settings are intentionally enabled.
 - Alert records and backend SMTP email notification support are implemented. Email is backend-only and disabled by default until SMTP settings are configured.
@@ -171,7 +171,9 @@ Cloudflare must make only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/n
 | `GET` | `/api/v1/visitor/notice` | public when collector enabled | render the current visitor security notice |
 | `POST` | `/api/v1/visitor/collect` | public when collector enabled | record approved entry-page signals after the visitor continues |
 
-The collect request carries `notice_version`, `notice_acknowledged`, `page_path`, screen width/height, timezone, and language. The backend adds request IP, user-agent, Ipregistry subset when configured, and an HttpOnly visitor cookie for later login correlation. Do not add WebRTC collection or raw Ipregistry payload rendering for this pilot.
+The collect request now carries `notice_version`, `notice_acknowledged`, `page_path`, screen width/height, timezone/language, referrer, viewport size, device pixel ratio, touch support, color scheme, cookie support, browser privacy flags, browser language list, network hints, entry timing, and a normalized WebRTC candidate summary. The backend adds request IP, Cloudflare Ray/country headers when present, user-agent, Ipregistry subset when configured, and an HttpOnly visitor cookie for later login correlation. Do not render raw Ipregistry payloads or raw WebRTC SDP/candidate strings.
+
+Admin visitor list/detail responses are backend-ready with `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, and `risk_context`. The admin visitor investigation UI remains coworker-owned frontend handoff work.
 
 ---
 

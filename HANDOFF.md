@@ -148,7 +148,7 @@ Current state:
 - frontend lint/build passed after merge and after local smoke cleanup
 - local same-origin smoke has passed through the Vite proxy for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health
 - local API configuration uses `apps/api/.env`, which is ignored by Git; do not commit database URLs, audit keys, LiveKit keys, GitHub tokens, R2 secrets, or gateway service tokens
-- production backend migration state is at Alembic head `0010_visitor_visits` after visitor collector rollout (confirmed 2026-05-23)
+- production backend migration state must be advanced to Alembic head `0011_visitor_expanded_signals` for expanded visitor context after deployment
 - `github-invites-not-configured` is expected locally while `GITHUB_INVITES_ENABLED=false`
 - one-time gateway service tokens must never be screenshotted or committed; the exposed local test gateway named `what` was disabled during smoke cleanup
 
@@ -279,7 +279,7 @@ Current state:
 - frontend lint/build passed after merge and after local smoke cleanup
 - local same-origin smoke has passed through the Vite proxy for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health
 - local API configuration uses `apps/api/.env`, which is ignored by Git; do not commit database URLs, audit keys, LiveKit keys, GitHub tokens, R2 secrets, or gateway service tokens
-- production backend migration state is at Alembic head `0010_visitor_visits` after visitor collector rollout (confirmed 2026-05-23)
+- production backend migration state must be advanced to Alembic head `0011_visitor_expanded_signals` for expanded visitor context after deployment
 - `github-invites-not-configured` is expected locally while `GITHUB_INVITES_ENABLED=false`
 - one-time gateway service tokens must never be screenshotted or committed; the exposed local test gateway named `what` was disabled during smoke cleanup
 - camera modal can request a short-lived viewer token, but real LiveKit subscriber playback is still pending
@@ -321,8 +321,9 @@ Completed in this milestone:
 - **First-visit redirect**: Cloudflare redirects `https://panoptix.site/` to `/entry` only when the signed `panoptix_visitor` cookie is absent. Returning visitors go directly to the protected app/Access flow.
 - **Public bypass scope**: Only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect` bypass Cloudflare Access.
 - **Protected scope**: `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` remain protected. Never make broad `/api/v1/*` public.
-- **Backend collector**: Visitor notice/collect APIs, `0010_visitor_visits`, signed visitor cookie correlation, admin visitor visit list/detail APIs, and maintenance retention cleanup are implemented.
-- **Frontend handoff**: Admin visitor investigation UI is still coworker-owned frontend work. No WebRTC leak collection, reverse geocoding, raw Ipregistry payload display, or broader fingerprint warehouse is part of this rollout.
+- **Backend collector**: Visitor notice/collect APIs, `0010_visitor_visits`, `0011_visitor_expanded_signals`, signed visitor cookie correlation, admin visitor visit list/detail APIs, and maintenance retention cleanup are implemented.
+- **Expanded signal boundary**: `/entry` collection starts only after explicit Continue and stores approved browser/network/WebRTC summary signals. Raw WebRTC SDP/candidate strings, raw Ipregistry payloads, reverse geocoding, coordinates, canvas/audio/WebGL/font fingerprints, and broad fingerprint dumps remain out of scope.
+- **Frontend handoff**: Admin visitor investigation UI is still coworker-owned frontend work; backend responses now expose `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, and `risk_context` for that future UI.
 
 ### Suspicious Login Detection (2026-05-21)
 

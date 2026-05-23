@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Eye, ShieldCheck } from 'lucide-react';
 import { api } from '../../lib/api';
 import type { VisitorCollectRequest, VisitorNoticeResponse } from '../../lib/types';
@@ -9,6 +9,26 @@ interface VisitorEntryPageProps {
 
 type NoticeState = 'loading' | 'ready' | 'unavailable';
 
+interface NavigatorNetworkInformation {
+  effectiveType?: string;
+  downlink?: number;
+  rtt?: number;
+  saveData?: boolean;
+}
+
+interface NavigatorWithEntryHints extends Navigator {
+  connection?: NavigatorNetworkInformation;
+  mozConnection?: NavigatorNetworkInformation;
+  webkitConnection?: NavigatorNetworkInformation;
+  globalPrivacyControl?: boolean;
+}
+
+interface EntryTimingValues {
+  noticeLoadedAtMs: number | null;
+  continueClickedAtMs: number;
+  collectStartedAtMs: number;
+}
+
 function browserTimezone(): string | null {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
@@ -17,7 +37,36 @@ function browserTimezone(): string | null {
   }
 }
 
-function visitorCollectBody(noticeVersion: string): VisitorCollectRequest {
+function elapsedSince(startedAt: number): number {
+  return Math.max(0, Math.round(performance.now() - startedAt));
+}
+
+function browserColorScheme(): 'light' | 'dark' | 'no-preference' {
+  if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) return 'dark';
+  if (window.matchMedia?.('(prefers-color-scheme: light)').matches) return 'light';
+  return 'no-preference';
+}
+
+function browserLanguages(): string[] {
+  return Array.from(new Set((navigator.languages || [navigator.language]).filter(Boolean))).slice(0, 10);
+}
+
+function browserNetworkContext(): VisitorCollectRequest['network_context'] {
+  const nav = navigator as NavigatorWithEntryHints;
+  const connection = nav.connection || nav.mozConnection || nav.webkitConnection;
+  return {
+    effective_type: connection?.effectiveType || null,
+    downlink_mbps: typeof connection?.downlink === 'number' ? connection.downlink : null,
+    rtt_ms: typeof connection?.rtt === 'number' ? connection.rtt : null,
+    save_data: typeof connection?.saveData === 'boolean' ? connection.saveData : null,
+  };
+}
+
+async function visitorCollectBody(
+  noticeVersion: string,
+  timing: EntryTimingValues,
+): Promise<VisitorCollectRequest> {
+  const webrtc = await collectWebRtcContext();
   return {
     notice_version: noticeVersion,
     notice_acknowledged: true,
@@ -26,7 +75,136 @@ function visitorCollectBody(noticeVersion: string): VisitorCollectRequest {
     screen_height: window.screen.height || null,
     timezone: browserTimezone(),
     language: navigator.language || null,
+    referrer: document.referrer || null,
+    viewport_width: window.innerWidth || null,
+    viewport_height: window.innerHeight || null,
+    device_pixel_ratio: window.devicePixelRatio || null,
+    touch_supported: 'ontouchstart' in window || navigator.maxTouchPoints > 0,
+    max_touch_points: navigator.maxTouchPoints || 0,
+    color_scheme: browserColorScheme(),
+    cookies_enabled: navigator.cookieEnabled,
+    do_not_track: navigator.doNotTrack || null,
+    global_privacy_control: (navigator as NavigatorWithEntryHints).globalPrivacyControl ?? null,
+    languages: browserLanguages(),
+    network_context: browserNetworkContext(),
+    timing_context: {
+      notice_loaded_at_ms: timing.noticeLoadedAtMs,
+      continue_clicked_at_ms: timing.continueClickedAtMs,
+      collect_started_at_ms: timing.collectStartedAtMs,
+      webrtc_elapsed_ms: webrtc.elapsed_ms,
+    },
+    webrtc_context: webrtc.context,
   };
+}
+
+function isPrivateIp(ip: string): boolean {
+  if (ip.includes(':')) {
+    const lower = ip.toLowerCase();
+    return lower === '::1' || lower.startsWith('fc') || lower.startsWith('fd') || lower.startsWith('fe80');
+  }
+  const parts = ip.split('.').map((part) => Number(part));
+  if (parts.length !== 4 || parts.some((part) => Number.isNaN(part))) return false;
+  return (
+    parts[0] === 10 ||
+    parts[0] === 127 ||
+    (parts[0] === 169 && parts[1] === 254) ||
+    (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+    (parts[0] === 192 && parts[1] === 168)
+  );
+}
+
+function looksLikeIp(value: string): boolean {
+  if (/^(\d{1,3}\.){3}\d{1,3}$/.test(value)) {
+    return value.split('.').every((part) => Number(part) >= 0 && Number(part) <= 255);
+  }
+  return /^[0-9a-f:]+$/i.test(value) && value.includes(':');
+}
+
+function addUnique(values: string[], value: string) {
+  if (!values.includes(value) && values.length < 10) {
+    values.push(value);
+  }
+}
+
+function parseWebRtcCandidate(
+  candidateLine: string,
+  state: NonNullable<VisitorCollectRequest['webrtc_context']>,
+) {
+  state.candidate_count = Math.min(100, (state.candidate_count || 0) + 1);
+  if (candidateLine.includes('.local')) {
+    state.mdns_hostname_seen = true;
+  }
+
+  const parts = candidateLine.trim().split(/\s+/);
+  const typIndex = parts.findIndex((part) => part === 'typ');
+  const candidateType = typIndex >= 0 ? parts[typIndex + 1] || 'unknown' : 'unknown';
+  addUnique(state.candidate_types || [], candidateType);
+
+  const candidateIp = parts[4];
+  if (!candidateIp || !looksLikeIp(candidateIp)) return;
+  if (candidateType === 'relay') {
+    addUnique(state.relay_ip_candidates || [], candidateIp);
+  } else if (isPrivateIp(candidateIp)) {
+    addUnique(state.local_ip_candidates || [], candidateIp);
+  } else {
+    addUnique(state.public_ip_candidates || [], candidateIp);
+  }
+}
+
+async function collectWebRtcContext(): Promise<{
+  elapsed_ms: number;
+  context: NonNullable<VisitorCollectRequest['webrtc_context']>;
+}> {
+  const startedAt = performance.now();
+  const context: NonNullable<VisitorCollectRequest['webrtc_context']> = {
+    available: typeof RTCPeerConnection !== 'undefined',
+    tested: false,
+    candidate_count: 0,
+    candidate_types: [],
+    local_ip_candidates: [],
+    public_ip_candidates: [],
+    relay_ip_candidates: [],
+    mdns_hostname_seen: false,
+    error: null,
+  };
+
+  if (typeof RTCPeerConnection === 'undefined') {
+    context.error = 'not_supported';
+    return { elapsed_ms: elapsedSince(startedAt), context };
+  }
+
+  let pc: RTCPeerConnection | null = null;
+  try {
+    pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    context.tested = true;
+    pc.createDataChannel('panoptix-entry');
+
+    await new Promise<void>((resolve) => {
+      const timeout = window.setTimeout(resolve, 1400);
+      pc!.onicecandidate = (event) => {
+        if (event.candidate?.candidate) {
+          parseWebRtcCandidate(event.candidate.candidate, context);
+        }
+        if (!event.candidate) {
+          window.clearTimeout(timeout);
+          resolve();
+        }
+      };
+      pc!.createOffer()
+        .then((offer) => pc!.setLocalDescription(offer))
+        .catch(() => {
+          context.error = 'failed';
+          window.clearTimeout(timeout);
+          resolve();
+        });
+    });
+  } catch {
+    context.error = context.tested ? 'failed' : 'blocked';
+  } finally {
+    pc?.close();
+  }
+
+  return { elapsed_ms: elapsedSince(startedAt), context };
 }
 
 export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
@@ -34,6 +212,8 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
   const [noticeState, setNoticeState] = useState<NoticeState>('loading');
   const [continuing, setContinuing] = useState(false);
   const [statusText, setStatusText] = useState('Loading the visitor security notice.');
+  const pageStartedAt = useRef(performance.now());
+  const noticeLoadedAtMs = useRef<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -43,6 +223,7 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
         if (!active) return;
         setNotice(nextNotice);
         setNoticeState('ready');
+        noticeLoadedAtMs.current = elapsedSince(pageStartedAt.current);
         setStatusText('Continue to the protected sign-in flow when ready.');
       })
       .catch(() => {
@@ -63,7 +244,15 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
     if (notice) {
       setStatusText('Recording this entry visit before secure sign-in.');
       try {
-        await api.collectVisitorVisit(visitorCollectBody(notice.notice_version));
+        const continueClickedAtMs = elapsedSince(pageStartedAt.current);
+        const collectStartedAtMs = elapsedSince(pageStartedAt.current);
+        await api.collectVisitorVisit(
+          await visitorCollectBody(notice.notice_version, {
+            noticeLoadedAtMs: noticeLoadedAtMs.current,
+            continueClickedAtMs,
+            collectStartedAtMs,
+          }),
+        );
       } catch {
         setStatusText('Entry recording is temporarily unavailable. Continuing to secure sign-in.');
       }

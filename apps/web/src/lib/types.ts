@@ -126,6 +126,40 @@ export interface VisitorCollectRequest {
   screen_height: number | null;
   timezone: string | null;
   language: string | null;
+  referrer?: string | null;
+  viewport_width?: number | null;
+  viewport_height?: number | null;
+  device_pixel_ratio?: number | null;
+  touch_supported?: boolean | null;
+  max_touch_points?: number | null;
+  color_scheme?: 'light' | 'dark' | 'no-preference' | null;
+  cookies_enabled?: boolean | null;
+  do_not_track?: string | null;
+  global_privacy_control?: boolean | null;
+  languages?: string[];
+  network_context?: {
+    effective_type?: string | null;
+    downlink_mbps?: number | null;
+    rtt_ms?: number | null;
+    save_data?: boolean | null;
+  };
+  timing_context?: {
+    notice_loaded_at_ms?: number | null;
+    continue_clicked_at_ms?: number | null;
+    collect_started_at_ms?: number | null;
+    webrtc_elapsed_ms?: number | null;
+  };
+  webrtc_context?: {
+    available?: boolean | null;
+    tested?: boolean | null;
+    candidate_count?: number | null;
+    candidate_types?: string[];
+    local_ip_candidates?: string[];
+    public_ip_candidates?: string[];
+    relay_ip_candidates?: string[];
+    mdns_hostname_seen?: boolean | null;
+    error?: string | null;
+  };
 }
 
 export interface VisitorCollectResponse {

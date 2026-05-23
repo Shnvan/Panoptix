@@ -3780,7 +3780,7 @@ Public entry smoke:
 1. Open `https://panoptix.site/entry` outside the protected app session. For local frontend smoke, open `/entry`.
 2. Confirm the public entry view renders the `GET /api/v1/visitor/notice` title/body before collection and its Continue button remains disabled while the notice request is loading.
 3. Click `Continue to secure sign-in`.
-4. Confirm the browser posts `POST /api/v1/visitor/collect` with only the returned `notice_version`, `notice_acknowledged: true`, `page_path`, screen width/height, timezone, and language.
+4. Confirm the browser posts `POST /api/v1/visitor/collect` only after Continue. The payload may include the returned `notice_version`, `notice_acknowledged: true`, `page_path`, screen width/height, timezone/language, referrer, viewport size, device pixel ratio, touch support, color scheme, cookie support, browser privacy flags, browser language list, network hints, entry timing, and normalized WebRTC summary fields.
 5. Confirm a successful collect returns `201`, `status = "recorded"`, sets an HttpOnly visitor cookie, and redirects to Cloudflare Access on `https://panoptix.site/`.
 6. Confirm a failed/disabled collector attempt still lets the entry page continue into Cloudflare Access rather than blocking sign-in.
 7. Complete Cloudflare Access and create a fresh authenticated browser session.
@@ -3788,8 +3788,8 @@ Public entry smoke:
 
 Expected behavior:
 
-- The admin detail response shows collected page/time, request IP, approved stored Ipregistry subset when configured, browser/OS/device parsing, screen/timezone/language, and linked user/session fields after successful login correlation.
-- The response does not include raw Ipregistry payload fields, WebRTC candidate IPs, reverse-geocoded addresses, coordinates, or broad fingerprint signals.
+- The admin detail response shows collected page/time, request IP, approved stored Ipregistry subset when configured, browser/OS/device parsing, screen/timezone/language, linked user/session fields after successful login correlation, and readable `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, and `risk_context` sections.
+- The response does not include raw Ipregistry payload fields, raw WebRTC SDP/candidate strings, reverse-geocoded addresses, coordinates, canvas/audio/WebGL/font fingerprints, or broad fingerprint dumps.
 - Stale notice versions return `409 visitor-notice-version-mismatch`; missing notice acknowledgement returns `400 visitor-notice-acknowledgement-required`.
 - Admin detail reads write `admin.visitor.visit.viewed`.
 - `POST /api/v1/admin/jobs/run-maintenance` returns `purged_visitor_visits` and removes visitor rows older than `VISITOR_RETENTION_DAYS`.
