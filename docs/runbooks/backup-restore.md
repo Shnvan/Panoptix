@@ -18,12 +18,13 @@ As of the 2026-05-24 production evidence pass:
 - Production Railway has the required R2 env vars present; values were not printed or recorded during verification.
 - Direct production R2 bucket listing succeeded without exposing object keys.
 - The production bucket currently reports no objects, and production `backup_runs` currently has `0` rows.
+- `python -m cctv_api.jobs.backup_r2` exists for an operator-run encrypted R2 backup from the Railway backend runtime.
 - `scripts/restore-drill.sh` exists for an operator-run restore drill against R2 and a target database.
 - `GET /api/v1/admin/backups/status` reports database-known backup readiness from `backup_runs`.
 - A real restore drill has not yet been recorded in repository evidence.
 
-Do not treat backups as production-operational until a backup artifact is produced, restore-drill evidence is recorded, and backup worker automation is configured.
-The immediate next step is the first real production backup run, not a restore drill.
+Do not treat backups as production-operational until a backup artifact is produced and restore-drill evidence is recorded.
+The immediate next step is to deploy and run the first real production backup job, not a restore drill.
 
 ## Backup status API
 
@@ -38,13 +39,32 @@ The endpoint does not call R2 and does not expose credentials, object paths, dat
 
 ## Daily backup
 
-1. Scheduled backup job runs outside the web process.
+1. Operator-run backup job runs outside the web request path with `python -m cctv_api.jobs.backup_r2`.
 2. `pg_dump` creates logical backup.
 3. Backup is encrypted with `age`.
-4. Encrypted object is uploaded to Cloudflare R2 with object lock.
+4. Encrypted object is uploaded to Cloudflare R2.
 5. SHA-256 and size are recorded in `backup_runs`.
 6. `pg_restore --list` validates archive readability.
 7. `restore_format_ok` is recorded.
+
+Production command:
+
+```powershell
+cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+railway run --service panoptix-control --environment production --no-local -- python -m cctv_api.jobs.backup_r2
+```
+
+Required production variables:
+
+- `R2_ACCOUNT_ID`
+- `R2_BUCKET`
+- `R2_ACCESS_KEY_ID`
+- `R2_SECRET_ACCESS_KEY`
+- `BACKUP_AGE_RECIPIENT`
+- `BACKUP_OBJECT_PREFIX` (default: `database`)
+- `BACKUP_DATABASE_URL` (optional; defaults to `DATABASE_URL`)
+
+Do not store the `age` private identity on Railway production. Keep the private restore key offline or in a separate controlled restore environment.
 
 ## Weekly restore drill
 
@@ -95,6 +115,7 @@ The `scripts/restore-drill.sh` script (created in Round 3A) automates the quarte
 - Terraform Cloud workspace `panoptix-backup-r2` manages bucket state remotely.
 - R2 API tokens with Object Read & Write scope (bucket-only) are configured in Railway production.
 - Production R2 bucket access was verified on 2026-05-24; no backup objects existed at that time.
+- `python -m cctv_api.jobs.backup_r2` is available for operator-run encrypted backups.
 - `scripts/restore-drill.sh` is available for automated quarterly drills.
 
 Record completion dates and any anomalies found as a DPA/security artifact alongside the standard restore evidence.

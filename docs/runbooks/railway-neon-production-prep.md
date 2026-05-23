@@ -193,7 +193,11 @@ Production should use stricter defaults than staging:
 
 - Use the same `panoptix-backups` bucket with a production-specific prefix or path.
 - Create a separate R2 API token for production with Object Read & Write scope.
-- Test restore drill from production backup before go-live.
+- Configure `BACKUP_AGE_RECIPIENT` on the backend service; keep the matching private restore identity outside Railway production.
+- Run the first encrypted backup with:
+  `railway run --service panoptix-control --environment production --no-local -- python -m cctv_api.jobs.backup_r2`
+- Verify `GET /api/v1/admin/backups/status` moves from `missing` to `degraded` after the first backup row is recorded.
+- Test restore drill from production backup only after the first encrypted R2 artifact exists.
 
 ### Domain and routing
 

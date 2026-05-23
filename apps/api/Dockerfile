@@ -1,8 +1,10 @@
 # Pinned Python base image per ADR 0007 — use -slim-bookworm for latest Debian 12 OS patches
 FROM python:3.12-slim-bookworm AS base
 
-# Security: apply latest OS security patches, then create non-root user
-RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/* && \
+# Security: apply latest OS security patches and install backup tooling, then create non-root user
+RUN apt-get update && apt-get upgrade -y --no-install-recommends && \
+    apt-get install -y --no-install-recommends postgresql-client age ca-certificates && \
+    rm -rf /var/lib/apt/lists/* && \
     groupadd --gid 1001 appuser && \
     useradd --uid 1001 --gid 1001 --shell /bin/false appuser
 

@@ -393,7 +393,8 @@ Production evidence as of 2026-05-24:
 - Production R2 env-var presence was confirmed without recording values.
 - Direct R2 bucket listing succeeded using production Railway credentials without exposing object keys.
 - The production R2 bucket currently reports no objects, and production `backup_runs` has `0` rows.
-- Next system-owner backup task is the first real production backup run; restore-drill evidence can only follow once an artifact exists.
+- Operator-run backup job is implemented as `python -m cctv_api.jobs.backup_r2`; it creates a `pg_dump` custom archive, validates it with `pg_restore --list`, encrypts with `age`, uploads to R2, and records `backup_runs`.
+- Next system-owner backup task is deployment plus first real production backup run; restore-drill evidence can only follow once an artifact exists.
 
 ### Actor Investigation Profile and Activity API (2026-05-14)
 

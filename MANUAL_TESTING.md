@@ -3957,6 +3957,21 @@ Production evidence recorded 2026-05-24:
 
 The next production backup step is the first real backup run. Do not run a restore drill until a backup artifact exists and the corresponding `backup_runs` evidence row is recorded.
 
+### Run first operator backup
+
+Set `BACKUP_AGE_RECIPIENT` on the Railway backend service before running this. The matching private `age` identity must stay outside Railway production.
+
+```powershell
+cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+railway run --service panoptix-control --environment production --no-local -- python -m cctv_api.jobs.backup_r2
+```
+
+Expected:
+
+- Command prints sanitized JSON with `upload_status` set to `uploaded`.
+- No database URL, R2 key, object key, or decrypted backup content is printed.
+- `GET /api/v1/admin/backups/status` changes from `missing` to `degraded` until restore-drill evidence is recorded.
+
 ---
 
 ## R2 Backup Bucket Verification
@@ -3988,7 +4003,7 @@ aws s3 cp s3://panoptix-backups/verify/test.txt - --endpoint-url "https://<accou
 aws s3 rm s3://panoptix-backups/verify/test.txt --endpoint-url "https://<account-id>.r2.cloudflarestorage.com"
 ```
 
-### Verify Railway staging env vars are set
+### Verify Railway backup env vars are set
 
 From the Railway dashboard for `cctv-api`:
 
@@ -3996,8 +4011,10 @@ From the Railway dashboard for `cctv-api`:
 - `R2_BUCKET` — `panoptix-backups`
 - `R2_ACCESS_KEY_ID` — R2 API token access key
 - `R2_SECRET_ACCESS_KEY` — R2 API token secret
+- `BACKUP_AGE_RECIPIENT` — public `age` recipient key only
+- `BACKUP_OBJECT_PREFIX` — default `database`
 
-All four must be present for the backup job to function. Do not verify values by printing them; only confirm their presence in the Railway environment variable list.
+All required values must be present for the backup job to function. Do not verify values by printing them; only confirm their presence in the Railway environment variable list.
 
 ### Notes
 

@@ -89,6 +89,15 @@ class Settings(BaseSettings):
         "postgresql+psycopg://cctv_migrator:replace-me@localhost:5432/panoptix"
     )
 
+    # -- Operator-run R2 backups --
+    R2_ACCOUNT_ID: str = ""
+    R2_BUCKET: str = ""
+    R2_ACCESS_KEY_ID: str = ""
+    R2_SECRET_ACCESS_KEY: str = ""
+    BACKUP_AGE_RECIPIENT: str = ""
+    BACKUP_OBJECT_PREFIX: str = "database"
+    BACKUP_DATABASE_URL: str = ""
+
     # ── LiveKit ──
     LIVEKIT_MODE: Literal["cloud", "fallback"] = "cloud"
     LIVEKIT_CLOUD_URL: str = "wss://replace-me.livekit.cloud"
