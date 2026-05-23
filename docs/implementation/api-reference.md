@@ -139,6 +139,8 @@ Backup status:
 
 `status` is `missing` when no backup rows exist, `ok` when the latest backup is uploaded/finished with restore-format success and a successful schema restore drill is recorded, and `degraded` otherwise. The endpoint does not call R2 or return object paths, credentials, database URLs, backup artifacts, or decryption material.
 
+Production evidence note, 2026-05-24: production R2 credentials are present and bucket listing succeeds, but the bucket currently reports no objects and `backup_runs` has `0` rows. The next backup milestone is the first real production backup run.
+
 ## Alert Routes
 
 Admin-only alert records are available under:

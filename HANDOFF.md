@@ -30,15 +30,15 @@ After that, inspect the source files related to the active task. Do not assume t
 
 Latest full-stack integration commits:
 
-- `41d80a7 docs: record local fullstack smoke evidence`
-- `f4de7c7 fix: align frontend backend integration wiring`
-- `cdb8aed docs: update fullstack integration status`
-- `7d56797 fix: remove unused frontend icon import`
-- `b896be6 Merge remote-tracking branch 'origin/integratedCompleteFrontend' into fullstack-integration`
+- `c743ade feat: expand visitor entry collection signals`
+- `36be5b6 fix: reject invites for disabled users`
+- `77cadb8 fix: block disabled users during authentication`
+- `cd6eceb docs: record production visitor entry flow`
+- `fb44113 docs: switch visitor entry rollout to same-domain path`
 
 ## Current Objective
 
-Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, backup restore-drill evidence, Alerts page backend API wiring, actor investigation UI, and admin visitor investigation UI.
+Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, first backup artifact/restore evidence, Alerts page backend API wiring, actor investigation UI, and admin visitor investigation UI.
 
 The system is Panoptix, a secure live-view CCTV web monitoring system with three planes:
 
@@ -148,7 +148,7 @@ Current state:
 - frontend lint/build passed after merge and after local smoke cleanup
 - local same-origin smoke has passed through the Vite proxy for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health
 - local API configuration uses `apps/api/.env`, which is ignored by Git; do not commit database URLs, audit keys, LiveKit keys, GitHub tokens, R2 secrets, or gateway service tokens
-- production backend migration state must be advanced to Alembic head `0011_visitor_expanded_signals` for expanded visitor context after deployment
+- production backend migration state is at Alembic head `0011_visitor_expanded_signals` for expanded visitor context
 - `github-invites-not-configured` is expected locally while `GITHUB_INVITES_ENABLED=false`
 - one-time gateway service tokens must never be screenshotted or committed; the exposed local test gateway named `what` was disabled during smoke cleanup
 
@@ -161,15 +161,15 @@ Current state:
 
 Latest full-stack integration commits:
 
-- `41d80a7 docs: record local fullstack smoke evidence`
-- `f4de7c7 fix: align frontend backend integration wiring`
-- `cdb8aed docs: update fullstack integration status`
-- `7d56797 fix: remove unused frontend icon import`
-- `b896be6 Merge remote-tracking branch 'origin/integratedCompleteFrontend' into fullstack-integration`
+- `c743ade feat: expand visitor entry collection signals`
+- `36be5b6 fix: reject invites for disabled users`
+- `77cadb8 fix: block disabled users during authentication`
+- `cd6eceb docs: record production visitor entry flow`
+- `fb44113 docs: switch visitor entry rollout to same-domain path`
 
 ## Current Objective
 
-Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, backup restore-drill evidence, Alerts page backend API wiring, actor investigation UI, and admin visitor investigation UI.
+Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, first backup artifact/restore evidence, Alerts page backend API wiring, actor investigation UI, and admin visitor investigation UI.
 
 The system is Panoptix, a secure live-view CCTV web monitoring system with three planes:
 
@@ -279,7 +279,7 @@ Current state:
 - frontend lint/build passed after merge and after local smoke cleanup
 - local same-origin smoke has passed through the Vite proxy for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health
 - local API configuration uses `apps/api/.env`, which is ignored by Git; do not commit database URLs, audit keys, LiveKit keys, GitHub tokens, R2 secrets, or gateway service tokens
-- production backend migration state must be advanced to Alembic head `0011_visitor_expanded_signals` for expanded visitor context after deployment
+- production backend migration state is at Alembic head `0011_visitor_expanded_signals` for expanded visitor context
 - `github-invites-not-configured` is expected locally while `GITHUB_INVITES_ENABLED=false`
 - one-time gateway service tokens must never be screenshotted or committed; the exposed local test gateway named `what` was disabled during smoke cleanup
 - camera modal can request a short-lived viewer token, but real LiveKit subscriber playback is still pending
@@ -323,7 +323,18 @@ Completed in this milestone:
 - **Protected scope**: `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` remain protected. Never make broad `/api/v1/*` public.
 - **Backend collector**: Visitor notice/collect APIs, `0010_visitor_visits`, `0011_visitor_expanded_signals`, signed visitor cookie correlation, admin visitor visit list/detail APIs, and maintenance retention cleanup are implemented.
 - **Expanded signal boundary**: `/entry` collection starts only after explicit Continue and stores approved browser/network/WebRTC summary signals. Raw WebRTC SDP/candidate strings, raw Ipregistry payloads, reverse geocoding, coordinates, canvas/audio/WebGL/font fingerprints, and broad fingerprint dumps remain out of scope.
-- **Frontend handoff**: Admin visitor investigation UI is still coworker-owned frontend work; backend responses now expose `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, and `risk_context` for that future UI.
+- **Frontend handoff**: Admin visitor investigation UI is still coworker-owned frontend work; backend responses now expose `ip_details`, `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, `risk_context`, and login correlation fields for that future UI.
+- **Production smoke**: Admin visitor list/detail API smoke passed on 2026-05-24 with expanded sections present.
+
+### Frontend Capability Documentation Refresh (2026-05-24)
+
+Completed in this milestone:
+
+- Updated `docs/frontend/*` as the current backend-to-frontend handoff source of truth.
+- Documented backend-ready but frontend-missing UI work: Alerts API wiring, actor profile/activity UI, admin visitor investigation UI, LiveKit subscriber playback, and full audit filters.
+- Documented frontend references to unavailable backend routes: `GET /api/v1/admin/sites` and planned security-check endpoints.
+- Documented backend/gateway-only routes that must stay out of browser code: gateway heartbeat, ingest-token, camera status, gateway control WebSocket, LiveKit webhook, and gateway service-token use beyond one-time admin display.
+- Documented disabled-user behavior for UI handling: disabled users receive `403 user-disabled`, and invites for existing disabled users receive `409 user-disabled`.
 
 ### Suspicious Login Detection (2026-05-21)
 
@@ -376,6 +387,13 @@ Completed in this milestone:
 - Implemented `GET /api/v1/admin/backups/status` returning JSON containing `status` (`ok`, `degraded`, `missing`) and latest backup age.
 - Reads backup run history from database without exposing object paths or credentials.
 - Added unit tests in `tests/test_backup_status.py` verifying status transitions.
+
+Production evidence as of 2026-05-24:
+
+- Production R2 env-var presence was confirmed without recording values.
+- Direct R2 bucket listing succeeded using production Railway credentials without exposing object keys.
+- The production R2 bucket currently reports no objects, and production `backup_runs` has `0` rows.
+- Next system-owner backup task is the first real production backup run; restore-drill evidence can only follow once an artifact exists.
 
 ### Actor Investigation Profile and Activity API (2026-05-14)
 

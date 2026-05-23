@@ -11,15 +11,19 @@
 
 ## Current implementation status
 
-As of the 2026-05-19 readiness pass:
+As of the 2026-05-24 production evidence pass:
 
 - The `backup_runs` table and `BackupRun` model exist for backup metadata.
-- Cloudflare R2 bucket `panoptix-backups` is documented as provisioned, with staging R2 credentials stored in Railway secrets.
+- Cloudflare R2 bucket `panoptix-backups` is provisioned.
+- Production Railway has the required R2 env vars present; values were not printed or recorded during verification.
+- Direct production R2 bucket listing succeeded without exposing object keys.
+- The production bucket currently reports no objects, and production `backup_runs` currently has `0` rows.
 - `scripts/restore-drill.sh` exists for an operator-run restore drill against R2 and a target database.
 - `GET /api/v1/admin/backups/status` reports database-known backup readiness from `backup_runs`.
 - A real restore drill has not yet been recorded in repository evidence.
 
 Do not treat backups as production-operational until a backup artifact is produced, restore-drill evidence is recorded, and backup worker automation is configured.
+The immediate next step is the first real production backup run, not a restore drill.
 
 ## Backup status API
 
@@ -89,7 +93,8 @@ The `scripts/restore-drill.sh` script (created in Round 3A) automates the quarte
 
 - Cloudflare R2 bucket `panoptix-backups` is provisioned and active.
 - Terraform Cloud workspace `panoptix-backup-r2` manages bucket state remotely.
-- R2 API tokens with Object Read & Write scope (bucket-only) are configured in Railway staging.
+- R2 API tokens with Object Read & Write scope (bucket-only) are configured in Railway production.
+- Production R2 bucket access was verified on 2026-05-24; no backup objects existed at that time.
 - `scripts/restore-drill.sh` is available for automated quarterly drills.
 
 Record completion dates and any anomalies found as a DPA/security artifact alongside the standard restore evidence.

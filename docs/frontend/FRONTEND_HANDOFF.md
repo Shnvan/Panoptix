@@ -1,6 +1,6 @@
 # Frontend Coworker Handoff
 
-Last updated: 2026-05-23 (production `/entry` visitor flow verified)
+Last updated: 2026-05-24 (expanded visitor collector and disabled-user backend behavior verified)
 
 This is the first document the frontend coworker should read before changing the React app on `fullstack-integration`. It summarizes what the system owner has verified, what backend APIs are ready, and what frontend work should happen next.
 
@@ -17,14 +17,15 @@ This is the first document the frontend coworker should read before changing the
 
 - Branch: `fullstack-integration`
 - Local backend uses ignored `apps/api/.env`; do not commit or copy real values.
-- Local database migration head has reached `0009_login_baselines`.
+- Local and production databases should be at Alembic head `0011_visitor_expanded_signals`.
 - Local full-stack smoke through Vite and FastAPI has passed for the main same-origin admin surfaces already tested: dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health.
 - GitHub organization invites are live on staging (`panoptix-site` org). Inviting users through the Users & Access page creates local user records and sends GitHub org invitations.
 - Alert records and backend SMTP email-notification foundation are implemented. SMTP email is backend-only and disabled by default until configured. The Alerts page currently shows a frontend placeholder and needs wiring to the real backend alert APIs.
 - Staging deployed browser smoke passed 2026-05-21: all 10 sidebar pages loaded through Cloudflare Access at `staging.panoptix.site` with no 500/502 errors.
 - **Production is now live at `panoptix.site` (2026-05-22)** behind Cloudflare Access with GitHub OAuth. Railway production backend + frontend deployed with new cryptographic keys.
 - `SUSPICIOUS_LOGIN_DETECTION_ENABLED=true` in production (login baselines track normal device/IP patterns).
-- The same-domain public visitor entry flow is operational at `https://panoptix.site/entry`. First-time root visits redirect to `/entry` only when `panoptix_visitor` is absent. Only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect` bypass Cloudflare Access.
+- The same-domain public visitor entry flow is operational at `https://panoptix.site/entry`. First-time root visits redirect to `/entry` only when `panoptix_visitor` is absent. Only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect` bypass Cloudflare Access. Production admin API smoke confirms visitor detail responses expose `ip_details`, `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, and `risk_context`.
+- Disabled local users are blocked by the backend with `403 user-disabled`, and invites for existing disabled users return `409 user-disabled`. A GitHub or Cloudflare Access session does not re-enable a disabled Panoptix account.
 - Real LiveKit browser subscriber playback is still not production-complete.
 - Real CCTV hardware validation is still pending.
 
@@ -35,12 +36,21 @@ This is the first document the frontend coworker should read before changing the
    - `GET /api/v1/admin/alerts/{alert_id}`
    - `POST /api/v1/admin/alerts/{alert_id}/acknowledge`
    - `POST /api/v1/admin/alerts/{alert_id}/resolve`
-2. Finish real LiveKit subscriber playback using `GET /api/v1/cameras/{camera_id}/view-token`.
-3. Build the backend-ready investigation UIs when assigned:
-   - actor profile/activity drawer or page
-   - admin visitor visit list/detail UI
-   - full audit filter controls
-4. Browser-smoke every current sidebar page against the local backend:
+2. Build the admin visitor investigation UI from `GET /api/v1/admin/visitor-visits` and `GET /api/v1/admin/visitor-visits/{visit_id}`:
+   - visitor summary
+   - IP/location/security flags
+   - browser/device context
+   - WebRTC check
+   - timing/server context
+   - login correlation and risk context
+3. Build the actor investigation UI from `GET /api/v1/admin/actors/{actor_type}/{actor_id}/profile` and `/activity`:
+   - profile drawer/page
+   - activity timeline
+   - alert summary
+   - login baseline and IP/device context for user actors
+4. Finish real LiveKit subscriber playback using `GET /api/v1/cameras/{camera_id}/view-token`.
+5. Add full audit filter controls for actor, severity, category, outcome, resource, session, and date range.
+6. Browser-smoke every current sidebar page and destructive/error states against production-like data:
    - Dashboard
    - Live Cameras
    - Camera Management
@@ -51,7 +61,7 @@ This is the first document the frontend coworker should read before changing the
    - System Health
    - Break Glass
    - Settings
-5. Fix only API contract and wiring issues found during smoke. Do not redesign UI/UX or add roadmap-only pages unless explicitly assigned.
+7. Fix only API contract and wiring issues found during smoke. Do not redesign UI/UX or add roadmap-only pages unless explicitly assigned.
 
 ## Hard Guardrails
 

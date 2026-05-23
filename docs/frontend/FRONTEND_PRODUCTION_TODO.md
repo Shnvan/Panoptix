@@ -5,10 +5,12 @@ Start here for current frontend coordination: [Frontend Coworker Handoff](FRONTE
 ## What Frontend Should Do Next
 
 1. Wire the existing Alerts page to the backend alert APIs: `GET /api/v1/admin/alerts`, `GET /api/v1/admin/alerts/{alert_id}`, `POST /api/v1/admin/alerts/{alert_id}/acknowledge`, and `POST /api/v1/admin/alerts/{alert_id}/resolve`.
-2. Finish real LiveKit subscriber playback using `GET /api/v1/cameras/{camera_id}/view-token`. The browser must subscribe only and must never publish.
-3. Add backend-ready investigation UI only when assigned: actor profile/activity, admin visitor visits, and full audit filters.
-4. Smoke every current sidebar page against the local backend: Dashboard, Live Cameras, Camera Management, Gateways, Users & Access, Audit Logs, Alerts, System Health, Break Glass, and Settings.
-5. Fix only API contract/wiring issues found during smoke. Do not add new roadmap pages or redesign UI/UX unless explicitly assigned.
+2. Build the admin visitor investigation UI from the backend-ready visitor visit list/detail APIs.
+3. Build actor profile/activity investigation UI from the backend-ready actor APIs.
+4. Finish real LiveKit subscriber playback using `GET /api/v1/cameras/{camera_id}/view-token`. The browser must subscribe only and must never publish.
+5. Add full audit filter controls for actor, severity, category, outcome, resource, session, and date range.
+6. Smoke every current sidebar page against local/backend production-like data: Dashboard, Live Cameras, Camera Management, Gateways, Users & Access, Audit Logs, Alerts, System Health, Break Glass, and Settings.
+7. Fix only API contract/wiring issues found during smoke. Do not add new roadmap pages or redesign UI/UX unless explicitly assigned.
 
 This is the frontend source of truth for production-readiness work on the combined `fullstack-integration` branch. It tracks every implemented backend capability and makes each one either usable in the frontend, intentionally hidden, or explicitly marked backend/gateway-only.
 
@@ -23,11 +25,11 @@ Design direction: new frontend work **must** follow [Panoptix Design System](PAN
 | Implemented but incomplete | `/api/v1/cameras/{camera_id}/view-token` | Token request works, playback placeholder remains | Wire real subscriber-only LiveKit browser viewer. |
 | Implemented but incomplete | `/api/v1/cameras/events` | Disabled in dev-auth mode because EventSource cannot send custom headers | Keep production SSE path; test with Cloudflare/session cookies in staging. |
 | Implemented and usable | `/api/v1/privacy/notice`, `/api/v1/privacy/notice/accept` | Privacy notice gate exists | Verify notice mismatch and accepted states in browser. |
-| Implemented and operational | `/entry`, `/api/v1/visitor/notice`, `/api/v1/visitor/collect` | Production same-domain entry flow works before Cloudflare Access | Keep public handling limited to `/entry`, `/assets/*`, `/logo.png`, and the two visitor API endpoints. |
+| Implemented and operational | `/entry`, `/api/v1/visitor/notice`, `/api/v1/visitor/collect` | Production same-domain entry flow works before Cloudflare Access, and expanded collect payload is live | Keep public handling limited to `/entry`, `/assets/*`, `/logo.png`, and the two visitor API endpoints. |
 | Implemented and usable | `/api/v1/sessions/active`, `/api/v1/sessions/revoke` | Settings/session UI exists | Verify revoke UX and session refresh behavior. |
 | Implemented and wired | `/api/v1/admin/users`, role update, disable | User admin UI exists and local smoke has loaded real users/roles | Continue browser smoke for destructive actions, disable behavior, and edge-case error states. |
 | Implemented and wired | `/api/v1/admin/users/{user_id}/mfa/reset` | MFA reset modal calls the backend route | Browser smoke success/error states and audit copy. |
-| Implemented and wired | `/api/v1/admin/users/invite` | GitHub invite form calls the backend route; staging-verified with `panoptix-site` org (2026-05-21) | Browser smoke success and validation states. Invite should succeed on staging; `github-invites-not-configured` is acceptable locally without GitHub env vars. |
+| Implemented and wired | `/api/v1/admin/users/invite` | GitHub invite form calls the backend route; staging-verified with `panoptix-site` org (2026-05-21) | Browser smoke success, validation, and `409 user-disabled` states. Invite should succeed on staging for new/active users; `github-invites-not-configured` is acceptable locally without GitHub env vars. |
 | Implemented but incomplete | `/api/v1/admin/audit`, verify, export | Audit table and verify endpoint pass local same-origin smoke; filtering UI remains limited | Add full audit filters for actor, severity, category, outcome, resource, session, and date range. |
 | Implemented but missing UI | `/api/v1/admin/actors/{actor_type}/{actor_id}/profile` | No actor investigation UI | Add actor profile page/drawer linked from users, gateways, audit rows, and break-glass/system actors. |
 | Implemented but missing UI | `/api/v1/admin/actors/{actor_type}/{actor_id}/activity` | No actor activity timeline UI | Add activity timeline with cursor pagination and filters. |
@@ -40,13 +42,13 @@ Design direction: new frontend work **must** follow [Panoptix Design System](PAN
 | Implemented and usable | `/api/v1/admin/livekit/fallback` | Toggle is wired after API contract fix | Verify mode, reason, previous mode, and switched-at messaging. |
 | Implemented and usable | `/api/v1/admin/dpa/export` | DPA export is wired after API contract fix | Verify downloaded/exported artifact count and error handling. |
 | Implemented but incomplete | `/api/v1/admin/sites/{site_id}/signage-attest` | Attestation call exists, but site listing source is missing | Disable or clearly mark until a real site list source exists, or add backend site listing later. |
-| Implemented and wired | `/api/v1/admin/backups/status` | Health/admin UI can read backup status | Browser smoke missing, degraded, and ok states. |
+| Implemented and wired | `/api/v1/admin/backups/status` | Health/admin UI can read database-known backup readiness | Browser smoke missing, degraded, and ok states. Do not present this as direct R2 bucket verification. |
 | Implemented but missing UI | `/api/v1/admin/alerts`, detail, acknowledge, resolve | Backend alert records and SMTP email notification foundation exist; no complete alerts UI yet | Wire the existing Alerts page to real list/detail/ack/resolve APIs without adding browser-only notification providers. |
-| Implemented but missing UI | `/api/v1/admin/visitor-visits`, detail | Backend records approved public entry visits and later login correlation | Add admin visitor investigation list/detail UI when assigned. |
+| Implemented but missing UI | `/api/v1/admin/visitor-visits`, detail | Backend records approved public entry visits, expanded browser/network/WebRTC context, server context, risk context, and later login correlation | Add admin visitor investigation list/detail UI when assigned. |
 | Frontend calls nonexistent endpoint | `/api/v1/admin/sites` | API client has `listSites()` but backend route is not present | Remove, disable, or mark planned until backend route exists. |
 | Implemented and wired | `/api/v1/admin/dsr-requests` | DSR list/create/detail/update API client exists and compliance UI uses the list | Browser smoke DSR case creation/update flow and validation states. |
 | Frontend calls nonexistent endpoint | `/api/v1/admin/exposure-check`, `/media-isolation-check`, `/origin-binding-check` | API client has security check calls but backend routes are not present | Remove, disable, or mark planned until backend routes exist. |
-| Backend/gateway-only | Gateway heartbeat, ingest token, camera status, gateway WebSocket, LiveKit webhook | Must not be browser-callable | Keep out of frontend UI and browser API client. |
+| Backend/gateway-only | Gateway heartbeat, ingest token, camera status, gateway WebSocket, LiveKit webhook | Must not be browser-callable | Keep out of frontend UI and browser API client. Gateway service tokens may only be shown once in admin create/rotate responses and must never be used by browser code. |
 | Pilot/future only | Viewer watermark, incident workflow, analyst notes, behavior baseline | Not production-ready | Keep as pilot backlog until backend data sources and models exist. Alert records now have a backend API, but frontend alert UI is still incomplete. |
 
 ## P0 Production Blockers
@@ -66,6 +68,7 @@ These must be resolved before treating the frontend as production-ready.
 | Full production smoke test | Required | Production live at `panoptix.site` (2026-05-22). Test all 10 sidebar pages through production Cloudflare Access. Verify no 500/502 errors and no sensitive data leaks. |
 | Browser publishing absence check | Required | Confirm the browser bundle does not request camera/microphone permission and does not publish media to LiveKit. |
 | Sensitive-value exposure check | Required | Confirm no RTSP URLs, camera passwords, LiveKit admin secrets, Cloudflare service tokens, or long-lived auth tokens appear in frontend code, logs, storage, or UI. |
+| Disabled-account UX | Required | Backend returns `403 user-disabled` for disabled users and `409 user-disabled` when inviting an existing disabled local user. UI should show clear disabled-account and invite-denied states. |
 
 ## P1 Admin Feature Completion
 
@@ -75,6 +78,7 @@ These are important for production operations, but can follow the P0 blockers.
 |---|---|---|
 | Full audit filtering UI | Partial | Expose actor type/id, severity, category, outcome, resource, session ID, and date range filters supported by the backend. |
 | Actor investigation pages | Not done | Use `/api/v1/admin/actors/{actor_type}/{actor_id}/profile` and `/activity`; link from users, gateways, and audit rows. |
+| Admin visitor investigation UI | Not done | Use `/api/v1/admin/visitor-visits` and detail. Display visitor summary, IP/location/security flags, device/browser, browser preferences, WebRTC check, timing, server context, login correlation, and risk context. |
 | Admin dashboard integration | Wired; needs smoke | Use `/api/v1/admin/dashboard` for backend-provided operational metrics and verify empty/degraded states. |
 | Gateway command workflow | Partial | Verify command creation, list, cancel, cleanup, and maintenance against real backend data and production copy. |
 | Session management UI | Partial | Make active sessions and revoke behavior clear, including current-session consequences. |
@@ -105,7 +109,24 @@ These backend routes exist for gateways, webhooks, or internal control flow. The
 | `POST /api/v1/gateways/{gateway_id}/cameras/{camera_id}/status` | Gateway status report only. |
 | `GET /api/v1/gateway-control/ws` | Gateway command WebSocket only. |
 | `POST /api/v1/webhooks/livekit` | LiveKit server webhook receiver only. |
-| Any route requiring gateway service credentials | Gateway service tokens must never be present in browser code, browser storage, or frontend env vars. |
+| Any route requiring gateway service credentials | Gateway service tokens must never be present in browser code, browser storage, frontend env vars, or screenshots. Admin UI may display a one-time token only immediately after gateway create/rotate. |
+
+## Admin Visitor UI Data Contract
+
+The admin visitor detail API is ready for a readable investigation UI. Display these sections, not a raw JSON dump:
+
+| UI section | Backend fields |
+|---|---|
+| Visitor summary | `visit_id`, `collected_at`, `page_path`, `notice_version`, `linked_user_id`, linked session/user fields |
+| IP and location | `ip_details` normalized Ipregistry subset |
+| Device and browser | `browser_context` parsed browser, OS, device class, screen, viewport, language, timezone, preferences |
+| Browser network hints | `network_context` effective type, downlink, RTT, save-data |
+| WebRTC check | `webrtc_details` availability, candidate count/types, local/public/relay candidates, mDNS masking, safe error |
+| Timing | `timing` notice load, continue click, collect start, WebRTC elapsed |
+| Server context | `server_context` request IP, Cloudflare Ray/country, trusted header context |
+| Risk context | `risk_context` timezone/IP mismatch, language/country mismatch, WebRTC/request IP mismatch, entry-to-login IP change, repeat visitor count |
+
+Do not display raw Ipregistry payloads, raw WebRTC SDP/candidate strings, canvas/audio/WebGL/font fingerprints, exact coordinates, reverse-geocoded addresses, or broad fingerprint dumps.
 
 ## Frontend Security Guardrails
 
@@ -148,8 +169,8 @@ For the smoke test:
 7. Verify planned features are marked as planned or disabled.
 8. Confirm there are no React page errors, token leaks, or unexpected 4xx/5xx responses for implemented features.
 
-Current local evidence: Dashboard/bootstrap, live-camera camera list, Users & Access, Camera Management, Gateways, Audit Logs, audit verification, DSR list, break-glass status, backup status, deep health, sessions, and health have passed same-origin smoke against a local FastAPI backend using an ignored `apps/api/.env` and dev auth. GitHub invites are live on staging (`panoptix-site` org, 2026-05-21). Staging deployed browser smoke passed 2026-05-21: all 10 sidebar pages loaded through Cloudflare Access at `staging.panoptix.site` with no 500/502 errors. Treat any one-time gateway service token shown in the UI as sensitive; do not screenshot it.
+Current local evidence: Dashboard/bootstrap, live-camera camera list, Users & Access, Camera Management, Gateways, Audit Logs, audit verification, DSR list, break-glass status, backup status, deep health, sessions, and health have passed same-origin smoke against a local FastAPI backend using an ignored `apps/api/.env` and dev auth. GitHub invites are live on staging (`panoptix-site` org, 2026-05-21). Staging deployed browser smoke passed 2026-05-21: all 10 sidebar pages loaded through Cloudflare Access at `staging.panoptix.site` with no 500/502 errors. Production expanded visitor collector API smoke passed 2026-05-24. Treat any one-time gateway service token shown in the UI as sensitive; do not screenshot it.
 
 ## Current Default Next Task
 
-The next small integration task is wiring the existing Alerts page to real backend alert APIs. The top production blocker remains real LiveKit browser viewer playback. The backend already mints short-lived subscriber tokens; the frontend still needs the subscriber-only player.
+The next small integration task is wiring the existing Alerts page to real backend alert APIs. The next investigation UI tasks are admin visitor visits and actor profile/activity. The top product-path blocker remains real LiveKit browser viewer playback; the backend already mints short-lived subscriber tokens, and the frontend still needs the subscriber-only player.

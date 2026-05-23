@@ -15,9 +15,10 @@ Use this quick order before drilling into the detailed examples below:
 5. Test browser/user endpoints.
 6. Test admin CRUD and control endpoints.
 7. Test gateway heartbeat, camera status, ingest token, and control endpoints.
-8. Test GitHub-backed user invite behavior and backup readiness reporting.
-9. Test audit verification and export.
-10. Test edge-agent CLI modes.
+8. Test GitHub-backed user invite behavior, including `409 user-disabled` for existing disabled users.
+9. Test visitor entry/admin visitor detail APIs and backup readiness reporting.
+10. Test audit verification and export.
+11. Test edge-agent CLI modes.
 
 ### Public and platform
 
@@ -27,6 +28,8 @@ Use this quick order before drilling into the detailed examples below:
 ### Local full-stack browser smoke
 
 Current evidence: local full-stack smoke has been verified with a local FastAPI backend, an ignored `apps/api/.env`, a Neon-backed test database, frontend dev auth, and the Vite same-origin proxy. Dashboard/bootstrap, live-camera camera list, Users & Access, Camera Management, Gateways, Audit Logs, audit verification, DSR list, break-glass status, backup status, deep health, sessions, and health returned successful responses without the earlier broad Internal Server Error failures.
+
+Production evidence: the same-domain `/entry` flow and expanded admin visitor detail API smoke passed on 2026-05-24. Admin visitor detail responses expose `ip_details`, `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, and `risk_context`; the admin visitor investigation UI remains frontend handoff work.
 
 Expected local-only limitations:
 
@@ -3944,7 +3947,15 @@ Expected states:
 - `degraded`: a backup row exists but upload, completion, restore-format, or schema-restore checks are missing or failed.
 - `ok`: latest backup is uploaded and finished, restore-format check passed, and a successful schema restore drill is recorded.
 
-The next production backup step is still a real restore drill against an isolated database using the R2-backed runbook below.
+Production evidence recorded 2026-05-24:
+
+- Railway production backend has all four R2 variables present; values were not printed or recorded.
+- Direct R2 bucket list succeeded using production credentials without exposing object keys.
+- R2 currently returned no objects.
+- Production `backup_runs` currently has `0` rows.
+- Expanded visitor collector DB smoke found existing visitor visit rows with the expanded context columns populated.
+
+The next production backup step is the first real backup run. Do not run a restore drill until a backup artifact exists and the corresponding `backup_runs` evidence row is recorded.
 
 ---
 

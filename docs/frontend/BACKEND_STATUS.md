@@ -2,20 +2,21 @@
 
 This document lists every implemented backend API endpoint, what the frontend can build against today, what is not ready yet, and local dev setup instructions.
 
-Last updated: 2026-05-24 (expanded `/entry` visitor signal contract prepared)
+Last updated: 2026-05-24 (production expanded `/entry` visitor signal smoke verified)
 
 Read first: [Frontend Coworker Handoff](FRONTEND_HANDOFF.md).
 
 ## Current Backend State For Frontend
 
 - Local full-stack smoke is working through Vite and FastAPI when `apps/api/.env` is configured locally. That file is ignored and must never be committed.
-- Expanded visitor context uses Alembic migration `0011_visitor_expanded_signals`; production and local dev databases should run `alembic upgrade head`.
+- Expanded visitor context uses Alembic migration `0011_visitor_expanded_signals`; production is at that head and local dev databases should run `alembic upgrade head`.
 - Admin users, cameras, gateways, DSR requests, backup status, break-glass, health, and alert APIs are backend-available.
 - `POST /api/v1/admin/users/invite` is implemented, but `github-invites-not-configured` is expected unless GitHub invite settings are intentionally enabled.
 - Alert records and backend SMTP email notification support are implemented. Email is backend-only and disabled by default until SMTP settings are configured.
 - Real LiveKit browser playback is still not production-complete. The backend mints subscriber-only viewer tokens; the frontend still needs the subscriber player.
 - Real CCTV hardware validation is still pending. Staging browser smoke passed 2026-05-21. Production deployed at `panoptix.site` 2026-05-22.
-- The public visitor collector pilot is operational on same-domain `/entry`. First-time root visits redirect to `/entry` only when `panoptix_visitor` is absent; the future admin visitor dashboard remains frontend handoff work.
+- The public visitor collector pilot is operational on same-domain `/entry`. First-time root visits redirect to `/entry` only when `panoptix_visitor` is absent; production admin API smoke confirmed expanded visitor detail sections are present. The future admin visitor dashboard remains frontend handoff work.
+- Disabled users are enforced by the backend even if Cloudflare Access still authenticates the identity: protected API calls return `403 user-disabled`, app session cookies are cleared, and active Panoptix sessions for that disabled user are revoked when seen.
 
 ---
 
@@ -188,10 +189,12 @@ All admin endpoints require the `admin` role.
 | `GET` | `/api/v1/admin/users` | query: `cursor`, `limit`, `email` | paginated safe user list |
 | `POST` | `/api/v1/admin/users/{user_id}/role` | `{ "action": "grant"/"revoke", "role_name" }` | role action result |
 | `POST` | `/api/v1/admin/users/{user_id}/disable` | `{ "reason" }` | `{ "user_id", "disabled_at", "sessions_revoked" }` |
+| `POST` | `/api/v1/admin/users/invite` | `{ "email", "roles" }` | invite result |
 
 - Returned user list fields: `user_id`, `email`, `roles`, `role_default`, `disabled_at`, `created_at`
 - Role assignment: `action` must be `grant` or `revoke`; `role_name` must match a known role
 - Disable: sets `disabled_at` and bulk-revokes all active sessions immediately
+- Inviting an existing disabled local user returns `409 user-disabled`, does not add roles, and does not call the GitHub invite API. Re-enable must be a separate explicit admin action later.
 
 ### Camera Management
 
@@ -264,6 +267,7 @@ The backend also has a disabled-by-default in-process maintenance scheduler cont
 | `GET` | `/api/v1/admin/audit/export` | query: `start_id`, `end_id` | signed JSON export: `{ "format", "manifest", "items" }` |
 
 - Audit export manifest includes row count, first/last row IDs, canonical content SHA-256, signature algorithm, signature key version, and HMAC-SHA256 signature.
+- The backend supports filters for actor type/id, severity, category, outcome, resource, session ID, and timestamp range. The current frontend only exposes limited filtering and should not hide backend-supported investigation filters once the audit UI is expanded.
 
 ### Actor Investigation
 
@@ -290,7 +294,9 @@ The backend also has a disabled-by-default in-process maintenance scheduler cont
 | `GET` | `/api/v1/admin/visitor-visits/{visit_id}` | path visit ID | approved entry visit detail and login correlation |
 
 - Admin detail reads write `admin.visitor.visit.viewed`.
-- Returned records include page/time, request IP and stored normalized Ipregistry subset, parsed browser/OS/device summary, screen/timezone/language, and linked user/session fields when the visitor later logs in.
+- List/detail responses expose the UI-ready fields `visit_id`, `collected_at`, `page_path`, `notice_version`, `ip_details`, `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, `risk_context`, `linked_user_id`, and linked session context where available.
+- `ip_details` contains only the normalized Panoptix Ipregistry subset, not the raw provider payload. `browser_context` includes browser/OS/device parsing and approved entry-page browser signals. `webrtc_details` includes normalized availability, candidate counts/types, local/public/relay candidate IPs, mDNS masking, and safe error fields only.
+- `risk_context` includes derived investigation signals such as timezone/IP mismatch, language/country mismatch, WebRTC public IP/request IP mismatch, IP changed between entry and login, and repeat visitor count.
 - The first pilot covers users who enter through `/entry`, including first-time root visitors redirected there by Cloudflare when `panoptix_visitor` is absent. Collector failure on that entry page must not block the redirect into secure sign-in. The protected app root does not run browser-side collector code directly.
 
 ---
@@ -348,6 +354,8 @@ Common `detail` values the frontend should handle:
 | `audit-hmac-key-invalid` | 503 | audit system misconfigured |
 | `session-not-owned` | 403 | non-admin trying to revoke another user's session |
 | `privacy-notice-version-mismatch` | 409 | frontend submitted a stale privacy notice version |
+| `visitor-notice-version-mismatch` | 409 | public entry page submitted a stale visitor notice version |
+| `visitor-notice-acknowledgement-required` | 400 | public entry collect was attempted without explicit acknowledgement |
 | `cursor-invalid` | 400 | cursor is not a valid UUID for UUID-cursor endpoints |
 
 ---
@@ -400,6 +408,7 @@ List endpoints use cursor-based pagination:
 - [x] Audit JSONL export download
 - [x] DSR request list/create/detail/update APIs are backend-ready
 - [x] Backup status is implemented from database-known backup readiness
+- [x] Disabled-user enforcement returns `403 user-disabled`; disabled-user invite returns `409 user-disabled`
 - [ ] Alerts page should use the real alert list/detail/acknowledge/resolve APIs
 - [ ] Actor investigation should use the real profile/activity APIs
 - [ ] Admin visitor investigation should use the real visitor visit list/detail APIs
@@ -431,6 +440,7 @@ These features are either incomplete in the frontend, need staged/production smo
 | LiveKit fallback mode | `POST /api/v1/admin/livekit/fallback` is **implemented** (DB flag flip between `cloud`/`fallback`, audit-logged) |
 | Production Cloudflare Access | Production live at `panoptix.site` (2026-05-22). Staging smoke passed 2026-05-21. Production browser smoke needed. |
 | Production scheduler | Maintenance scheduler is implemented (`ENABLE_MAINTENANCE_SCHEDULER`) but disabled by default. Manual admin endpoint `POST /api/v1/admin/jobs/run-maintenance` is available |
+| Backup status | `/api/v1/admin/backups/status` reads database evidence from `backup_runs` only. It does not directly list R2 objects or verify bucket contents. Production R2 access was checked separately on 2026-05-24 and no backup objects/rows existed yet. |
 
 ## Backend-Ready / Frontend-Needed Gap Matrix
 
@@ -438,11 +448,12 @@ These features are either incomplete in the frontend, need staged/production smo
 |---|---|---|
 | Alerts | List/detail/acknowledge/resolve APIs exist. | Current Alerts page still uses placeholder/default/camera-event-derived alerts instead of backend alert records. |
 | Actor investigation | Profile and activity APIs exist with alerts, login baseline, IP/device, and audit context. | No actor profile drawer/page or activity timeline UI. |
-| Admin visitor visits | List/detail APIs exist and detail reads are audited. | No admin visitor investigation UI. |
+| Admin visitor visits | List/detail APIs exist and detail reads are audited. Detail includes `ip_details`, `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, `risk_context`, and login correlation fields. | No admin visitor investigation UI. |
 | LiveKit playback | Viewer token endpoint exists and returns subscriber-only LiveKit tokens. | Browser subscriber player remains incomplete. |
 | Audit filters | Backend supports actor, severity, category, outcome, resource, session, and date filters. | Frontend currently exposes limited filtering. |
 | Admin camera detail/update | Backend supports admin camera detail and `PATCH`. | Verify all fields and edge states are fully covered in UI smoke. |
 | Site listing | `POST /api/v1/admin/sites/{site_id}/signage-attest` exists. | `GET /api/v1/admin/sites` is not implemented; any site-list UI/client call must remain disabled/planned until a backend source exists. |
+| Disabled local users | Backend blocks disabled users at auth with `403 user-disabled`, clears app cookies, revokes their seen session, and denies invites for disabled users with `409 user-disabled`. | UI should render a clear disabled-account state and should not imply that a GitHub invite re-enables a disabled Panoptix account. |
 
 Gateway heartbeat, gateway ingest-token, gateway camera status, gateway control WebSocket, and LiveKit webhook routes are backend/gateway-only. They must not be called from browser code.
 
