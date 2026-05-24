@@ -170,7 +170,17 @@ def run_restore_drill(
             cli_url = _postgres_cli_url(target_database_url)
             _run_checked(
                 command_runner,
-                ["pg_restore", "--clean", "--if-exists", "--no-owner", "--no-acl", "-d", cli_url, str(dump_path)],
+                [
+                    "pg_restore",
+                    "--exit-on-error",
+                    "--clean",
+                    "--if-exists",
+                    "--no-owner",
+                    "--no-acl",
+                    "-d",
+                    cli_url,
+                    str(dump_path),
+                ],
                 error_code="pg-restore-target-failed",
             )
             row_count = _target_row_count(target_database_url)
@@ -308,7 +318,7 @@ def _target_row_count(target_database_url: str) -> int | None:
     engine = create_engine(normalize_database_url(target_database_url))
     try:
         with engine.connect() as conn:
-            result = conn.execute(text("SELECT COUNT(*) FROM users"))
+            result = conn.execute(text("SELECT COUNT(*) FROM public.users"))
             return int(result.scalar_one())
     finally:
         engine.dispose()

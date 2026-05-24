@@ -111,6 +111,7 @@ def test_restore_drill_with_target_records_restore_evidence_row(
     assert result.backup_run_id is not None
     assert [command[0] for command in runner.commands] == ["age", "pg_restore", "pg_restore"]
     restore_command = runner.commands[-1]
+    assert "--exit-on-error" in restore_command
     assert "--clean" in restore_command
     assert "--if-exists" in restore_command
     assert restore_command[-2].startswith("postgresql://")
