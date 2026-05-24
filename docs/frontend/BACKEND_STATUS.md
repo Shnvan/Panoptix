@@ -440,7 +440,7 @@ These features are either incomplete in the frontend, need staged/production smo
 | LiveKit fallback mode | `POST /api/v1/admin/livekit/fallback` is **implemented** (DB flag flip between `cloud`/`fallback`, audit-logged) |
 | Production Cloudflare Access | Production live at `panoptix.site` (2026-05-22). Staging smoke passed 2026-05-21. Production browser smoke needed. |
 | Production scheduler | Maintenance scheduler is implemented (`ENABLE_MAINTENANCE_SCHEDULER`) but disabled by default. Manual admin endpoint `POST /api/v1/admin/jobs/run-maintenance` is available |
-| Backup status | `/api/v1/admin/backups/status` reads database evidence from `backup_runs` only. It does not directly list R2 objects or verify bucket contents. Production R2 access was checked separately on 2026-05-24 and no backup objects/rows existed yet. |
+| Backup status | `/api/v1/admin/backups/status` reads database evidence from `backup_runs` only. It does not directly list R2 objects or expose object keys. Production R2 access was checked separately on 2026-05-25; one encrypted backup artifact exists, the latest successful backup row is recorded, and dry-run decrypt/`pg_restore --list` validation passed. Status should be `degraded` until isolated restore-drill evidence exists. |
 
 ## Backend-Ready / Frontend-Needed Gap Matrix
 

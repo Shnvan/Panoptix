@@ -196,8 +196,10 @@ Production should use stricter defaults than staging:
 - Configure `BACKUP_AGE_RECIPIENT` on the backend service; keep the matching private restore identity outside Railway production.
 - Run the first encrypted backup with:
   `railway run --service panoptix-control --environment production --no-local -- python -m cctv_api.jobs.backup_r2`
-- Verify `GET /api/v1/admin/backups/status` moves from `missing` to `degraded` after the first backup row is recorded.
-- Test restore drill from production backup only after the first encrypted R2 artifact exists.
+- First encrypted production artifact is recorded as of 2026-05-25. Latest successful `backup_run_id`: `78901812-df12-4a32-b91f-9975772fdca2`.
+- Verify `GET /api/v1/admin/backups/status` is `degraded` until isolated restore-drill evidence is recorded.
+- Latest encrypted artifact dry-run validation passed with `python -m cctv_api.jobs.restore_drill_r2 --age-identity-file <local-private-age-key>`.
+- Run the full restore drill only into an isolated local PostgreSQL database or temporary Neon branch. Never restore into production Neon.
 
 ### Domain and routing
 
@@ -231,7 +233,8 @@ After first production deploy, verify:
 - [ ] Direct Railway URL returns fail-closed for protected routes.
 - [ ] Database connection works (health or `/api/v1/cameras` returns empty list, not 500).
 - [ ] Security headers present on all responses.
-- [ ] R2 backup connectivity verified (write a test object, verify, delete).
+- [x] R2 backup artifact verified (one encrypted `.dump.age` production backup exists; object key withheld from docs/screenshots).
+- [ ] Isolated restore drill recorded in `backup_runs`.
 - [ ] Deep health returns `livekit: connected` and `db: connected`.
 - [ ] After creating a fresh Cloudflare browser session with `TRUST_CF_CONNECTING_IP=true`, admin user actor profile smoke confirms a new recent session IP is not an origin/proxy hop such as `100.64.0.x` and Ipregistry-backed `ip_details.available = true`, `provider = "ipregistry"`, and `status = "ok"` after enrichment enablement.
 - [ ] Break-glass window can be opened and closed by an admin.
@@ -248,7 +251,8 @@ Promotion from staging → production (clears 2026-05-20):
 - [ ] All `replace-me` values replaced with real secrets in Railway production env.
 - [ ] Neon production database provisioned and migrations applied.
 - [ ] Cloudflare Access policies provisioned for production domain.
-- [ ] R2 backup token configured and connectivity tested.
+- [x] R2 backup token configured and first encrypted backup artifact recorded.
+- [ ] Isolated restore drill recorded in `backup_runs`.
 - [ ] Break-glass hardware key procured and tested.
 - [ ] Frontend coworker QA sign-off (if applicable).
 - [ ] Bus-factor recovery docs verified (see [Bus Factor Recovery](bus-factor.md)).

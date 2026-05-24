@@ -3947,15 +3947,17 @@ Expected states:
 - `degraded`: a backup row exists but upload, completion, restore-format, or schema-restore checks are missing or failed.
 - `ok`: latest backup is uploaded and finished, restore-format check passed, and a successful schema restore drill is recorded.
 
-Production evidence recorded 2026-05-24:
+Production evidence recorded 2026-05-25:
 
 - Railway production backend has all four R2 variables present; values were not printed or recorded.
 - Direct R2 bucket list succeeded using production credentials without exposing object keys.
-- R2 currently returned no objects.
-- Production `backup_runs` currently has `0` rows.
+- R2 contains one encrypted `.dump.age` production backup artifact. Object keys are intentionally not recorded in docs or screenshots.
+- Production `backup_runs` contains three rows: two earlier diagnostic failures and one successful uploaded/finished backup row.
+- Latest successful `backup_run_id`: `78901812-df12-4a32-b91f-9975772fdca2`; `restore_format_ok=true`; `size_bytes=119112`; `sha256=98ad13944da3705b79b51ce35db30e5f7524daa8577a2387553bf2a760fd3336`.
+- Dry-run restore validation passed: the encrypted production artifact decrypted locally and `pg_restore --list` succeeded; no database restore or evidence row was written.
 - Expanded visitor collector DB smoke found existing visitor visit rows with the expanded context columns populated.
 
-The next production backup step is the first real backup run. Do not run a restore drill until a backup artifact exists and the corresponding `backup_runs` evidence row is recorded.
+The next production backup step is restore-drill validation. `GET /api/v1/admin/backups/status` should be `degraded`, not `missing`, until isolated restore-drill evidence is recorded.
 
 ### Run first operator backup
 
@@ -3971,6 +3973,41 @@ Expected:
 - Command prints sanitized JSON with `upload_status` set to `uploaded`.
 - No database URL, R2 key, object key, or decrypted backup content is printed.
 - `GET /api/v1/admin/backups/status` changes from `missing` to `degraded` until restore-drill evidence is recorded.
+
+### Validate encrypted backup without restoring
+
+This command downloads the latest encrypted `.dump.age` object to a temporary directory, decrypts it locally with the offline private `age` identity, and runs `pg_restore --list`. It does not restore into a database and does not write a restore-drill evidence row.
+
+```powershell
+$env:PATH = "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\FiloSottile.age_Microsoft.Winget.Source_8wekyb3d8bbwe\age;$env:PATH"
+cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+railway run --service panoptix-control --environment production --no-local -- python -m cctv_api.jobs.restore_drill_r2 --age-identity-file "C:\Users\Ivan\Documents\Panoptix-Backup-Keys\panoptix-prod-age-20260524-165042.txt"
+```
+
+Expected:
+
+- `dry_run` is `true`.
+- `restore_format_ok` is `true`.
+- `restore_schema_ok` is `null`.
+- No object key, database URL, R2 secret, private age key, or decrypted backup content is printed.
+
+### Run isolated restore drill
+
+Use this only after creating a disposable local PostgreSQL database or temporary Neon branch. Never use production `DATABASE_URL` as the target.
+
+```powershell
+$env:PATH = "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\FiloSottile.age_Microsoft.Winget.Source_8wekyb3d8bbwe\age;$env:PATH"
+cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+railway run --service panoptix-control --environment production --no-local -- python -m cctv_api.jobs.restore_drill_r2 --age-identity-file "C:\Users\Ivan\Documents\Panoptix-Backup-Keys\panoptix-prod-age-20260524-165042.txt" --target-database-url "<isolated-postgres-url>"
+```
+
+Expected:
+
+- `dry_run` is `false`.
+- `restore_format_ok` is `true`.
+- `restore_schema_ok` is `true`.
+- `backup_run_id` is returned for the restore-drill evidence row.
+- `GET /api/v1/admin/backups/status` becomes `ok` only after this restore evidence exists.
 
 ---
 

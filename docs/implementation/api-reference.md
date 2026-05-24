@@ -139,7 +139,7 @@ Backup status:
 
 `status` is `missing` when no backup rows exist, `ok` when the latest backup is uploaded/finished with restore-format success and a successful schema restore drill is recorded, and `degraded` otherwise. The endpoint does not call R2 or return object paths, credentials, database URLs, backup artifacts, or decryption material.
 
-Production evidence note, 2026-05-24: production R2 credentials are present and bucket listing succeeds, but the bucket currently reports no objects and `backup_runs` has `0` rows. The next backup milestone is the first real production backup run.
+Production evidence note, 2026-05-25: production R2 credentials are present, bucket listing succeeds, and the bucket contains one encrypted `.dump.age` backup artifact. Object keys are intentionally withheld from docs and API output. Production `backup_runs` has three rows: two diagnostic failures and one successful uploaded/finished backup, `78901812-df12-4a32-b91f-9975772fdca2`, with `restore_format_ok=true`. Dry-run restore validation decrypted the artifact locally and `pg_restore --list` succeeded. Status should be `degraded` until isolated restore-drill evidence records `restore_schema_ok=true`.
 
 ## Alert Routes
 

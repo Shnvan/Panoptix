@@ -38,7 +38,7 @@ Latest full-stack integration commits:
 
 ## Current Objective
 
-Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, first backup artifact/restore evidence, Alerts page backend API wiring, actor investigation UI, and admin visitor investigation UI.
+Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The first encrypted R2 backup artifact exists and dry-run decrypt/`pg_restore --list` validation passed; isolated restore-drill evidence is still pending. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, restore-drill evidence, Alerts page backend API wiring, actor investigation UI, and admin visitor investigation UI.
 
 The system is Panoptix, a secure live-view CCTV web monitoring system with three planes:
 
@@ -169,7 +169,7 @@ Latest full-stack integration commits:
 
 ## Current Objective
 
-Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, first backup artifact/restore evidence, Alerts page backend API wiring, actor investigation UI, and admin visitor investigation UI.
+Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The first encrypted R2 backup artifact exists and dry-run decrypt/`pg_restore --list` validation passed; isolated restore-drill evidence is still pending. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, restore-drill evidence, Alerts page backend API wiring, actor investigation UI, and admin visitor investigation UI.
 
 The system is Panoptix, a secure live-view CCTV web monitoring system with three planes:
 
@@ -388,13 +388,18 @@ Completed in this milestone:
 - Reads backup run history from database without exposing object paths or credentials.
 - Added unit tests in `tests/test_backup_status.py` verifying status transitions.
 
-Production evidence as of 2026-05-24:
+Production evidence as of 2026-05-25:
 
 - Production R2 env-var presence was confirmed without recording values.
 - Direct R2 bucket listing succeeded using production Railway credentials without exposing object keys.
-- The production R2 bucket currently reports no objects, and production `backup_runs` has `0` rows.
 - Operator-run backup job is implemented as `python -m cctv_api.jobs.backup_r2`; it creates a `pg_dump` custom archive, validates it with `pg_restore --list`, encrypts with `age`, uploads to R2, and records `backup_runs`.
-- Next system-owner backup task is deployment plus first real production backup run; restore-drill evidence can only follow once an artifact exists.
+- The production R2 bucket contains one encrypted `.dump.age` backup artifact; object keys are intentionally not recorded in docs or screenshots.
+- Production `backup_runs` contains three rows: two earlier diagnostic failures and one successful uploaded/finished row.
+- Latest successful `backup_run_id`: `78901812-df12-4a32-b91f-9975772fdca2`; `restore_format_ok=true`; `size_bytes=119112`; `sha256=98ad13944da3705b79b51ce35db30e5f7524daa8577a2387553bf2a760fd3336`.
+- Backup status should be `degraded`, not `missing`, until isolated restore-drill evidence is recorded.
+- Restore-drill tooling supports the real encrypted `.dump.age` format through `python -m cctv_api.jobs.restore_drill_r2` and `scripts/restore-drill.sh`: latest R2 object selection, local temp download, `age` decrypt, `pg_restore --list`, optional isolated target restore, and evidence-row recording.
+- Dry-run restore validation passed: the encrypted production artifact decrypted locally and `pg_restore --list` succeeded; no database restore or evidence row was written.
+- Next system-owner backup task is a restore drill into an isolated target database. Never restore into production Neon.
 
 ### Actor Investigation Profile and Activity API (2026-05-14)
 

@@ -11,20 +11,23 @@
 
 ## Current implementation status
 
-As of the 2026-05-24 production evidence pass:
+As of the 2026-05-25 production evidence pass:
 
 - The `backup_runs` table and `BackupRun` model exist for backup metadata.
 - Cloudflare R2 bucket `panoptix-backups` is provisioned.
 - Production Railway has the required R2 env vars present; values were not printed or recorded during verification.
 - Direct production R2 bucket listing succeeded without exposing object keys.
-- The production bucket currently reports no objects, and production `backup_runs` currently has `0` rows.
+- The production bucket contains one encrypted `.dump.age` database backup object. Object keys are intentionally not recorded in docs or screenshots.
+- Production `backup_runs` contains three rows: two earlier diagnostic failures and one successful uploaded/finished backup row.
+- Latest successful production backup: `78901812-df12-4a32-b91f-9975772fdca2`; `restore_format_ok=true`; `size_bytes=119112`; `sha256=98ad13944da3705b79b51ce35db30e5f7524daa8577a2387553bf2a760fd3336`.
+- Dry-run restore validation passed against the encrypted production artifact: local `age` decrypt plus `pg_restore --list` succeeded; no target database restore was performed and no restore evidence row was written.
 - `python -m cctv_api.jobs.backup_r2` exists for an operator-run encrypted R2 backup from the Railway backend runtime.
-- `scripts/restore-drill.sh` exists for an operator-run restore drill against R2 and a target database.
+- `python -m cctv_api.jobs.restore_drill_r2` and `scripts/restore-drill.sh` support the real encrypted `.dump.age` backup format.
 - `GET /api/v1/admin/backups/status` reports database-known backup readiness from `backup_runs`.
 - A real restore drill has not yet been recorded in repository evidence.
 
-Do not treat backups as production-operational until a backup artifact is produced and restore-drill evidence is recorded.
-The immediate next step is to deploy and run the first real production backup job, not a restore drill.
+Backup status should be `degraded`, not `missing`, until isolated restore-drill evidence is recorded. Do not treat backups as fully production-operational until the restore drill passes against a non-production target database.
+The immediate next step is an isolated restore drill.
 
 ## Backup status API
 
@@ -66,17 +69,32 @@ Required production variables:
 
 Do not store the `age` private identity on Railway production. Keep the private restore key offline or in a separate controlled restore environment.
 
-## Weekly restore drill
+## Restore drill
 
-1. Fetch latest encrypted backup.
-2. Decrypt in controlled test environment.
-3. Restore to ephemeral Postgres.
-4. Run integration query:
-   - audit chain verification,
-   - camera/gateway row counts,
-   - user/session sanity checks.
-5. Record `restore_schema_ok`.
-6. Alert on failure or stale drill.
+The restore drill job fetches the latest encrypted `.dump.age` object, downloads it to a temporary directory, decrypts it with a local `age` private identity, validates it with `pg_restore --list`, and optionally restores into an isolated target database.
+
+Dry-run format validation, without restoring or writing restore evidence:
+
+```powershell
+$env:PATH = "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\FiloSottile.age_Microsoft.Winget.Source_8wekyb3d8bbwe\age;$env:PATH"
+cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+railway run --service panoptix-control --environment production --no-local -- python -m cctv_api.jobs.restore_drill_r2 --age-identity-file "C:\Users\Ivan\Documents\Panoptix-Backup-Keys\panoptix-prod-age-20260524-165042.txt"
+```
+
+Isolated restore drill, after creating a non-production target database:
+
+```powershell
+$env:PATH = "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\FiloSottile.age_Microsoft.Winget.Source_8wekyb3d8bbwe\age;$env:PATH"
+cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+railway run --service panoptix-control --environment production --no-local -- python -m cctv_api.jobs.restore_drill_r2 --age-identity-file "C:\Users\Ivan\Documents\Panoptix-Backup-Keys\panoptix-prod-age-20260524-165042.txt" --target-database-url "<isolated-postgres-url>"
+```
+
+Rules:
+
+- Never use production `DATABASE_URL` as `--target-database-url`.
+- Never print, screenshot, commit, or upload the `AGE-SECRET-KEY-...` identity.
+- Do not record object keys, database URLs, R2 secrets, private keys, or decrypted backup contents in docs, logs, screenshots, or tickets.
+- `restore_schema_ok=true` should be recorded only after a successful isolated restore and smoke query.
 
 ## Emergency restore
 
@@ -114,8 +132,8 @@ The `scripts/restore-drill.sh` script (created in Round 3A) automates the quarte
 - Cloudflare R2 bucket `panoptix-backups` is provisioned and active.
 - Terraform Cloud workspace `panoptix-backup-r2` manages bucket state remotely.
 - R2 API tokens with Object Read & Write scope (bucket-only) are configured in Railway production.
-- Production R2 bucket access was verified on 2026-05-24; no backup objects existed at that time.
+- Production R2 bucket access was verified on 2026-05-25; one encrypted `.dump.age` backup artifact exists.
 - `python -m cctv_api.jobs.backup_r2` is available for operator-run encrypted backups.
-- `scripts/restore-drill.sh` is available for automated quarterly drills.
+- `python -m cctv_api.jobs.restore_drill_r2` and `scripts/restore-drill.sh` are available for encrypted artifact validation and isolated restore drills.
 
 Record completion dates and any anomalies found as a DPA/security artifact alongside the standard restore evidence.
