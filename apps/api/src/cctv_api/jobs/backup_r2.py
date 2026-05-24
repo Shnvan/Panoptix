@@ -53,6 +53,7 @@ class R2BackupUploader:
         client = boto3.client(
             "s3",
             endpoint_url=_r2_endpoint(self._settings.R2_ACCOUNT_ID),
+            region_name="auto",
             aws_access_key_id=self._settings.R2_ACCESS_KEY_ID,
             aws_secret_access_key=self._settings.R2_SECRET_ACCESS_KEY,
         )
