@@ -44,6 +44,7 @@ Minimum edge settings:
 ```env
 PANOPTIX_API_BASE_URL=https://<backend-host>
 PANOPTIX_GATEWAY_ID=<gateway-id>
+PANOPTIX_GATEWAY_SERVICE_TOKEN=<gateway-service-token>
 PANOPTIX_GATEWAY_COMMAND_SIGNING_KEY=<gateway-command-signing-key>
 PANOPTIX_GATEWAY_CONTROL_WS_PATH=/api/v1/gateway-control/ws
 PANOPTIX_GATEWAY_CONTROL_RECONNECT_ATTEMPTS=3
@@ -73,6 +74,7 @@ Secret handling rules:
 
 - Store service environment files outside the repository.
 - Use mode `0600` where supported.
+- Store the raw gateway service token only on the gateway host; never put it in frontend env, GitHub secrets, Railway frontend variables, docs, screenshots, or repository files.
 - Do not paste API keys, LiveKit secrets, RTSP passwords, generated JWTs, or raw gateway credentials into docs, chats, screenshots, or tickets.
 - Do not commit `.env`.
 - Rotate the gateway credential if it is exposed.
@@ -113,6 +115,13 @@ Forbidden behavior:
 Typical pilot command:
 
 ```powershell
+$env:PANOPTIX_API_BASE_URL = "https://panoptix.site"
+$env:PANOPTIX_GATEWAY_ID = "<gateway-id>"
+$env:PANOPTIX_GATEWAY_SERVICE_TOKEN = "<gateway-service-token>"
+$env:PANOPTIX_DISCOVERY_APPROVED_RANGES = "<camera-private-cidr>"
+$env:PANOPTIX_DISCOVERY_PORTS = "554,80,443,8000,8080,8899"
+$env:PANOPTIX_DISCOVERY_TIMEOUT_SECONDS = "1.0"
+$env:PANOPTIX_DISCOVERY_MAX_HOSTS = "256"
 python -m panoptix_edge_agent.cli --discover-once
 ```
 

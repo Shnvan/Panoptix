@@ -149,6 +149,13 @@ class GatewayApiClient:
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
         if self.config.dev_identity_enabled:
             headers["x-panoptix-dev-gateway-id"] = self.config.gateway_id
+            return headers
+
+        service_token = self.config.gateway_service_token.strip()
+        if not service_token:
+            raise AgentClientError("PANOPTIX_GATEWAY_SERVICE_TOKEN is required when dev gateway identity is disabled")
+        headers["x-panoptix-gateway-id"] = self.config.gateway_id
+        headers["Authorization"] = f"Bearer {service_token}"
         return headers
 
 

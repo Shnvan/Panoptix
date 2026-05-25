@@ -34,6 +34,16 @@ def _config() -> AgentConfig:
     )
 
 
+def _production_config() -> AgentConfig:
+    return AgentConfig(
+        api_base_url="http://api.example.test/",
+        gateway_id="gateway-1",
+        agent_version="0.1.0",
+        request_timeout_seconds=3.0,
+        gateway_service_token="test-gateway-service-token",
+    )
+
+
 def test_send_heartbeat_posts_expected_payload_and_headers() -> None:
     transport = RecordingTransport(HttpResponse(status_code=200, body='{"pending_commands": []}'))
     client = GatewayApiClient(_config(), transport=transport)
@@ -54,7 +64,40 @@ def test_send_heartbeat_posts_expected_payload_and_headers() -> None:
     assert headers["Content-Type"] == "application/json"
     assert headers["Accept"] == "application/json"
     assert headers["x-panoptix-dev-gateway-id"] == "gateway-1"
+    assert "x-panoptix-gateway-id" not in headers
+    assert "Authorization" not in headers
     assert timeout_seconds == 3.0
+
+
+def test_send_heartbeat_posts_production_gateway_auth_headers() -> None:
+    transport = RecordingTransport(HttpResponse(status_code=200, body='{"pending_commands": []}'))
+    client = GatewayApiClient(_production_config(), transport=transport)
+
+    client.send_heartbeat()
+
+    _url, _payload, headers, _timeout_seconds = transport.calls[0]
+    assert headers["Content-Type"] == "application/json"
+    assert headers["Accept"] == "application/json"
+    assert headers["x-panoptix-gateway-id"] == "gateway-1"
+    assert headers["Authorization"] == "Bearer test-gateway-service-token"
+    assert "x-panoptix-dev-gateway-id" not in headers
+
+
+def test_post_requires_gateway_service_token_outside_dev_mode() -> None:
+    transport = RecordingTransport(HttpResponse(status_code=200, body='{"pending_commands": []}'))
+    client = GatewayApiClient(
+        AgentConfig(
+            api_base_url="http://api.example.test/",
+            gateway_id="gateway-1",
+            dev_identity_enabled=False,
+        ),
+        transport=transport,
+    )
+
+    with pytest.raises(AgentClientError, match="PANOPTIX_GATEWAY_SERVICE_TOKEN"):
+        client.send_heartbeat()
+
+    assert transport.calls == []
 
 
 def test_send_camera_status_posts_expected_payload() -> None:

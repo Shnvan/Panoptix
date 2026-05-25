@@ -820,6 +820,19 @@ $env:PANOPTIX_DISCOVERY_MAX_HOSTS = "256"
 python -m panoptix_edge_agent.cli --discover-once
 ```
 
+Production gateway discovery uses the real gateway service-token auth headers instead of dev identity. Configure these only on the actual gateway host and never store or paste the raw token in frontend env, GitHub secrets, Railway frontend variables, repository files, docs, screenshots, or tickets:
+
+```powershell
+$env:PANOPTIX_API_BASE_URL = "https://panoptix.site"
+$env:PANOPTIX_GATEWAY_ID = "<gateway-uuid>"
+$env:PANOPTIX_GATEWAY_SERVICE_TOKEN = "<one-time gateway service token from create/rotate>"
+$env:PANOPTIX_DISCOVERY_APPROVED_RANGES = "<camera-private-cidr>"
+$env:PANOPTIX_DISCOVERY_PORTS = "554,80,443,8000,8080,8899"
+$env:PANOPTIX_DISCOVERY_TIMEOUT_SECONDS = "1.0"
+$env:PANOPTIX_DISCOVERY_MAX_HOSTS = "256"
+python -m panoptix_edge_agent.cli --discover-once
+```
+
 Expected output:
 
 ```text
