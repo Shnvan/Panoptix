@@ -110,6 +110,7 @@ These features are available to Admins.
 - **Assign cameras to gateways**: each gateway only publishes video for its assigned cameras.
 - **Disable or retire gateways**: disabling a gateway immediately stops all its active publish sessions (within 10 seconds).
 - **Gateway health dashboard**: view heartbeat status, last-seen time, and certificate expiry (when mTLS is enabled).
+- **Gateway local network discovery** (pilot planned): the on-site gateway will discover approved camera VLAN/local subnet devices and possible CCTV camera candidates. This is not implemented in the MVP scanner/API/UI yet.
 
 ### Camera and gateway health
 
@@ -237,10 +238,13 @@ The system is designed to comply with Philippine data privacy law (RA 10173 / NP
 | NVR integration (nvr_rtsp source type) | Planned |
 | Suspicious login detection | Planned |
 | Device posture enforcement for admins (WARP) | Included from MVP |
+| Gateway local network discovery | Planned |
 | Actor profile enrichment | Planned |
 | Detection and incident workflow | Planned |
 | Analyst notes and investigation timeline | Planned |
 | Behavior baseline and actor risk scoring | Planned |
+
+Gateway local network discovery is planned as a gateway-only pilot capability. It should let admins review devices visible from the on-site gateway on approved camera VLAN/subnet ranges, including IP address, MAC address when available, hostname, vendor/OUI, detected protocol hints such as RTSP/554, HTTP/80, HTTPS/443, ONVIF, known-vs-unknown status, and possible camera candidate status. It must not run from the browser or Railway, must not scan the public internet or operator LAN unless an approved ADR/site plan allows it, and must not collect camera credentials.
 
 ### Future (later phases)
 

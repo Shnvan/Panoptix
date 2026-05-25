@@ -142,12 +142,15 @@ Ideas for improving gateway operations and camera management.
 | Gateway resource monitoring | Medium | Backend + Gateway | Report CPU, RAM, disk, and network usage from gateway to control plane. |
 | Camera health scoring | Medium | Backend + Database | Composite score based on uptime, stream stability, and reconnect frequency. |
 | ONVIF device discovery | Medium | Gateway | Automatically discover cameras on the camera VLAN using ONVIF. Requires hardware spike. |
+| Gateway local network discovery | Medium/High | Gateway + Backend | Moved to the core functionality document as planned pilot scope. This broader device inventory is separate from ONVIF-only camera discovery and is not implemented yet. |
 | Camera PTZ control | High | Frontend + Backend + Gateway | Pan/tilt/zoom control for supported cameras. Requires camera hardware support and new API endpoints. |
 | Multi-stream quality profiles | Medium | Backend + Gateway | Gateway publishes main and sub-stream; viewer or backend selects quality. |
 | Gateway-to-gateway failover | High | Backend + Database | Backup gateway takes over cameras if primary gateway goes offline. |
 | Bandwidth usage tracking | Medium | Backend + Gateway + Database | Track and display bandwidth consumption per camera and per gateway. |
 | Camera screenshot on demand | Medium, ADR-gated | All | Single frame capture from live stream. Same approval gate as snapshots. |
 | Gateway diagnostic mode | Medium | Backend + Gateway | On-demand diagnostic report from gateway (connectivity, RTSP pull status, resource usage). |
+
+Gateway local network discovery is tracked in the core functionality document as a planned gateway-only pilot. ONVIF device discovery remains the narrower camera-specific discovery item in this future catalog.
 
 ---
 

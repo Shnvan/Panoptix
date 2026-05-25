@@ -1,6 +1,6 @@
 # Frontend Coworker Handoff
 
-Last updated: 2026-05-24 (expanded visitor collector and disabled-user backend behavior verified)
+Last updated: 2026-05-25 (backup status `ok`, isolated restore drill complete, frontend gaps unchanged)
 
 This is the first document the frontend coworker should read before changing the React app on `fullstack-integration`. It summarizes what the system owner has verified, what backend APIs are ready, and what frontend work should happen next.
 
@@ -26,6 +26,7 @@ This is the first document the frontend coworker should read before changing the
 - `SUSPICIOUS_LOGIN_DETECTION_ENABLED=true` in production (login baselines track normal device/IP patterns).
 - The same-domain public visitor entry flow is operational at `https://panoptix.site/entry`. First-time root visits redirect to `/entry` only when `panoptix_visitor` is absent. Only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect` bypass Cloudflare Access. Production admin API smoke confirms visitor detail responses expose `ip_details`, `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, and `risk_context`.
 - Disabled local users are blocked by the backend with `403 user-disabled`, and invites for existing disabled users return `409 user-disabled`. A GitHub or Cloudflare Access session does not re-enable a disabled Panoptix account.
+- Production backup status is now `ok`: the first encrypted R2 backup artifact exists, isolated restore-drill evidence was recorded against a temporary Neon branch, and that temporary branch was deleted. Backup automation and retention are system-owner work, not frontend work.
 - Real LiveKit browser subscriber playback is still not production-complete.
 - Real CCTV hardware validation is still pending.
 

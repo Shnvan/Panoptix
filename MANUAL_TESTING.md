@@ -3952,12 +3952,15 @@ Production evidence recorded 2026-05-25:
 - Railway production backend has all four R2 variables present; values were not printed or recorded.
 - Direct R2 bucket list succeeded using production credentials without exposing object keys.
 - R2 contains one encrypted `.dump.age` production backup artifact. Object keys are intentionally not recorded in docs or screenshots.
-- Production `backup_runs` contains three rows: two earlier diagnostic failures and one successful uploaded/finished backup row.
+- Production `backup_runs` contains four evidence rows: two earlier diagnostic failures, one successful uploaded/finished backup row, and one isolated restore-drill row.
 - Latest successful `backup_run_id`: `78901812-df12-4a32-b91f-9975772fdca2`; `restore_format_ok=true`; `size_bytes=119112`; `sha256=98ad13944da3705b79b51ce35db30e5f7524daa8577a2387553bf2a760fd3336`.
-- Dry-run restore validation passed: the encrypted production artifact decrypted locally and `pg_restore --list` succeeded; no database restore or evidence row was written.
+- Dry-run restore validation passed: the encrypted production artifact decrypted locally and `pg_restore --list` succeeded.
+- Isolated restore drill completed against a temporary Neon branch on 2026-05-25; restore evidence row `564e2bfd-b449-4c9f-b46d-a0366856a7e0` has `restore_schema_ok=true`.
+- The temporary Neon restore branch was deleted after validation.
+- `GET /api/v1/admin/backups/status` returned `ok` after restore-drill evidence was recorded.
 - Expanded visitor collector DB smoke found existing visitor visit rows with the expanded context columns populated.
 
-The next production backup step is restore-drill validation. `GET /api/v1/admin/backups/status` should be `degraded`, not `missing`, until isolated restore-drill evidence is recorded.
+The next production backup step is recurring backup automation and retention policy. Do not store the private `age` identity in Railway production.
 
 ### Run first operator backup
 
@@ -3972,7 +3975,7 @@ Expected:
 
 - Command prints sanitized JSON with `upload_status` set to `uploaded`.
 - No database URL, R2 key, object key, or decrypted backup content is printed.
-- `GET /api/v1/admin/backups/status` changes from `missing` to `degraded` until restore-drill evidence is recorded.
+- `GET /api/v1/admin/backups/status` changes from `missing` to `degraded` until restore-drill evidence is recorded; after the 2026-05-25 isolated restore drill it returned `ok`.
 
 ### Validate encrypted backup without restoring
 

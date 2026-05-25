@@ -139,7 +139,7 @@ Backup status:
 
 `status` is `missing` when no backup rows exist, `ok` when the latest backup is uploaded/finished with restore-format success and a successful schema restore drill is recorded, and `degraded` otherwise. The endpoint does not call R2 or return object paths, credentials, database URLs, backup artifacts, or decryption material.
 
-Production evidence note, 2026-05-25: production R2 credentials are present, bucket listing succeeds, and the bucket contains one encrypted `.dump.age` backup artifact. Object keys are intentionally withheld from docs and API output. Production `backup_runs` has three rows: two diagnostic failures and one successful uploaded/finished backup, `78901812-df12-4a32-b91f-9975772fdca2`, with `restore_format_ok=true`. Dry-run restore validation decrypted the artifact locally and `pg_restore --list` succeeded. Status should be `degraded` until isolated restore-drill evidence records `restore_schema_ok=true`.
+Production evidence note, 2026-05-25: production R2 credentials are present, bucket listing succeeds, and the bucket contains one encrypted `.dump.age` backup artifact. Object keys are intentionally withheld from docs and API output. Production `backup_runs` has two diagnostic failures, one successful uploaded/finished backup row `78901812-df12-4a32-b91f-9975772fdca2` with `restore_format_ok=true`, and one isolated restore-drill evidence row `564e2bfd-b449-4c9f-b46d-a0366856a7e0` with `restore_schema_ok=true`. Dry-run restore validation decrypted the artifact locally and `pg_restore --list` succeeded; the isolated restore drill used a temporary Neon branch, which was deleted after validation. Backup status returned `ok` after restore-drill evidence was recorded.
 
 ## Alert Routes
 
@@ -436,5 +436,5 @@ Gateway ACK:
 
 - Frontend-generated OpenAPI/TypeScript client.
 - Dynamic CSP middleware driven by `media_plane_mode`.
-- Backup worker R2 object verification and restore-drill automation.
+- Recurring backup scheduling and retention automation.
 - Browser bundle scan and frontend API type generation.

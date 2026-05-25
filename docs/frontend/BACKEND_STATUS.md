@@ -2,7 +2,7 @@
 
 This document lists every implemented backend API endpoint, what the frontend can build against today, what is not ready yet, and local dev setup instructions.
 
-Last updated: 2026-05-24 (production expanded `/entry` visitor signal smoke verified)
+Last updated: 2026-05-25 (production expanded `/entry` visitor smoke verified; backup status `ok`)
 
 Read first: [Frontend Coworker Handoff](FRONTEND_HANDOFF.md).
 
@@ -17,6 +17,7 @@ Read first: [Frontend Coworker Handoff](FRONTEND_HANDOFF.md).
 - Real CCTV hardware validation is still pending. Staging browser smoke passed 2026-05-21. Production deployed at `panoptix.site` 2026-05-22.
 - The public visitor collector pilot is operational on same-domain `/entry`. First-time root visits redirect to `/entry` only when `panoptix_visitor` is absent; production admin API smoke confirmed expanded visitor detail sections are present. The future admin visitor dashboard remains frontend handoff work.
 - Disabled users are enforced by the backend even if Cloudflare Access still authenticates the identity: protected API calls return `403 user-disabled`, app session cookies are cleared, and active Panoptix sessions for that disabled user are revoked when seen.
+- Backup status is backend evidence only, not direct browser/R2 object inspection. Production currently reports `ok` because an encrypted R2 backup exists and isolated restore-drill evidence has been recorded.
 
 ---
 
@@ -440,7 +441,7 @@ These features are either incomplete in the frontend, need staged/production smo
 | LiveKit fallback mode | `POST /api/v1/admin/livekit/fallback` is **implemented** (DB flag flip between `cloud`/`fallback`, audit-logged) |
 | Production Cloudflare Access | Production live at `panoptix.site` (2026-05-22). Staging smoke passed 2026-05-21. Production browser smoke needed. |
 | Production scheduler | Maintenance scheduler is implemented (`ENABLE_MAINTENANCE_SCHEDULER`) but disabled by default. Manual admin endpoint `POST /api/v1/admin/jobs/run-maintenance` is available |
-| Backup status | `/api/v1/admin/backups/status` reads database evidence from `backup_runs` only. It does not directly list R2 objects or expose object keys. Production R2 access was checked separately on 2026-05-25; one encrypted backup artifact exists, the latest successful backup row is recorded, and dry-run decrypt/`pg_restore --list` validation passed. Status should be `degraded` until isolated restore-drill evidence exists. |
+| Backup status | `/api/v1/admin/backups/status` reads database evidence from `backup_runs` only. It does not directly list R2 objects or expose object keys. Production R2 access was checked separately on 2026-05-25; one encrypted backup artifact exists, latest successful backup row `78901812-df12-4a32-b91f-9975772fdca2` is recorded, dry-run decrypt/`pg_restore --list` validation passed, and isolated restore-drill evidence row `564e2bfd-b449-4c9f-b46d-a0366856a7e0` has `restore_schema_ok=true`. Status returned `ok`; the temporary Neon restore branch was deleted after validation. |
 
 ## Backend-Ready / Frontend-Needed Gap Matrix
 

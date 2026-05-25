@@ -1,8 +1,8 @@
 | Area | Progress | Status | Notes |
 |---|---:|---|---|
 | **Frontend** | 80% | Yellow - Integrated, staging smoke passed | `integratedCompleteFrontend` is merged into `fullstack-integration`. The React/Vite app now has the login shell, viewer dashboard, camera detail modal, admin dashboard, users, cameras, gateways, audit/compliance, DSR, break-glass, health, settings, dev-auth headers, same-origin API client, and same-domain public `/entry` visitor notice flow. Local same-origin smoke through the Vite proxy passes. Staging deployed browser smoke passed 2026-05-21: all 10 sidebar pages loaded through Cloudflare Access at `staging.panoptix.site` with no 500/502 errors. Production expanded visitor collector API smoke passed 2026-05-24. Frontend production proxy server (`server.mjs`) serves Vite dist and proxies API calls. Missing: real LiveKit subscriber playback, Alerts page wiring to real backend APIs, admin visitor investigation UI, actor investigation UI, Playwright coverage, and production polish. |
-| **Database** | 100% | Green - Strong | Core schema plus `0007_gateway_command_tables`, `0008_alerts_email`, `0009_login_baselines`, `0010_visitor_visits`, and expanded visitor signal migration `0011_visitor_expanded_signals` are part of the production migration path. `alerts`, `alert_notifications`, `gateway_command_queue`, `camera_publish_states`, `backup_runs`, `login_baselines`, and `visitor_visits` model/schema verified. Operator-run R2 backup job has produced the first encrypted production artifact, and dry-run decrypt/`pg_restore --list` validation passed. Missing: recorded isolated restore drill evidence, scheduled backup automation, retention policy tables (pilot+). |
-| **Infrastructure** | 100% | Green - Strong | **Production live at `panoptix.site` (2026-05-22).** Cloudflare Access "Panoptix Production" app protects the app root and protected API paths with GitHub org policy. First-time root visits without `panoptix_visitor` redirect to the public `/entry` notice flow; only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect` are bypassed for the visitor pilot. Railway production backend + frontend deployed with new cryptographic keys. Neon production branch fully migrated. DNS promoted from `staging.panoptix.site` to `panoptix.site`. `SUSPICIOUS_LOGIN_DETECTION_ENABLED=true` in production. Staging health check cron running. R2 backup bucket has one encrypted production backup artifact. LiveKit Cloud (APAC) live. Missing: break-glass YubiKey hardware, physical gateways, isolated restore drill evidence. |
+| **Database** | 100% | Green - Strong | Core schema plus `0007_gateway_command_tables`, `0008_alerts_email`, `0009_login_baselines`, `0010_visitor_visits`, and expanded visitor signal migration `0011_visitor_expanded_signals` are part of the production migration path. `alerts`, `alert_notifications`, `gateway_command_queue`, `camera_publish_states`, `backup_runs`, `login_baselines`, and `visitor_visits` model/schema verified. Operator-run R2 backup job has produced the first encrypted production artifact, dry-run decrypt/`pg_restore --list` validation passed, and isolated restore drill evidence is recorded. Missing: scheduled backup automation, retention policy tables (pilot+). |
+| **Infrastructure** | 100% | Green - Strong | **Production live at `panoptix.site` (2026-05-22).** Cloudflare Access "Panoptix Production" app protects the app root and protected API paths with GitHub org policy. First-time root visits without `panoptix_visitor` redirect to the public `/entry` notice flow; only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect` are bypassed for the visitor pilot. Railway production backend + frontend deployed with new cryptographic keys. Neon production branch fully migrated. DNS promoted from `staging.panoptix.site` to `panoptix.site`. `SUSPICIOUS_LOGIN_DETECTION_ENABLED=true` in production. Staging health check cron running. R2 backup bucket has one encrypted production backup artifact and a successful isolated restore drill. LiveKit Cloud (APAC) live. Missing: break-glass YubiKey hardware, physical gateways. |
 | **Security** | 90% | Green - Strong | CF Access JWT, CSRF, HMAC audit chain, classified audit events with session/IP/UA metadata, audit-of-audit for profile/activity views, rate limiting (including admin mutations), security headers, service tokens, RBAC, break-glass, SCA/SAST CI, mediamtx threat model, mTLS cert bootstrap scaffold, CT-log monitoring all done. Missing: device posture enforcement production activation and browser security smoke evidence. |
 | **Documentation** | 96% | Green - Strong | Full system plan, API reference, 51+ docs, all runbooks done (incl. break-glass, lost-MFA, IdP-outage, bus-factor, uptime monitoring, backup-restore DR schedule, Cloudflare WARP posture), mediamtx threat model, Terraform state security doc, frontend design guidance, and current full-stack status docs. |
 | **DevOps/CI** | 98% | Green - Strong | GitHub Actions CI covers both `main` and `backend` branches. Edge agent CI added (ruff, mypy, pytest, compileall, osv-scanner). Staging health check cron active. Production deploy workflow (manual) ready. Staging auto-deploy workflow added. Dependabot auto-merge workflow added (minor/patch auto, major manual). |
@@ -22,7 +22,7 @@
 ### What We Control vs What's Blocked
 
 **Can do now (no external dependencies):**
-- Keep static checks green, document operational changes, and run an isolated restore drill against the first encrypted R2 backup artifact. Production is live; the main product-path blockers are real LiveKit browser playback, real camera hardware validation, restore-drill evidence, Alerts page API wiring, actor investigation UI, and admin visitor investigation UI.
+- Keep static checks green, document operational changes, and move backup work from manual evidence to recurring automation. Production is live; the main product-path blockers are real LiveKit browser playback, real camera hardware validation, Alerts page API wiring, actor investigation UI, and admin visitor investigation UI.
 - GitHub organization invites are now live on staging (`panoptix-site` org). `GITHUB_INVITES_ENABLED=true`, `GITHUB_ORG=panoptix-site`, and `GITHUB_INVITE_TOKEN` are set in Railway. Staging smoke confirmed invite endpoint works — invited users appear in Users & Access with assigned roles (2026-05-21).
 - Pilot alert records now exist for high-value backend events, and SMTP email notification support is available but disabled by default. Real email delivery should only be tested after placeholder SMTP settings are replaced with approved provider credentials in local/staging secrets.
 - Any one-time gateway service token displayed by the frontend must be treated as sensitive. Do not screenshot it; rotate exposed test credentials or disable the test gateway. The exposed local test gateway named `what` was disabled during local smoke cleanup.
@@ -733,11 +733,20 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 
 ## Next Steps (In Order)
 
-### 1. Real camera onboarding
-Connect a real CCTV camera to the gateway using the per-camera credential file and test live FFmpeg-to-LiveKit publishing end-to-end.
+### 1. Commit current documentation/evidence refresh
+Commit the current documentation-only context refresh after confirming `apps/web/index.html` remains unstaged. This gives the next session a clean handoff with production `/entry`, expanded visitor context, backup evidence, restore-drill evidence, and Gateway local network discovery planning recorded.
 
-### 2. Admin dashboard frontend
-Work with the frontend coworker to build the admin camera management and user management UI.
+### 2. Recurring backup automation and retention
+Build the next system-owner backup milestone: scheduled encrypted R2 backups, failure alerting, retention policy, and recurring restore-drill cadence. The manual first backup and isolated restore drill already passed; the next work is automation and operational policy.
+
+### 3. Production security evidence
+Continue production evidence work for WARP/device posture activation and browser security smoke. Keep Cloudflare Access, `/entry`, protected APIs, disabled-user enforcement, and visitor collector boundaries unchanged unless a specific security task requires a documented change.
+
+### 4. External blockers
+Track real CCTV hardware, physical gateway deployment, and break-glass YubiKey hardware as external blockers. Real camera onboarding can begin once hardware is available.
+
+### 5. Frontend coworker handoff
+Keep Alerts real API UI, admin visitor investigation UI, actor investigation UI, real LiveKit subscriber playback, and full audit filters assigned to the frontend coworker unless Ivan explicitly reassigns frontend work.
 
 ---
 
@@ -972,13 +981,15 @@ Work with the frontend coworker to build the admin camera management and user ma
 - Direct R2 bucket list check succeeded using production Railway credentials without exposing object keys.
 - Operator-run backup job is implemented as `python -m cctv_api.jobs.backup_r2`; it uses `pg_dump`, validates with `pg_restore --list`, encrypts with `age`, uploads to R2, and records `backup_runs`.
 - R2 contains one encrypted `.dump.age` production backup artifact; object keys are intentionally not recorded in docs or screenshots.
-- Production `backup_runs` contains three rows: two earlier diagnostic failures and one successful uploaded/finished backup row.
+- Production `backup_runs` contains four evidence rows: two earlier diagnostic failures, one successful uploaded/finished backup row, and one isolated restore-drill row.
 - Latest successful `backup_run_id`: `78901812-df12-4a32-b91f-9975772fdca2`; `restore_format_ok=true`; `size_bytes=119112`; `sha256=98ad13944da3705b79b51ce35db30e5f7524daa8577a2387553bf2a760fd3336`.
-- `GET /api/v1/admin/backups/status` should report `degraded`, not `missing`, until isolated restore-drill evidence is recorded.
+- Isolated restore drill completed against a temporary Neon branch on 2026-05-25; restore evidence row `564e2bfd-b449-4c9f-b46d-a0366856a7e0` has `restore_schema_ok=true`.
+- The temporary Neon restore branch was deleted after validation.
+- `GET /api/v1/admin/backups/status` returned `ok` after restore-drill evidence was recorded.
 - Expanded visitor collector DB smoke found `19` visitor visits, `8` linked visits, and the latest visit has `browser_context`, `network_context`, `webrtc_context`, `timing_context`, and `server_context` populated.
 - Restore drill tooling now supports the encrypted `.dump.age` artifact path: latest R2 object selection, local temp download, `age` decrypt, `pg_restore --list`, optional isolated target restore, and restore evidence recording without printing object keys, DB URLs, R2 secrets, private keys, or decrypted contents.
-- Dry-run restore validation passed: the encrypted production artifact decrypted locally and `pg_restore --list` succeeded; no database restore or evidence row was written.
-- Next backup action: create an isolated restore target, then run the restore drill and record `restore_schema_ok=true`.
+- Dry-run restore validation passed: the encrypted production artifact decrypted locally and `pg_restore --list` succeeded.
+- Next backup action: add recurring backup automation and retention rules; do not store private `age` identities in Railway.
 
 ---
 

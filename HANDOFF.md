@@ -30,15 +30,15 @@ After that, inspect the source files related to the active task. Do not assume t
 
 Latest full-stack integration commits:
 
-- `c743ade feat: expand visitor entry collection signals`
-- `36be5b6 fix: reject invites for disabled users`
-- `77cadb8 fix: block disabled users during authentication`
-- `cd6eceb docs: record production visitor entry flow`
-- `fb44113 docs: switch visitor entry rollout to same-domain path`
+- `f2bda6a fix: harden restore drill smoke check`
+- `545a9d4 feat: add encrypted R2 restore drill`
+- `bbbde73 fix: configure R2 backup region`
+- `cf516e1 feat: add operator R2 backup runner`
+- `f5023e4 docs: fix progress summary table`
 
 ## Current Objective
 
-Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The first encrypted R2 backup artifact exists and dry-run decrypt/`pg_restore --list` validation passed; isolated restore-drill evidence is still pending. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, restore-drill evidence, Alerts page backend API wiring, actor investigation UI, and admin visitor investigation UI.
+Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The first encrypted R2 backup artifact exists, dry-run decrypt/`pg_restore --list` validation passed, the first isolated restore drill completed successfully against a temporary Neon branch, the temporary branch was deleted, and backup status now reports `ok`. The next system-owner implementation milestone is recurring backup automation and retention rules. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, Alerts page backend API wiring, actor investigation UI, and admin visitor investigation UI.
 
 The system is Panoptix, a secure live-view CCTV web monitoring system with three planes:
 
@@ -161,15 +161,15 @@ Current state:
 
 Latest full-stack integration commits:
 
-- `c743ade feat: expand visitor entry collection signals`
-- `36be5b6 fix: reject invites for disabled users`
-- `77cadb8 fix: block disabled users during authentication`
-- `cd6eceb docs: record production visitor entry flow`
-- `fb44113 docs: switch visitor entry rollout to same-domain path`
+- `f2bda6a fix: harden restore drill smoke check`
+- `545a9d4 feat: add encrypted R2 restore drill`
+- `bbbde73 fix: configure R2 backup region`
+- `cf516e1 feat: add operator R2 backup runner`
+- `f5023e4 docs: fix progress summary table`
 
 ## Current Objective
 
-Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The first encrypted R2 backup artifact exists and dry-run decrypt/`pg_restore --list` validation passed; isolated restore-drill evidence is still pending. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, restore-drill evidence, Alerts page backend API wiring, actor investigation UI, and admin visitor investigation UI.
+Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The first encrypted R2 backup artifact exists, dry-run decrypt/`pg_restore --list` validation passed, the first isolated restore drill completed successfully against a temporary Neon branch, the temporary branch was deleted, and backup status now reports `ok`. The next system-owner implementation milestone is recurring backup automation and retention rules. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, Alerts page backend API wiring, actor investigation UI, and admin visitor investigation UI.
 
 The system is Panoptix, a secure live-view CCTV web monitoring system with three planes:
 
@@ -255,6 +255,7 @@ Remaining edge/camera gaps:
 - real CCTV hardware validation is still pending
 - production service deployment is still pending
 - mediamtx runtime generation remains future hardening
+- gateway local network discovery is planned core pilot scope only; no scanner/API/UI exists yet, and any future implementation must run only on the on-site gateway against approved camera VLAN/subnet ranges
 
 ### Media Plane
 
@@ -394,12 +395,14 @@ Production evidence as of 2026-05-25:
 - Direct R2 bucket listing succeeded using production Railway credentials without exposing object keys.
 - Operator-run backup job is implemented as `python -m cctv_api.jobs.backup_r2`; it creates a `pg_dump` custom archive, validates it with `pg_restore --list`, encrypts with `age`, uploads to R2, and records `backup_runs`.
 - The production R2 bucket contains one encrypted `.dump.age` backup artifact; object keys are intentionally not recorded in docs or screenshots.
-- Production `backup_runs` contains three rows: two earlier diagnostic failures and one successful uploaded/finished row.
+- Production `backup_runs` contains four evidence rows: two earlier diagnostic failures, one successful uploaded/finished backup row, and one isolated restore-drill row.
 - Latest successful `backup_run_id`: `78901812-df12-4a32-b91f-9975772fdca2`; `restore_format_ok=true`; `size_bytes=119112`; `sha256=98ad13944da3705b79b51ce35db30e5f7524daa8577a2387553bf2a760fd3336`.
-- Backup status should be `degraded`, not `missing`, until isolated restore-drill evidence is recorded.
+- Isolated restore drill completed against a temporary Neon branch on 2026-05-25; restore evidence row `564e2bfd-b449-4c9f-b46d-a0366856a7e0` has `restore_schema_ok=true`.
+- The temporary Neon restore branch was deleted after validation.
+- Backup status returned `ok` after restore-drill evidence was recorded.
 - Restore-drill tooling supports the real encrypted `.dump.age` format through `python -m cctv_api.jobs.restore_drill_r2` and `scripts/restore-drill.sh`: latest R2 object selection, local temp download, `age` decrypt, `pg_restore --list`, optional isolated target restore, and evidence-row recording.
-- Dry-run restore validation passed: the encrypted production artifact decrypted locally and `pg_restore --list` succeeded; no database restore or evidence row was written.
-- Next system-owner backup task is a restore drill into an isolated target database. Never restore into production Neon.
+- Dry-run restore validation passed: the encrypted production artifact decrypted locally and `pg_restore --list` succeeded.
+- Next system-owner backup task is recurring backup automation and retention rules. Never restore into production Neon.
 
 ### Actor Investigation Profile and Activity API (2026-05-14)
 
@@ -1959,23 +1962,28 @@ compileall: passed
 Recommended next task:
 
 ```text
-Real Camera Onboarding
+Recurring Backup Automation And Retention Rules
 ```
 
-Connect a real CCTV camera to the gateway using the per-camera credential file and test live FFmpeg-to-LiveKit publishing end-to-end. Requires real camera hardware and a LiveKit Cloud account.
+Turn the proven operator-run R2 backup and isolated restore-drill path into a scheduled, monitored production backup workflow. The first encrypted backup artifact and restore-drill evidence already exist, so the next system-owner task is automation: cadence, failure alerting, retention policy, and runbook evidence.
 
-**Note**: The 7-day staging uptime clock started 2026-05-13; expected clear 2026-05-20. The staging health check cron runs every 15 minutes at `.github/workflows/staging-healthcheck.yml`. Production deployment is gated on 7-day uptime >= 99% (v4 plan T-20). The production deploy workflow is ready at `.github/workflows/deploy-production.yml`. Staging auto-deploy workflow added at `.github/workflows/deploy-staging.yml`.
+**Note**: Production is already live at `panoptix.site`; the old staging-gate/procurement wording below is historical context only. Do not restore into production Neon. Keep private `age` identities outside Railway and outside the repo.
 
 ## Not Implemented Yet
 
 - real camera onboarding (credential file exists, needs real hardware + LiveKit Cloud)
-- frontend UI (owned by frontend coworker)
+- real LiveKit browser subscriber playback (frontend/system-owner integration path; browser must subscribe only)
+- Alerts page wiring to real backend alert APIs (frontend coworker)
+- actor investigation UI (frontend coworker)
+- admin visitor investigation UI (frontend coworker)
+- full audit filter UI (frontend coworker)
+- recurring backup automation and retention policy (system owner)
+- gateway local network discovery scanner/API/UI (planned core pilot; gateway/backend first, frontend later)
 - production Docker/systemd gateway supervision (runbook templates exist)
-- Google Workspace IdP setup (GitHub OAuth currently deployed on staging)
-- Neon production database setup (staging Neon active; production tier requires procurement)
+- Google Workspace IdP setup (GitHub OAuth currently deployed)
 - WARP device posture production activation (checklist done in `cloudflare-production-setup.md`)
 
-All non-hardware, non-frontend, non-procurement work is now complete.
+The proven manual backup/restore path is complete; automation, retention, hardware validation, and coworker-owned UI gaps remain.
 
 ## 7-Day Staging Gate
 
@@ -2362,7 +2370,7 @@ Important local checks currently include:
 ## Suggested Prompt For The New IDE/LLM
 
 ```text
-Read HANDOFF.md and follow its instructions. Then read PROGRESS.md, IMPLEMENTATION_GUIDE.md, MANUAL_TESTING.md, README.md, CLAUDE.md, and the source files related to the next milestone. Confirm the current state and development rules before making changes. The next recommended milestone is TBD; review docs/planning/secure-cctv-monitoring-system-v4.md and docs/implementation/api-reference.md before choosing it.
+Read HANDOFF.md and follow its instructions. Then read PROGRESS.md, IMPLEMENTATION_GUIDE.md, MANUAL_TESTING.md, README.md, CLAUDE.md, docs/runbooks/backup-restore.md, and the source files related to the next milestone. Confirm the current state and development rules before making changes. Current production facts: panoptix.site is live, /entry works, expanded visitor detail APIs work, the first encrypted R2 backup exists, isolated restore-drill evidence row 564e2bfd-b449-4c9f-b46d-a0366856a7e0 passed, backup status is ok, and the temporary Neon restore branch was deleted. The next recommended system-owner milestone is recurring backup automation and retention rules. Do not take coworker-owned frontend tasks unless explicitly reassigned.
 ```
 
 ## Final Notes

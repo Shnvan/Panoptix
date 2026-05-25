@@ -18,16 +18,16 @@ As of the 2026-05-25 production evidence pass:
 - Production Railway has the required R2 env vars present; values were not printed or recorded during verification.
 - Direct production R2 bucket listing succeeded without exposing object keys.
 - The production bucket contains one encrypted `.dump.age` database backup object. Object keys are intentionally not recorded in docs or screenshots.
-- Production `backup_runs` contains three rows: two earlier diagnostic failures and one successful uploaded/finished backup row.
+- Production `backup_runs` contains four evidence rows: two earlier diagnostic failures, one successful uploaded/finished backup row, and one isolated restore-drill row.
 - Latest successful production backup: `78901812-df12-4a32-b91f-9975772fdca2`; `restore_format_ok=true`; `size_bytes=119112`; `sha256=98ad13944da3705b79b51ce35db30e5f7524daa8577a2387553bf2a760fd3336`.
-- Dry-run restore validation passed against the encrypted production artifact: local `age` decrypt plus `pg_restore --list` succeeded; no target database restore was performed and no restore evidence row was written.
+- Dry-run restore validation passed against the encrypted production artifact: local `age` decrypt plus `pg_restore --list` succeeded.
+- Isolated restore drill completed against a temporary Neon branch on 2026-05-25; restore evidence row `564e2bfd-b449-4c9f-b46d-a0366856a7e0` has `restore_schema_ok=true`.
+- The temporary Neon restore branch was deleted after validation.
 - `python -m cctv_api.jobs.backup_r2` exists for an operator-run encrypted R2 backup from the Railway backend runtime.
 - `python -m cctv_api.jobs.restore_drill_r2` and `scripts/restore-drill.sh` support the real encrypted `.dump.age` backup format.
 - `GET /api/v1/admin/backups/status` reports database-known backup readiness from `backup_runs`.
-- A real restore drill has not yet been recorded in repository evidence.
 
-Backup status should be `degraded`, not `missing`, until isolated restore-drill evidence is recorded. Do not treat backups as fully production-operational until the restore drill passes against a non-production target database.
-The immediate next step is an isolated restore drill.
+Backup status returned `ok` after the isolated restore-drill evidence was recorded. The next backup milestone is recurring backup automation and retention policy.
 
 ## Backup status API
 
@@ -124,7 +124,7 @@ The `scripts/restore-drill.sh` script (created in Round 3A) automates the quarte
 
 | Drill Type | Frequency | Owner | Last Completed | Next Due |
 | --- | --- | --- | --- | --- |
-| Restore drill (automated) | Quarterly | On-call / DevOps | — | 2026-08-01 |
+| Restore drill (automated) | Quarterly | On-call / DevOps | 2026-05-25 | 2026-08-01 |
 | Full DR test (manual) | Annually | Engineering lead | — | 2027-05-20 |
 
 ## Infrastructure status
@@ -133,6 +133,7 @@ The `scripts/restore-drill.sh` script (created in Round 3A) automates the quarte
 - Terraform Cloud workspace `panoptix-backup-r2` manages bucket state remotely.
 - R2 API tokens with Object Read & Write scope (bucket-only) are configured in Railway production.
 - Production R2 bucket access was verified on 2026-05-25; one encrypted `.dump.age` backup artifact exists.
+- Isolated restore drill completed on 2026-05-25 against a temporary Neon branch, which was deleted after validation.
 - `python -m cctv_api.jobs.backup_r2` is available for operator-run encrypted backups.
 - `python -m cctv_api.jobs.restore_drill_r2` and `scripts/restore-drill.sh` are available for encrypted artifact validation and isolated restore drills.
 
