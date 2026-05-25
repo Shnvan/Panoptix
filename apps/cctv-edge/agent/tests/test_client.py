@@ -69,6 +69,29 @@ def test_send_camera_status_posts_expected_payload() -> None:
     assert payload == {"status": "degraded", "detail": "packet loss"}
 
 
+def test_send_discovery_run_posts_expected_payload() -> None:
+    transport = RecordingTransport(HttpResponse(status_code=200, body='{"accepted": true}'))
+    client = GatewayApiClient(_config(), transport=transport)
+    report = {
+        "started_at": "2026-05-25T10:00:00+00:00",
+        "finished_at": "2026-05-25T10:00:01+00:00",
+        "status": "completed",
+        "approved_ranges": ["192.168.50.0/30"],
+        "ports": [554, 80],
+        "scanned_host_count": 2,
+        "candidate_count": 1,
+        "findings": [],
+        "agent_version": "0.1.0",
+    }
+
+    response = client.send_discovery_run(report)
+
+    assert response == {"accepted": True}
+    url, payload, _headers, _timeout_seconds = transport.calls[0]
+    assert url == "http://api.example.test/api/v1/gateways/gateway-1/discovery-runs"
+    assert payload == report
+
+
 def test_post_raises_on_error_status() -> None:
     transport = RecordingTransport(HttpResponse(status_code=403, body='{"detail": "forbidden"}'))
     client = GatewayApiClient(_config(), transport=transport)

@@ -15,10 +15,11 @@ Use this quick order before drilling into the detailed examples below:
 5. Test browser/user endpoints.
 6. Test admin CRUD and control endpoints.
 7. Test gateway heartbeat, camera status, ingest token, and control endpoints.
-8. Test GitHub-backed user invite behavior, including `409 user-disabled` for existing disabled users.
-9. Test visitor entry/admin visitor detail APIs and backup readiness reporting.
-10. Test audit verification and export.
-11. Test edge-agent CLI modes.
+8. Test gateway discovery with a small approved private LAN/VLAN CIDR.
+9. Test GitHub-backed user invite behavior, including `409 user-disabled` for existing disabled users.
+10. Test visitor entry/admin visitor detail APIs and backup readiness reporting.
+11. Test audit verification and export.
+12. Test edge-agent CLI modes.
 
 ### Public and platform
 
@@ -96,6 +97,8 @@ Open `http://localhost:3000` and verify:
 - `POST /api/v1/admin/gateways/{gateway_id}/enable` - re-enable a disabled gateway.
 - `POST /api/v1/admin/gateways/{gateway_id}/rotate-credential` - rotate the gateway service token.
 - `POST /api/v1/admin/gateways/{gateway_id}/cameras` - grant or revoke gateway-camera assignment.
+- `GET /api/v1/admin/gateways/{gateway_id}/discovery-runs` - list sanitized discovery reports.
+- `GET /api/v1/admin/gateways/{gateway_id}/discovery-runs/latest` - fetch latest sanitized discovery report.
 - `POST /api/v1/admin/gateways/{gateway_id}/commands` - enqueue a gateway command.
 - `GET /api/v1/admin/gateways/{gateway_id}/commands` - list gateway commands.
 - `POST /api/v1/admin/gateways/{gateway_id}/commands/{command_id}/cancel` - cancel a pending command.
@@ -123,6 +126,7 @@ Open `http://localhost:3000` and verify:
 
 - `POST /api/v1/gateways/{gateway_id}/heartbeat` - gateway heartbeat plus pending command fallback.
 - `POST /api/v1/gateways/{gateway_id}/cameras/{camera_id}/status` - persist gateway-reported camera status.
+- `POST /api/v1/gateways/{gateway_id}/discovery-runs` - persist sanitized camera LAN/VLAN TCP discovery report.
 - `POST /api/v1/gateways/{gateway_id}/ingest-token` - LiveKit gateway-publish token for assigned active cameras.
 - `WEBSOCKET /api/v1/gateway-control/ws` - outbound gateway control channel.
 
@@ -135,6 +139,7 @@ Open `http://localhost:3000` and verify:
 - `panoptix-edge-agent --once` - send one heartbeat and exit.
 - `panoptix-edge-agent --control-once` - connect to gateway control WebSocket, read one message, and exit.
 - `panoptix-edge-agent --control-loop-once` - run one bounded reconnect loop and exit.
+- `panoptix-edge-agent --discover-once` - scan approved private camera LAN/VLAN CIDRs once and upload a sanitized report.
 - `panoptix-edge-agent --supervise` - run the edge gateway runtime supervisor.
 - `panoptix-edge-agent --smoke-ffmpeg-livekit` - run a real FFmpeg-to-LiveKit smoke test with `PANOPTIX_SMOKE_*` variables.
 
@@ -794,6 +799,52 @@ Rejected ACKs use:
   "status": "rejected",
   "error": "gateway-command-signature-invalid"
 }
+```
+
+### Gateway discovery V1
+
+Discovery is manually invoked from the edge agent and must only scan approved private camera LAN/VLAN CIDRs. It performs TCP connect probes only. Do not use public, loopback, multicast, wildcard, or oversized ranges; do not collect credentials, banners, packets, screenshots, or RTSP auth attempts.
+
+Edge-agent one-shot discovery from `apps/cctv-edge/agent`:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+$env:PANOPTIX_API_BASE_URL = "http://127.0.0.1:8000"
+$env:PANOPTIX_GATEWAY_ID = "11111111-1111-1111-1111-111111111111"
+$env:PANOPTIX_DEV_GATEWAY_IDENTITY = "true"
+$env:PANOPTIX_DISCOVERY_APPROVED_RANGES = "192.168.50.0/30"
+$env:PANOPTIX_DISCOVERY_PORTS = "554,80,443,8000,8080,8899"
+$env:PANOPTIX_DISCOVERY_TIMEOUT_SECONDS = "1.0"
+$env:PANOPTIX_DISCOVERY_MAX_HOSTS = "256"
+python -m panoptix_edge_agent.cli --discover-once
+```
+
+Expected output:
+
+```text
+gateway discovery accepted (scanned=2, candidates=...)
+```
+
+Fetch reports as an admin:
+
+```powershell
+Invoke-RestMethod -Method GET -Uri "$BaseUrl/api/v1/admin/gateways/$GatewayId/discovery-runs/latest" -Headers $AdminHeaders
+Invoke-RestMethod -Method GET -Uri "$BaseUrl/api/v1/admin/gateways/$GatewayId/discovery-runs" -Headers $AdminHeaders
+```
+
+Expected response fields include `approved_ranges`, `ports`, `scanned_host_count`, `candidate_count`, `status`, and sanitized `findings` with `ip`, optional `hostname`, `open_ports`, `candidate_kind`, and `confidence`.
+
+Focused tests:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_gateway_discovery.py -v
+
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+python -m pytest tests/test_discovery.py tests/test_config.py tests/test_client.py -v
 ```
 
 ### Backend-controlled synthetic publish smoke

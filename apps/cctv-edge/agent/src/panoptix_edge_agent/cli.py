@@ -31,6 +31,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="run one bounded gateway control WebSocket reconnect loop and exit",
     )
     parser.add_argument(
+        "--discover-once",
+        action="store_true",
+        help="scan approved camera LAN/VLAN CIDRs once and post a sanitized discovery report",
+    )
+    parser.add_argument(
         "--smoke-ffmpeg-livekit",
         action="store_true",
         help="run a real FFmpeg-to-LiveKit smoke test (requires PANOPTIX_SMOKE_* env vars, FFmpeg, and LiveKit SDK)",
@@ -54,6 +59,9 @@ def main(argv: list[str] | None = None) -> int:
     except ConfigError as exc:
         print(f"configuration error: {exc}", file=sys.stderr)
         return 2
+
+    if args.discover_once:
+        return _run_discovery_once(config)
 
     from panoptix_edge_agent.camera_credentials import (
         CameraCredentialStore,
@@ -127,6 +135,32 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     runner.run_forever()
+    return 0
+
+
+def _run_discovery_once(config: object) -> int:
+    from typing import cast
+
+    from panoptix_edge_agent.client import AgentClientError, GatewayApiClient
+    from panoptix_edge_agent.config import AgentConfig, ConfigError
+    from panoptix_edge_agent.discovery import run_discovery
+
+    typed_config = cast(AgentConfig, config)
+    try:
+        report = run_discovery(typed_config)
+    except ConfigError as exc:
+        print(f"configuration error: {exc}", file=sys.stderr)
+        return 2
+
+    try:
+        GatewayApiClient(typed_config).send_discovery_run(report.to_payload())
+    except AgentClientError as exc:
+        print(f"gateway discovery upload failed: {exc}", file=sys.stderr)
+        return 1
+    print(
+        "gateway discovery accepted "
+        f"(scanned={report.scanned_host_count}, candidates={report.candidate_count})"
+    )
     return 0
 
 

@@ -52,6 +52,10 @@ PANOPTIX_MEDIA_PUBLISHER_MODE=stub
 PANOPTIX_SUPERVISE_MEDIAMTX=false
 PANOPTIX_MEDIAMTX_BINARY=mediamtx
 PANOPTIX_MEDIAMTX_CONFIG_PATH=/etc/cctv-gateway/mediamtx.yml
+PANOPTIX_DISCOVERY_APPROVED_RANGES=
+PANOPTIX_DISCOVERY_PORTS=554,80,443,8000,8080,8899
+PANOPTIX_DISCOVERY_TIMEOUT_SECONDS=1.0
+PANOPTIX_DISCOVERY_MAX_HOSTS=256
 ```
 
 Only enable real media publishing after a separate production media review:
@@ -84,7 +88,40 @@ Before service enablement, verify:
 - `mediamtx` API is disabled or bound to `127.0.0.1` only.
 - RTSP, HLS, WebRTC, RTMP, and mediamtx API listeners are not reachable from WAN.
 - Camera VLAN, if present, allows only the approved camera-plane flows.
+- Gateway discovery scans only approved private camera LAN/VLAN CIDRs.
 - Browser viewers never receive gateway publish tokens or camera credentials.
+
+## Gateway discovery rules
+
+Gateway discovery is a manual V1 operator action, not a scheduler. Run it only from a gateway host that is physically or logically attached to the approved camera LAN/VLAN.
+
+Allowed behavior:
+
+- `python -m panoptix_edge_agent.cli --discover-once`
+- private IPv4 camera LAN/VLAN CIDRs configured in `PANOPTIX_DISCOVERY_APPROVED_RANGES`
+- TCP connect probes only
+- conservative host limits through `PANOPTIX_DISCOVERY_MAX_HOSTS`
+- sanitized upload to `POST /api/v1/gateways/{gateway_id}/discovery-runs`
+
+Forbidden behavior:
+
+- public internet scanning
+- loopback, multicast, wildcard, link-local, or oversized ranges
+- credentials, RTSP authentication, raw banners, packet capture, screenshots, or decrypted content
+- storing camera credentials in the backend report
+
+Typical pilot command:
+
+```powershell
+python -m panoptix_edge_agent.cli --discover-once
+```
+
+Admin review uses:
+
+```text
+GET /api/v1/admin/gateways/{gateway_id}/discovery-runs/latest
+GET /api/v1/admin/gateways/{gateway_id}/discovery-runs
+```
 
 ## Linux systemd runbook
 

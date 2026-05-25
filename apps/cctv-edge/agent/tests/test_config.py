@@ -41,6 +41,10 @@ def test_load_config_from_env_parses_values() -> None:
             "PANOPTIX_SUPERVISE_MEDIAMTX": "true",
             "PANOPTIX_MEDIAMTX_BINARY": "mediamtx.exe",
             "PANOPTIX_MEDIAMTX_CONFIG_PATH": str(MEDIAMTX_CONFIG_PATH),
+            "PANOPTIX_DISCOVERY_APPROVED_RANGES": "192.168.50.0/24,10.10.0.0/24",
+            "PANOPTIX_DISCOVERY_PORTS": "554,80,80,8080",
+            "PANOPTIX_DISCOVERY_TIMEOUT_SECONDS": "0.75",
+            "PANOPTIX_DISCOVERY_MAX_HOSTS": "512",
         }
     )
 
@@ -62,6 +66,10 @@ def test_load_config_from_env_parses_values() -> None:
     assert config.supervise_mediamtx is True
     assert config.mediamtx_binary == "mediamtx.exe"
     assert config.mediamtx_config_path == str(MEDIAMTX_CONFIG_PATH)
+    assert config.discovery_approved_ranges == ("192.168.50.0/24", "10.10.0.0/24")
+    assert config.discovery_ports == (554, 80, 8080)
+    assert config.discovery_timeout_seconds == 0.75
+    assert config.discovery_max_hosts == 512
 
 
 def test_load_config_from_env_rejects_short_heartbeat_interval() -> None:
@@ -181,4 +189,28 @@ def test_load_config_from_env_rejects_bad_mediamtx_config_when_supervised() -> N
             "PANOPTIX_GATEWAY_ID": "gateway-1",
             "PANOPTIX_SUPERVISE_MEDIAMTX": "true",
             "PANOPTIX_MEDIAMTX_BINARY": "--mediamtx",
+        })
+
+
+def test_load_config_from_env_rejects_invalid_discovery_ports() -> None:
+    with pytest.raises(ConfigError, match="PANOPTIX_DISCOVERY_PORTS"):
+        load_config_from_env({
+            "PANOPTIX_API_BASE_URL": "http://api.example.test",
+            "PANOPTIX_GATEWAY_ID": "gateway-1",
+            "PANOPTIX_DISCOVERY_PORTS": "554,70000",
+        })
+
+
+def test_load_config_from_env_rejects_invalid_discovery_limits() -> None:
+    with pytest.raises(ConfigError, match="PANOPTIX_DISCOVERY_TIMEOUT_SECONDS"):
+        load_config_from_env({
+            "PANOPTIX_API_BASE_URL": "http://api.example.test",
+            "PANOPTIX_GATEWAY_ID": "gateway-1",
+            "PANOPTIX_DISCOVERY_TIMEOUT_SECONDS": "0",
+        })
+    with pytest.raises(ConfigError, match="PANOPTIX_DISCOVERY_MAX_HOSTS"):
+        load_config_from_env({
+            "PANOPTIX_API_BASE_URL": "http://api.example.test",
+            "PANOPTIX_GATEWAY_ID": "gateway-1",
+            "PANOPTIX_DISCOVERY_MAX_HOSTS": "0",
         })

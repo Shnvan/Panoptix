@@ -2,7 +2,7 @@
 
 Panoptix is a live-view CCTV monitoring system that connects IP cameras to authenticated browser viewers through a security-first, three-plane architecture.
 
-> **Status:** Production live at `panoptix.site` (2026-05-22). Backend control plane, edge-agent, CI/security scans, LiveKit Cloud, R2 backup provisioning, encrypted restore drill, and backup automation scaffolding are complete. Frontend integrated (staging smoke passed); real CCTV hardware onboarding still pending.
+> **Status:** Production live at `panoptix.site` (2026-05-22). Backend control plane, edge-agent, gateway discovery V1, CI/security scans, LiveKit Cloud, R2 backup provisioning, encrypted restore drill, and backup automation scaffolding are complete. Frontend integrated (staging smoke passed); real CCTV hardware onboarding still pending.
 
 ## Architecture
 
@@ -10,7 +10,7 @@ Panoptix is a live-view CCTV monitoring system that connects IP cameras to authe
 |-------|---------|------------------------|
 | **Control plane** | Login, API, permissions, audit, actor investigation, gateway coordination | FastAPI backend in `apps/api/`, deployed to Railway staging behind Cloudflare Access |
 | **Media plane** | Live video delivery via WebRTC SFU | LiveKit Cloud primary; fallback toggle exists, self-hosted fallback remains future operational work |
-| **Camera plane** | Physical cameras, local gateway, isolated camera network | Edge agent in `apps/cctv-edge/agent/`; real camera onboarding waits for hardware |
+| **Camera plane** | Physical cameras, local gateway, isolated camera network | Edge agent in `apps/cctv-edge/agent/` with manual approved-CIDR discovery; real camera onboarding waits for hardware |
 
 Browsers are **viewers only**. Browser, phone, and laptop camera publishing are not supported.
 
@@ -103,6 +103,7 @@ Non-frontend and non-hardware work is mostly operational:
 - merge the production backup workflow to the default branch so the GitHub Actions cron activates
 - confirm the first scheduled encrypted backup and retention run
 - keep quarterly isolated restore drills current without storing private `age` identities in Railway, GitHub, or the repo
+- run gateway discovery only from approved private camera LAN/VLAN ranges during hardware pilot
 - configure Google Workspace IdP and WARP/device posture when ready
 - procure break-glass hardware keys
 

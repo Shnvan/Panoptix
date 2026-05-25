@@ -1,7 +1,7 @@
 | Area | Progress | Status | Notes |
 |---|---:|---|---|
 | **Frontend** | 80% | Yellow - Integrated, staging smoke passed | `integratedCompleteFrontend` is merged into `fullstack-integration`. The React/Vite app now has the login shell, viewer dashboard, camera detail modal, admin dashboard, users, cameras, gateways, audit/compliance, DSR, break-glass, health, settings, dev-auth headers, same-origin API client, and same-domain public `/entry` visitor notice flow. Local same-origin smoke through the Vite proxy passes. Staging deployed browser smoke passed 2026-05-21: all 10 sidebar pages loaded through Cloudflare Access at `staging.panoptix.site` with no 500/502 errors. Production expanded visitor collector API smoke passed 2026-05-24. Frontend production proxy server (`server.mjs`) serves Vite dist and proxies API calls. Missing: real LiveKit subscriber playback, Alerts page wiring to real backend APIs, admin visitor investigation UI, actor investigation UI, Playwright coverage, and production polish. |
-| **Database** | 100% | Green - Strong | Core schema plus `0007_gateway_command_tables`, `0008_alerts_email`, `0009_login_baselines`, `0010_visitor_visits`, and expanded visitor signal migration `0011_visitor_expanded_signals` are part of the production migration path. `alerts`, `alert_notifications`, `gateway_command_queue`, `camera_publish_states`, `backup_runs`, `login_baselines`, and `visitor_visits` model/schema verified. Operator-run R2 backup job has produced the first encrypted production artifact, dry-run decrypt/`pg_restore --list` validation passed, and isolated restore drill evidence is recorded. Recurring backup workflow and R2 object retention job are implemented without schema changes; cron activates after merge to the default branch. Missing: pilot+ backup retention tables only if richer retention evidence is later required. |
+| **Database** | 100% | Green - Strong | Core schema plus `0007_gateway_command_tables`, `0008_alerts_email`, `0009_login_baselines`, `0010_visitor_visits`, expanded visitor signal migration `0011_visitor_expanded_signals`, and gateway discovery snapshot migration `0012_gateway_discovery_runs` are part of the production migration path. `alerts`, `alert_notifications`, `gateway_command_queue`, `gateway_discovery_runs`, `camera_publish_states`, `backup_runs`, `login_baselines`, and `visitor_visits` model/schema verified. Operator-run R2 backup job has produced the first encrypted production artifact, dry-run decrypt/`pg_restore --list` validation passed, and isolated restore drill evidence is recorded. Recurring backup workflow and R2 object retention job are implemented without schema changes; cron activates after merge to the default branch. Missing: pilot+ backup retention tables only if richer retention evidence is later required. |
 | **Infrastructure** | 100% | Green - Strong | **Production live at `panoptix.site` (2026-05-22).** Cloudflare Access "Panoptix Production" app protects the app root and protected API paths with GitHub org policy. First-time root visits without `panoptix_visitor` redirect to the public `/entry` notice flow; only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect` are bypassed for the visitor pilot. Railway production backend + frontend deployed with new cryptographic keys. Neon production branch fully migrated. DNS promoted from `staging.panoptix.site` to `panoptix.site`. `SUSPICIOUS_LOGIN_DETECTION_ENABLED=true` in production. Staging health check cron running. R2 backup bucket has one encrypted production backup artifact, a successful isolated restore drill, and GitHub Actions backup automation with retention rules ready for default-branch activation. LiveKit Cloud (APAC) live. Missing: break-glass YubiKey hardware, physical gateways. |
 | **Security** | 90% | Green - Strong | CF Access JWT, CSRF, HMAC audit chain, classified audit events with session/IP/UA metadata, audit-of-audit for profile/activity views, rate limiting (including admin mutations), security headers, service tokens, RBAC, break-glass, SCA/SAST CI, mediamtx threat model, mTLS cert bootstrap scaffold, CT-log monitoring all done. Missing: device posture enforcement production activation and browser security smoke evidence. |
 | **Documentation** | 96% | Green - Strong | Full system plan, API reference, 51+ docs, all runbooks done (incl. break-glass, lost-MFA, IdP-outage, bus-factor, uptime monitoring, backup-restore DR schedule, Cloudflare WARP posture), mediamtx threat model, Terraform state security doc, frontend design guidance, and current full-stack status docs. |
@@ -135,6 +135,9 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 ### Gateway Agent Foundation
 - [x] Minimal Python gateway agent package added under `apps/cctv-edge/agent`
 - [x] Environment-driven gateway agent configuration added
+- [x] Manual `--discover-once` gateway discovery scans approved private camera LAN/VLAN CIDRs with TCP connect probes only
+- [x] Discovery rejects public, loopback, multicast, wildcard, link-local, and oversized ranges
+- [x] Discovery uploads sanitized findings only; no credentials, banners, packets, screenshots, or RTSP auth attempts
 - [x] Outbound heartbeat and camera status API client added
 - [x] One-shot and continuous heartbeat runner added
 - [x] Agent tests added for config, client, and runner behavior
@@ -364,6 +367,14 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] Missing active assignment revoke returns 404 `gateway-camera-assignment-not-found`
 - [x] All successful mutations audit-logged: `gateway.create`, `gateway.disable`, `gateway.camera.grant`, `gateway.camera.revoke`
 - [x] Assignment grants enable gateway ingest-token and camera status authorization
+
+### Gateway Discovery V1
+- [x] `gateway_discovery_runs` SQLAlchemy model and Alembic migration `0012_gateway_discovery_runs`
+- [x] Gateway-authenticated `POST /api/v1/gateways/{gateway_id}/discovery-runs`
+- [x] Admin-only `GET /api/v1/admin/gateways/{gateway_id}/discovery-runs`
+- [x] Admin-only `GET /api/v1/admin/gateways/{gateway_id}/discovery-runs/latest`
+- [x] Stores sanitized approved ranges, ports, counts, timestamps, status, candidate classifications, and agent version
+- [x] Gateway mismatch and disabled/missing gateway denial paths audited
 - [x] 20 tests covering auth, validation, conflicts, audit, disable, assignment, and downstream authorization
 
 ### LiveKit Webhook Receiver Foundation

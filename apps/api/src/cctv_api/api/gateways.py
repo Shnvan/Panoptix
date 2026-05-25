@@ -21,13 +21,15 @@ from cctv_api.gateway.models import (
     GatewayCameraStatusRequest,
     GatewayCommandAck,
     GatewayCommandEnvelope,
+    GatewayDiscoveryRunAcceptedResponse,
+    GatewayDiscoveryRunRequest,
     GatewayHeartbeatRequest,
     GatewayHeartbeatResponse,
     GatewayIngestTokenRequest,
     GatewayIngestTokenResponse,
 )
 from cctv_api.models.enums import ActorType, CameraEventKind, EventSource, StreamKind
-from cctv_api.models.tables import CameraEvent, EdgeGateway
+from cctv_api.models.tables import CameraEvent, EdgeGateway, GatewayDiscoveryRun
 from cctv_api.security.audit import AuditLogError, record_audit_event
 from cctv_api.security.dependencies import require_gateway_identity, verify_gateway_identity_ws
 from cctv_api.security.identity import Principal
@@ -360,6 +362,81 @@ def gateway_camera_status(
     db.add(event)
     db.commit()
     return GatewayAcceptedResponse()
+
+
+@router.post("/gateways/{gateway_id}/discovery-runs")
+def gateway_discovery_run(
+    gateway_id: str,
+    payload: GatewayDiscoveryRunRequest,
+    request: Request,
+    principal: Principal = Depends(require_gateway_identity),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> GatewayDiscoveryRunAcceptedResponse:
+    if principal.gateway_id != gateway_id:
+        _record_gateway_audit_safely(
+            db,
+            settings=settings,
+            request=request,
+            actor_id=_parse_uuid_or_none(principal.gateway_id),
+            action="gateway.discovery.denied.gateway_mismatch",
+            resource=f"gateway:{gateway_id}",
+            payload={"route_gateway_id": gateway_id, "principal_gateway_id": principal.gateway_id},
+        )
+    _require_matching_gateway(gateway_id, principal)
+
+    gateway_uuid = _parse_uuid(gateway_id, "gateway-id-invalid")
+    if get_enabled_gateway(db, gateway_uuid) is None:
+        _record_gateway_audit_safely(
+            db,
+            settings=settings,
+            request=request,
+            actor_id=gateway_uuid,
+            action="gateway.discovery.denied.disabled",
+            resource=f"gateway:{gateway_uuid}",
+            payload={"gateway_id": str(gateway_uuid)},
+        )
+        raise ProblemDetail(
+            status=403,
+            title="Forbidden",
+            detail="gateway-disabled-or-not-found",
+            type_uri="https://panoptix.local/problems/forbidden",
+        )
+
+    run = GatewayDiscoveryRun(
+        id=uuid.uuid4(),
+        gateway_id=gateway_uuid,
+        started_at=payload.started_at,
+        finished_at=payload.finished_at,
+        status=payload.status,
+        approved_ranges=list(payload.approved_ranges),
+        ports=list(payload.ports),
+        scanned_host_count=payload.scanned_host_count,
+        candidate_count=payload.candidate_count,
+        findings=[finding.model_dump(mode="json") for finding in payload.findings],
+        agent_version=payload.agent_version,
+        error=payload.error,
+    )
+    db.add(run)
+    _record_gateway_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=gateway_uuid,
+        action="gateway.discovery.reported",
+        resource=f"gateway:{gateway_uuid}",
+        payload={
+            "gateway_id": str(gateway_uuid),
+            "status": payload.status,
+            "scanned_host_count": payload.scanned_host_count,
+            "candidate_count": payload.candidate_count,
+        },
+    )
+    db.commit()
+    return GatewayDiscoveryRunAcceptedResponse(
+        discovery_run_id=str(run.id),
+        status=run.status,
+    )
 
 
 @router.websocket("/gateway-control/ws")

@@ -44,6 +44,10 @@ class AgentConfig:
     mediamtx_binary: str = "mediamtx"
     mediamtx_config_path: str = str(DEFAULT_MEDIAMTX_CONFIG_PATH)
     camera_credentials_path: str = ""
+    discovery_approved_ranges: tuple[str, ...] = ()
+    discovery_ports: tuple[int, ...] = (554, 80, 443, 8000, 8080, 8899)
+    discovery_timeout_seconds: float = 1.0
+    discovery_max_hosts: int = 256
 
     @property
     def normalized_api_base_url(self) -> str:
@@ -90,6 +94,10 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
         str(DEFAULT_MEDIAMTX_CONFIG_PATH),
     ).strip() or str(DEFAULT_MEDIAMTX_CONFIG_PATH)
     camera_credentials_path = env.get("PANOPTIX_CAMERA_CREDENTIALS_PATH", "").strip()
+    discovery_approved_ranges = _csv_value(env.get("PANOPTIX_DISCOVERY_APPROVED_RANGES", ""))
+    discovery_ports = _ports_value(env.get("PANOPTIX_DISCOVERY_PORTS", "554,80,443,8000,8080,8899"))
+    discovery_timeout_seconds = _float_value(env, "PANOPTIX_DISCOVERY_TIMEOUT_SECONDS", 1.0)
+    discovery_max_hosts = _int_value(env, "PANOPTIX_DISCOVERY_MAX_HOSTS", 256)
 
     if heartbeat_interval_seconds < 5:
         raise ConfigError("PANOPTIX_HEARTBEAT_INTERVAL_SECONDS must be at least 5")
@@ -129,6 +137,10 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
             ).args()
         except MediamtxProcessError as exc:
             raise ConfigError(f"PANOPTIX_MEDIAMTX_CONFIG invalid: {exc}") from exc
+    if discovery_timeout_seconds <= 0:
+        raise ConfigError("PANOPTIX_DISCOVERY_TIMEOUT_SECONDS must be greater than 0")
+    if discovery_max_hosts < 1:
+        raise ConfigError("PANOPTIX_DISCOVERY_MAX_HOSTS must be at least 1")
 
     return AgentConfig(
         api_base_url=api_base_url,
@@ -156,6 +168,10 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
         mediamtx_binary=mediamtx_binary,
         mediamtx_config_path=mediamtx_config_path,
         camera_credentials_path=camera_credentials_path,
+        discovery_approved_ranges=discovery_approved_ranges,
+        discovery_ports=discovery_ports,
+        discovery_timeout_seconds=discovery_timeout_seconds,
+        discovery_max_hosts=discovery_max_hosts,
     )
 
 
@@ -188,6 +204,23 @@ def _float_value(env: Mapping[str, str], name: str, default: float) -> float:
 
 def _csv_value(raw: str) -> tuple[str, ...]:
     return tuple(item.strip() for item in raw.split(",") if item.strip())
+
+
+def _ports_value(raw: str) -> tuple[int, ...]:
+    values = _csv_value(raw)
+    ports: list[int] = []
+    for value in values:
+        try:
+            port = int(value)
+        except ValueError as exc:
+            raise ConfigError("PANOPTIX_DISCOVERY_PORTS must contain integer ports") from exc
+        if port < 1 or port > 65535:
+            raise ConfigError("PANOPTIX_DISCOVERY_PORTS must contain ports from 1 to 65535")
+        if port not in ports:
+            ports.append(port)
+    if not ports:
+        raise ConfigError("PANOPTIX_DISCOVERY_PORTS must contain at least one port")
+    return tuple(ports)
 
 
 def _bool_value(raw: str) -> bool:

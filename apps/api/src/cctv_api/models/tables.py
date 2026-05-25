@@ -207,6 +207,34 @@ class GatewayCommandQueue(Base):
     )
 
 
+class GatewayDiscoveryRun(Base):
+    __tablename__ = "gateway_discovery_runs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    gateway_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("edge_gateways.id", ondelete="CASCADE"), nullable=False
+    )
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    finished_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    approved_ranges: Mapped[list] = mapped_column(
+        JSONB, nullable=False, default=list, server_default=text("'[]'")
+    )
+    ports: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default=text("'[]'"))
+    scanned_host_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    candidate_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    findings: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default=text("'[]'"))
+    agent_version: Mapped[str | None] = mapped_column(String(64))
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()"), nullable=False
+    )
+
+    __table_args__ = (
+        Index("ix_gateway_discovery_runs_gateway_started", "gateway_id", "started_at"),
+    )
+
+
 class CameraPublishState(Base):
     __tablename__ = "camera_publish_states"
 

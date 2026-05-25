@@ -118,6 +118,10 @@ class GatewayApiClient:
             payload["observed_at"] = _format_datetime(observed_at)
         return self._post(url, payload)
 
+    def send_discovery_run(self, payload: dict[str, Any]) -> dict[str, Any]:
+        url = f"{self.config.normalized_api_base_url}/api/v1/gateways/{self.config.gateway_id}/discovery-runs"
+        return self._post(url, payload)
+
     def _post(self, url: str, payload: dict[str, Any]) -> dict[str, Any]:
         response = self.transport.post_json(
             url,

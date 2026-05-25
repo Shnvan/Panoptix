@@ -68,6 +68,8 @@ Admin visitor list/detail responses expose the collected data as readable sectio
 | `POST` | `/api/v1/admin/gateways/{gateway_id}/enable` | re-enable a disabled gateway without restoring revoked assignments |
 | `POST` | `/api/v1/admin/gateways/{gateway_id}/rotate-credential` | rotate one-time gateway service token |
 | `POST` | `/api/v1/admin/gateways/{gateway_id}/cameras` | grant/revoke gateway-camera assignment |
+| `GET` | `/api/v1/admin/gateways/{gateway_id}/discovery-runs` | list sanitized gateway discovery run snapshots |
+| `GET` | `/api/v1/admin/gateways/{gateway_id}/discovery-runs/latest` | latest sanitized discovery run snapshot |
 | `POST` | `/api/v1/admin/gateways/{gateway_id}/commands` | enqueue gateway command |
 | `GET` | `/api/v1/admin/gateways/{gateway_id}/commands` | list gateway commands |
 | `POST` | `/api/v1/admin/gateways/{gateway_id}/commands/{command_id}/cancel` | cancel pending command |
@@ -220,8 +222,11 @@ The API records `admin.dsr.created`, `admin.dsr.viewed`, and `admin.dsr.updated`
 |---|---|---|
 | `POST` | `/api/v1/gateways/{gateway_id}/heartbeat` | heartbeat plus pending command fallback |
 | `POST` | `/api/v1/gateways/{gateway_id}/cameras/{camera_id}/status` | persist gateway-reported camera status |
+| `POST` | `/api/v1/gateways/{gateway_id}/discovery-runs` | persist sanitized camera LAN/VLAN TCP discovery report |
 | `POST` | `/api/v1/gateways/{gateway_id}/ingest-token` | LiveKit gateway publish token |
 | `WEBSOCKET` | `/api/v1/gateway-control/ws` | outbound gateway control channel |
+
+Gateway discovery reports are gateway-authenticated and require the route gateway ID to match the authenticated gateway identity. The backend stores approved CIDRs, probed ports, run status, counts, timestamps, agent version, and sanitized findings only. Findings contain IP, optional hostname, open TCP ports, `possible_camera`/`possible_nvr`/`unknown_device`, and confidence. Reports must not contain credentials, RTSP auth attempts, raw banners, packets, screenshots, public internet scan targets, or decrypted secrets.
 
 ## Important Response Shapes
 

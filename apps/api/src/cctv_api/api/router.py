@@ -22,6 +22,7 @@ from cctv_api.api.visitors import router as visitor_router
 from cctv_api.core.config import Settings, get_settings
 from cctv_api.db import db_session
 from cctv_api.gateway.command_queue import enqueue_command, expire_stale_commands
+from cctv_api.gateway.models import GatewayDiscoveryRunResponse
 from cctv_api.integrations.github_invites import (
     GitHubInviteConfigError,
     GitHubInviteError,
@@ -43,6 +44,7 @@ from cctv_api.models.tables import (
     EdgeGateway,
     GatewayCameraAssignment,
     GatewayCommandQueue,
+    GatewayDiscoveryRun,
     PrivacyNoticeAcceptance,
     Role,
     Site,
@@ -1600,6 +1602,115 @@ def get_admin_gateway(
         "disabled_at": gateway.disabled_at.isoformat() if gateway.disabled_at else None,
         "camera_count": camera_count,
     }
+
+
+@v1_router.get("/admin/gateways/{gateway_id}/discovery-runs")
+def list_gateway_discovery_runs(
+    gateway_id: str,
+    cursor: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    gateway_uuid = _parse_uuid(gateway_id, "gateway-id-invalid")
+    gateway_db_id = _db_uuid(db, gateway_uuid)
+    gateway = db.execute(select(EdgeGateway).where(EdgeGateway.id == gateway_db_id)).scalar_one_or_none()
+    if gateway is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="gateway-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+
+    query = (
+        select(GatewayDiscoveryRun)
+        .where(GatewayDiscoveryRun.gateway_id == gateway_db_id)
+        .order_by(GatewayDiscoveryRun.started_at.desc(), GatewayDiscoveryRun.id.desc())
+    )
+    if cursor is not None:
+        cursor_uuid = _parse_uuid(cursor, "cursor-invalid")
+        cursor_db_id = _db_uuid(db, cursor_uuid)
+        cursor_row = db.execute(
+            select(GatewayDiscoveryRun).where(GatewayDiscoveryRun.id == cursor_db_id)
+        ).scalar_one_or_none()
+        if cursor_row is not None:
+            query = query.where(GatewayDiscoveryRun.started_at < cursor_row.started_at)
+
+    rows = list(db.execute(query.limit(limit + 1)).scalars().all())
+    has_more = len(rows) > limit
+    if has_more:
+        rows = rows[:limit]
+    next_cursor: str | None = str(rows[-1].id) if has_more and rows else None
+    return {
+        "items": [_gateway_discovery_run_response(row).model_dump(mode="json") for row in rows],
+        "next_cursor": next_cursor,
+    }
+
+
+@v1_router.get("/admin/gateways/{gateway_id}/discovery-runs/latest")
+def get_latest_gateway_discovery_run(
+    gateway_id: str,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    gateway_uuid = _parse_uuid(gateway_id, "gateway-id-invalid")
+    gateway_db_id = _db_uuid(db, gateway_uuid)
+    gateway = db.execute(select(EdgeGateway).where(EdgeGateway.id == gateway_db_id)).scalar_one_or_none()
+    if gateway is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="gateway-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+    row = db.execute(
+        select(GatewayDiscoveryRun)
+        .where(GatewayDiscoveryRun.gateway_id == gateway_db_id)
+        .order_by(GatewayDiscoveryRun.started_at.desc(), GatewayDiscoveryRun.id.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+    if row is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="discovery-run-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+    return _gateway_discovery_run_response(row).model_dump(mode="json")
+
+
+def _gateway_discovery_run_response(row: GatewayDiscoveryRun) -> GatewayDiscoveryRunResponse:
+    return GatewayDiscoveryRunResponse(
+        discovery_run_id=str(row.id),
+        gateway_id=str(row.gateway_id),
+        started_at=_as_utc_datetime(row.started_at),
+        finished_at=_as_utc_datetime(row.finished_at),
+        status=row.status,
+        approved_ranges=list(row.approved_ranges or []),
+        ports=list(row.ports or []),
+        scanned_host_count=row.scanned_host_count,
+        candidate_count=row.candidate_count,
+        findings=list(row.findings or []),
+        agent_version=row.agent_version,
+        error=row.error,
+        created_at=_as_utc_datetime(row.created_at),
+    )
+
+
+def _as_utc_datetime(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _db_uuid(db: DbSession, value: uuid.UUID) -> uuid.UUID | str:
+    bind = db.get_bind()
+    if bind.dialect.name == "sqlite":
+        return str(value)
+    return value
 
 
 def _gateway_metadata(gateway: EdgeGateway) -> dict[str, object | None]:

@@ -3673,6 +3673,46 @@ Verification:
 
 ---
 
+## Gateway Discovery V1
+
+Added manually invoked gateway-local camera network discovery:
+
+- Edge CLI: `python -m panoptix_edge_agent.cli --discover-once`
+- Config:
+  - `PANOPTIX_DISCOVERY_APPROVED_RANGES`
+  - `PANOPTIX_DISCOVERY_PORTS` (default `554,80,443,8000,8080,8899`)
+  - `PANOPTIX_DISCOVERY_TIMEOUT_SECONDS` (default `1.0`)
+  - `PANOPTIX_DISCOVERY_MAX_HOSTS` (default `256`)
+- Safety rules reject public, loopback, multicast, wildcard, link-local, IPv6, and oversized CIDRs.
+- Probing is TCP connect only. It does not attempt RTSP auth, capture packets, collect screenshots, store credentials, or scan public internet ranges.
+- Findings are classified as `possible_camera`, `possible_nvr`, or `unknown_device` from open TCP ports only.
+
+Backend persistence:
+
+- Alembic migration `0012_gateway_discovery_runs` creates `gateway_discovery_runs`.
+- `POST /api/v1/gateways/{gateway_id}/discovery-runs` stores sanitized gateway reports for matching, enabled gateways.
+- `GET /api/v1/admin/gateways/{gateway_id}/discovery-runs` lists reports newest first.
+- `GET /api/v1/admin/gateways/{gateway_id}/discovery-runs/latest` returns the latest report.
+- Stored data is limited to approved ranges, ports, timestamps, status, counts, agent version, sanitized findings, and optional sanitized error text.
+
+Implementation files:
+- `apps/api/alembic/versions/0012_gateway_discovery_runs.py`
+- `apps/api/src/cctv_api/api/gateways.py`
+- `apps/api/src/cctv_api/api/router.py`
+- `apps/api/src/cctv_api/gateway/models.py`
+- `apps/api/src/cctv_api/models/tables.py`
+- `apps/api/tests/test_gateway_discovery.py`
+- `apps/cctv-edge/agent/src/panoptix_edge_agent/discovery.py`
+- `apps/cctv-edge/agent/src/panoptix_edge_agent/cli.py`
+- `apps/cctv-edge/agent/src/panoptix_edge_agent/client.py`
+- `apps/cctv-edge/agent/tests/test_discovery.py`
+
+Focused verification:
+- `python -m pytest tests/test_gateway_discovery.py tests/test_gateway.py::test_gateway_camera_status_persists_camera_event -v`
+- `python -m pytest tests/test_discovery.py tests/test_config.py tests/test_client.py -v`
+
+---
+
 ## GitHub Organization Invite Flow
 
 Added GitHub organization invite capabilities to support admin-controlled user onboarding:
