@@ -97,6 +97,8 @@ class Settings(BaseSettings):
     BACKUP_AGE_RECIPIENT: str = ""
     BACKUP_OBJECT_PREFIX: str = "database"
     BACKUP_DATABASE_URL: str = ""
+    BACKUP_RETENTION_DAYS: int = Field(default=30, ge=1, le=3650)
+    BACKUP_RETENTION_MONTHLY_KEEP: int = Field(default=12, ge=0, le=120)
 
     # ── LiveKit ──
     LIVEKIT_MODE: Literal["cloud", "fallback"] = "cloud"

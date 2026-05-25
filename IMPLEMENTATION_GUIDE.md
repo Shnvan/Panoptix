@@ -3634,6 +3634,24 @@ Verification:
 
 ---
 
+## Recurring Backup Automation and Retention
+
+Encrypted R2 backups now have recurring automation and a bounded object-retention job:
+
+- `.github/workflows/production-backup.yml` runs daily at 18:15 UTC / 02:15 Asia/Manila and can be manually dispatched. GitHub scheduled workflows activate only after the workflow exists on the default branch.
+- The workflow uses GitHub secret `RAILWAY_TOKEN` with `railway run --service panoptix-control --environment production --no-local` to inject production Railway variables into the existing backup job.
+- The backup step runs `python -m cctv_api.jobs.backup_r2`; the retention step runs only after backup success.
+- `python -m cctv_api.jobs.backup_retention_r2` keeps all encrypted backups newer than `BACKUP_RETENTION_DAYS` (default 30), keeps one monthly backup for `BACKUP_RETENTION_MONTHLY_KEEP` months (default 12), preserves unparseable `.dump.age` keys, and deletes only expired encrypted R2 objects.
+- Failure handling opens or updates one GitHub issue titled `Production backup automation failed` without printing object keys, database URLs, R2 secrets, private age identities, or decrypted backup contents.
+- No database schema changes were made; `backup_runs` evidence rows are retained.
+
+Implementation files:
+- `.github/workflows/production-backup.yml`
+- `apps/api/src/cctv_api/jobs/backup_retention_r2.py`
+- `apps/api/tests/test_backup_retention_r2_job.py`
+
+---
+
 ## Camera and Gateway Lifecycle Endpoints
 
 Added metadata update and re-enabling support for gateway and camera lifecycles:

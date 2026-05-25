@@ -24,10 +24,12 @@ As of the 2026-05-25 production evidence pass:
 - Isolated restore drill completed against a temporary Neon branch on 2026-05-25; restore evidence row `564e2bfd-b449-4c9f-b46d-a0366856a7e0` has `restore_schema_ok=true`.
 - The temporary Neon restore branch was deleted after validation.
 - `python -m cctv_api.jobs.backup_r2` exists for an operator-run encrypted R2 backup from the Railway backend runtime.
+- `.github/workflows/production-backup.yml` schedules the encrypted production backup daily at 18:15 UTC / 02:15 Asia/Manila after the workflow is present on the repository default branch.
+- `python -m cctv_api.jobs.backup_retention_r2` applies encrypted R2 object retention without deleting `backup_runs` evidence rows.
 - `python -m cctv_api.jobs.restore_drill_r2` and `scripts/restore-drill.sh` support the real encrypted `.dump.age` backup format.
 - `GET /api/v1/admin/backups/status` reports database-known backup readiness from `backup_runs`.
 
-Backup status returned `ok` after the isolated restore-drill evidence was recorded. The next backup milestone is recurring backup automation and retention policy.
+Backup status returned `ok` after the isolated restore-drill evidence was recorded. The next backup action is to merge the scheduled workflow to the default branch and confirm the first successful scheduled backup/retention run.
 
 ## Backup status API
 
@@ -42,13 +44,25 @@ The endpoint does not call R2 and does not expose credentials, object paths, dat
 
 ## Daily backup
 
-1. Operator-run backup job runs outside the web request path with `python -m cctv_api.jobs.backup_r2`.
+1. The scheduled GitHub Actions workflow runs outside the web request path and injects production Railway environment variables with `RAILWAY_TOKEN`.
 2. `pg_dump` creates logical backup.
 3. Backup is encrypted with `age`.
 4. Encrypted object is uploaded to Cloudflare R2.
 5. SHA-256 and size are recorded in `backup_runs`.
 6. `pg_restore --list` validates archive readability.
 7. `restore_format_ok` is recorded.
+8. Retention removes expired encrypted R2 objects after a successful backup.
+
+Schedule:
+
+- Workflow: `.github/workflows/production-backup.yml`
+- Cron: `15 18 * * *` (18:15 UTC / 02:15 Asia/Manila)
+- Manual run: GitHub Actions `workflow_dispatch`
+- Activation rule: GitHub scheduled workflows run from the default branch, so this cron starts only after the workflow exists on `main`.
+
+Required GitHub secret:
+
+- `RAILWAY_TOKEN` - Railway project token scoped to production.
 
 Production command:
 
@@ -66,8 +80,34 @@ Required production variables:
 - `BACKUP_AGE_RECIPIENT`
 - `BACKUP_OBJECT_PREFIX` (default: `database`)
 - `BACKUP_DATABASE_URL` (optional; defaults to `DATABASE_URL`)
+- `BACKUP_RETENTION_DAYS` (default: `30`)
+- `BACKUP_RETENTION_MONTHLY_KEEP` (default: `12`)
 
 Do not store the `age` private identity on Railway production. Keep the private restore key offline or in a separate controlled restore environment.
+
+## Retention policy
+
+Retention runs only after a successful encrypted backup in the scheduled workflow.
+
+- Keep every encrypted `.dump.age` backup newer than `BACKUP_RETENTION_DAYS` (default 30 days).
+- Keep one monthly encrypted backup for the latest `BACKUP_RETENTION_MONTHLY_KEEP` months (default 12).
+- Keep object keys that do not match the expected `panoptix-YYYYMMDDTHHMMSSZ-<uuid>.dump.age` format.
+- Delete only expired encrypted R2 objects; do not delete `backup_runs` rows or restore-drill evidence.
+- Emit sanitized JSON counts only. Do not print object keys, database URLs, R2 secrets, private keys, or decrypted backup contents.
+
+Dry-run retention check:
+
+```powershell
+cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+railway run --service panoptix-control --environment production --no-local -- python -m cctv_api.jobs.backup_retention_r2 --dry-run
+```
+
+Apply retention manually, normally only after confirming the latest backup succeeded:
+
+```powershell
+cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+railway run --service panoptix-control --environment production --no-local -- python -m cctv_api.jobs.backup_retention_r2
+```
 
 ## Restore drill
 
@@ -135,6 +175,8 @@ The `scripts/restore-drill.sh` script (created in Round 3A) automates the quarte
 - Production R2 bucket access was verified on 2026-05-25; one encrypted `.dump.age` backup artifact exists.
 - Isolated restore drill completed on 2026-05-25 against a temporary Neon branch, which was deleted after validation.
 - `python -m cctv_api.jobs.backup_r2` is available for operator-run encrypted backups.
+- `.github/workflows/production-backup.yml` is available for recurring daily backup and retention automation after merge to `main`.
+- `python -m cctv_api.jobs.backup_retention_r2` is available for 30-day plus 12-month encrypted object retention.
 - `python -m cctv_api.jobs.restore_drill_r2` and `scripts/restore-drill.sh` are available for encrypted artifact validation and isolated restore drills.
 
 Record completion dates and any anomalies found as a DPA/security artifact alongside the standard restore evidence.

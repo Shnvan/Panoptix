@@ -2,7 +2,7 @@
 
 Panoptix is a live-view CCTV monitoring system that connects IP cameras to authenticated browser viewers through a security-first, three-plane architecture.
 
-> **Status:** Production live at `panoptix.site` (2026-05-22). Backend control plane, edge-agent, CI/security scans, LiveKit Cloud, and R2 backup provisioning complete. Frontend integrated (staging smoke passed); real CCTV hardware onboarding still pending.
+> **Status:** Production live at `panoptix.site` (2026-05-22). Backend control plane, edge-agent, CI/security scans, LiveKit Cloud, R2 backup provisioning, encrypted restore drill, and backup automation scaffolding are complete. Frontend integrated (staging smoke passed); real CCTV hardware onboarding still pending.
 
 ## Architecture
 
@@ -100,10 +100,10 @@ python -m compileall src tests
 
 Non-frontend and non-hardware work is mostly operational:
 
-- monitor the 7-day staging uptime gate
-- prepare production Cloudflare/Railway/Neon environments after the gate clears
-- configure Google Workspace IdP and WARP/device posture for production
-- verify R2 backup/restore drills
+- merge the production backup workflow to the default branch so the GitHub Actions cron activates
+- confirm the first scheduled encrypted backup and retention run
+- keep quarterly isolated restore drills current without storing private `age` identities in Railway, GitHub, or the repo
+- configure Google Workspace IdP and WARP/device posture when ready
 - procure break-glass hardware keys
 
 Real camera publishing requires physical camera/gateway hardware. Frontend implementation remains owned by the frontend coworker.

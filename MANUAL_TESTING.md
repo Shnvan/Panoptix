@@ -3960,7 +3960,7 @@ Production evidence recorded 2026-05-25:
 - `GET /api/v1/admin/backups/status` returned `ok` after restore-drill evidence was recorded.
 - Expanded visitor collector DB smoke found existing visitor visit rows with the expanded context columns populated.
 
-The next production backup step is recurring backup automation and retention policy. Do not store the private `age` identity in Railway production.
+Recurring backup automation is implemented as `.github/workflows/production-backup.yml`. The cron runs only after the workflow exists on the repository default branch. Do not store the private `age` identity in Railway production, GitHub secrets, or the repository.
 
 ### Run first operator backup
 
@@ -3976,6 +3976,47 @@ Expected:
 - Command prints sanitized JSON with `upload_status` set to `uploaded`.
 - No database URL, R2 key, object key, or decrypted backup content is printed.
 - `GET /api/v1/admin/backups/status` changes from `missing` to `degraded` until restore-drill evidence is recorded; after the 2026-05-25 isolated restore drill it returned `ok`.
+
+### Verify recurring backup workflow
+
+The scheduled workflow uses GitHub secret `RAILWAY_TOKEN` and runs daily at 18:15 UTC / 02:15 Asia/Manila after it is merged to `main`.
+
+Manual GitHub Actions check:
+
+1. Open Actions -> `Production Backup`.
+2. Run the workflow manually.
+3. Confirm the `Run encrypted production backup` step succeeds.
+4. Confirm the `Apply production backup retention` step succeeds.
+5. Confirm no issue titled `Production backup automation failed` is created or updated.
+
+Expected:
+
+- Workflow output contains only sanitized JSON and tool progress.
+- No object keys, database URLs, R2 secrets, private age keys, or decrypted backup contents are printed.
+- Retention runs only after the backup step succeeds.
+
+### Verify backup retention manually
+
+Dry-run retention:
+
+```powershell
+cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+railway run --service panoptix-control --environment production --no-local -- python -m cctv_api.jobs.backup_retention_r2 --dry-run
+```
+
+Apply retention:
+
+```powershell
+cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+railway run --service panoptix-control --environment production --no-local -- python -m cctv_api.jobs.backup_retention_r2
+```
+
+Expected:
+
+- Dry-run reports `planned_delete_count` but `deleted_count` remains `0`.
+- Apply reports sanitized counts only.
+- Retention keeps all backups newer than `BACKUP_RETENTION_DAYS`, one monthly backup for `BACKUP_RETENTION_MONTHLY_KEEP` months, and unparseable `.dump.age` keys.
+- Retention deletes only encrypted R2 objects. It does not delete `backup_runs` rows.
 
 ### Validate encrypted backup without restoring
 
@@ -4053,6 +4094,8 @@ From the Railway dashboard for `cctv-api`:
 - `R2_SECRET_ACCESS_KEY` — R2 API token secret
 - `BACKUP_AGE_RECIPIENT` — public `age` recipient key only
 - `BACKUP_OBJECT_PREFIX` — default `database`
+- `BACKUP_RETENTION_DAYS` — default `30`
+- `BACKUP_RETENTION_MONTHLY_KEEP` — default `12`
 
 All required values must be present for the backup job to function. Do not verify values by printing them; only confirm their presence in the Railway environment variable list.
 

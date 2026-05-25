@@ -436,5 +436,4 @@ Gateway ACK:
 
 - Frontend-generated OpenAPI/TypeScript client.
 - Dynamic CSP middleware driven by `media_plane_mode`.
-- Recurring backup scheduling and retention automation.
 - Browser bundle scan and frontend API type generation.

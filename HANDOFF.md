@@ -38,7 +38,7 @@ Latest full-stack integration commits:
 
 ## Current Objective
 
-Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The first encrypted R2 backup artifact exists, dry-run decrypt/`pg_restore --list` validation passed, the first isolated restore drill completed successfully against a temporary Neon branch, the temporary branch was deleted, and backup status now reports `ok`. The next system-owner implementation milestone is recurring backup automation and retention rules. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, Alerts page backend API wiring, actor investigation UI, and admin visitor investigation UI.
+Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The first encrypted R2 backup artifact exists, dry-run decrypt/`pg_restore --list` validation passed, the first isolated restore drill completed successfully against a temporary Neon branch, the temporary branch was deleted, and backup status now reports `ok`. Recurring backup automation and 30-day plus 12-month R2 object retention are implemented; the cron activates after the workflow lands on the default branch. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, Alerts page backend API wiring, actor investigation UI, and admin visitor investigation UI.
 
 The system is Panoptix, a secure live-view CCTV web monitoring system with three planes:
 
@@ -169,7 +169,7 @@ Latest full-stack integration commits:
 
 ## Current Objective
 
-Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The first encrypted R2 backup artifact exists, dry-run decrypt/`pg_restore --list` validation passed, the first isolated restore drill completed successfully against a temporary Neon branch, the temporary branch was deleted, and backup status now reports `ok`. The next system-owner implementation milestone is recurring backup automation and retention rules. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, Alerts page backend API wiring, actor investigation UI, and admin visitor investigation UI.
+Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The first encrypted R2 backup artifact exists, dry-run decrypt/`pg_restore --list` validation passed, the first isolated restore drill completed successfully against a temporary Neon branch, the temporary branch was deleted, and backup status now reports `ok`. Recurring backup automation and 30-day plus 12-month R2 object retention are implemented; the cron activates after the workflow lands on the default branch. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, Alerts page backend API wiring, actor investigation UI, and admin visitor investigation UI.
 
 The system is Panoptix, a secure live-view CCTV web monitoring system with three planes:
 
@@ -402,7 +402,7 @@ Production evidence as of 2026-05-25:
 - Backup status returned `ok` after restore-drill evidence was recorded.
 - Restore-drill tooling supports the real encrypted `.dump.age` format through `python -m cctv_api.jobs.restore_drill_r2` and `scripts/restore-drill.sh`: latest R2 object selection, local temp download, `age` decrypt, `pg_restore --list`, optional isolated target restore, and evidence-row recording.
 - Dry-run restore validation passed: the encrypted production artifact decrypted locally and `pg_restore --list` succeeded.
-- Next system-owner backup task is recurring backup automation and retention rules. Never restore into production Neon.
+- Next system-owner backup task is confirming the first scheduled backup/retention run after default-branch activation. Never restore into production Neon.
 
 ### Actor Investigation Profile and Activity API (2026-05-14)
 
@@ -1962,10 +1962,10 @@ compileall: passed
 Recommended next task:
 
 ```text
-Recurring Backup Automation And Retention Rules
+Confirm First Scheduled Backup Run
 ```
 
-Turn the proven operator-run R2 backup and isolated restore-drill path into a scheduled, monitored production backup workflow. The first encrypted backup artifact and restore-drill evidence already exist, so the next system-owner task is automation: cadence, failure alerting, retention policy, and runbook evidence.
+The proven operator-run R2 backup and isolated restore-drill path now has a daily GitHub Actions workflow plus R2 object retention rules. After this lands on the default branch, confirm either the manual dispatch or first scheduled run succeeds, retention reports sanitized counts, and no `Production backup automation failed` issue remains open.
 
 **Note**: Production is already live at `panoptix.site`; the old staging-gate/procurement wording below is historical context only. Do not restore into production Neon. Keep private `age` identities outside Railway and outside the repo.
 
@@ -1977,13 +1977,13 @@ Turn the proven operator-run R2 backup and isolated restore-drill path into a sc
 - actor investigation UI (frontend coworker)
 - admin visitor investigation UI (frontend coworker)
 - full audit filter UI (frontend coworker)
-- recurring backup automation and retention policy (system owner)
+- first scheduled backup/retention run evidence after default-branch activation (system owner)
 - gateway local network discovery scanner/API/UI (planned core pilot; gateway/backend first, frontend later)
 - production Docker/systemd gateway supervision (runbook templates exist)
 - Google Workspace IdP setup (GitHub OAuth currently deployed)
 - WARP device posture production activation (checklist done in `cloudflare-production-setup.md`)
 
-The proven manual backup/restore path is complete; automation, retention, hardware validation, and coworker-owned UI gaps remain.
+The proven manual backup/restore path is complete; scheduled backup automation and retention code exist. First scheduled-run evidence, hardware validation, and coworker-owned UI gaps remain.
 
 ## 7-Day Staging Gate
 
@@ -2370,7 +2370,7 @@ Important local checks currently include:
 ## Suggested Prompt For The New IDE/LLM
 
 ```text
-Read HANDOFF.md and follow its instructions. Then read PROGRESS.md, IMPLEMENTATION_GUIDE.md, MANUAL_TESTING.md, README.md, CLAUDE.md, docs/runbooks/backup-restore.md, and the source files related to the next milestone. Confirm the current state and development rules before making changes. Current production facts: panoptix.site is live, /entry works, expanded visitor detail APIs work, the first encrypted R2 backup exists, isolated restore-drill evidence row 564e2bfd-b449-4c9f-b46d-a0366856a7e0 passed, backup status is ok, and the temporary Neon restore branch was deleted. The next recommended system-owner milestone is recurring backup automation and retention rules. Do not take coworker-owned frontend tasks unless explicitly reassigned.
+Read HANDOFF.md and follow its instructions. Then read PROGRESS.md, IMPLEMENTATION_GUIDE.md, MANUAL_TESTING.md, README.md, CLAUDE.md, docs/runbooks/backup-restore.md, and the source files related to the next milestone. Confirm the current state and development rules before making changes. Current production facts: panoptix.site is live, /entry works, expanded visitor detail APIs work, the first encrypted R2 backup exists, isolated restore-drill evidence row 564e2bfd-b449-4c9f-b46d-a0366856a7e0 passed, backup status is ok, the temporary Neon restore branch was deleted, and recurring backup automation plus R2 object retention are implemented. The next recommended system-owner milestone is first scheduled backup/retention run evidence after default-branch activation. Do not take coworker-owned frontend tasks unless explicitly reassigned.
 ```
 
 ## Final Notes
