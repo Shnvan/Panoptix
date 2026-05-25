@@ -1,10 +1,10 @@
-﻿# ADR 0012 â€” Camera Network Design
+﻿# ADR 0012 - Camera Network Design
 
 - **Status**: Accepted
 - **Date**: 2026-05-07
 - **Decision-makers**: Network Administrator, Software Architect, System Owner
 - **Supersedes**: None
-- **Plan references**: Â§10.1; Â§11.5; Â§13.8; Â§13.9; Â§18.2 T-61/T-62; Â§20.14; ADR 0001; ADR 0013
+- **Plan references**: Section 10.1; Section 11.5; Section 13.8; Section 13.9; Section 18.2 T-61/T-62; Section 20.14; ADR 0001; ADR 0013
 
 ## Context
 
@@ -68,7 +68,7 @@ A single-NIC gateway is acceptable only if the switch is VLAN-aware and ACLs enf
 
 - Tagged camera VLAN sub-interface on the gateway
 - Untagged or tagged WAN/operator VLAN as configured by the site
-- Switch ACL blocks camera VLAN â†” operator LAN and camera VLAN â†’ internet
+- Switch ACL blocks camera VLAN <-> operator LAN and camera VLAN -> internet
 
 Single-NIC deployments require an explicit site-network note in the private site plan.
 
@@ -76,13 +76,13 @@ Single-NIC deployments require an explicit site-network note in the private site
 
 | Direction | From | To | Allowed |
 |---|---|---|---|
-| Gateway â†’ WAN | Gateway WAN iface | LiveKit Cloud, `cctv-api`, CF Access endpoints, Ubuntu/Docker update endpoints | TCP 443 only |
-| WAN â†’ Gateway | Any | Gateway | **None** â€” no port forwards, no NAT loopback |
-| Cameras â†’ Gateway | Camera VLAN | Gateway camera iface | TCP 554 (RTSP) + ICMP only |
-| Gateway â†’ Cameras | Gateway camera iface | Cameras | TCP 554 + ICMP only |
-| Camera VLAN â†” Operator LAN | Any | Any | **Blocked at switch/firewall** |
-| Camera VLAN â†’ Internet | Cameras | Any | **Blocked** â€” no route |
-| Operator LAN â†’ Cameras | Operator devices | Cameras | **Blocked by default**; temporary maintenance exception only |
+| Gateway -> WAN | Gateway WAN iface | LiveKit Cloud, `cctv-api`, CF Access endpoints, Ubuntu/Docker update endpoints | TCP 443 only |
+| WAN -> Gateway | Any | Gateway | **None** - no port forwards, no NAT loopback |
+| Cameras -> Gateway | Camera VLAN | Gateway camera iface | TCP 554 (RTSP) + ICMP only |
+| Gateway -> Cameras | Gateway camera iface | Cameras | TCP 554 + ICMP only |
+| Camera VLAN <-> Operator LAN | Any | Any | **Blocked at switch/firewall** |
+| Camera VLAN -> Internet | Cameras | Any | **Blocked** - no route |
+| Operator LAN -> Cameras | Operator devices | Cameras | **Blocked by default**; temporary maintenance exception only |
 
 Temporary camera maintenance exceptions must be time-boxed, documented, and removed after use.
 
@@ -162,11 +162,11 @@ The control plane stores only camera metadata, gateway assignments, and authoriz
 
 ## References
 
-- v4 plan Â§10.1 (Camera plane diagram)
-- v4 plan Â§11.5 (Gateway identity / secret storage)
-- v4 plan Â§13.8 (Camera Site Hardware)
-- v4 plan Â§13.9 (Camera Network Design)
-- v4 plan Â§20.14 (Gateway lifecycle runbook)
+- v4 plan Section 10.1 (Camera plane diagram)
+- v4 plan Section 11.5 (Gateway identity / secret storage)
+- v4 plan Section 13.8 (Camera Site Hardware)
+- v4 plan Section 13.9 (Camera Network Design)
+- v4 plan Section 20.14 (Gateway lifecycle runbook)
 - ADR 0001 (Plane separation)
 - ADR 0013 (Gateway hardware standard)
 

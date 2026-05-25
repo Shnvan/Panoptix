@@ -30,9 +30,9 @@ Do not file public issues containing:
 
 ## Dependency and supply-chain policy
 
-- Dependencies are exact-pinned per ADR 0007.
-- Lockfile-only installs are required.
-- Semgrep, osv-scanner, Trivy, gitleaks, browser bundle scans, and SBOM generation are CI gates.
+- Dependencies are reviewed through Dependabot and CI. ADR 0007 remains the target policy for stricter lockfile/digest pinning.
+- Current CI gates include backend/edge tests, ruff, mypy, compile checks, Gitleaks, Semgrep, osv-scanner, Trivy, and Docker build checks.
+- Browser bundle scans, SBOM generation/signing, Playwright, ZAP, k6, and frontend lockfile gates are planned for frontend/pilot readiness and are not current CI gates.
 - Critical/high findings block release unless explicitly accepted in an ADR.
 
 ## Secret handling

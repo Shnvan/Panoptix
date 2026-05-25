@@ -1,0 +1,2 @@
+# Suppress false positive: urlopen called with operator-controlled config URL, not user input
+apps/cctv-edge/agent/src/panoptix_edge_agent/client.py

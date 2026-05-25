@@ -1,11 +1,11 @@
-﻿# ADR 0008 â€” Gateway Identity and mTLS CA Design
+﻿# ADR 0008 - Gateway Identity and mTLS CA Design
 
 - **Status**: Accepted
 - **Date**: 2026-05-07
 - **Decision-makers**: System Owner, Software Architect, Operations Owner
 - **Decision**: Service-token MVP + mTLS required before pilot
 - **Supersedes**: None
-- **Plan references**: Â§11.5; Â§13.8; Â§13.9; Â§14.1; Â§15.3; Â§16.16; Â§20.14; Â§20.15; ADR 0001; ADR 0012; ADR 0013
+- **Plan references**: Section 11.5; Section 13.8; Section 13.9; Section 14.1; Section 15.3; Section 16.16; Section 20.14; Section 20.15; ADR 0001; ADR 0012; ADR 0013
 
 ## Context
 
@@ -26,7 +26,7 @@ Without gateway identity, any machine could attempt to impersonate a camera gate
 
 This provides fast MVP implementation while preserving a strong pilot/production security path.
 
-## MVP design â€” service token per gateway
+## MVP design - service token per gateway
 
 ### Credential issuance
 
@@ -88,7 +88,7 @@ Rotation flow:
 
 Rotation occurs quarterly or immediately after suspected compromise.
 
-## Pilot+ design â€” mTLS client certificates
+## Pilot+ design - mTLS client certificates
 
 Before pilot, each production gateway must have a client certificate. Service tokens may remain only as a temporary migration fallback, not as the final pilot posture.
 
@@ -259,14 +259,14 @@ Pilot requires `mtls_fingerprint IS NOT NULL` for production gateways.
 
 ## References
 
-- v4 plan Â§11.5 (Gateway identity)
-- v4 plan Â§13.8 (Camera Site Hardware)
-- v4 plan Â§13.9 (Camera Network Design)
-- v4 plan Â§14.1 (Data model)
-- v4 plan Â§15.3 (Token-mint authorization summary)
-- v4 plan Â§16.16 (Gateway identity & mTLS summary)
-- v4 plan Â§20.14 (Gateway lifecycle runbook)
-- v4 plan Â§20.15 (Gateway certificate rotation runbook)
+- v4 plan Section 11.5 (Gateway identity)
+- v4 plan Section 13.8 (Camera Site Hardware)
+- v4 plan Section 13.9 (Camera Network Design)
+- v4 plan Section 14.1 (Data model)
+- v4 plan Section 15.3 (Token-mint authorization summary)
+- v4 plan Section 16.16 (Gateway identity & mTLS summary)
+- v4 plan Section 20.14 (Gateway lifecycle runbook)
+- v4 plan Section 20.15 (Gateway certificate rotation runbook)
 - ADR 0001 (Plane separation)
 - ADR 0012 (Camera network design)
 - ADR 0013 (Gateway hardware standard)

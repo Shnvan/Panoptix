@@ -12,14 +12,14 @@ The current source of truth is:
 
 Current control-plane stack:
 
-- Railway-hosted Next.js/React frontend service
+- Railway-hosted React + Vite frontend service
 - Railway-hosted Python/FastAPI backend service
 - Tailwind UI for MVP
 - SQLAlchemy 2.x + Alembic
-- Cloudflare Access with Google Workspace IdP
+- Cloudflare Access with GitHub OAuth IdP (staging); Google Workspace planned for production
 - Neon-first Postgres strategy
 - LiveKit Cloud primary media plane
 - DigitalOcean Singapore or equivalent UDP-capable APAC host for self-hosted LiveKit fallback
 - On-site physical NUC-class x86_64 mini-PC production camera gateway
 
-Historical Fly.io/Next.js/Node.js content should not be used for implementation decisions.
+Historical Fly.io/Next.js/Node.js content should not be used for implementation decisions. The frontend now uses React + Vite (not Next.js).

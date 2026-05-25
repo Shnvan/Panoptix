@@ -1,0 +1,44 @@
+# Panoptix Edge Gateway — Docker Compose template
+#
+# This is a docs-only template. Do not run it without operator review,
+# credential provisioning, and network security gates.
+#
+# See docs/runbooks/edge-gateway-service.md for the full operational runbook.
+
+services:
+  cctv-gateway:
+    # Pin image tags; do not use 'latest'.
+    image: panoptix-edge-agent:0.1.0
+    # Or build from the Dockerfile template:
+    # build:
+    #   context: ../../../
+    #   dockerfile: docs/runbooks/templates/Dockerfile.edge-agent.example
+
+    # Environment file stored outside the repository with mode 0600.
+    env_file:
+      - /etc/cctv-gateway/gateway.env
+
+    # Security: read-only root filesystem.
+    read_only: true
+
+    # Writable volume for runtime state only.
+    volumes:
+      - gateway-state:/var/lib/cctv-gateway
+      # Optional: mount mediamtx config read-only if supervision is enabled.
+      # - /etc/cctv-gateway/mediamtx.yml:/etc/cctv-gateway/mediamtx.yml:ro
+
+    restart: unless-stopped
+
+    # IMPORTANT: No 'ports:' section. The edge gateway has zero inbound ports.
+    #
+    # BANNED — Do not add any of these:
+    #
+    #   ports:
+    #     - "8554:8554"   # RTSP
+    #     - "8888:8888"   # HLS
+    #     - "8889:8889"   # WebRTC
+    #     - "9997:9997"   # mediamtx API
+    #     - "1935:1935"   # RTMP
+
+volumes:
+  gateway-state:

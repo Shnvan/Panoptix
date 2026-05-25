@@ -1,0 +1,64 @@
+name: Deploy — Staging
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [backend]
+    paths:
+      - "apps/api/**"
+      - "apps/cctv-edge/**"
+  workflow_dispatch:
+
+jobs:
+  notify-and-verify:
+    name: Notify and Verify
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deployment notice
+        env:
+          SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          echo "Railway auto-deploys from the \`backend\` branch to the staging service."
+          echo "Commit SHA : $SHA"
+          echo "Actor      : $ACTOR"
+          echo "Branch     : $BRANCH"
+
+      - name: Wait for Railway deploy
+        run: sleep 45
+
+      - name: Post-deploy health probe (informational)
+        run: |
+          echo "Probing staging /health (informational — CF Access may redirect unauthenticated requests)..."
+          HTTP_CODE=$(curl --silent --output /dev/null --write-out "%{http_code}" --max-time 15 https://staging.panoptix.site/health || echo "000")
+          echo "HTTP status: $HTTP_CODE"
+          if [ "$HTTP_CODE" = "000" ]; then
+            echo "::warning::Could not reach staging.panoptix.site — Railway may still be deploying."
+          elif [ "$HTTP_CODE" = "200" ]; then
+            echo "Staging /health returned 200 — healthy."
+          else
+            echo "::notice::Staging /health returned $HTTP_CODE (CF Access redirect is expected for unauthenticated probes). The staging-healthcheck cron will verify with auth."
+          fi
+
+      - name: Write job summary
+        env:
+          SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          cat >> "$GITHUB_STEP_SUMMARY" << EOF
+          ## Staging Deployment Summary
+
+          | Field | Value |
+          |---|---|
+          | **Commit SHA** | $SHA |
+          | **Branch** | $BRANCH |
+          | **Actor** | $ACTOR |
+          | **Timestamp** | $TIMESTAMP |
+          | **Status** | Success |
+          EOF

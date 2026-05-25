@@ -38,18 +38,14 @@ Users never connect directly to cameras. Cameras never touch the internet. The g
 | Role | Description |
 |---|---|
 | **Viewer** | School staff or security personnel who watch live camera feeds. They can only see cameras they are assigned to. |
-| **Admin** | Manages users, cameras, gateways, and permissions. Can view audit logs and export compliance records. |
-| **Auditor** | Read-only access to audit logs, user lists, and camera/gateway lists. Cannot watch streams or make changes. |
-| **SuperAdmin** | Full admin access plus system-level actions like rotating security keys and configuring system policies. |
-| **Break-glass admin** | Emergency-only account with a 90-minute time limit. Used when normal admin access is unavailable. |
+| **Admin** | Manages users, cameras, gateways, permissions, audit logs, system configuration, and compliance records. |
 | **Gateway** | Not a person — this is the on-site computer's machine identity. It authenticates to the system to publish camera video. |
 
 ### Key rules
 
 - New users start with **no permissions** until an admin assigns a role.
 - Camera access is granted per user, per camera — your role alone does not give you cameras.
-- Admin pages require extra security checks (device trust, recent re-authentication).
-- The break-glass account is sealed offline and requires a hardware security key.
+- Admin pages require Cloudflare Access verification.
 
 ---
 
@@ -92,12 +88,12 @@ Each camera tile shows a clear status so viewers always know what is happening:
 
 ## 4. Admin and Operator Features
 
-These features are available to Admins, SuperAdmins, and authorized operators.
+These features are available to Admins.
 
 ### User management
 
 - **Invite users** through the identity provider (Google Workspace).
-- **Assign roles**: Viewer, Admin, Auditor, SuperAdmin.
+- **Assign roles**: Viewer or Admin.
 - **Disable users** immediately — active sessions are terminated.
 - **Reset MFA** for a user (admin-mediated; users cannot reset their own MFA).
 - By default, no user holds both viewer and admin roles unless explicitly approved.
@@ -114,6 +110,7 @@ These features are available to Admins, SuperAdmins, and authorized operators.
 - **Assign cameras to gateways**: each gateway only publishes video for its assigned cameras.
 - **Disable or retire gateways**: disabling a gateway immediately stops all its active publish sessions (within 10 seconds).
 - **Gateway health dashboard**: view heartbeat status, last-seen time, and certificate expiry (when mTLS is enabled).
+- **Gateway local network discovery** (pilot planned): the on-site gateway will discover approved camera VLAN/local subnet devices and possible CCTV camera candidates. This is not implemented in the MVP scanner/API/UI yet.
 
 ### Camera and gateway health
 
@@ -235,12 +232,19 @@ The system is designed to comply with Philippine data privacy law (RA 10173 / NP
 | Feature | Status |
 |---|---|
 | Viewer identity watermark on video | Planned |
-| Alerting and notifications | Planned |
+| Alerting and notifications | Backend alert records and SMTP email foundation implemented; email disabled by default until SMTP settings are configured; frontend alerts UI still pending |
 | Tamper detection with 5-minute verification | Planned |
 | mTLS gateway certificates with rotation alerts | Planned |
 | NVR integration (nvr_rtsp source type) | Planned |
 | Suspicious login detection | Planned |
 | Device posture enforcement for admins (WARP) | Included from MVP |
+| Gateway local network discovery | Planned |
+| Actor profile enrichment | Planned |
+| Detection and incident workflow | Planned |
+| Analyst notes and investigation timeline | Planned |
+| Behavior baseline and actor risk scoring | Planned |
+
+Gateway local network discovery is planned as a gateway-only pilot capability. It should let admins review devices visible from the on-site gateway on approved camera VLAN/subnet ranges, including IP address, MAC address when available, hostname, vendor/OUI, detected protocol hints such as RTSP/554, HTTP/80, HTTPS/443, ONVIF, known-vs-unknown status, and possible camera candidate status. It must not run from the browser or Railway, must not scan the public internet or operator LAN unless an approved ADR/site plan allows it, and must not collect camera credentials.
 
 ### Future (later phases)
 

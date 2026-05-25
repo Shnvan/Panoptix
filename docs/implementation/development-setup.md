@@ -1,91 +1,127 @@
 # Development Setup Guide
 
-<!-- PE-FIX: Added standalone setup guide required by the council audit -->
+This guide reflects the current backend and edge-agent repository state. The frontend remains a placeholder owned by the frontend coworker.
 
-This guide defines the expected local development shape before application code is written.
+## Repository Services
 
-## Repository services
-
-| Service | Owner | Purpose |
+| Service | Owner | Current state |
 |---|---|---|
-| `cctv-web` | Frontend | Next.js/React/Tailwind UI and LiveKit viewer components. |
-| `cctv-api` | Backend/Security | FastAPI API, CF JWT verification, RBAC, sessions, token minting, audit, gateway control, DB writes. |
-| `cctv-gateway` | Backend/Ops | Gateway agent plus `mediamtx` for synthetic RTSP and production gateway behavior. |
-| `postgres` | Database | Local Postgres matching Neon behavior closely enough for migrations/tests. |
-| `synthetic-rtsp` | QA/Gateway | FFmpeg `testsrc` RTSP stream only; never real camera footage. |
+| `cctv-api` | System owner | FastAPI backend with auth, sessions, audit, admin, gateway, LiveKit, and health endpoints |
+| `cctv-gateway` | System owner | Python edge agent with heartbeat, outbound control, supervisor, FFmpeg/LiveKit scaffolds, and camera credential loading |
+| `mediamtx` | System owner | Local loopback-only config scaffold in `apps/cctv-edge/mediamtx/` |
+| `cctv-web` | Frontend coworker | Placeholder only; no package metadata yet |
+| `postgres` | Database/system owner coordination | Neon staging exists; local Postgres may be used for database-backed testing |
 
-## Local prerequisites
+## Prerequisites
 
-- Windows with WSL2 or a Linux-compatible shell for Docker workflows.
-- Git.
-- Node.js exact patch version from ADR 0007.
-- Python exact patch version from ADR 0007.
-- Docker Desktop.
-- Postgres client tools: `psql`, `pg_dump`, `pg_restore`.
-- FFmpeg for synthetic RTSP testing.
+- Git
+- Python 3.12+
+- Docker Desktop for backend image checks
+- PostgreSQL client tools if using local database or restore drills
+- FFmpeg for synthetic RTSP and smoke tests
+- mediamtx for local media-process manual tests
 
-## Local auth model
+Node.js is only required when frontend work begins in `apps/web/`.
 
-Real Cloudflare Access is not used locally. Local dev uses a fake-CF-Access middleware only when all of these are true:
+## Environment
 
-```text
-APP_ENV=development
-ALLOW_DEV_AUTH=1
-DEV_CF_JWT_SIGNING_KEY is set
+Use `.env.example` as the schema for local values. Real secrets belong only in ignored `.env` files.
+
+Important local groups:
+
+- `APP_ENV`, `ALLOW_DEV_AUTH`, and Cloudflare Access placeholders
+- session, CSRF, and audit signing keys
+- database URLs
+- LiveKit placeholders or staging-only credentials
+- gateway service-token and command-signing values
+- edge-agent `PANOPTIX_*` values
+- optional `PANOPTIX_SMOKE_*` values for LiveKit smoke tests
+
+## Backend Setup
+
+```powershell
+Set-Location apps\api
+python -m pip install --upgrade pip
+python -m pip install ".[dev]"
+$env:PYTHONPATH = "src"
+python -m uvicorn cctv_api.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-The fake middleware must issue a dev-signed JWT and exercise the same verifier path as production. Raw `Cf-Access-*` headers are never trusted directly.
+Backend verification:
 
-## Environment files
+```powershell
+Set-Location apps\api
+$env:PYTHONPATH = "src"
+python -m pytest tests/ -v
+python -m ruff check src tests alembic scripts
+python -m mypy src/cctv_api/ --ignore-missing-imports
+python -m compileall src alembic scripts
+```
 
-Use `.env.example` as the source of required variables. Local secrets go into ignored `.env.local` files per service.
+## Edge-Agent Setup
 
-Required local groups:
+```powershell
+Set-Location apps\cctv-edge\agent
+python -m pip install --upgrade pip
+python -m pip install ".[dev]"
+$env:PYTHONPATH = "src"
+$env:PANOPTIX_API_BASE_URL = "http://127.0.0.1:8000"
+$env:PANOPTIX_GATEWAY_ID = "11111111-1111-1111-1111-111111111111"
+$env:PANOPTIX_DEV_GATEWAY_IDENTITY = "true"
+python -m panoptix_edge_agent.cli --once
+```
 
-- Cloudflare Access verifier settings.
-- App session/cookie keys.
-- Postgres URL and migration URL.
-- LiveKit Cloud/fallback test settings.
-- Gateway service token/mTLS placeholders.
-- R2 backup test settings.
-- Observability disabled-by-default settings.
+Edge-agent verification:
 
-## Startup sequence
+```powershell
+Set-Location apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+python -m pytest tests/ -v
+python -m ruff check src tests
+python -m mypy src/panoptix_edge_agent --ignore-missing-imports
+python -m compileall src tests
+```
 
-1. Start local Postgres.
-2. Apply database migrations once they exist.
-3. Start `synthetic-rtsp` with FFmpeg test pattern.
-4. Start `cctv-api` with dev auth enabled.
-5. Start `cctv-web` against same-origin API proxy settings.
-6. Start `cctv-gateway` with outbound control WebSocket to local `cctv-api`.
-7. Open the dashboard through the local frontend URL.
+## Edge Supervisor
 
-## Synthetic RTSP source
+Supervisor mode coordinates heartbeat and outbound gateway control. It can optionally start local mediamtx.
 
-Synthetic source requirements:
+```powershell
+Set-Location apps\cctv-edge\agent
+$env:PYTHONPATH = "src"
+$env:PANOPTIX_API_BASE_URL = "http://127.0.0.1:8000"
+$env:PANOPTIX_GATEWAY_ID = "11111111-1111-1111-1111-111111111111"
+$env:PANOPTIX_DEV_GATEWAY_IDENTITY = "true"
+$env:PANOPTIX_GATEWAY_COMMAND_SIGNING_KEY = "local-dev-command-signing-key-change-me"
+$env:PANOPTIX_SUPERVISE_MEDIAMTX = "false"
+python -m panoptix_edge_agent.cli --supervise
+```
 
-- Uses FFmpeg `testsrc` plus optional `sine` audio.
-- Contains no real people or real site data.
-- Source type is `synthetic_rtsp_test_source` only.
-- Forbidden browser-publisher paths remain forbidden even in local dev.
+## Optional Smoke Tests
 
-## Local testing gates
+Synthetic FFmpeg-to-LiveKit smoke tests require:
 
-Before opening a PR, run the local equivalents of:
+- FFmpeg on `PATH`
+- optional LiveKit SDK dependency: `python -m pip install -e ".[livekit]"`
+- `PANOPTIX_SMOKE_*` variables set with real test-only LiveKit credentials
 
-- Backend unit tests.
-- Frontend typecheck and lint.
-- Playwright smoke tests.
-- Browser bundle forbidden-term scan.
-- Secret scan.
-- API contract smoke tests.
-- Gateway command-channel test with WebSocket and heartbeat fallback.
+Do not commit LiveKit API keys, generated tokens, or RTSP camera credentials.
 
-## Development invariants
+## Frontend State
 
-- No real RTSP credentials in local env files.
-- No browser camera/microphone permissions.
-- No gateway-publish token returned to browser.
-- No direct camera credentials in API responses.
-- No long-lived browser auth tokens.
-- No bypass of FastAPI as security authority.
+`apps/web/` is currently a placeholder. The frontend owner should use:
+
+- `docs/frontend/README.md`
+- `docs/frontend/INTEGRATION_GUIDE.md`
+- `docs/frontend/frontend-guardrails.md`
+- `docs/frontend/ux-product-spec.md`
+
+Do not document or require `npm install`, Playwright, or bundle-scan commands until `apps/web/package.json` exists.
+
+## Development Invariants
+
+- No browser camera, microphone, or publishing flow.
+- No gateway publish token returned to browsers.
+- No RTSP credentials in backend responses, frontend bundles, audit payloads, or committed files.
+- Gateway and camera operations remain outbound-only from the gateway side.
+- Production/staging config must not use placeholder secrets.

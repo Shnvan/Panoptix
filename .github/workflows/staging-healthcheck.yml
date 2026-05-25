@@ -1,0 +1,107 @@
+name: Staging Health Check
+
+permissions:
+  contents: read
+  issues: write
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  healthcheck:
+    name: Health Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check /health endpoint
+        id: check_shallow
+        run: |
+          HTTP_CODE=$(curl -s -o /tmp/shallow_body.json -w "%{http_code}" https://staging.panoptix.site/health)
+          BODY=$(cat /tmp/shallow_body.json)
+          echo "http_code=${HTTP_CODE}" >> "$GITHUB_OUTPUT"
+          echo "body=${BODY}" >> "$GITHUB_OUTPUT"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "shallow_ok=false" >> "$GITHUB_OUTPUT"
+            echo "shallow_fail_reason=Expected HTTP 200 but got ${HTTP_CODE}. Body: ${BODY}" >> "$GITHUB_OUTPUT"
+          elif echo "$BODY" | grep -q '"status":"ok"'; then
+            echo "shallow_ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "shallow_ok=false" >> "$GITHUB_OUTPUT"
+            echo "shallow_fail_reason=Response body did not contain '\"status\":\"ok\"'. Body: ${BODY}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check /api/v1/admin/health/deep endpoint
+        id: check_deep
+        run: |
+          HTTP_CODE=$(curl -s -o /tmp/deep_body.json -w "%{http_code}" https://staging.panoptix.site/api/v1/admin/health/deep)
+          BODY=$(cat /tmp/deep_body.json)
+          echo "http_code=${HTTP_CODE}" >> "$GITHUB_OUTPUT"
+          echo "body=${BODY}" >> "$GITHUB_OUTPUT"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "deep_ok=false" >> "$GITHUB_OUTPUT"
+            echo "deep_fail_reason=Expected HTTP 200 but got ${HTTP_CODE}. Body: ${BODY}" >> "$GITHUB_OUTPUT"
+          elif echo "$BODY" | python3 -c "import sys, json; d = json.load(sys.stdin); sys.exit(0 if 'status' in d else 1)" 2>/dev/null; then
+            echo "deep_ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deep_ok=false" >> "$GITHUB_OUTPUT"
+            echo "deep_fail_reason=Response body was not valid JSON or did not contain a 'status' field. Body: ${BODY}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: File issue on failure
+        if: steps.check_shallow.outputs.shallow_ok == 'false' || steps.check_deep.outputs.deep_ok == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = "Staging health check failed";
+
+            // Check for an existing open issue with this title to avoid spam
+            const { data: existingIssues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              per_page: 100,
+            });
+            const alreadyOpen = existingIssues.some(i => i.title === title);
+            if (alreadyOpen) {
+              core.info("An open issue already exists — skipping creation.");
+              return;
+            }
+
+            const shallowOk = "${{ steps.check_shallow.outputs.shallow_ok }}" === "true";
+            const deepOk    = "${{ steps.check_deep.outputs.deep_ok }}"    === "true";
+
+            const lines = [
+              "One or more staging health checks failed. Details below.",
+              "",
+              "| Endpoint | Result | Details |",
+              "| --- | --- | --- |",
+            ];
+
+            if (!shallowOk) {
+              lines.push(
+                `| \`GET /health\` | FAILED | ${{ toJSON(steps.check_shallow.outputs.shallow_fail_reason) }} |`
+              );
+            } else {
+              lines.push("| `GET /health` | OK | — |");
+            }
+
+            if (!deepOk) {
+              lines.push(
+                `| \`GET /api/v1/admin/health/deep\` | FAILED | ${{ toJSON(steps.check_deep.outputs.deep_fail_reason) }} |`
+              );
+            } else {
+              lines.push("| `GET /api/v1/admin/health/deep` | OK | — |");
+            }
+
+            lines.push("");
+            lines.push(`_Workflow run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}_`);
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: lines.join("\n"),
+              labels: ["staging", "health-check"],
+            });
