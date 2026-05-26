@@ -222,11 +222,13 @@ The API records `admin.dsr.created`, `admin.dsr.viewed`, and `admin.dsr.updated`
 |---|---|---|
 | `POST` | `/api/v1/gateways/{gateway_id}/heartbeat` | heartbeat plus pending command fallback |
 | `POST` | `/api/v1/gateways/{gateway_id}/cameras/{camera_id}/status` | persist gateway-reported camera status |
-| `POST` | `/api/v1/gateways/{gateway_id}/discovery-runs` | persist sanitized camera LAN/VLAN TCP discovery report |
+| `POST` | `/api/v1/gateways/{gateway_id}/discovery-runs` | persist sanitized camera LAN/VLAN discovery report |
 | `POST` | `/api/v1/gateways/{gateway_id}/ingest-token` | LiveKit gateway publish token |
 | `WEBSOCKET` | `/api/v1/gateway-control/ws` | outbound gateway control channel |
 
-Gateway discovery reports are gateway-authenticated and require the route gateway ID to match the authenticated gateway identity. The backend stores approved CIDRs, probed ports, run status, counts, timestamps, agent version, and sanitized findings only. Findings contain IP, optional hostname, open TCP ports, `possible_camera`/`possible_nvr`/`unknown_device`, and confidence. Reports must not contain credentials, RTSP auth attempts, raw banners, packets, screenshots, public internet scan targets, or decrypted secrets.
+Gateway discovery reports are gateway-authenticated and require the route gateway ID to match the authenticated gateway identity. The backend stores approved CIDRs, probed ports, run status, counts, timestamps, agent version, and sanitized findings only. Findings contain IP, optional hostname/hostnames, optional MAC address, optional MAC vendor/OUI label, open TCP ports, observed protocol labels, evidence labels, `possible_camera`/`possible_nvr`/`unknown_device`, device hint, and confidence. Current device hints are `ip_camera`, `nvr`, `router`, `switch_possible`, `printer`, `client_device_possible`, and `unknown_network_device`. Reports must not contain credentials, RTSP auth attempts, raw banners, full HTTP response bodies, packets, screenshots, public internet scan targets, or decrypted secrets.
+
+Discovery enrichment is best-effort and gateway-local. ARP/MAC vendor lookup, mDNS/Bonjour, SSDP/UPnP, and safe HTTP/HTTPS title-category hints can improve the admin display, but they do not prove device identity. SNMP is not enabled by default and requires a separate customer-approved credentialed discovery milestone.
 
 ## Important Response Shapes
 

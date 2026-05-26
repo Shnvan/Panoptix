@@ -63,10 +63,24 @@ class GatewayCameraStatusRequest(BaseModel):
 class GatewayDiscoveryFinding(BaseModel):
     ip: str = Field(max_length=45)
     hostname: str | None = Field(default=None, max_length=255)
+    hostnames: list[str] = Field(default_factory=list, max_length=16)
+    mac_address: str | None = Field(default=None, max_length=17)
+    mac_vendor: str | None = Field(default=None, max_length=128)
     open_ports: list[int] = Field(default_factory=list, max_length=32)
     status: Literal["open"] = "open"
     candidate_kind: Literal["possible_camera", "possible_nvr", "unknown_device"]
+    device_hint: Literal[
+        "ip_camera",
+        "nvr",
+        "router",
+        "switch_possible",
+        "printer",
+        "client_device_possible",
+        "unknown_network_device",
+    ] = "unknown_network_device"
     confidence: Literal["low", "medium", "high"]
+    observed_protocols: list[str] = Field(default_factory=list, max_length=32)
+    evidence: list[str] = Field(default_factory=list, max_length=64)
 
 
 class GatewayDiscoveryRunRequest(BaseModel):
