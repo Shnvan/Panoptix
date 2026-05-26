@@ -44,6 +44,18 @@ def _production_config() -> AgentConfig:
     )
 
 
+def _production_cloudflare_config() -> AgentConfig:
+    return AgentConfig(
+        api_base_url="http://api.example.test/",
+        gateway_id="gateway-1",
+        agent_version="0.1.0",
+        request_timeout_seconds=3.0,
+        gateway_service_token="test-gateway-service-token",
+        cf_access_client_id="test-client-id.access",
+        cf_access_client_secret="test-client-secret",
+    )
+
+
 def test_send_heartbeat_posts_expected_payload_and_headers() -> None:
     transport = RecordingTransport(HttpResponse(status_code=200, body='{"pending_commands": []}'))
     client = GatewayApiClient(_config(), transport=transport)
@@ -66,6 +78,8 @@ def test_send_heartbeat_posts_expected_payload_and_headers() -> None:
     assert headers["x-panoptix-dev-gateway-id"] == "gateway-1"
     assert "x-panoptix-gateway-id" not in headers
     assert "Authorization" not in headers
+    assert "CF-Access-Client-Id" not in headers
+    assert "CF-Access-Client-Secret" not in headers
     assert timeout_seconds == 3.0
 
 
@@ -81,6 +95,48 @@ def test_send_heartbeat_posts_production_gateway_auth_headers() -> None:
     assert headers["x-panoptix-gateway-id"] == "gateway-1"
     assert headers["Authorization"] == "Bearer test-gateway-service-token"
     assert "x-panoptix-dev-gateway-id" not in headers
+    assert "CF-Access-Client-Id" not in headers
+    assert "CF-Access-Client-Secret" not in headers
+
+
+def test_send_heartbeat_posts_cloudflare_access_headers_when_configured() -> None:
+    transport = RecordingTransport(HttpResponse(status_code=200, body='{"pending_commands": []}'))
+    client = GatewayApiClient(_production_cloudflare_config(), transport=transport)
+
+    client.send_heartbeat()
+
+    _url, _payload, headers, _timeout_seconds = transport.calls[0]
+    assert headers["x-panoptix-gateway-id"] == "gateway-1"
+    assert headers["Authorization"] == "Bearer test-gateway-service-token"
+    assert headers["CF-Access-Client-Id"] == "test-client-id.access"
+    assert headers["CF-Access-Client-Secret"] == "test-client-secret"
+    assert "x-panoptix-dev-gateway-id" not in headers
+
+
+def test_dev_config_does_not_send_cloudflare_access_headers() -> None:
+    transport = RecordingTransport(HttpResponse(status_code=200, body='{"pending_commands": []}'))
+    client = GatewayApiClient(
+        AgentConfig(
+            api_base_url="http://api.example.test/",
+            gateway_id="gateway-1",
+            agent_version="0.1.0",
+            request_timeout_seconds=3.0,
+            dev_identity_enabled=True,
+            gateway_service_token="test-gateway-service-token",
+            cf_access_client_id="test-client-id.access",
+            cf_access_client_secret="test-client-secret",
+        ),
+        transport=transport,
+    )
+
+    client.send_heartbeat()
+
+    _url, _payload, headers, _timeout_seconds = transport.calls[0]
+    assert headers["x-panoptix-dev-gateway-id"] == "gateway-1"
+    assert "x-panoptix-gateway-id" not in headers
+    assert "Authorization" not in headers
+    assert "CF-Access-Client-Id" not in headers
+    assert "CF-Access-Client-Secret" not in headers
 
 
 def test_post_requires_gateway_service_token_outside_dev_mode() -> None:
@@ -95,6 +151,25 @@ def test_post_requires_gateway_service_token_outside_dev_mode() -> None:
     )
 
     with pytest.raises(AgentClientError, match="PANOPTIX_GATEWAY_SERVICE_TOKEN"):
+        client.send_heartbeat()
+
+    assert transport.calls == []
+
+
+def test_post_requires_complete_cloudflare_access_pair_when_configured() -> None:
+    transport = RecordingTransport(HttpResponse(status_code=200, body='{"pending_commands": []}'))
+    client = GatewayApiClient(
+        AgentConfig(
+            api_base_url="http://api.example.test/",
+            gateway_id="gateway-1",
+            dev_identity_enabled=False,
+            gateway_service_token="test-gateway-service-token",
+            cf_access_client_id="test-client-id.access",
+        ),
+        transport=transport,
+    )
+
+    with pytest.raises(AgentClientError, match="PANOPTIX_CF_ACCESS_CLIENT_ID"):
         client.send_heartbeat()
 
     assert transport.calls == []

@@ -537,6 +537,9 @@ Audit notes:
 ## 7. Gateway API Endpoints
 
 These endpoints require gateway identity. In development mode, use `x-panoptix-dev-gateway-id`.
+In Cloudflare Access-protected production, the edge agent also needs Cloudflare Access service-token values through `PANOPTIX_CF_ACCESS_CLIENT_ID` and `PANOPTIX_CF_ACCESS_CLIENT_SECRET`.
+
+Do not store the raw gateway service token or Cloudflare Access client secret in frontend env, GitHub, Railway frontend variables, docs, screenshots, or repo files. Paste only token values, not header names such as `CF-Access-Client-Id:`.
 
 ### Gateway heartbeat
 
@@ -557,6 +560,21 @@ $HeartbeatBody = @{
 
 Invoke-RestMethod -Method POST -Uri "$BaseUrl/api/v1/gateways/$GatewayId/heartbeat" -Headers $GatewayHeaders -ContentType "application/json" -Body $HeartbeatBody
 ```
+
+Production edge-agent smoke through Cloudflare Access:
+
+```powershell
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+$env:PANOPTIX_API_BASE_URL = "https://panoptix.site"
+$env:PANOPTIX_GATEWAY_ID = "<gateway-id>"
+$env:PANOPTIX_GATEWAY_SERVICE_TOKEN = "<gateway-service-token>"
+$env:PANOPTIX_CF_ACCESS_CLIENT_ID = "<cloudflare-access-client-id>"
+$env:PANOPTIX_CF_ACCESS_CLIENT_SECRET = "<cloudflare-access-client-secret>"
+$env:PANOPTIX_CAMERA_IDS = ""
+python -m panoptix_edge_agent.cli --once
+```
+
+Expected result: the heartbeat succeeds with no `403` and no Cloudflare login HTML.
 
 curl:
 
