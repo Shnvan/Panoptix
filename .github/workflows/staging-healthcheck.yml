@@ -15,93 +15,251 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Validate monitoring credentials
+        env:
+          STAGING_CF_ACCESS_CLIENT_ID: ${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}
+          STAGING_CF_ACCESS_CLIENT_SECRET: ${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${STAGING_CF_ACCESS_CLIENT_ID}" ] || [ -z "${STAGING_CF_ACCESS_CLIENT_SECRET}" ]; then
+            echo "::error::Missing STAGING_CF_ACCESS_CLIENT_ID or STAGING_CF_ACCESS_CLIENT_SECRET repository secret."
+            echo "::error::Configure a Cloudflare Access service token for the staging monitor before this workflow can probe protected endpoints."
+            exit 1
+          fi
+
       - name: Check /health endpoint
         id: check_shallow
+        env:
+          STAGING_CF_ACCESS_CLIENT_ID: ${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}
+          STAGING_CF_ACCESS_CLIENT_SECRET: ${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}
         run: |
-          HTTP_CODE=$(curl -s -o /tmp/shallow_body.json -w "%{http_code}" https://staging.panoptix.site/health)
-          BODY=$(cat /tmp/shallow_body.json)
-          echo "http_code=${HTTP_CODE}" >> "$GITHUB_OUTPUT"
-          echo "body=${BODY}" >> "$GITHUB_OUTPUT"
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "shallow_ok=false" >> "$GITHUB_OUTPUT"
-            echo "shallow_fail_reason=Expected HTTP 200 but got ${HTTP_CODE}. Body: ${BODY}" >> "$GITHUB_OUTPUT"
-          elif echo "$BODY" | grep -q '"status":"ok"'; then
-            echo "shallow_ok=true" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+
+          body_summary() {
+            python3 - "$1" <<'PY'
+          import sys
+          from pathlib import Path
+
+          raw = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+          summary = " ".join(raw.split())
+          print((summary or "<empty>")[:500])
+          PY
+          }
+
+          set_output() {
+            printf '%s=%s\n' "$1" "$2" >> "$GITHUB_OUTPUT"
+          }
+
+          BODY_FILE="$(mktemp)"
+          set +e
+          HTTP_CODE=$(curl --silent --show-error --output "$BODY_FILE" --write-out "%{http_code}" --max-time 20 \
+            -H "CF-Access-Client-Id: ${STAGING_CF_ACCESS_CLIENT_ID}" \
+            -H "CF-Access-Client-Secret: ${STAGING_CF_ACCESS_CLIENT_SECRET}" \
+            https://staging.panoptix.site/health)
+          CURL_EXIT=$?
+          set -e
+
+          HTTP_CODE="${HTTP_CODE:-000}"
+          set_output "http_code" "$HTTP_CODE"
+
+          if [ "$CURL_EXIT" -ne 0 ]; then
+            set_output "shallow_ok" "false"
+            set_output "shallow_fail_reason" "curl failed with exit ${CURL_EXIT}. Body: $(body_summary "$BODY_FILE")"
+          elif [ "$HTTP_CODE" != "200" ]; then
+            set_output "shallow_ok" "false"
+            if [ "$HTTP_CODE" = "302" ]; then
+              set_output "shallow_fail_reason" "Expected HTTP 200 but got 302 Cloudflare Access redirect. Check staging monitor service-token policy and headers. Body: $(body_summary "$BODY_FILE")"
+            else
+              set_output "shallow_fail_reason" "Expected HTTP 200 but got ${HTTP_CODE}. Body: $(body_summary "$BODY_FILE")"
+            fi
+          elif python3 - "$BODY_FILE" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          try:
+              data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          except Exception:
+              sys.exit(1)
+          sys.exit(0 if data.get("status") == "ok" else 1)
+          PY
+          then
+            set_output "shallow_ok" "true"
           else
-            echo "shallow_ok=false" >> "$GITHUB_OUTPUT"
-            echo "shallow_fail_reason=Response body did not contain '\"status\":\"ok\"'. Body: ${BODY}" >> "$GITHUB_OUTPUT"
+            set_output "shallow_ok" "false"
+            set_output "shallow_fail_reason" "Response body was not JSON status ok. Body: $(body_summary "$BODY_FILE")"
           fi
 
       - name: Check /api/v1/admin/health/deep endpoint
         id: check_deep
+        env:
+          STAGING_CF_ACCESS_CLIENT_ID: ${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}
+          STAGING_CF_ACCESS_CLIENT_SECRET: ${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}
         run: |
-          HTTP_CODE=$(curl -s -o /tmp/deep_body.json -w "%{http_code}" https://staging.panoptix.site/api/v1/admin/health/deep)
-          BODY=$(cat /tmp/deep_body.json)
-          echo "http_code=${HTTP_CODE}" >> "$GITHUB_OUTPUT"
-          echo "body=${BODY}" >> "$GITHUB_OUTPUT"
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "deep_ok=false" >> "$GITHUB_OUTPUT"
-            echo "deep_fail_reason=Expected HTTP 200 but got ${HTTP_CODE}. Body: ${BODY}" >> "$GITHUB_OUTPUT"
-          elif echo "$BODY" | python3 -c "import sys, json; d = json.load(sys.stdin); sys.exit(0 if 'status' in d else 1)" 2>/dev/null; then
-            echo "deep_ok=true" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+
+          body_summary() {
+            python3 - "$1" <<'PY'
+          import sys
+          from pathlib import Path
+
+          raw = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+          summary = " ".join(raw.split())
+          print((summary or "<empty>")[:500])
+          PY
+          }
+
+          set_output() {
+            printf '%s=%s\n' "$1" "$2" >> "$GITHUB_OUTPUT"
+          }
+
+          BODY_FILE="$(mktemp)"
+          set +e
+          HTTP_CODE=$(curl --silent --show-error --output "$BODY_FILE" --write-out "%{http_code}" --max-time 20 \
+            -H "CF-Access-Client-Id: ${STAGING_CF_ACCESS_CLIENT_ID}" \
+            -H "CF-Access-Client-Secret: ${STAGING_CF_ACCESS_CLIENT_SECRET}" \
+            https://staging.panoptix.site/api/v1/admin/health/deep)
+          CURL_EXIT=$?
+          set -e
+
+          HTTP_CODE="${HTTP_CODE:-000}"
+          set_output "http_code" "$HTTP_CODE"
+
+          if [ "$CURL_EXIT" -ne 0 ]; then
+            set_output "deep_ok" "false"
+            set_output "deep_fail_reason" "curl failed with exit ${CURL_EXIT}. Body: $(body_summary "$BODY_FILE")"
+          elif [ "$HTTP_CODE" != "200" ]; then
+            set_output "deep_ok" "false"
+            if [ "$HTTP_CODE" = "302" ]; then
+              set_output "deep_fail_reason" "Expected HTTP 200 but got 302 Cloudflare Access redirect. Check staging monitor service-token policy and headers. Body: $(body_summary "$BODY_FILE")"
+            else
+              set_output "deep_fail_reason" "Expected HTTP 200 but got ${HTTP_CODE}. Body: $(body_summary "$BODY_FILE")"
+            fi
+          elif python3 - "$BODY_FILE" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          try:
+              data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          except Exception:
+              sys.exit(1)
+          sys.exit(0 if "status" in data else 1)
+          PY
+          then
+            set_output "deep_ok" "true"
           else
-            echo "deep_ok=false" >> "$GITHUB_OUTPUT"
-            echo "deep_fail_reason=Response body was not valid JSON or did not contain a 'status' field. Body: ${BODY}" >> "$GITHUB_OUTPUT"
+            set_output "deep_ok" "false"
+            set_output "deep_fail_reason" "Response body was not valid JSON or did not contain a status field. Body: $(body_summary "$BODY_FILE")"
           fi
 
       - name: File issue on failure
         if: steps.check_shallow.outputs.shallow_ok == 'false' || steps.check_deep.outputs.deep_ok == 'false'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const title = "Staging health check failed";
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          SERVER_URL: ${{ github.server_url }}
+          GITHUB_API_URL: ${{ github.api_url }}
+          SHALLOW_OK: ${{ steps.check_shallow.outputs.shallow_ok }}
+          SHALLOW_REASON: ${{ steps.check_shallow.outputs.shallow_fail_reason }}
+          DEEP_OK: ${{ steps.check_deep.outputs.deep_ok }}
+          DEEP_REASON: ${{ steps.check_deep.outputs.deep_fail_reason }}
+        run: |
+          set -euo pipefail
 
-            // Check for an existing open issue with this title to avoid spam
-            const { data: existingIssues } = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: "open",
-              per_page: 100,
-            });
-            const alreadyOpen = existingIssues.some(i => i.title === title);
-            if (alreadyOpen) {
-              core.info("An open issue already exists — skipping creation.");
-              return;
-            }
+          TITLE="Staging health check failed"
+          ISSUES_FILE="$(mktemp)"
 
-            const shallowOk = "${{ steps.check_shallow.outputs.shallow_ok }}" === "true";
-            const deepOk    = "${{ steps.check_deep.outputs.deep_ok }}"    === "true";
+          curl --fail --silent --show-error \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL}/repos/${REPOSITORY}/issues?state=open&per_page=100" \
+            -o "$ISSUES_FILE"
 
-            const lines = [
+          ALREADY_OPEN=$(python3 - "$ISSUES_FILE" "$TITLE" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          issues = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          title = sys.argv[2]
+          print("true" if any(issue.get("title") == title for issue in issues) else "false")
+          PY
+          )
+
+          if [ "$ALREADY_OPEN" = "true" ]; then
+            echo "An open staging health issue already exists; skipping creation."
+            exit 0
+          fi
+
+          BODY_FILE="$(mktemp)"
+          python3 - "$BODY_FILE" <<'PY'
+          import os
+          import sys
+          from pathlib import Path
+
+          def escape_table(value: str) -> str:
+              return (value or "-").replace("|", "\\|")
+
+          shallow_ok = os.environ["SHALLOW_OK"] == "true"
+          deep_ok = os.environ["DEEP_OK"] == "true"
+          lines = [
               "One or more staging health checks failed. Details below.",
               "",
               "| Endpoint | Result | Details |",
               "| --- | --- | --- |",
-            ];
+          ]
 
-            if (!shallowOk) {
-              lines.push(
-                `| \`GET /health\` | FAILED | ${{ toJSON(steps.check_shallow.outputs.shallow_fail_reason) }} |`
-              );
-            } else {
-              lines.push("| `GET /health` | OK | — |");
-            }
+          if shallow_ok:
+              lines.append("| `GET /health` | OK | - |")
+          else:
+              lines.append(
+                  f"| `GET /health` | FAILED | {escape_table(os.environ.get('SHALLOW_REASON', 'missing reason'))} |"
+              )
 
-            if (!deepOk) {
-              lines.push(
-                `| \`GET /api/v1/admin/health/deep\` | FAILED | ${{ toJSON(steps.check_deep.outputs.deep_fail_reason) }} |`
-              );
-            } else {
-              lines.push("| `GET /api/v1/admin/health/deep` | OK | — |");
-            }
+          if deep_ok:
+              lines.append("| `GET /api/v1/admin/health/deep` | OK | - |")
+          else:
+              lines.append(
+                  f"| `GET /api/v1/admin/health/deep` | FAILED | {escape_table(os.environ.get('DEEP_REASON', 'missing reason'))} |"
+              )
 
-            lines.push("");
-            lines.push(`_Workflow run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}_`);
+          lines.extend(
+              [
+                  "",
+                  f"_Workflow run: {os.environ['SERVER_URL']}/{os.environ['REPOSITORY']}/actions/runs/{os.environ['RUN_ID']}_",
+              ]
+          )
+          Path(sys.argv[1]).write_text("\n".join(lines), encoding="utf-8")
+          PY
 
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title,
-              body: lines.join("\n"),
-              labels: ["staging", "health-check"],
-            });
+          PAYLOAD_FILE="$(mktemp)"
+          python3 - "$TITLE" "$BODY_FILE" "$PAYLOAD_FILE" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          title = sys.argv[1]
+          body = Path(sys.argv[2]).read_text(encoding="utf-8")
+          Path(sys.argv[3]).write_text(
+              json.dumps({"title": title, "body": body}),
+              encoding="utf-8",
+          )
+          PY
+
+          curl --fail --silent --show-error \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL}/repos/${REPOSITORY}/issues" \
+            --data @"$PAYLOAD_FILE" \
+            >/dev/null
+
+      - name: Fail workflow on health check failure
+        if: steps.check_shallow.outputs.shallow_ok == 'false' || steps.check_deep.outputs.deep_ok == 'false'
+        run: |
+          echo "::error::One or more staging health checks failed."
+          exit 1
