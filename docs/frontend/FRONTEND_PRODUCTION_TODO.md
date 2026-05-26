@@ -11,6 +11,7 @@ Start here for current frontend coordination: [Frontend Coworker Handoff](FRONTE
 5. Add full audit filter controls for actor, severity, category, outcome, resource, session, and date range.
 6. Smoke every current sidebar page against local/backend production-like data: Dashboard, Live Cameras, Camera Management, Gateways, Users & Access, Audit Logs, Alerts, System Health, Break Glass, and Settings.
 7. Fix only API contract/wiring issues found during smoke. Do not add new roadmap pages or redesign UI/UX unless explicitly assigned.
+8. Do not implement Gateway Discovery UI unless Ivan explicitly reassigns it. Gateway Discovery V2 backend/edge APIs exist and are active on `main`, but real camera LAN/VLAN validation remains system-owner work.
 
 This is the frontend source of truth for production-readiness work on the combined `fullstack-integration` branch. It tracks every implemented backend capability and makes each one either usable in the frontend, intentionally hidden, or explicitly marked backend/gateway-only.
 
@@ -45,6 +46,7 @@ Design direction: new frontend work **must** follow [Panoptix Design System](PAN
 | Implemented and wired | `/api/v1/admin/backups/status` | Health/admin UI can read database-known backup readiness | Browser smoke missing, degraded, and ok states. Do not present this as direct R2 bucket verification. |
 | Implemented but missing UI | `/api/v1/admin/alerts`, detail, acknowledge, resolve | Backend alert records and SMTP email notification foundation exist; no complete alerts UI yet | Wire the existing Alerts page to real list/detail/ack/resolve APIs without adding browser-only notification providers. |
 | Implemented but missing UI | `/api/v1/admin/visitor-visits`, detail | Backend records approved public entry visits, expanded browser/network/WebRTC context, server context, risk context, and later login correlation | Add admin visitor investigation list/detail UI when assigned. |
+| Optional future UI only | Gateway Discovery admin APIs | Backend/edge discovery exists and stores sanitized approved-CIDR discovery snapshots with V2 best-effort identity hints | Do not add Gateway Discovery UI unless Ivan explicitly reassigns it. |
 | Frontend calls nonexistent endpoint | `/api/v1/admin/sites` | API client has `listSites()` but backend route is not present | Remove, disable, or mark planned until backend route exists. |
 | Implemented and wired | `/api/v1/admin/dsr-requests` | DSR list/create/detail/update API client exists and compliance UI uses the list | Browser smoke DSR case creation/update flow and validation states. |
 | Frontend calls nonexistent endpoint | `/api/v1/admin/exposure-check`, `/media-isolation-check`, `/origin-binding-check` | API client has security check calls but backend routes are not present | Remove, disable, or mark planned until backend routes exist. |
@@ -110,6 +112,7 @@ These backend routes exist for gateways, webhooks, or internal control flow. The
 | `GET /api/v1/gateway-control/ws` | Gateway command WebSocket only. |
 | `POST /api/v1/webhooks/livekit` | LiveKit server webhook receiver only. |
 | Any route requiring gateway service credentials | Gateway service tokens must never be present in browser code, browser storage, frontend env vars, or screenshots. Admin UI may display a one-time token only immediately after gateway create/rotate. |
+| Cloudflare Access service-token credentials | Gateway host automation only; never place client secrets in browser code, frontend env vars, GitHub frontend settings, logs, screenshots, or UI. |
 
 ## Admin Visitor UI Data Contract
 

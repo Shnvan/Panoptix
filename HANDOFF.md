@@ -30,15 +30,15 @@ After that, inspect the source files related to the active task. Do not assume t
 
 Latest full-stack integration commits:
 
-- `f2bda6a fix: harden restore drill smoke check`
-- `545a9d4 feat: add encrypted R2 restore drill`
-- `bbbde73 fix: configure R2 backup region`
-- `cf516e1 feat: add operator R2 backup runner`
-- `f5023e4 docs: fix progress summary table`
+- `84a2d09 Add stable edge agent user agent`
+- `7c2c0f2 Add Cloudflare Access headers to edge agent`
+- `1689547 Merge pull request #14 from Shnvan/fullstack-integration`
+- `9de148e Add production gateway auth to edge agent`
+- `e956bb3 Merge pull request #13 from Shnvan/fullstack-integration`
 
 ## Current Objective
 
-Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The first encrypted R2 backup artifact exists, dry-run decrypt/`pg_restore --list` validation passed, the first isolated restore drill completed successfully against a temporary Neon branch, the temporary branch was deleted, and backup status now reports `ok`. Recurring backup automation and 30-day plus 12-month R2 object retention are implemented; the cron activates after the workflow lands on the default branch. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, Alerts page backend API wiring, actor investigation UI, and admin visitor investigation UI.
+Maintain the combined backend/frontend integration branch as the production-candidate review branch. Production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The encrypted R2 backup path, isolated restore drill, scheduled GitHub Actions backup workflow, and retention job are implemented, and the production backup workflow has succeeded. Gateway Discovery V2 backend/edge-agent work is implemented and active on `main`, and production Neon is migrated to `0012_gateway_discovery_runs`. Production edge heartbeats now require gateway auth plus Cloudflare Access service-token headers, and the edge agent sends a stable `Panoptix-Edge-Agent/<version>` user agent for Cloudflare-protected traffic. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, Alerts page backend API wiring, actor investigation UI, admin visitor investigation UI, and full audit filter UI.
 
 The system is Panoptix, a secure live-view CCTV web monitoring system with three planes:
 
@@ -148,7 +148,7 @@ Current state:
 - frontend lint/build passed after merge and after local smoke cleanup
 - local same-origin smoke has passed through the Vite proxy for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health
 - local API configuration uses `apps/api/.env`, which is ignored by Git; do not commit database URLs, audit keys, LiveKit keys, GitHub tokens, R2 secrets, or gateway service tokens
-- production backend migration state is at Alembic head `0011_visitor_expanded_signals` for expanded visitor context
+- production backend migration state is at Alembic head `0012_gateway_discovery_runs`
 - `github-invites-not-configured` is expected locally while `GITHUB_INVITES_ENABLED=false`
 - one-time gateway service tokens must never be screenshotted or committed; the exposed local test gateway named `what` was disabled during smoke cleanup
 
@@ -169,7 +169,7 @@ Latest full-stack integration commits:
 
 ## Current Objective
 
-Maintain the combined backend/frontend integration branch as the production-candidate review branch. The backend/control plane and edge-agent synthetic publish path are implemented; production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The first encrypted R2 backup artifact exists, dry-run decrypt/`pg_restore --list` validation passed, the first isolated restore drill completed successfully against a temporary Neon branch, the temporary branch was deleted, and backup status now reports `ok`. Recurring backup automation and 30-day plus 12-month R2 object retention are implemented; the cron activates after the workflow lands on the default branch. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, Alerts page backend API wiring, actor investigation UI, and admin visitor investigation UI.
+Maintain the combined backend/frontend integration branch as the production-candidate review branch. Production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The encrypted R2 backup path, isolated restore drill, scheduled GitHub Actions backup workflow, and retention job are implemented, and the production backup workflow has succeeded. Gateway Discovery V2 backend/edge-agent work is implemented and active on `main`, and production Neon is migrated to `0012_gateway_discovery_runs`. Production edge heartbeats now require gateway auth plus Cloudflare Access service-token headers, and the edge agent sends a stable `Panoptix-Edge-Agent/<version>` user agent for Cloudflare-protected traffic. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, Alerts page backend API wiring, actor investigation UI, admin visitor investigation UI, and full audit filter UI.
 
 The system is Panoptix, a secure live-view CCTV web monitoring system with three planes:
 
@@ -280,7 +280,7 @@ Current state:
 - frontend lint/build passed after merge and after local smoke cleanup
 - local same-origin smoke has passed through the Vite proxy for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health
 - local API configuration uses `apps/api/.env`, which is ignored by Git; do not commit database URLs, audit keys, LiveKit keys, GitHub tokens, R2 secrets, or gateway service tokens
-- production backend migration state is at Alembic head `0011_visitor_expanded_signals` for expanded visitor context
+- production backend migration state is at Alembic head `0012_gateway_discovery_runs`
 - `github-invites-not-configured` is expected locally while `GITHUB_INVITES_ENABLED=false`
 - one-time gateway service tokens must never be screenshotted or committed; the exposed local test gateway named `what` was disabled during smoke cleanup
 - camera modal can request a short-lived viewer token, but real LiveKit subscriber playback is still pending
@@ -322,7 +322,7 @@ Completed in this milestone:
 - **First-visit redirect**: Cloudflare redirects `https://panoptix.site/` to `/entry` only when the signed `panoptix_visitor` cookie is absent. Returning visitors go directly to the protected app/Access flow.
 - **Public bypass scope**: Only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect` bypass Cloudflare Access.
 - **Protected scope**: `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` remain protected. Never make broad `/api/v1/*` public.
-- **Backend collector**: Visitor notice/collect APIs, `0010_visitor_visits`, `0011_visitor_expanded_signals`, signed visitor cookie correlation, admin visitor visit list/detail APIs, and maintenance retention cleanup are implemented.
+- **Backend collector**: Visitor notice/collect APIs, `0010_visitor_visits`, `0011_visitor_expanded_signals`, signed visitor cookie correlation, admin visitor visit list/detail APIs, and maintenance retention cleanup are implemented. Production is now migrated through `0012_gateway_discovery_runs`.
 - **Expanded signal boundary**: `/entry` collection starts only after explicit Continue and stores approved browser/network/WebRTC summary signals. Raw WebRTC SDP/candidate strings, raw Ipregistry payloads, reverse geocoding, coordinates, canvas/audio/WebGL/font fingerprints, and broad fingerprint dumps remain out of scope.
 - **Frontend handoff**: Admin visitor investigation UI is still coworker-owned frontend work; backend responses now expose `ip_details`, `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, `risk_context`, and login correlation fields for that future UI.
 - **Production smoke**: Admin visitor list/detail API smoke passed on 2026-05-24 with expanded sections present.
@@ -402,7 +402,7 @@ Production evidence as of 2026-05-25:
 - Backup status returned `ok` after restore-drill evidence was recorded.
 - Restore-drill tooling supports the real encrypted `.dump.age` format through `python -m cctv_api.jobs.restore_drill_r2` and `scripts/restore-drill.sh`: latest R2 object selection, local temp download, `age` decrypt, `pg_restore --list`, optional isolated target restore, and evidence-row recording.
 - Dry-run restore validation passed: the encrypted production artifact decrypted locally and `pg_restore --list` succeeded.
-- Next system-owner backup task is confirming the first scheduled backup/retention run after default-branch activation. Never restore into production Neon.
+- Scheduled production backup/retention has succeeded. Continue monitoring the workflow and quarterly restore drills. Never restore into production Neon.
 
 ### Actor Investigation Profile and Activity API (2026-05-14)
 
@@ -1962,12 +1962,12 @@ compileall: passed
 Recommended next task:
 
 ```text
-Confirm First Scheduled Backup Run
+Real Gateway Host And Camera LAN Validation
 ```
 
-The proven operator-run R2 backup and isolated restore-drill path now has a daily GitHub Actions workflow plus R2 object retention rules. After this lands on the default branch, confirm either the manual dispatch or first scheduled run succeeds, retention reports sanitized counts, and no `Production backup automation failed` issue remains open.
+The production backup workflow has passed and the Gateway Discovery V2 backend/edge-agent path is implemented and active on `main`. Next, install/configure the edge agent on the real gateway host, keep the raw gateway service token and Cloudflare Access client secret only on that host, validate heartbeat through `panoptix.site`, then run discovery only after the isolated private camera LAN/VLAN exists.
 
-**Note**: Production is already live at `panoptix.site`; the old staging-gate/procurement wording below is historical context only. Do not restore into production Neon. Keep private `age` identities outside Railway and outside the repo.
+**Note**: Production is already live at `panoptix.site`; the old staging-gate/procurement wording below is historical context only. Do not restore into production Neon. Keep private `age` identities outside Railway and outside the repo. Do not put gateway service tokens, Cloudflare Access service-token secrets, LiveKit API secrets, ingest tokens, RTSP URLs, R2 keys, DB URLs, or backend-only credentials in frontend code, docs, screenshots, or repository files.
 
 ## Not Implemented Yet
 
@@ -1977,13 +1977,12 @@ The proven operator-run R2 backup and isolated restore-drill path now has a dail
 - actor investigation UI (frontend coworker)
 - admin visitor investigation UI (frontend coworker)
 - full audit filter UI (frontend coworker)
-- first scheduled backup/retention run evidence after default-branch activation (system owner)
-- gateway local network discovery scanner/API/UI (planned core pilot; gateway/backend first, frontend later)
+- Gateway Discovery UI is optional future frontend work only; backend/edge discovery exists, but no frontend discovery UI is required unless Ivan explicitly reassigns it
 - production Docker/systemd gateway supervision (runbook templates exist)
 - Google Workspace IdP setup (GitHub OAuth currently deployed)
 - WARP device posture production activation (checklist done in `cloudflare-production-setup.md`)
 
-The proven manual backup/restore path is complete; scheduled backup automation and retention code exist. First scheduled-run evidence, hardware validation, and coworker-owned UI gaps remain.
+The proven backup/restore path, scheduled backup automation, retention code, Gateway Discovery V2, and production migration `0012_gateway_discovery_runs` are complete. Hardware validation, production gateway service installation, and coworker-owned UI gaps remain.
 
 ## 7-Day Staging Gate
 
@@ -1994,17 +1993,20 @@ The production deploy workflow is at `.github/workflows/deploy-production.yml`.
 
 ## External Accounts Status
 
+Current production note: `panoptix.site` is live behind Cloudflare Access with GitHub OAuth. Railway production backend/frontend services are deployed, Neon production is migrated through `0012_gateway_discovery_runs`, Cloudflare R2 holds encrypted backup evidence with public access disabled, and the GitHub Actions production backup/retention workflow has succeeded. Gateway host traffic through Cloudflare Access uses a Cloudflare Access service token plus the Panoptix gateway service token; raw values must stay only on the gateway host.
+
 ### Active
-- **Cloudflare** — `panoptix.site` domain active, Zero Trust org `panoptix-netad`, GitHub OAuth IdP, Access application for `staging.panoptix.site`
-- **Railway** — `panoptix-control` service deployed from `backend` branch, custom domain `staging.panoptix.site`
-- **Neon** — staging database `neondb` (ap-southeast-1), 23 tables, migrations at `0004_constraints_and_indexes`
+- **Cloudflare** - `panoptix.site` domain active, Zero Trust org `panoptix-netad`, GitHub OAuth IdP, Access application for `panoptix.site`, and Cloudflare Access service token for gateway host traffic
+- **Railway** - `panoptix-control` production backend service and frontend service behind `panoptix.site`
+- **Neon** - production database migrated through `0012_gateway_discovery_runs`
+- **Cloudflare R2** - `panoptix-backups` bucket holds encrypted production backup evidence; public access disabled
+- **GitHub Actions** - production backup workflow and retention job have succeeded
 
 ### Not Yet Required
 - Google Workspace
-- R2
 - Sentry/Better Stack/UptimeRobot
 
-LiveKit Cloud was used for a bounded smoke test only. No LiveKit API key, API secret, generated JWT, or credential material should be committed.
+LiveKit Cloud is provisioned and has passed bounded smoke tests. No LiveKit API key, API secret, generated JWT, or credential material should be committed.
 
 Use local/dev placeholders and fail-closed behavior for services not yet active.
 
@@ -2370,7 +2372,7 @@ Important local checks currently include:
 ## Suggested Prompt For The New IDE/LLM
 
 ```text
-Read HANDOFF.md and follow its instructions. Then read PROGRESS.md, IMPLEMENTATION_GUIDE.md, MANUAL_TESTING.md, README.md, CLAUDE.md, docs/runbooks/backup-restore.md, and the source files related to the next milestone. Confirm the current state and development rules before making changes. Current production facts: panoptix.site is live, /entry works, expanded visitor detail APIs work, the first encrypted R2 backup exists, isolated restore-drill evidence row 564e2bfd-b449-4c9f-b46d-a0366856a7e0 passed, backup status is ok, the temporary Neon restore branch was deleted, and recurring backup automation plus R2 object retention are implemented. The next recommended system-owner milestone is first scheduled backup/retention run evidence after default-branch activation. Do not take coworker-owned frontend tasks unless explicitly reassigned.
+Read HANDOFF.md and follow its instructions. Then read PROGRESS.md, IMPLEMENTATION_GUIDE.md, MANUAL_TESTING.md, README.md, CLAUDE.md, docs/runbooks/backup-restore.md, docs/frontend/FRONTEND_HANDOFF.md, docs/implementation/api-reference.md, and the source files related to the next milestone. Confirm the current state and development rules before making changes. Current production facts: panoptix.site is live, /entry works, expanded visitor detail APIs work, encrypted R2 backup evidence exists, isolated restore-drill evidence row 564e2bfd-b449-4c9f-b46d-a0366856a7e0 passed, backup status is ok, the temporary Neon restore branch was deleted, production backup workflow/retention has succeeded, Gateway Discovery V2 backend/edge work exists and is active on main, production is migrated through 0012_gateway_discovery_runs, and edge-agent production heartbeat uses gateway auth plus Cloudflare Access service-token headers with a stable Panoptix-Edge-Agent user agent. The next recommended system-owner milestone is real gateway host and camera LAN/VLAN validation. Do not take coworker-owned frontend tasks unless explicitly reassigned; Gateway Discovery UI is optional future frontend work only unless Ivan reassigns it.
 ```
 
 ## Final Notes
