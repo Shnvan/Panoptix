@@ -3266,16 +3266,16 @@ python -m pytest tests/test_admin_dashboard.py -v
 
 ---
 
-## Staging Cloudflare Access Verification
+## Production Cloudflare Access Verification
 
-These checks verify the live staging deployment at `staging.panoptix.site` through Cloudflare Access with GitHub OAuth.
+These checks verify the live production deployment at `panoptix.site` through Cloudflare Access with GitHub OAuth.
 
 ### Health endpoint (through Cloudflare)
 
 Open in browser or run:
 
 ```powershell
-curl.exe -s "https://staging.panoptix.site/health"
+curl.exe -s "https://panoptix.site/health"
 ```
 
 Expected: Cloudflare Access login page (entire subdomain is protected). After GitHub login, returns:
@@ -3289,7 +3289,7 @@ Expected: Cloudflare Access login page (entire subdomain is protected). After Gi
 After GitHub OAuth login, open in browser:
 
 ```text
-https://staging.panoptix.site/api/v1/me
+https://panoptix.site/api/v1/me
 ```
 
 Expected response:
@@ -3301,7 +3301,7 @@ Expected response:
 Verification checks:
 
 - `kind` is `user` (not `gateway` or `dev`)
-- `is_dev` is `false` (dev auth is disabled in staging)
+- `is_dev` is `false` (dev auth is disabled in production)
 - `email` matches the GitHub account used for OAuth
 - `roles` is empty for new users (admin role must be assigned via database)
 - `subject` is a stable UUID derived from the Cloudflare Access `sub` claim
@@ -3311,17 +3311,17 @@ Verification checks:
 After GitHub login, open in browser:
 
 ```text
-https://staging.panoptix.site/api/v1/admin/health/deep
+https://panoptix.site/api/v1/admin/health/deep
 ```
 
 Expected: `403` if user has no admin role; deep health JSON if admin role is assigned.
 
-### Staging deep health check
+### Production deep health check
 
 After GitHub login, open in browser:
 
 ```text
-https://staging.panoptix.site/api/v1/admin/health/deep
+https://panoptix.site/api/v1/admin/health/deep
 ```
 
 Expected (with LiveKit Cloud provisioned and database connected):
@@ -3333,17 +3333,17 @@ Expected (with LiveKit Cloud provisioned and database connected):
 Notes:
 
 - `livekit: connected` confirms the backend can reach the provisioned LiveKit Cloud project.
-- `gateway: no_gateways` is expected when no gateways are registered in staging.
-- The backend route is monitor-friendly, but staging Cloudflare Access requires either an authenticated browser session or the dedicated monitor service-token headers.
+- `gateway: no_gateways` is expected until a production gateway is enrolled and heartbeating.
+- The backend route is monitor-friendly, but production Cloudflare Access requires either an authenticated browser session or the dedicated monitor service-token headers.
 
-### Staging healthcheck workflow
+### Production healthcheck workflow
 
-The scheduled GitHub Actions workflow `.github/workflows/staging-healthcheck.yml` probes staging every 15 minutes and can be rerun manually with `workflow_dispatch`.
+The scheduled GitHub Actions workflow `.github/workflows/production-healthcheck.yml` probes production every 15 minutes and can be rerun manually with `workflow_dispatch`.
 
 Before rerunning it, confirm the repository has these GitHub Actions secrets present:
 
-- `STAGING_CF_ACCESS_CLIENT_ID`
-- `STAGING_CF_ACCESS_CLIENT_SECRET`
+- `PRODUCTION_CF_ACCESS_CLIENT_ID`
+- `PRODUCTION_CF_ACCESS_CLIENT_SECRET`
 
 Expected workflow behavior:
 
@@ -3351,18 +3351,18 @@ Expected workflow behavior:
 - The `/health` probe sends Cloudflare Access service-token headers and requires HTTP 200 with JSON `status: ok`.
 - The `/api/v1/admin/health/deep` probe sends the same service-token headers and requires HTTP 200 with valid JSON containing `status`.
 - If Cloudflare returns a `302` login redirect, the workflow reports a Cloudflare Access service-token policy/header failure instead of writing raw HTML into `$GITHUB_OUTPUT`.
-- On health failure, the workflow creates or reuses one open `Staging health check failed` issue through the GitHub REST API without `actions/github-script`.
+- On health failure, the workflow creates or reuses one open `Production health check failed` issue through the GitHub REST API without `actions/github-script`.
 
 ### Cloudflare Access configuration reference
 
 - **Domain:** `panoptix.site` (Cloudflare, Free plan)
 - **Zero Trust org:** `panoptix-netad`
 - **IdP:** GitHub OAuth
-- **Access app:** `Panoptix Staging` covering `staging.panoptix.site`
+- **Access app:** `Panoptix Production` covering `panoptix.site`
 - **Policy:** Allow GitHub Users
 - **Issuer:** `https://panoptix-netad.cloudflareaccess.com`
 - **JWKS:** `https://panoptix-netad.cloudflareaccess.com/cdn-cgi/access/certs`
-- **Railway custom domain:** `staging.panoptix.site` → Railway `panoptix-control` service
+- **Railway custom domain:** `panoptix.site` routes to the Railway production frontend/API services
 
 ---
 

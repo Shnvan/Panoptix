@@ -1,4 +1,4 @@
-name: Staging Health Check
+name: Production Health Check
 
 permissions:
   contents: read
@@ -17,21 +17,21 @@ jobs:
     steps:
       - name: Validate monitoring credentials
         env:
-          STAGING_CF_ACCESS_CLIENT_ID: ${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}
-          STAGING_CF_ACCESS_CLIENT_SECRET: ${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}
+          PRODUCTION_CF_ACCESS_CLIENT_ID: ${{ secrets.PRODUCTION_CF_ACCESS_CLIENT_ID }}
+          PRODUCTION_CF_ACCESS_CLIENT_SECRET: ${{ secrets.PRODUCTION_CF_ACCESS_CLIENT_SECRET }}
         run: |
           set -euo pipefail
-          if [ -z "${STAGING_CF_ACCESS_CLIENT_ID}" ] || [ -z "${STAGING_CF_ACCESS_CLIENT_SECRET}" ]; then
-            echo "::error::Missing STAGING_CF_ACCESS_CLIENT_ID or STAGING_CF_ACCESS_CLIENT_SECRET repository secret."
-            echo "::error::Configure a Cloudflare Access service token for the staging monitor before this workflow can probe protected endpoints."
+          if [ -z "${PRODUCTION_CF_ACCESS_CLIENT_ID}" ] || [ -z "${PRODUCTION_CF_ACCESS_CLIENT_SECRET}" ]; then
+            echo "::error::Missing PRODUCTION_CF_ACCESS_CLIENT_ID or PRODUCTION_CF_ACCESS_CLIENT_SECRET repository secret."
+            echo "::error::Configure a Cloudflare Access service token for the production monitor before this workflow can probe protected endpoints."
             exit 1
           fi
 
       - name: Check /health endpoint
         id: check_shallow
         env:
-          STAGING_CF_ACCESS_CLIENT_ID: ${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}
-          STAGING_CF_ACCESS_CLIENT_SECRET: ${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}
+          PRODUCTION_CF_ACCESS_CLIENT_ID: ${{ secrets.PRODUCTION_CF_ACCESS_CLIENT_ID }}
+          PRODUCTION_CF_ACCESS_CLIENT_SECRET: ${{ secrets.PRODUCTION_CF_ACCESS_CLIENT_SECRET }}
         run: |
           set -euo pipefail
 
@@ -53,9 +53,9 @@ jobs:
           BODY_FILE="$(mktemp)"
           set +e
           HTTP_CODE=$(curl --silent --show-error --output "$BODY_FILE" --write-out "%{http_code}" --max-time 20 \
-            -H "CF-Access-Client-Id: ${STAGING_CF_ACCESS_CLIENT_ID}" \
-            -H "CF-Access-Client-Secret: ${STAGING_CF_ACCESS_CLIENT_SECRET}" \
-            https://staging.panoptix.site/health)
+            -H "CF-Access-Client-Id: ${PRODUCTION_CF_ACCESS_CLIENT_ID}" \
+            -H "CF-Access-Client-Secret: ${PRODUCTION_CF_ACCESS_CLIENT_SECRET}" \
+            https://panoptix.site/health)
           CURL_EXIT=$?
           set -e
 
@@ -68,7 +68,7 @@ jobs:
           elif [ "$HTTP_CODE" != "200" ]; then
             set_output "shallow_ok" "false"
             if [ "$HTTP_CODE" = "302" ]; then
-              set_output "shallow_fail_reason" "Expected HTTP 200 but got 302 Cloudflare Access redirect. Check staging monitor service-token policy and headers. Body: $(body_summary "$BODY_FILE")"
+              set_output "shallow_fail_reason" "Expected HTTP 200 but got 302 Cloudflare Access redirect. Check production monitor service-token policy and headers. Body: $(body_summary "$BODY_FILE")"
             else
               set_output "shallow_fail_reason" "Expected HTTP 200 but got ${HTTP_CODE}. Body: $(body_summary "$BODY_FILE")"
             fi
@@ -93,8 +93,8 @@ jobs:
       - name: Check /api/v1/admin/health/deep endpoint
         id: check_deep
         env:
-          STAGING_CF_ACCESS_CLIENT_ID: ${{ secrets.STAGING_CF_ACCESS_CLIENT_ID }}
-          STAGING_CF_ACCESS_CLIENT_SECRET: ${{ secrets.STAGING_CF_ACCESS_CLIENT_SECRET }}
+          PRODUCTION_CF_ACCESS_CLIENT_ID: ${{ secrets.PRODUCTION_CF_ACCESS_CLIENT_ID }}
+          PRODUCTION_CF_ACCESS_CLIENT_SECRET: ${{ secrets.PRODUCTION_CF_ACCESS_CLIENT_SECRET }}
         run: |
           set -euo pipefail
 
@@ -116,9 +116,9 @@ jobs:
           BODY_FILE="$(mktemp)"
           set +e
           HTTP_CODE=$(curl --silent --show-error --output "$BODY_FILE" --write-out "%{http_code}" --max-time 20 \
-            -H "CF-Access-Client-Id: ${STAGING_CF_ACCESS_CLIENT_ID}" \
-            -H "CF-Access-Client-Secret: ${STAGING_CF_ACCESS_CLIENT_SECRET}" \
-            https://staging.panoptix.site/api/v1/admin/health/deep)
+            -H "CF-Access-Client-Id: ${PRODUCTION_CF_ACCESS_CLIENT_ID}" \
+            -H "CF-Access-Client-Secret: ${PRODUCTION_CF_ACCESS_CLIENT_SECRET}" \
+            https://panoptix.site/api/v1/admin/health/deep)
           CURL_EXIT=$?
           set -e
 
@@ -131,7 +131,7 @@ jobs:
           elif [ "$HTTP_CODE" != "200" ]; then
             set_output "deep_ok" "false"
             if [ "$HTTP_CODE" = "302" ]; then
-              set_output "deep_fail_reason" "Expected HTTP 200 but got 302 Cloudflare Access redirect. Check staging monitor service-token policy and headers. Body: $(body_summary "$BODY_FILE")"
+              set_output "deep_fail_reason" "Expected HTTP 200 but got 302 Cloudflare Access redirect. Check production monitor service-token policy and headers. Body: $(body_summary "$BODY_FILE")"
             else
               set_output "deep_fail_reason" "Expected HTTP 200 but got ${HTTP_CODE}. Body: $(body_summary "$BODY_FILE")"
             fi
@@ -168,7 +168,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          TITLE="Staging health check failed"
+          TITLE="Production health check failed"
           ISSUES_FILE="$(mktemp)"
 
           curl --fail --silent --show-error \
@@ -190,7 +190,7 @@ jobs:
           )
 
           if [ "$ALREADY_OPEN" = "true" ]; then
-            echo "An open staging health issue already exists; skipping creation."
+            echo "An open production health issue already exists; skipping creation."
             exit 0
           fi
 
@@ -206,7 +206,7 @@ jobs:
           shallow_ok = os.environ["SHALLOW_OK"] == "true"
           deep_ok = os.environ["DEEP_OK"] == "true"
           lines = [
-              "One or more staging health checks failed. Details below.",
+              "One or more production health checks failed. Details below.",
               "",
               "| Endpoint | Result | Details |",
               "| --- | --- | --- |",
@@ -261,5 +261,5 @@ jobs:
       - name: Fail workflow on health check failure
         if: steps.check_shallow.outputs.shallow_ok == 'false' || steps.check_deep.outputs.deep_ok == 'false'
         run: |
-          echo "::error::One or more staging health checks failed."
+          echo "::error::One or more production health checks failed."
           exit 1
