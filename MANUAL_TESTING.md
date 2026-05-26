@@ -570,11 +570,12 @@ $env:PANOPTIX_GATEWAY_ID = "<gateway-id>"
 $env:PANOPTIX_GATEWAY_SERVICE_TOKEN = "<gateway-service-token>"
 $env:PANOPTIX_CF_ACCESS_CLIENT_ID = "<cloudflare-access-client-id>"
 $env:PANOPTIX_CF_ACCESS_CLIENT_SECRET = "<cloudflare-access-client-secret>"
+$env:PANOPTIX_REQUEST_TIMEOUT_SECONDS = "20"
 $env:PANOPTIX_CAMERA_IDS = ""
 python -m panoptix_edge_agent.cli --once
 ```
 
-Expected result: the heartbeat succeeds with no `403` and no Cloudflare login HTML.
+Expected result: the heartbeat succeeds with no `403` and no Cloudflare login HTML. The edge agent sends a stable `Panoptix-Edge-Agent/<version>` user agent.
 
 curl:
 
@@ -3333,7 +3334,24 @@ Notes:
 
 - `livekit: connected` confirms the backend can reach the provisioned LiveKit Cloud project.
 - `gateway: no_gateways` is expected when no gateways are registered in staging.
-- This endpoint requires no authentication (designed for monitoring systems).
+- The backend route is monitor-friendly, but staging Cloudflare Access requires either an authenticated browser session or the dedicated monitor service-token headers.
+
+### Staging healthcheck workflow
+
+The scheduled GitHub Actions workflow `.github/workflows/staging-healthcheck.yml` probes staging every 15 minutes and can be rerun manually with `workflow_dispatch`.
+
+Before rerunning it, confirm the repository has these GitHub Actions secrets present:
+
+- `STAGING_CF_ACCESS_CLIENT_ID`
+- `STAGING_CF_ACCESS_CLIENT_SECRET`
+
+Expected workflow behavior:
+
+- The credential validation step fails clearly if either secret is missing.
+- The `/health` probe sends Cloudflare Access service-token headers and requires HTTP 200 with JSON `status: ok`.
+- The `/api/v1/admin/health/deep` probe sends the same service-token headers and requires HTTP 200 with valid JSON containing `status`.
+- If Cloudflare returns a `302` login redirect, the workflow reports a Cloudflare Access service-token policy/header failure instead of writing raw HTML into `$GITHUB_OUTPUT`.
+- On health failure, the workflow creates or reuses one open `Staging health check failed` issue through the GitHub REST API without `actions/github-script`.
 
 ### Cloudflare Access configuration reference
 
