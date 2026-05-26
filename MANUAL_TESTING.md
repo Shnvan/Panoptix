@@ -570,11 +570,12 @@ $env:PANOPTIX_GATEWAY_ID = "<gateway-id>"
 $env:PANOPTIX_GATEWAY_SERVICE_TOKEN = "<gateway-service-token>"
 $env:PANOPTIX_CF_ACCESS_CLIENT_ID = "<cloudflare-access-client-id>"
 $env:PANOPTIX_CF_ACCESS_CLIENT_SECRET = "<cloudflare-access-client-secret>"
+$env:PANOPTIX_REQUEST_TIMEOUT_SECONDS = "20"
 $env:PANOPTIX_CAMERA_IDS = ""
 python -m panoptix_edge_agent.cli --once
 ```
 
-Expected result: the heartbeat succeeds with no `403` and no Cloudflare login HTML.
+Expected result: the heartbeat succeeds with no `403` and no Cloudflare login HTML. The edge agent sends a stable `Panoptix-Edge-Agent/<version>` user agent.
 
 curl:
 

@@ -107,10 +107,11 @@ $env:PANOPTIX_GATEWAY_ID = "<gateway-id>"
 $env:PANOPTIX_GATEWAY_SERVICE_TOKEN = "<gateway-service-token>"
 $env:PANOPTIX_CF_ACCESS_CLIENT_ID = "<cloudflare-access-client-id>"
 $env:PANOPTIX_CF_ACCESS_CLIENT_SECRET = "<cloudflare-access-client-secret>"
+$env:PANOPTIX_REQUEST_TIMEOUT_SECONDS = "20"
 python -m panoptix_edge_agent.cli --once
 ```
 
-Expected result: one heartbeat succeeds and the backend records the gateway as recently seen. If Cloudflare Access returns a login HTML page, verify the Access service-token policy and confirm the env values contain only token values, not header names.
+Expected result: one heartbeat succeeds and the backend records the gateway as recently seen. If Cloudflare Access returns a login HTML page, verify the Access service-token policy and confirm the env values contain only token values, not header names. The edge agent sends a stable `Panoptix-Edge-Agent/<version>` user agent for Cloudflare-protected production traffic.
 
 ## Gateway discovery rules
 

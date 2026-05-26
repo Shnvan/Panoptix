@@ -75,6 +75,7 @@ def test_send_heartbeat_posts_expected_payload_and_headers() -> None:
     }
     assert headers["Content-Type"] == "application/json"
     assert headers["Accept"] == "application/json"
+    assert headers["User-Agent"] == "Panoptix-Edge-Agent/0.1.0"
     assert headers["x-panoptix-dev-gateway-id"] == "gateway-1"
     assert "x-panoptix-gateway-id" not in headers
     assert "Authorization" not in headers
@@ -92,6 +93,7 @@ def test_send_heartbeat_posts_production_gateway_auth_headers() -> None:
     _url, _payload, headers, _timeout_seconds = transport.calls[0]
     assert headers["Content-Type"] == "application/json"
     assert headers["Accept"] == "application/json"
+    assert headers["User-Agent"] == "Panoptix-Edge-Agent/0.1.0"
     assert headers["x-panoptix-gateway-id"] == "gateway-1"
     assert headers["Authorization"] == "Bearer test-gateway-service-token"
     assert "x-panoptix-dev-gateway-id" not in headers
@@ -106,6 +108,7 @@ def test_send_heartbeat_posts_cloudflare_access_headers_when_configured() -> Non
     client.send_heartbeat()
 
     _url, _payload, headers, _timeout_seconds = transport.calls[0]
+    assert headers["User-Agent"] == "Panoptix-Edge-Agent/0.1.0"
     assert headers["x-panoptix-gateway-id"] == "gateway-1"
     assert headers["Authorization"] == "Bearer test-gateway-service-token"
     assert headers["CF-Access-Client-Id"] == "test-client-id.access"
@@ -132,6 +135,7 @@ def test_dev_config_does_not_send_cloudflare_access_headers() -> None:
     client.send_heartbeat()
 
     _url, _payload, headers, _timeout_seconds = transport.calls[0]
+    assert headers["User-Agent"] == "Panoptix-Edge-Agent/0.1.0"
     assert headers["x-panoptix-dev-gateway-id"] == "gateway-1"
     assert "x-panoptix-gateway-id" not in headers
     assert "Authorization" not in headers

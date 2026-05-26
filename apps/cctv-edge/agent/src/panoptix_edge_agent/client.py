@@ -146,7 +146,11 @@ class GatewayApiClient:
         return decoded
 
     def _headers(self) -> dict[str, str]:
-        headers = {"Content-Type": "application/json", "Accept": "application/json"}
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": f"Panoptix-Edge-Agent/{self.config.agent_version}",
+        }
         if self.config.dev_identity_enabled:
             headers["x-panoptix-dev-gateway-id"] = self.config.gateway_id
             return headers
