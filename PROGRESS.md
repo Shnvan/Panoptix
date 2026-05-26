@@ -136,7 +136,7 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 ### Gateway Agent Foundation
 - [x] Minimal Python gateway agent package added under `apps/cctv-edge/agent`
 - [x] Environment-driven gateway agent configuration added
-- [x] Manual `--discover-once` gateway discovery scans approved private camera LAN/VLAN CIDRs with TCP connect probes only
+- [x] Manual `--discover-once` gateway discovery scans approved private camera LAN/VLAN CIDRs with TCP probes plus sanitized best-effort local fingerprints
 - [x] Discovery rejects public, loopback, multicast, wildcard, link-local, and oversized ranges
 - [x] Discovery uploads sanitized findings only; no credentials, banners, packets, screenshots, or RTSP auth attempts
 - [x] Outbound heartbeat and camera status API client added
@@ -369,14 +369,16 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 - [x] All successful mutations audit-logged: `gateway.create`, `gateway.disable`, `gateway.camera.grant`, `gateway.camera.revoke`
 - [x] Assignment grants enable gateway ingest-token and camera status authorization
 
-### Gateway Discovery V1
+### Gateway Discovery V1/V2
 - [x] `gateway_discovery_runs` SQLAlchemy model and Alembic migration `0012_gateway_discovery_runs`
 - [x] Gateway-authenticated `POST /api/v1/gateways/{gateway_id}/discovery-runs`
 - [x] Admin-only `GET /api/v1/admin/gateways/{gateway_id}/discovery-runs`
 - [x] Admin-only `GET /api/v1/admin/gateways/{gateway_id}/discovery-runs/latest`
 - [x] Stores sanitized approved ranges, ports, counts, timestamps, status, candidate classifications, and agent version
+- [x] V2 edge discovery enriches approved-range findings with best-effort ARP/MAC vendor, mDNS, SSDP/UPnP, safe HTTP/HTTPS evidence labels, device hints, hostnames, and observed protocols
+- [x] V2 backend accepts enriched discovery findings while old V1 discovery rows and payloads remain compatible
 - [x] Gateway mismatch and disabled/missing gateway denial paths audited
-- [x] 20 tests covering auth, validation, conflicts, audit, disable, assignment, and downstream authorization
+- [x] Tests cover auth, validation, sanitized storage, V1 compatibility, V2 enrichment, conflicts, audit, disable, assignment, and downstream authorization
 
 ### LiveKit Webhook Receiver Foundation
 - [x] `POST /api/v1/webhooks/livekit` accepts signed LiveKit webhook events
@@ -749,7 +751,7 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 Install/configure the edge agent on the real gateway host, store the raw Panoptix gateway service token and Cloudflare Access client secret only on that host, and confirm production heartbeat through `panoptix.site`.
 
 ### 2. Camera LAN/VLAN discovery validation
-After the isolated private camera LAN/VLAN exists, run Gateway Discovery V1 from approved CIDRs only. Do not run discovery against public, loopback, wildcard, or unrelated networks.
+After the isolated private camera LAN/VLAN exists, run Gateway Discovery V2 from approved CIDRs only. Do not run discovery against public, loopback, wildcard, or unrelated networks.
 
 ### 3. Production security evidence
 Continue production evidence work for WARP/device posture activation and browser security smoke. Keep Cloudflare Access, `/entry`, protected APIs, disabled-user enforcement, and visitor collector boundaries unchanged unless a specific security task requires a documented change.

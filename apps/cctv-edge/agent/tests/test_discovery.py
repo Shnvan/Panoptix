@@ -10,9 +10,12 @@ from panoptix_edge_agent.config import AgentConfig, ConfigError
 from panoptix_edge_agent.discovery import (
     DiscoveryFinding,
     DiscoveryReport,
+    DiscoverySignal,
     classify_ports,
+    classify_device,
     run_discovery,
     validate_discovery_ranges,
+    vendor_for_mac,
 )
 
 
@@ -24,6 +27,39 @@ class FakeConnector:
     def connect(self, ip: str, port: int, timeout_seconds: float) -> bool:
         self.calls.append((ip, port, timeout_seconds))
         return self.open_ports.get((ip, port), False)
+
+
+class FakeMacResolver:
+    def __init__(self, signals: dict[str, DiscoverySignal]) -> None:
+        self.signals = signals
+
+    def resolve(self, networks: tuple[object, ...]) -> dict[str, DiscoverySignal]:
+        return self.signals
+
+
+class FakeDiscoverer:
+    def __init__(self, signals: dict[str, DiscoverySignal]) -> None:
+        self.signals = signals
+
+    def discover(
+        self,
+        networks: tuple[object, ...],
+        timeout_seconds: float,
+    ) -> dict[str, DiscoverySignal]:
+        return self.signals
+
+
+class FakeHttpFingerprinter:
+    def __init__(self, signals: dict[str, DiscoverySignal]) -> None:
+        self.signals = signals
+
+    def fingerprint(
+        self,
+        ip: str,
+        open_ports: tuple[int, ...],
+        timeout_seconds: float,
+    ) -> DiscoverySignal:
+        return self.signals.get(ip, DiscoverySignal())
 
 
 def _config() -> AgentConfig:
@@ -67,7 +103,14 @@ def test_run_discovery_records_open_tcp_results_only() -> None:
     )
     now = datetime(2026, 5, 25, 10, 0, 0, tzinfo=timezone.utc)
 
-    report = run_discovery(_config(), connector=connector, now=lambda: now)
+    report = run_discovery(
+        _config(),
+        connector=connector,
+        mac_resolver=FakeMacResolver({}),
+        network_discoverers=(),
+        http_fingerprinter=FakeHttpFingerprinter({}),
+        now=lambda: now,
+    )
 
     assert report.status == "completed"
     assert report.scanned_host_count == 2
@@ -76,18 +119,30 @@ def test_run_discovery_records_open_tcp_results_only() -> None:
         {
             "ip": "192.168.50.1",
             "hostname": None,
+            "hostnames": [],
+            "mac_address": None,
+            "mac_vendor": None,
             "open_ports": [554],
             "status": "open",
             "candidate_kind": "possible_camera",
+            "device_hint": "ip_camera",
             "confidence": "high",
+            "observed_protocols": ["RTSP"],
+            "evidence": ["tcp_port_554", "rtsp_port_554"],
         },
         {
             "ip": "192.168.50.2",
             "hostname": None,
+            "hostnames": [],
+            "mac_address": None,
+            "mac_vendor": None,
             "open_ports": [8000],
             "status": "open",
             "candidate_kind": "possible_nvr",
+            "device_hint": "nvr",
             "confidence": "medium",
+            "observed_protocols": ["NVR_HTTP"],
+            "evidence": ["tcp_port_8000", "nvr_web_port"],
         },
     ]
     assert len(connector.calls) == 6
@@ -99,6 +154,147 @@ def test_classify_ports() -> None:
     assert classify_ports((8899,)) == ("possible_camera", "medium")
     assert classify_ports((8000,)) == ("possible_nvr", "medium")
     assert classify_ports((443,)) == ("unknown_device", "low")
+
+
+def test_run_discovery_enriches_safe_identity_signals_only_for_approved_ranges() -> None:
+    connector = FakeConnector(
+        {
+            ("192.168.50.1", 80): True,
+            ("192.168.50.2", 554): True,
+        }
+    )
+    now = datetime(2026, 5, 25, 10, 0, 0, tzinfo=timezone.utc)
+
+    report = run_discovery(
+        _config(),
+        connector=connector,
+        mac_resolver=FakeMacResolver(
+            {
+                "192.168.50.1": DiscoverySignal(
+                    mac_address="70:4F:57:AA:01:09",
+                    mac_vendor="TP-Link",
+                    observed_protocols=("ARP",),
+                    evidence=("arp_neighbor",),
+                ),
+                "8.8.8.8": DiscoverySignal(
+                    mac_address="AA:BB:CC:DD:EE:FF",
+                    mac_vendor="Outside",
+                    observed_protocols=("ARP",),
+                    evidence=("arp_neighbor",),
+                ),
+            }
+        ),
+        network_discoverers=(
+            FakeDiscoverer(
+                {
+                    "192.168.50.1": DiscoverySignal(
+                        hostnames=("gateway.local",),
+                        observed_protocols=("SSDP",),
+                        evidence=("internet_gateway_service",),
+                    ),
+                    "192.168.50.2": DiscoverySignal(
+                        hostnames=("cam-front-door.local",),
+                        observed_protocols=("mDNS",),
+                        evidence=("onvif_service",),
+                    ),
+                }
+            ),
+        ),
+        http_fingerprinter=FakeHttpFingerprinter(
+            {
+                "192.168.50.1": DiscoverySignal(
+                    observed_protocols=("HTTP",),
+                    evidence=("http_service", "http_title_router"),
+                )
+            }
+        ),
+        now=lambda: now,
+    )
+
+    assert [finding.to_payload() for finding in report.findings] == [
+        {
+            "ip": "192.168.50.1",
+            "hostname": "gateway.local",
+            "hostnames": ["gateway.local"],
+            "mac_address": "70:4F:57:AA:01:09",
+            "mac_vendor": "TP-Link",
+            "open_ports": [80],
+            "status": "open",
+            "candidate_kind": "unknown_device",
+            "device_hint": "router",
+            "confidence": "medium",
+            "observed_protocols": ["SSDP", "ARP", "HTTP"],
+            "evidence": [
+                "internet_gateway_service",
+                "arp_neighbor",
+                "http_service",
+                "http_title_router",
+                "tcp_port_80",
+            ],
+        },
+        {
+            "ip": "192.168.50.2",
+            "hostname": "cam-front-door.local",
+            "hostnames": ["cam-front-door.local"],
+            "mac_address": None,
+            "mac_vendor": None,
+            "open_ports": [554],
+            "status": "open",
+            "candidate_kind": "possible_camera",
+            "device_hint": "ip_camera",
+            "confidence": "high",
+            "observed_protocols": ["mDNS", "RTSP"],
+            "evidence": ["onvif_service", "tcp_port_554", "rtsp_port_554"],
+        },
+    ]
+
+
+def test_discovery_can_report_service_only_client_device() -> None:
+    now = datetime(2026, 5, 25, 10, 0, 0, tzinfo=timezone.utc)
+
+    report = run_discovery(
+        _config(),
+        connector=FakeConnector({}),
+        mac_resolver=FakeMacResolver(
+            {
+                "192.168.50.2": DiscoverySignal(
+                    mac_address="F0:18:98:12:44:90",
+                    mac_vendor="Apple",
+                    observed_protocols=("ARP",),
+                    evidence=("arp_neighbor",),
+                )
+            }
+        ),
+        network_discoverers=(),
+        http_fingerprinter=FakeHttpFingerprinter({}),
+        now=lambda: now,
+    )
+
+    assert [finding.to_payload() for finding in report.findings] == [
+        {
+            "ip": "192.168.50.2",
+            "hostname": None,
+            "hostnames": [],
+            "mac_address": "F0:18:98:12:44:90",
+            "mac_vendor": "Apple",
+            "open_ports": [],
+            "status": "open",
+            "candidate_kind": "unknown_device",
+            "device_hint": "client_device_possible",
+            "confidence": "low",
+            "observed_protocols": ["ARP"],
+            "evidence": ["arp_neighbor"],
+        }
+    ]
+
+
+def test_vendor_and_enriched_classification_helpers() -> None:
+    assert vendor_for_mac("a4-14-37-91-22-10") == "Hikvision"
+    assert classify_device((80,), DiscoverySignal(evidence=("http_title_printer",))) == (
+        "unknown_device",
+        "medium",
+        "printer",
+    )
 
 
 def test_cli_discover_once_posts_sanitized_report(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -132,6 +328,7 @@ def test_cli_discover_once_posts_sanitized_report(monkeypatch: pytest.MonkeyPatc
                     open_ports=(554,),
                     candidate_kind="possible_camera",
                     confidence="high",
+                    device_hint="ip_camera",
                 ),
             ),
             agent_version=agent_config.agent_version,

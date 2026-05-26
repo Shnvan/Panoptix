@@ -115,13 +115,16 @@ Expected result: one heartbeat succeeds and the backend records the gateway as r
 
 ## Gateway discovery rules
 
-Gateway discovery is a manual V1 operator action, not a scheduler. Run it only from a gateway host that is physically or logically attached to the approved camera LAN/VLAN.
+Gateway discovery is a manual V2 operator action, not a scheduler. Run it only from a gateway host that is physically or logically attached to the approved camera LAN/VLAN.
 
 Allowed behavior:
 
 - `python -m panoptix_edge_agent.cli --discover-once`
 - private IPv4 camera LAN/VLAN CIDRs configured in `PANOPTIX_DISCOVERY_APPROVED_RANGES`
-- TCP connect probes only
+- TCP connect probes
+- best-effort ARP/MAC vendor lookup for approved-range neighbors
+- best-effort mDNS/Bonjour and SSDP/UPnP service hints
+- safe HTTP/HTTPS fingerprinting that stores normalized evidence labels only
 - conservative host limits through `PANOPTIX_DISCOVERY_MAX_HOSTS`
 - sanitized upload to `POST /api/v1/gateways/{gateway_id}/discovery-runs`
 
@@ -130,7 +133,11 @@ Forbidden behavior:
 - public internet scanning
 - loopback, multicast, wildcard, link-local, or oversized ranges
 - credentials, RTSP authentication, raw banners, packet capture, screenshots, or decrypted content
+- full HTTP response bodies, full HTTP headers, or sensitive device configuration pages
 - storing camera credentials in the backend report
+- SNMP unless a separate customer-approved credentialed discovery milestone enables it
+
+Discovery results are best-effort. MAC address/vendor, mDNS names, SSDP services, and HTTP title-category hints may be unavailable across routed VLANs, blocked by host firewalls, or misleading on consumer devices. Treat `device_hint` as an operator review aid, not as proof of device type.
 
 Typical pilot command:
 

@@ -80,11 +80,19 @@ def _report(started_at: datetime | None = None) -> dict[str, object]:
             {
                 "ip": "192.168.50.2",
                 "hostname": None,
+                "hostnames": ["cam-front-door.local"],
+                "mac_address": "A4:14:37:91:22:10",
+                "mac_vendor": "Hikvision",
                 "open_ports": [554],
                 "status": "open",
                 "candidate_kind": "possible_camera",
+                "device_hint": "ip_camera",
                 "confidence": "high",
+                "observed_protocols": ["RTSP", "HTTP", "ONVIF"],
+                "evidence": ["rtsp_port_554", "onvif_service"],
                 "raw_banner": "must-not-persist",
+                "http_body": "<html>must-not-persist</html>",
+                "credentials": "must-not-persist",
             }
         ],
     }
@@ -158,10 +166,16 @@ def test_gateway_discovery_valid_report_persists_sanitized_snapshot(test_db_sess
         {
             "ip": "192.168.50.2",
             "hostname": None,
+            "hostnames": ["cam-front-door.local"],
+            "mac_address": "A4:14:37:91:22:10",
+            "mac_vendor": "Hikvision",
             "open_ports": [554],
             "status": "open",
             "candidate_kind": "possible_camera",
+            "device_hint": "ip_camera",
             "confidence": "high",
+            "observed_protocols": ["RTSP", "HTTP", "ONVIF"],
+            "evidence": ["rtsp_port_554", "onvif_service"],
         }
     ]
 
@@ -210,4 +224,36 @@ def test_admin_discovery_runs_list_and_latest_are_sanitized(test_db_session: DbS
     latest = latest_response.json()
     assert latest["started_at"] == "2026-05-25T10:00:00Z"
     assert latest["findings"][0]["candidate_kind"] == "possible_camera"
+    assert latest["findings"][0]["device_hint"] == "ip_camera"
+    assert latest["findings"][0]["mac_vendor"] == "Hikvision"
     assert "raw_banner" not in latest["findings"][0]
+    assert "http_body" not in latest["findings"][0]
+    assert "credentials" not in latest["findings"][0]
+
+
+def test_gateway_discovery_accepts_legacy_v1_finding_shape(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(test_db_session)
+    client = _client(test_db_session)
+    report = _report()
+    report["findings"] = [
+        {
+            "ip": "192.168.50.2",
+            "hostname": None,
+            "open_ports": [554],
+            "status": "open",
+            "candidate_kind": "possible_camera",
+            "confidence": "high",
+        }
+    ]
+
+    response = client.post(
+        f"/api/v1/gateways/{gateway.id}/discovery-runs",
+        headers=_gateway_headers(gateway.id),
+        json=report,
+    )
+
+    assert response.status_code == 200
+    row = test_db_session.execute(select(GatewayDiscoveryRun)).scalar_one()
+    assert row.findings[0]["device_hint"] == "unknown_network_device"
+    assert row.findings[0]["hostnames"] == []
+    assert row.findings[0]["observed_protocols"] == []
