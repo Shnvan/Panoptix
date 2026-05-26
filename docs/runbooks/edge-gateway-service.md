@@ -45,6 +45,8 @@ Minimum edge settings:
 PANOPTIX_API_BASE_URL=https://<backend-host>
 PANOPTIX_GATEWAY_ID=<gateway-id>
 PANOPTIX_GATEWAY_SERVICE_TOKEN=<gateway-service-token>
+PANOPTIX_CF_ACCESS_CLIENT_ID=<cloudflare-access-client-id>
+PANOPTIX_CF_ACCESS_CLIENT_SECRET=<cloudflare-access-client-secret>
 PANOPTIX_GATEWAY_COMMAND_SIGNING_KEY=<gateway-command-signing-key>
 PANOPTIX_GATEWAY_CONTROL_WS_PATH=/api/v1/gateway-control/ws
 PANOPTIX_GATEWAY_CONTROL_RECONNECT_ATTEMPTS=3
@@ -75,6 +77,8 @@ Secret handling rules:
 - Store service environment files outside the repository.
 - Use mode `0600` where supported.
 - Store the raw gateway service token only on the gateway host; never put it in frontend env, GitHub secrets, Railway frontend variables, docs, screenshots, or repository files.
+- Store the Cloudflare Access client secret only on the gateway host; never put it in frontend env, GitHub secrets, Railway frontend variables, docs, screenshots, or repository files.
+- Paste only raw token values into env files. Do not include header names such as `CF-Access-Client-Id:`.
 - Do not paste API keys, LiveKit secrets, RTSP passwords, generated JWTs, or raw gateway credentials into docs, chats, screenshots, or tickets.
 - Do not commit `.env`.
 - Rotate the gateway credential if it is exposed.
@@ -92,6 +96,21 @@ Before service enablement, verify:
 - Camera VLAN, if present, allows only the approved camera-plane flows.
 - Gateway discovery scans only approved private camera LAN/VLAN CIDRs.
 - Browser viewers never receive gateway publish tokens or camera credentials.
+
+## Production heartbeat smoke
+
+Before enabling the gateway service loop, verify that Cloudflare Access and backend gateway authentication both accept the host credentials:
+
+```powershell
+$env:PANOPTIX_API_BASE_URL = "https://panoptix.site"
+$env:PANOPTIX_GATEWAY_ID = "<gateway-id>"
+$env:PANOPTIX_GATEWAY_SERVICE_TOKEN = "<gateway-service-token>"
+$env:PANOPTIX_CF_ACCESS_CLIENT_ID = "<cloudflare-access-client-id>"
+$env:PANOPTIX_CF_ACCESS_CLIENT_SECRET = "<cloudflare-access-client-secret>"
+python -m panoptix_edge_agent.cli --once
+```
+
+Expected result: one heartbeat succeeds and the backend records the gateway as recently seen. If Cloudflare Access returns a login HTML page, verify the Access service-token policy and confirm the env values contain only token values, not header names.
 
 ## Gateway discovery rules
 
@@ -118,12 +137,16 @@ Typical pilot command:
 $env:PANOPTIX_API_BASE_URL = "https://panoptix.site"
 $env:PANOPTIX_GATEWAY_ID = "<gateway-id>"
 $env:PANOPTIX_GATEWAY_SERVICE_TOKEN = "<gateway-service-token>"
+$env:PANOPTIX_CF_ACCESS_CLIENT_ID = "<cloudflare-access-client-id>"
+$env:PANOPTIX_CF_ACCESS_CLIENT_SECRET = "<cloudflare-access-client-secret>"
 $env:PANOPTIX_DISCOVERY_APPROVED_RANGES = "<camera-private-cidr>"
 $env:PANOPTIX_DISCOVERY_PORTS = "554,80,443,8000,8080,8899"
 $env:PANOPTIX_DISCOVERY_TIMEOUT_SECONDS = "1.0"
 $env:PANOPTIX_DISCOVERY_MAX_HOSTS = "256"
 python -m panoptix_edge_agent.cli --discover-once
 ```
+
+Do not run discovery until the real isolated camera LAN/VLAN exists.
 
 Admin review uses:
 
