@@ -177,6 +177,7 @@ def run_discovery(
     mac_resolver: MacResolver | None = None,
     network_discoverers: tuple[NetworkDiscoverer, ...] | None = None,
     http_fingerprinter: HttpFingerprinter | None = None,
+    default_gateway_resolver: Callable[[tuple[ipaddress.IPv4Network, ...]], tuple[str, ...]] | None = None,
     now: Callable[[], datetime] | None = None,
 ) -> DiscoveryReport:
     clock = _utcnow if now is None else now
@@ -226,6 +227,13 @@ def run_discovery(
     except Exception:
         status = "partial"
         error = "mac-discovery-error"
+
+    gateway_resolver = _resolve_default_gateway_ips if default_gateway_resolver is None else default_gateway_resolver
+    try:
+        _merge_signal_map(signals_by_ip, _default_gateway_signals(gateway_resolver(networks), networks))
+    except Exception:
+        status = "partial"
+        error = "default-gateway-discovery-error"
 
     fingerprinter = SafeHttpFingerprinter() if http_fingerprinter is None else http_fingerprinter
     for ip, open_ports in open_ports_by_ip.items():
@@ -331,6 +339,7 @@ def classify_device(
         return "unknown_device", "medium", "printer"
     if (
         "internet_gateway_service" in evidence
+        or "default_gateway" in evidence
         or "http_title_router" in evidence
         or _contains_any(vendor, _ROUTER_VENDOR_KEYWORDS)
     ):
@@ -480,7 +489,11 @@ def _filter_signal_map(
     signals: dict[str, DiscoverySignal],
     networks: tuple[ipaddress.IPv4Network, ...],
 ) -> dict[str, DiscoverySignal]:
-    return {ip: signal for ip, signal in signals.items() if _ip_in_networks(ip, networks)}
+    return {
+        ip: signal
+        for ip, signal in signals.items()
+        if _is_usable_host_ip(ip, networks) and not _is_non_device_mac(signal.mac_address)
+    }
 
 
 def _ip_in_networks(ip: str, networks: tuple[ipaddress.IPv4Network, ...]) -> bool:
@@ -489,6 +502,22 @@ def _ip_in_networks(ip: str, networks: tuple[ipaddress.IPv4Network, ...]) -> boo
     except ValueError:
         return False
     return isinstance(address, ipaddress.IPv4Address) and any(address in network for network in networks)
+
+
+def _is_usable_host_ip(ip: str, networks: tuple[ipaddress.IPv4Network, ...]) -> bool:
+    try:
+        address = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    if not isinstance(address, ipaddress.IPv4Address):
+        return False
+    for network in networks:
+        if address not in network:
+            continue
+        if network.prefixlen < 31 and (address == network.network_address or address == network.broadcast_address):
+            return False
+        return True
+    return False
 
 
 def _run_command(command: tuple[str, ...]) -> str:
@@ -510,33 +539,90 @@ def _parse_neighbor_output(
         if ip_match is None or mac_match is None:
             continue
         ip = ip_match.group(0)
-        if not _ip_in_networks(ip, networks):
+        if not _is_usable_host_ip(ip, networks):
             continue
         mac = _normalize_mac(mac_match.group(0))
-        if mac is None:
+        if mac is None or _is_non_device_mac(mac):
             continue
+        evidence = ["arp_neighbor"]
+        if _is_locally_administered_mac(mac):
+            evidence.append("locally_administered_mac")
         signals[ip] = DiscoverySignal(
             mac_address=mac,
             mac_vendor=vendor_for_mac(mac),
             observed_protocols=("ARP",),
-            evidence=("arp_neighbor",),
+            evidence=tuple(evidence),
         )
     return signals
 
 
+def _default_gateway_signals(
+    gateway_ips: tuple[str, ...],
+    networks: tuple[ipaddress.IPv4Network, ...],
+) -> dict[str, DiscoverySignal]:
+    return {
+        ip: DiscoverySignal(evidence=("default_gateway",))
+        for ip in gateway_ips
+        if _is_usable_host_ip(ip, networks)
+    }
+
+
+def _resolve_default_gateway_ips(networks: tuple[ipaddress.IPv4Network, ...]) -> tuple[str, ...]:
+    output = ""
+    if sys.platform == "win32":
+        output = _run_command(("route", "print", "-4"))
+    else:
+        output = _run_command(("ip", "route", "show", "default"))
+    return _parse_default_gateway_output(output, networks)
+
+
+def _parse_default_gateway_output(
+    output: str,
+    networks: tuple[ipaddress.IPv4Network, ...],
+) -> tuple[str, ...]:
+    gateway_ips: list[str] = []
+    for line in output.splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and parts[0] == "0.0.0.0" and parts[1] == "0.0.0.0":
+            gateway_ips.append(parts[2])
+            continue
+        match = re.search(r"\bdefault\b.*?\bvia\s+((?:\d{1,3}\.){3}\d{1,3})\b", line)
+        if match is not None:
+            gateway_ips.append(match.group(1))
+    return tuple(ip for ip in _dedupe(gateway_ips) if _is_usable_host_ip(ip, networks))
+
+
 def vendor_for_mac(mac_address: str) -> str | None:
     normalized = _normalize_mac(mac_address)
-    if normalized is None:
+    if normalized is None or _is_locally_administered_mac(normalized):
         return None
     return _OUI_VENDOR_PREFIXES.get(normalized[:8])
 
 
 def _normalize_mac(value: str) -> str | None:
     hex_chars = re.sub(r"[^0-9A-Fa-f]", "", value)
-    if len(hex_chars) != 12 or hex_chars == "000000000000":
+    if len(hex_chars) != 12 or hex_chars == "000000000000" or hex_chars.upper() == "FFFFFFFFFFFF":
         return None
     octets = [hex_chars[index : index + 2].upper() for index in range(0, 12, 2)]
     return ":".join(octets)
+
+
+def _is_non_device_mac(mac_address: str | None) -> bool:
+    if mac_address is None:
+        return False
+    normalized = _normalize_mac(mac_address)
+    if normalized is None:
+        return True
+    first_octet = int(normalized[:2], 16)
+    return bool(first_octet & 0x01)
+
+
+def _is_locally_administered_mac(mac_address: str) -> bool:
+    normalized = _normalize_mac(mac_address)
+    if normalized is None:
+        return False
+    first_octet = int(normalized[:2], 16)
+    return bool(first_octet & 0x02)
 
 
 def _build_mdns_services_query() -> bytes:
