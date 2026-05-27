@@ -1,6 +1,6 @@
 # Frontend Coworker Handoff
 
-Last updated: 2026-05-27 (Gateway Discovery V2 backend/edge active on main, frontend gaps unchanged)
+Last updated: 2026-05-28 (production Resend alert email active; frontend gaps unchanged)
 
 This is the first document the frontend coworker should read before changing the React app on `fullstack-integration`. It summarizes what the system owner has verified, what backend APIs are ready, and what frontend work should happen next.
 
@@ -20,7 +20,7 @@ This is the first document the frontend coworker should read before changing the
 - Local and production databases should be at Alembic head `0012_gateway_discovery_runs`.
 - Local full-stack smoke through Vite and FastAPI has passed for the main same-origin admin surfaces already tested: dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health.
 - GitHub organization invites are live on staging (`panoptix-site` org). Inviting users through the Users & Access page creates local user records and sends GitHub org invitations.
-- Alert records and backend SMTP email-notification foundation are implemented. SMTP email is backend-only and disabled by default until configured. The Alerts page currently shows a frontend placeholder and needs wiring to the real backend alert APIs.
+- Alert records and backend SMTP email notifications are implemented. Production sends high/critical alert emails through Resend to active admin users with `ALERT_EMAIL_RECIPIENT_MODE=admins`. The Alerts page currently shows a frontend placeholder and needs wiring to the real backend alert APIs.
 - Staging deployed browser smoke passed 2026-05-21: all 10 sidebar pages loaded through Cloudflare Access at `staging.panoptix.site` with no 500/502 errors.
 - **Production is now live at `panoptix.site` (2026-05-22)** behind Cloudflare Access with GitHub OAuth. Railway production backend + frontend deployed with new cryptographic keys.
 - `SUSPICIOUS_LOGIN_DETECTION_ENABLED=true` in production (login baselines track normal device/IP patterns).
@@ -75,7 +75,7 @@ This is the first document the frontend coworker should read before changing the
 - Do not expose RTSP URLs, LiveKit API secrets, LiveKit ingest tokens, gateway service tokens, Cloudflare Access service-token secrets, R2 keys, database URLs, backend-only credentials, or `.env` values in frontend code, logs, screenshots, storage, or UI.
 - Do not call gateway-only endpoints from browser code.
 - Never make broad `/api/v1/*` public or browser-call protected API groups from public entry code; only the documented visitor entry endpoints are public.
-- Do not treat email alerts as frontend-delivered. Email delivery is backend SMTP only.
+- Do not treat email alerts as frontend-delivered. Email delivery is backend SMTP only; browsers should display alert records and statuses, never send alert email.
 - Do not redesign the coworker UI/UX unless the assigned task is explicitly design-system migration.
 
 ## Local Run Flow

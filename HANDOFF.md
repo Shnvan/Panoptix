@@ -355,9 +355,10 @@ Completed in this milestone:
 
 - `apps/api/src/cctv_api/api/router.py`: added endpoints for alert list, details, acknowledge, and resolve.
 - `apps/api/src/cctv_api/security/alerts.py`: business logic for alert detection, deduplication, and lifecycle transitions.
-- `apps/api/src/cctv_api/integrations/email_alerts.py`: SMTP-based email alert notification sender helper.
+- `apps/api/src/cctv_api/integrations/email_alerts.py`: SMTP-based email alert notification sender helper; production uses Resend with `ALERT_EMAIL_RECIPIENT_MODE=admins`.
 - Applied migration `0008_alerts_email` on the active local database, adding `alerts` and `alert_notifications` tables. Apply separately in staging/production before deployed alert testing.
 - Auto-triggered alerts for critical security and operational events (break-glass open, tampered audit check, admin role grant, gateway disable, rejected commands, and degraded backups).
+- Production Resend delivery was verified with a controlled high-severity alert: four active admin notification rows were marked sent. Keep the Resend API key only in Railway production secrets.
 - Redact-safe secrets validation ensuring no sensitive settings leak.
 - Added focused alert API, detection, and email-notification tests.
 - Added DSR request workflow endpoints (`GET/POST/PATCH /api/v1/admin/dsr-requests`) to track compliance cases.

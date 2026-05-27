@@ -158,7 +158,7 @@ Alert severities are `informational`, `low`, `medium`, `high`, and `critical`. A
 
 The backend currently creates alert records for high-value security and operations events: break-glass opened, invalid/tampered audit verification, admin role grant, gateway disable, rejected gateway command, and backup status `missing`/`degraded`. Duplicate source events are treated idempotently where the source event has a stable ID.
 
-Email notification is generic SMTP only and is disabled by default. When `ALERT_EMAIL_ENABLED=true`, only alerts at or above `ALERT_EMAIL_MIN_SEVERITY` are sent to `ALERT_EMAIL_TO`. Alert API responses, notification records, audit payloads, and email bodies must not include SMTP passwords, gateway tokens, LiveKit secrets, raw provider responses, database URLs, or RTSP credentials.
+Email notification is backend SMTP only. Production uses Resend with `ALERT_EMAIL_RECIPIENT_MODE=admins`, so alerts at or above `ALERT_EMAIL_MIN_SEVERITY` are sent to active admin users. Non-production environments can use `static`, `admins`, or `both`; static recipients come from `ALERT_EMAIL_TO`. Alert API responses, notification records, audit payloads, and email bodies must not include SMTP passwords, gateway tokens, LiveKit secrets, raw provider responses, database URLs, or RTSP credentials.
 
 Alert response shape:
 

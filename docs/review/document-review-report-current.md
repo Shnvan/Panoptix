@@ -113,7 +113,7 @@ New milestones completed since 2026-05-19 pass:
 - `PATCH` and `/enable` lifecycle endpoints added for cameras and gateways.
 - `POST /api/v1/admin/users/invite` implemented: GitHub organization invite flow.
 - `GET/POST/PATCH /api/v1/admin/dsr-requests` implemented: DSR compliance workflow tracking.
-- Alert pilot: alert auto-detection, lifecycle API, SMTP email foundation (backend-only, disabled by default).
+- Alert pilot: alert auto-detection, lifecycle API, and backend-only SMTP email delivery; production now uses Resend for active admin recipients.
 - Frontend production proxy server (`apps/web/server.mjs`) added: serves Vite `dist/` and proxies `/api/v1/` and `/health` to `PANOPTIX_API_ORIGIN`.
 - Frontend coworker handoff doc added: `docs/frontend/FRONTEND_HANDOFF.md`.
 - Staging 7-day uptime gate cleared (started 2026-05-13, cleared 2026-05-20).

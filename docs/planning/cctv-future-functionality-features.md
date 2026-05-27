@@ -36,7 +36,7 @@ These items already appear in `docs/planning/cctv-core-functionality-features.md
 | Feature | Status | Notes |
 |---|---|---|
 | Viewer identity watermark on video | Pilot | CSS overlay for MVP deterrence; video-embedded watermark in pilot. |
-| Alerting and notifications | Pilot | Backend alert records and generic SMTP email notification foundation implemented. Email is disabled by default until SMTP settings are configured. No Telegram, webhook, SMS, PagerDuty, Slack, or Teams integration in v1. |
+| Alerting and notifications | Pilot | Backend alert records and SMTP email notification are implemented. Production sends high/critical alerts through Resend to active admin users. No Telegram, webhook, SMS, PagerDuty, Slack, or Teams integration in v1. |
 | mTLS gateway certificates with rotation alerts | Pilot | Replaces service-token identity for stronger gateway auth. |
 | NVR integration (`nvr_rtsp` source type) | Pilot | Extends camera source types beyond direct IP camera RTSP. |
 | Suspicious login detection | Pilot | CF Access signals + app heuristics. |
