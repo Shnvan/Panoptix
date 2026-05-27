@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     ALERT_EMAIL_SMTP_PASSWORD: str = "replace-me"
     ALERT_EMAIL_FROM: str = ""
     ALERT_EMAIL_TO: str = ""
+    ALERT_EMAIL_RECIPIENT_MODE: Literal["static", "admins", "both"] = "static"
     ALERT_EMAIL_USE_TLS: bool = True
     ALERT_EMAIL_MIN_SEVERITY: str = "high"
     ALERT_EMAIL_TIMEOUT_SECONDS: int = Field(default=10, ge=1, le=60)
@@ -181,16 +182,18 @@ class Settings(BaseSettings):
                     "ALERT_EMAIL_SMTP_HOST",
                     "ALERT_EMAIL_SMTP_PASSWORD",
                     "ALERT_EMAIL_FROM",
-                    "ALERT_EMAIL_TO",
                 ]
             )
             for field_name in (
                 "ALERT_EMAIL_SMTP_HOST",
                 "ALERT_EMAIL_FROM",
-                "ALERT_EMAIL_TO",
             ):
                 if not getattr(self, field_name, "").strip():
                     unsafe.append(field_name)
+            if self.ALERT_EMAIL_RECIPIENT_MODE in {"static", "both"}:
+                _GUARDED_FIELDS.append("ALERT_EMAIL_TO")
+                if not self.ALERT_EMAIL_TO.strip():
+                    unsafe.append("ALERT_EMAIL_TO")
 
         if self.VISITOR_COLLECTOR_ENABLED:
             _GUARDED_FIELDS.append("VISITOR_COOKIE_SIGNING_KEY")

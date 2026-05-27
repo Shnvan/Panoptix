@@ -15,7 +15,7 @@ from cctv_api.models.enums import (
     AlertSeverity,
     AlertStatus,
 )
-from cctv_api.models.tables import Alert, AlertNotification, AuditLog, GatewayCommandQueue
+from cctv_api.models.tables import Alert, AlertNotification, AuditLog, GatewayCommandQueue, Role, User, UserRole
 from cctv_api.security.audit import AuditLogError, record_audit_event, scrub_audit_payload
 
 
@@ -330,7 +330,7 @@ def _send_email_notifications_if_needed(
     if SEVERITY_ORDER[severity] < SEVERITY_ORDER[_alert_min_severity(settings)]:
         return
 
-    recipients = _email_recipients(settings)
+    recipients = _email_recipients_for_alert(db, settings)
     if not recipients:
         return
 
@@ -380,8 +380,44 @@ def _send_email_notifications_if_needed(
         )
 
 
-def _email_recipients(settings: Settings) -> list[str]:
+def _email_recipients_for_alert(db: DbSession, settings: Settings) -> list[str]:
+    mode = settings.ALERT_EMAIL_RECIPIENT_MODE
+    recipients: list[str] = []
+    if mode in {"static", "both"}:
+        recipients.extend(_static_email_recipients(settings))
+    if mode in {"admins", "both"}:
+        recipients.extend(_admin_email_recipients(db))
+    return _dedupe_email_recipients(recipients)
+
+
+def _static_email_recipients(settings: Settings) -> list[str]:
     return [part.strip() for part in settings.ALERT_EMAIL_TO.split(",") if part.strip()]
+
+
+def _admin_email_recipients(db: DbSession) -> list[str]:
+    stmt = (
+        select(User.email)
+        .join(UserRole, UserRole.user_id == User.id)
+        .join(Role, Role.id == UserRole.role_id)
+        .where(Role.name == "admin", User.disabled_at.is_(None))
+        .order_by(User.email.asc())
+    )
+    return [email.strip() for email in db.execute(stmt).scalars().all() if email.strip()]
+
+
+def _dedupe_email_recipients(recipients: list[str]) -> list[str]:
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for recipient in recipients:
+        normalized = recipient.strip()
+        if not normalized:
+            continue
+        key = normalized.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(normalized)
+    return deduped
 
 
 def _alert_min_severity(settings: Settings) -> AlertSeverity:
