@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from panoptix_edge_agent import cli
+from panoptix_edge_agent import cli, discovery
 from panoptix_edge_agent.config import AgentConfig, ConfigError
 from panoptix_edge_agent.discovery import (
     DiscoveryFinding,
@@ -109,6 +109,7 @@ def test_run_discovery_records_open_tcp_results_only() -> None:
         mac_resolver=FakeMacResolver({}),
         network_discoverers=(),
         http_fingerprinter=FakeHttpFingerprinter({}),
+        default_gateway_resolver=lambda _: (),
         now=lambda: now,
     )
 
@@ -208,6 +209,7 @@ def test_run_discovery_enriches_safe_identity_signals_only_for_approved_ranges()
                 )
             }
         ),
+        default_gateway_resolver=lambda _: (),
         now=lambda: now,
     )
 
@@ -267,6 +269,7 @@ def test_discovery_can_report_service_only_client_device() -> None:
         ),
         network_discoverers=(),
         http_fingerprinter=FakeHttpFingerprinter({}),
+        default_gateway_resolver=lambda _: (),
         now=lambda: now,
     )
 
@@ -288,8 +291,136 @@ def test_discovery_can_report_service_only_client_device() -> None:
     ]
 
 
+def test_discovery_filters_non_device_network_and_mac_entries() -> None:
+    now = datetime(2026, 5, 25, 10, 0, 0, tzinfo=timezone.utc)
+
+    report = run_discovery(
+        _config(),
+        connector=FakeConnector({}),
+        mac_resolver=FakeMacResolver(
+            {
+                "192.168.50.0": DiscoverySignal(
+                    mac_address="70:4F:57:AA:01:09",
+                    mac_vendor="TP-Link",
+                    observed_protocols=("ARP",),
+                    evidence=("arp_neighbor",),
+                ),
+                "192.168.50.1": DiscoverySignal(
+                    mac_address="70:4F:57:AA:01:09",
+                    mac_vendor="TP-Link",
+                    observed_protocols=("ARP",),
+                    evidence=("arp_neighbor",),
+                ),
+                "192.168.50.2": DiscoverySignal(
+                    mac_address="01:00:5E:00:00:FB",
+                    observed_protocols=("ARP",),
+                    evidence=("arp_neighbor",),
+                ),
+                "192.168.50.3": DiscoverySignal(
+                    mac_address="FF:FF:FF:FF:FF:FF",
+                    observed_protocols=("ARP",),
+                    evidence=("arp_neighbor",),
+                ),
+            }
+        ),
+        network_discoverers=(),
+        http_fingerprinter=FakeHttpFingerprinter({}),
+        default_gateway_resolver=lambda _: (),
+        now=lambda: now,
+    )
+
+    assert [finding.ip for finding in report.findings] == ["192.168.50.1"]
+
+
+def test_default_gateway_is_kept_and_classified_as_router() -> None:
+    now = datetime(2026, 5, 25, 10, 0, 0, tzinfo=timezone.utc)
+
+    report = run_discovery(
+        _config(),
+        connector=FakeConnector({}),
+        mac_resolver=FakeMacResolver({}),
+        network_discoverers=(),
+        http_fingerprinter=FakeHttpFingerprinter({}),
+        default_gateway_resolver=lambda _: ("192.168.50.1",),
+        now=lambda: now,
+    )
+
+    assert [finding.to_payload() for finding in report.findings] == [
+        {
+            "ip": "192.168.50.1",
+            "hostname": None,
+            "hostnames": [],
+            "mac_address": None,
+            "mac_vendor": None,
+            "open_ports": [],
+            "status": "open",
+            "candidate_kind": "unknown_device",
+            "device_hint": "router",
+            "confidence": "medium",
+            "observed_protocols": [],
+            "evidence": ["default_gateway"],
+        }
+    ]
+
+
+def test_default_gateway_parser_supports_windows_and_linux_routes() -> None:
+    networks = validate_discovery_ranges(("192.168.50.0/24",), max_hosts=256)
+    windows_output = """
+IPv4 Route Table
+===========================================================================
+Active Routes:
+Network Destination        Netmask          Gateway       Interface  Metric
+          0.0.0.0          0.0.0.0     192.168.50.1  192.168.50.42     25
+"""
+    linux_output = "default via 192.168.50.1 dev wlan0 proto dhcp metric 600\n"
+
+    assert discovery._parse_default_gateway_output(windows_output, networks) == ("192.168.50.1",)
+    assert discovery._parse_default_gateway_output(linux_output, networks) == ("192.168.50.1",)
+
+
+def test_locally_administered_mac_has_no_vendor_and_is_marked_as_randomized() -> None:
+    now = datetime(2026, 5, 25, 10, 0, 0, tzinfo=timezone.utc)
+
+    report = run_discovery(
+        _config(),
+        connector=FakeConnector({}),
+        mac_resolver=FakeMacResolver(
+            {
+                "192.168.50.1": DiscoverySignal(
+                    mac_address="2E:C5:1A:55:EA:03",
+                    mac_vendor=vendor_for_mac("2E:C5:1A:55:EA:03"),
+                    observed_protocols=("ARP",),
+                    evidence=("arp_neighbor", "locally_administered_mac"),
+                )
+            }
+        ),
+        network_discoverers=(),
+        http_fingerprinter=FakeHttpFingerprinter({}),
+        default_gateway_resolver=lambda _: (),
+        now=lambda: now,
+    )
+
+    assert [finding.to_payload() for finding in report.findings] == [
+        {
+            "ip": "192.168.50.1",
+            "hostname": None,
+            "hostnames": [],
+            "mac_address": "2E:C5:1A:55:EA:03",
+            "mac_vendor": None,
+            "open_ports": [],
+            "status": "open",
+            "candidate_kind": "unknown_device",
+            "device_hint": "unknown_network_device",
+            "confidence": "low",
+            "observed_protocols": ["ARP"],
+            "evidence": ["arp_neighbor", "locally_administered_mac"],
+        }
+    ]
+
+
 def test_vendor_and_enriched_classification_helpers() -> None:
     assert vendor_for_mac("a4-14-37-91-22-10") == "Hikvision"
+    assert vendor_for_mac("2E:C5:1A:55:EA:03") is None
     assert classify_device((80,), DiscoverySignal(evidence=("http_title_printer",))) == (
         "unknown_device",
         "medium",
