@@ -110,6 +110,31 @@ def test_guardrails_pass_for_fully_populated_production() -> None:
     settings.validate_production_guardrails()
 
 
+def test_guardrails_allow_alert_email_admin_recipient_mode_without_static_to() -> None:
+    settings = _safe_production_settings(
+        ALERT_EMAIL_ENABLED=True,
+        ALERT_EMAIL_SMTP_HOST="smtp.example.test",
+        ALERT_EMAIL_SMTP_PASSWORD="smtp-password-with-enough-length",
+        ALERT_EMAIL_FROM="alerts@example.test",
+        ALERT_EMAIL_RECIPIENT_MODE="admins",
+        ALERT_EMAIL_TO="",
+    )
+    settings.validate_production_guardrails()
+
+
+def test_guardrails_require_alert_email_to_for_static_recipient_mode() -> None:
+    settings = _safe_production_settings(
+        ALERT_EMAIL_ENABLED=True,
+        ALERT_EMAIL_SMTP_HOST="smtp.example.test",
+        ALERT_EMAIL_SMTP_PASSWORD="smtp-password-with-enough-length",
+        ALERT_EMAIL_FROM="alerts@example.test",
+        ALERT_EMAIL_RECIPIENT_MODE="static",
+        ALERT_EMAIL_TO="",
+    )
+    with pytest.raises(ValueError, match="ALERT_EMAIL_TO"):
+        settings.validate_production_guardrails()
+
+
 def test_guardrails_pass_for_fully_populated_staging() -> None:
     settings = _safe_production_settings(APP_ENV="staging")
     settings.validate_production_guardrails()

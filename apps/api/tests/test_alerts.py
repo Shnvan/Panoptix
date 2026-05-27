@@ -13,7 +13,7 @@ from cctv_api.db import db_session
 from cctv_api.integrations.email_alerts import AlertEmailSendError
 from cctv_api.main import create_app
 from cctv_api.models.enums import ActorType, AlertCategory, AlertNotificationStatus, AlertSeverity, AlertStatus, GatewayStatus
-from cctv_api.models.tables import Alert, AlertNotification, AuditLog, BackupRun, EdgeGateway, Role, User
+from cctv_api.models.tables import Alert, AlertNotification, AuditLog, BackupRun, EdgeGateway, Role, User, UserRole
 from cctv_api.security.alerts import create_alert, detect_alert_from_audit_event
 from cctv_api.security.audit import record_audit_event
 
@@ -86,6 +86,11 @@ def _seed_role(db: DbSession, *, role_id: int, name: str) -> Role:
     db.add(role)
     db.commit()
     return role
+
+
+def _assign_role(db: DbSession, *, user: User, role: Role) -> None:
+    db.add(UserRole(user_id=user.id, role_id=role.id))
+    db.commit()
 
 
 def _seed_gateway(db: DbSession) -> EdgeGateway:
@@ -282,6 +287,122 @@ def test_email_enabled_records_sent_notification(test_db_session: DbSession) -> 
     notification = test_db_session.execute(select(AlertNotification)).scalar_one()
     assert notification.status == AlertNotificationStatus.sent
     assert notification.sent_at is not None
+
+
+def test_email_admins_mode_sends_to_active_admins_only(test_db_session: DbSession) -> None:
+    admin_role = _seed_role(test_db_session, role_id=10, name="admin")
+    viewer_role = _seed_role(test_db_session, role_id=11, name="viewer")
+    admin_one = _seed_user(test_db_session, email="admin-one@example.test")
+    admin_two = _seed_user(test_db_session, email="admin-two@example.test")
+    disabled_admin = _seed_user(test_db_session, email="disabled-admin@example.test")
+    viewer = _seed_user(test_db_session, email="viewer-only@example.test")
+    disabled_admin.disabled_at = datetime.now(timezone.utc)
+    test_db_session.commit()
+    _assign_role(test_db_session, user=admin_one, role=admin_role)
+    _assign_role(test_db_session, user=admin_two, role=admin_role)
+    _assign_role(test_db_session, user=disabled_admin, role=admin_role)
+    _assign_role(test_db_session, user=viewer, role=viewer_role)
+
+    settings = Settings(
+        APP_ENV="development",
+        ALLOW_DEV_AUTH=True,
+        AUDIT_HMAC_KEY_VERSION=1,
+        AUDIT_HMAC_KEY=_AUDIT_KEY,
+        ALERT_EMAIL_ENABLED=True,
+        ALERT_EMAIL_SMTP_HOST="smtp.example.test",
+        ALERT_EMAIL_SMTP_PASSWORD="smtp-password-with-enough-length",
+        ALERT_EMAIL_FROM="alerts@example.test",
+        ALERT_EMAIL_RECIPIENT_MODE="admins",
+    )
+
+    with patch("cctv_api.security.alerts.send_alert_email") as send_email:
+        create_alert(
+            test_db_session,
+            settings=settings,
+            severity=AlertSeverity.high,
+            category=AlertCategory.security,
+            title="Admins mode",
+            message="Email active admins only.",
+            source="test-email-admins",
+            source_event_id=1,
+        )
+
+    recipients = [call.kwargs["recipient"] for call in send_email.call_args_list]
+    assert recipients == ["admin-one@example.test", "admin-two@example.test"]
+    notification_recipients = list(
+        test_db_session.execute(select(AlertNotification.recipient)).scalars().all()
+    )
+    assert notification_recipients == recipients
+
+
+def test_email_both_mode_merges_static_and_admin_recipients_without_duplicates(
+    test_db_session: DbSession,
+) -> None:
+    admin_role = _seed_role(test_db_session, role_id=12, name="admin")
+    admin = _seed_user(test_db_session, email="Admin-One@example.test")
+    _assign_role(test_db_session, user=admin, role=admin_role)
+
+    settings = Settings(
+        APP_ENV="development",
+        ALLOW_DEV_AUTH=True,
+        AUDIT_HMAC_KEY_VERSION=1,
+        AUDIT_HMAC_KEY=_AUDIT_KEY,
+        ALERT_EMAIL_ENABLED=True,
+        ALERT_EMAIL_SMTP_HOST="smtp.example.test",
+        ALERT_EMAIL_SMTP_PASSWORD="smtp-password-with-enough-length",
+        ALERT_EMAIL_FROM="alerts@example.test",
+        ALERT_EMAIL_TO="admin-one@example.test,secops@example.test",
+        ALERT_EMAIL_RECIPIENT_MODE="both",
+    )
+
+    with patch("cctv_api.security.alerts.send_alert_email") as send_email:
+        create_alert(
+            test_db_session,
+            settings=settings,
+            severity=AlertSeverity.critical,
+            category=AlertCategory.security,
+            title="Both mode",
+            message="Email static and admins.",
+            source="test-email-both",
+            source_event_id=1,
+        )
+
+    recipients = [call.kwargs["recipient"] for call in send_email.call_args_list]
+    assert recipients == ["admin-one@example.test", "secops@example.test"]
+
+
+def test_email_severity_threshold_still_applies_to_admin_mode(test_db_session: DbSession) -> None:
+    admin_role = _seed_role(test_db_session, role_id=13, name="admin")
+    admin = _seed_user(test_db_session, email="admin-threshold@example.test")
+    _assign_role(test_db_session, user=admin, role=admin_role)
+
+    settings = Settings(
+        APP_ENV="development",
+        ALLOW_DEV_AUTH=True,
+        AUDIT_HMAC_KEY_VERSION=1,
+        AUDIT_HMAC_KEY=_AUDIT_KEY,
+        ALERT_EMAIL_ENABLED=True,
+        ALERT_EMAIL_SMTP_HOST="smtp.example.test",
+        ALERT_EMAIL_SMTP_PASSWORD="smtp-password-with-enough-length",
+        ALERT_EMAIL_FROM="alerts@example.test",
+        ALERT_EMAIL_RECIPIENT_MODE="admins",
+        ALERT_EMAIL_MIN_SEVERITY="critical",
+    )
+
+    with patch("cctv_api.security.alerts.send_alert_email") as send_email:
+        create_alert(
+            test_db_session,
+            settings=settings,
+            severity=AlertSeverity.high,
+            category=AlertCategory.security,
+            title="Below threshold",
+            message="No email should be attempted.",
+            source="test-email-threshold",
+            source_event_id=1,
+        )
+
+    send_email.assert_not_called()
+    assert test_db_session.execute(select(AlertNotification)).scalar_one_or_none() is None
 
 
 def test_email_failure_records_failed_notification_without_rollback(test_db_session: DbSession) -> None:
