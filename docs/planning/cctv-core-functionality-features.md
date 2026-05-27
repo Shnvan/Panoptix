@@ -232,7 +232,7 @@ The system is designed to comply with Philippine data privacy law (RA 10173 / NP
 | Feature | Status |
 |---|---|
 | Viewer identity watermark on video | Planned |
-| Alerting and notifications | Backend alert records and SMTP email foundation implemented; email disabled by default until SMTP settings are configured; frontend alerts UI still pending |
+| Alerting and notifications | Backend alert records and SMTP email implemented; production sends high/critical alerts through Resend to active admin users; frontend alerts UI still pending |
 | Tamper detection with 5-minute verification | Planned |
 | mTLS gateway certificates with rotation alerts | Planned |
 | NVR integration (nvr_rtsp source type) | Planned |

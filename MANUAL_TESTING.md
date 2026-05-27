@@ -4416,7 +4416,7 @@ Expected response: `200 OK` with status `resolved`.
 
 ### 4. Verify SMTP email notifications
 
-Email delivery is disabled by default. When `ALERT_EMAIL_ENABLED=true` and SMTP settings are configured, critical/high alerts at or above `ALERT_EMAIL_MIN_SEVERITY` create `alert_notifications` rows and send an email.
+Production email delivery is active through Resend SMTP with `ALERT_EMAIL_RECIPIENT_MODE=admins`; high/critical alerts create one `alert_notifications` row per active admin recipient and send backend-only email. Local/staging email delivery remains opt-in: set `ALERT_EMAIL_ENABLED=true`, configure approved SMTP secrets, and choose `ALERT_EMAIL_RECIPIENT_MODE=static`, `admins`, or `both`.
 
 Expected email content:
 - **Subject**: `[Panoptix <SEVERITY>] <Alert Title>`

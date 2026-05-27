@@ -3761,7 +3761,7 @@ Exposed an alerting model with optional SMTP email integration for critical syst
 
 - Database migration `0008_alerts_email` added `alerts` and `alert_notifications` tables.
 - Alert detection from security/operational events (break-glass open, audit verification failure, admin role grant, gateway disable, command rejection, and degraded backups).
-- SMTP notification support in `integrations/email_alerts.py`; delivery is disabled by default until SMTP settings are configured.
+- SMTP notification support in `integrations/email_alerts.py`; production delivery now uses Resend with `ALERT_EMAIL_RECIPIENT_MODE=admins`, while local/staging email remains opt-in.
 - Endpoints:
   ```text
   GET /api/v1/admin/alerts
