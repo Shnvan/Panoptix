@@ -95,7 +95,7 @@ These belong to pilot/future work unless the team explicitly pulls them forward.
 | Task | Status | Notes |
 |---|---|---|
 | Viewer identity watermark | Pilot | Add visible viewer identity watermarking on video once live playback is wired. |
-| Alerts UI | P0 — backend foundation ready | Use `/api/v1/admin/alerts` plus detail, acknowledge, and resolve routes. Backend currently creates alerts for break-glass, invalid audit verification, admin role grants, gateway disable, rejected gateway command, and degraded/missing backup status. Production email delivery is backend-only through Resend to active admin users; the frontend must only show alert records and statuses. The current Alerts page shows a frontend placeholder and must be wired to these real APIs. |
+| Alerts UI | P0 — backend foundation ready | Use `/api/v1/admin/alerts` plus detail, acknowledge, and resolve routes. Backend currently creates alerts for break-glass, invalid audit verification, admin role grants, gateway disable, rejected gateway command, degraded/missing backup status, `/entry` Continue, and selected intrusion/abuse audit events. Production email delivery is backend-only through Resend to active admin users; the frontend must only show alert records and statuses. The current Alerts page shows a frontend placeholder and must be wired to these real APIs. |
 | Incident workflow | Pilot | Add incident list/detail screens after backend incident models exist. |
 | Analyst notes | Pilot | Add admin/security notes attached to actor profiles after backend note storage exists. |
 | Behavior baseline and actor risk score UI | Pilot | Display normal-vs-unusual actor behavior only after backend baselines and risk scoring exist. |

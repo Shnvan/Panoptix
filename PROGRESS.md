@@ -29,7 +29,7 @@
 **Can do now (no external dependencies):**
 - Keep static checks green, document operational changes, and prepare the real gateway host runbook flow. Production is live; the main product-path blockers are real LiveKit browser playback, real camera hardware validation, Alerts page API wiring, actor investigation UI, admin visitor investigation UI, and full audit filters.
 - GitHub organization invites are now live on staging (`panoptix-site` org). `GITHUB_INVITES_ENABLED=true`, `GITHUB_ORG=panoptix-site`, and `GITHUB_INVITE_TOKEN` are set in Railway. Staging smoke confirmed invite endpoint works — invited users appear in Users & Access with assigned roles (2026-05-21).
-- Pilot alert records exist for high-value backend events, and production alert email delivery is active through Resend SMTP with `ALERT_EMAIL_RECIPIENT_MODE=admins`. Active admin users receive high/critical alert emails; local/staging email delivery remains opt-in and must use approved SMTP secrets only.
+- Pilot alert records exist for high-value backend events, `/entry` Continue events, and selected intrusion/abuse audit events. Production alert email delivery is active through Resend SMTP with `ALERT_EMAIL_RECIPIENT_MODE=admins`, so active admin users receive high/critical alert emails; local/staging email delivery remains opt-in and must use approved SMTP secrets only.
 - Any one-time gateway service token displayed by the frontend must be treated as sensitive. Do not screenshot it; rotate exposed test credentials or disable the test gateway. The exposed local test gateway named `what` was disabled during local smoke cleanup.
 - Production gateway host credentials now include a Panoptix gateway service token plus Cloudflare Access client ID/secret. Store raw values only on the gateway host. Do not put gateway tokens, Cloudflare Access service-token secrets, LiveKit API secrets, ingest tokens, RTSP URLs, R2 keys, DB URLs, or backend-only credentials in frontend code, GitHub, Railway frontend variables, docs, screenshots, or repo files.
 
@@ -961,7 +961,7 @@ Keep Alerts real API UI, admin visitor investigation UI, actor investigation UI,
 
 ### Alert System & Email Notification Pilot ✅
 - [x] Applied database migration `0008_alerts_email` locally, adding `alerts` and `alert_notifications` tables
-- [x] Implemented auto-detection of alerts from critical events (break-glass open, audit verification failure, admin role grant, gateway disable, command rejection, backup status degraded)
+- [x] Implemented auto-detection of alerts from critical events (break-glass open, audit verification failure, admin role grant, gateway disable, command rejection, backup status degraded, visitor `/entry` Continue, CSRF denial, disabled-user login, invalid gateway credential, gateway signing failure, LiveKit config failure, and alert email delivery failure)
 - [x] Added SMTP email alert notification integration with redact-safe configuration, static/admin/both recipient modes, and production Resend delivery to active admin users
 - [x] Exposed API endpoints: list, view, acknowledge (`POST /api/v1/admin/alerts/{id}/acknowledge`), and resolve (`POST /api/v1/admin/alerts/{id}/resolve`)
 - [x] Added focused backend tests for alert APIs, detection, email-disabled behavior, SMTP success/failure, and token redaction
@@ -983,6 +983,7 @@ Keep Alerts real API UI, admin visitor investigation UI, actor investigation UI,
 - [x] Added disabled-by-default public visitor entry notice and collector APIs for approved security-core browser signals
 - [x] Added anonymous visitor visit persistence, signed entry cookie correlation to later authenticated sessions, and admin visitor list/detail APIs with detail-view audit
 - [x] Expanded `/entry` collection after explicit Continue with approved browser/network/WebRTC summary signals while still excluding raw WebRTC SDP/candidate strings, raw Ipregistry payloads, reverse-geocoded addresses, coordinates, canvas/audio/WebGL/font fingerprints, and broad fingerprint dumps
+- [x] Added high-severity backend alert/email creation for each successful `/entry` Continue collection, with sanitized metadata only (`visit_id`, `page_path`, Cloudflare country, risk flags, repeat count, and enrichment status)
 - [x] Added backend admin visitor response sections for `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, and `risk_context`; admin visitor investigation UI remains frontend handoff work
 - [x] Added 30-day default visitor retention cleanup through the existing maintenance path
 - [x] Added a same-domain `/entry` frontend entry view on the existing web service that shows the backend notice before explicit Continue collection and redirects into protected Cloudflare Access sign-in

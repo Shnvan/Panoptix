@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -12,7 +14,17 @@ from cctv_api.api.visitors import CURRENT_VISITOR_NOTICE_BODY
 from cctv_api.core.config import Settings
 from cctv_api.db import db_session
 from cctv_api.main import create_app
-from cctv_api.models.tables import AuditLog, Role, Session as UserSession, User, UserRole, VisitorVisit
+from cctv_api.models.enums import AlertNotificationStatus, AlertSeverity
+from cctv_api.models.tables import (
+    Alert,
+    AlertNotification,
+    AuditLog,
+    Role,
+    Session as UserSession,
+    User,
+    UserRole,
+    VisitorVisit,
+)
 from cctv_api.security.identity import Principal, PrincipalKind
 from cctv_api.security.ip_intelligence import (
     IpIntelligenceProviderState,
@@ -169,6 +181,125 @@ def test_visitor_notice_and_collection_store_security_core_subset(
     assert "latitude" not in row.ip_enrichment
     assert "currency" not in row.ip_enrichment
     assert provider.lookups == ["122.54.90.97"]
+
+
+def test_visitor_collection_creates_sanitized_high_alert(
+    test_db_session: DbSession,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    _patch_provider(monkeypatch, _Provider())
+    client = _client(test_db_session, TRUST_CF_CONNECTING_IP=True)
+
+    response = client.post(
+        "/api/v1/visitor/collect",
+        headers={"cf-connecting-ip": "122.54.90.97", "cf-ipcountry": "PH"},
+        json=_collect_payload(
+            page_path="/entry",
+            timezone="America/New_York",
+            language="en-US",
+            webrtc_context={
+                "available": True,
+                "tested": True,
+                "candidate_count": 1,
+                "candidate_types": ["srflx"],
+                "public_ip_candidates": ["122.54.90.98"],
+                "raw_candidates": ["candidate:raw-secret"],
+            },
+        ),
+    )
+
+    assert response.status_code == 201
+    visit = test_db_session.execute(select(VisitorVisit)).scalar_one()
+    alert = test_db_session.execute(select(Alert).where(Alert.source == "visitor_entry")).scalar_one()
+    metadata = alert.metadata_json
+    assert alert.title == "Visitor continued to secure sign-in"
+    assert alert.severity == AlertSeverity.high
+    assert alert.resource == f"visitor_visit:{visit.id}"
+    assert metadata == {
+        "visit_id": str(visit.id),
+        "page_path": "/entry",
+        "cf_country": "PH",
+        "risk_flags": [
+            "timezone_ip_mismatch",
+            "language_country_mismatch",
+            "webrtc_public_ip_request_ip_mismatch",
+        ],
+        "repeat_visitor_count": 1,
+        "ip_enrichment_status": "ok",
+    }
+    joined = str(metadata)
+    assert "raw_candidates" not in joined
+    assert "cookie" not in joined.lower()
+    assert "token" not in joined.lower()
+
+
+def test_visitor_collection_emails_active_admins_when_enabled(
+    test_db_session: DbSession,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    _patch_provider(monkeypatch, _Provider())
+    admin_role = Role(id=20, name="admin")
+    viewer_role = Role(id=21, name="viewer")
+    admin = User(id=uuid.uuid4(), email="admin-entry@example.test", idp_subject="admin-entry")
+    disabled_admin = User(
+        id=uuid.uuid4(),
+        email="disabled-entry@example.test",
+        idp_subject="disabled-entry",
+        disabled_at=datetime.now(timezone.utc),
+    )
+    viewer = User(id=uuid.uuid4(), email="viewer-entry@example.test", idp_subject="viewer-entry")
+    test_db_session.add_all([admin_role, viewer_role])
+    test_db_session.flush()
+    for user in (admin, disabled_admin, viewer):
+        test_db_session.add(user)
+        test_db_session.flush()
+    test_db_session.add_all(
+        [
+            UserRole(user_id=admin.id, role_id=admin_role.id),
+            UserRole(user_id=disabled_admin.id, role_id=admin_role.id),
+            UserRole(user_id=viewer.id, role_id=viewer_role.id),
+        ]
+    )
+    test_db_session.commit()
+    client = _client(
+        test_db_session,
+        ALERT_EMAIL_ENABLED=True,
+        ALERT_EMAIL_SMTP_HOST="smtp.example.test",
+        ALERT_EMAIL_SMTP_PASSWORD="smtp-password-with-enough-length",
+        ALERT_EMAIL_FROM="alerts@example.test",
+        ALERT_EMAIL_RECIPIENT_MODE="admins",
+    )
+
+    with patch("cctv_api.security.alerts.send_alert_email") as send_email:
+        response = client.post("/api/v1/visitor/collect", json=_collect_payload(page_path="/entry"))
+
+    assert response.status_code == 201
+    send_email.assert_called_once()
+    assert send_email.call_args.kwargs["recipient"] == "admin-entry@example.test"
+    notification = test_db_session.execute(select(AlertNotification)).scalar_one()
+    assert notification.recipient == "admin-entry@example.test"
+    assert notification.status == AlertNotificationStatus.sent
+
+
+def test_repeated_visitor_collections_create_separate_alerts(
+    test_db_session: DbSession,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    _patch_provider(monkeypatch, _Provider())
+    client = _client(test_db_session)
+
+    first = client.post("/api/v1/visitor/collect", json=_collect_payload())
+    second = client.post("/api/v1/visitor/collect", json=_collect_payload(page_path="/entry"))
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    alerts = test_db_session.execute(
+        select(Alert).where(Alert.source == "visitor_entry").order_by(Alert.created_at.asc())
+    ).scalars().all()
+    assert len(alerts) == 2
+    assert alerts[0].resource != alerts[1].resource
+    assert alerts[0].metadata_json["repeat_visitor_count"] == 1
+    assert alerts[1].metadata_json["repeat_visitor_count"] == 2
 
 
 def test_visitor_collection_stores_expanded_context_and_server_headers(

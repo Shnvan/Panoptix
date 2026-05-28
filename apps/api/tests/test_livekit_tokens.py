@@ -275,4 +275,7 @@ def test_livekit_config_placeholders_fail_closed_for_viewer(test_db_session: DbS
 
     assert response.status_code == 503
     assert response.json()["detail"] == "livekit-token-config-invalid"
-    assert _audit_actions(test_db_session) == ["viewer.token.denied.livekit_config"]
+    assert _audit_actions(test_db_session) == [
+        "viewer.token.denied.livekit_config",
+        "system.alert.created",
+    ]

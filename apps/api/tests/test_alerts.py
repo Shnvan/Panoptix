@@ -234,6 +234,63 @@ def test_detection_idempotent_for_same_source_event(test_db_session: DbSession) 
     assert [str(row.id) for row in test_db_session.execute(select(Alert).where(Alert.source_event_id == audit.id)).scalars().all()] == [str(first.id)]
 
 
+def test_high_value_audit_events_create_security_alerts(test_db_session: DbSession) -> None:
+    settings = Settings(
+        APP_ENV="development",
+        ALLOW_DEV_AUTH=True,
+        AUDIT_HMAC_KEY_VERSION=1,
+        AUDIT_HMAC_KEY=_AUDIT_KEY,
+    )
+    cases = [
+        ("auth.csrf.denied", "CSRF protection failure", AlertCategory.security),
+        ("auth.login.denied.user_disabled", "Disabled user attempted login", AlertCategory.security),
+        ("auth.gateway.denied.credential_invalid", "Invalid gateway credential used", AlertCategory.security),
+        ("gateway.heartbeat.denied.signing_failed", "Gateway heartbeat signing failed", AlertCategory.operations),
+        (
+            "gateway.control.denied.unauthenticated",
+            "Unauthenticated gateway control attempt",
+            AlertCategory.security,
+        ),
+        ("gateway.control.denied.signing_failed", "Gateway control signing failed", AlertCategory.operations),
+        (
+            "gateway.ingest.denied.livekit_config",
+            "Gateway ingest failed due LiveKit config",
+            AlertCategory.operations,
+        ),
+        (
+            "viewer.token.denied.livekit_config",
+            "Viewer token failed due LiveKit config",
+            AlertCategory.operations,
+        ),
+        ("system.alert.email.failed", "Alert email delivery failed", AlertCategory.availability),
+    ]
+
+    for index, (action, title, category) in enumerate(cases, start=1):
+        audit = record_audit_event(
+            test_db_session,
+            actor_type=ActorType.system,
+            actor_id=None,
+            action=action,
+            resource=f"test-resource:{index}",
+            payload={
+                "detail": "test-detail",
+                "reason": "test-reason",
+                "gateway_id": "gateway-1",
+                "camera_id": "camera-1",
+            },
+            audit_hmac_key_version=1,
+            audit_hmac_key=_AUDIT_KEY,
+        )
+
+        alert = detect_alert_from_audit_event(test_db_session, settings=settings, audit_log=audit)
+
+        assert alert is not None
+        assert alert.title == title
+        assert alert.severity == AlertSeverity.high
+        assert alert.category == category
+        assert alert.metadata_json["action"] == action
+
+
 def test_email_disabled_creates_alert_without_notification(test_db_session: DbSession) -> None:
     settings = Settings(
         APP_ENV="development",
@@ -437,6 +494,12 @@ def test_email_failure_records_failed_notification_without_rollback(test_db_sess
     assert str(notification.alert_id) == str(alert.id)
     assert notification.status == AlertNotificationStatus.failed
     assert notification.error == "alert-email-send-failed"
+    delivery_alert = test_db_session.execute(
+        select(Alert).where(Alert.title == "Alert email delivery failed")
+    ).scalar_one()
+    assert delivery_alert.source == "alert_email"
+    assert delivery_alert.category == AlertCategory.availability
+    assert delivery_alert.metadata_json["notification_id"] == str(notification.id)
 
 
 def test_backup_status_missing_creates_medium_alert(test_db_session: DbSession) -> None:

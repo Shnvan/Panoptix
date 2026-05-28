@@ -31,6 +31,7 @@ from cctv_api.gateway.models import (
 from cctv_api.models.enums import ActorType, CameraEventKind, EventSource, StreamKind
 from cctv_api.models.tables import CameraEvent, EdgeGateway, GatewayDiscoveryRun
 from cctv_api.security.audit import AuditLogError, record_audit_event
+from cctv_api.security.alerts import detect_alert_from_audit_event
 from cctv_api.security.dependencies import require_gateway_identity, verify_gateway_identity_ws
 from cctv_api.security.identity import Principal
 from cctv_api.security.livekit_tokens import LiveKitTokenConfigError, mint_gateway_publish_token
@@ -608,7 +609,7 @@ def _record_gateway_audit_safely(
     payload: dict[str, object] | None = None,
 ) -> None:
     try:
-        record_audit_event(
+        audit_log = record_audit_event(
             db,
             actor_type=ActorType.gateway,
             audit_hmac_key_version=settings.AUDIT_HMAC_KEY_VERSION,
@@ -620,7 +621,8 @@ def _record_gateway_audit_safely(
             ip=_request_ip(request),
             ua=_request_ua(request),
         )
-    except AuditLogError:
+        _detect_gateway_alert_from_audit_safely(db, settings=settings, audit_log=audit_log)
+    except (AuditLogError, Exception):
         return
 
 
@@ -635,7 +637,7 @@ def _record_gateway_ws_audit_safely(
     payload: dict[str, object] | None = None,
 ) -> None:
     try:
-        record_audit_event(
+        audit_log = record_audit_event(
             db,
             actor_type=ActorType.gateway,
             audit_hmac_key_version=settings.AUDIT_HMAC_KEY_VERSION,
@@ -647,7 +649,8 @@ def _record_gateway_ws_audit_safely(
             ip=_websocket_ip(websocket),
             ua=_websocket_ua(websocket),
         )
-    except AuditLogError:
+        _detect_gateway_alert_from_audit_safely(db, settings=settings, audit_log=audit_log)
+    except (AuditLogError, Exception):
         return
 
 
@@ -662,7 +665,7 @@ def _record_gateway_audit_required(
     payload: dict[str, object] | None = None,
 ) -> None:
     try:
-        record_audit_event(
+        audit_log = record_audit_event(
             db,
             actor_type=ActorType.gateway,
             audit_hmac_key_version=settings.AUDIT_HMAC_KEY_VERSION,
@@ -674,6 +677,7 @@ def _record_gateway_audit_required(
             ip=_request_ip(request),
             ua=_request_ua(request),
         )
+        _detect_gateway_alert_from_audit_safely(db, settings=settings, audit_log=audit_log)
     except AuditLogError as exc:
         raise ProblemDetail(
             status=503,
@@ -681,6 +685,18 @@ def _record_gateway_audit_required(
             detail="audit-log-write-failed",
             type_uri="https://panoptix.local/problems/service-unavailable",
         ) from exc
+
+
+def _detect_gateway_alert_from_audit_safely(
+    db: DbSession,
+    *,
+    settings: Settings,
+    audit_log: Any,
+) -> None:
+    try:
+        detect_alert_from_audit_event(db, settings=settings, audit_log=audit_log)
+    except Exception:
+        return
 
 
 def _request_ip(request: Request) -> str | None:

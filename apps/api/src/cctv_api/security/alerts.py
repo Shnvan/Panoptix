@@ -15,7 +15,16 @@ from cctv_api.models.enums import (
     AlertSeverity,
     AlertStatus,
 )
-from cctv_api.models.tables import Alert, AlertNotification, AuditLog, GatewayCommandQueue, Role, User, UserRole
+from cctv_api.models.tables import (
+    Alert,
+    AlertNotification,
+    AuditLog,
+    GatewayCommandQueue,
+    Role,
+    User,
+    UserRole,
+    VisitorVisit,
+)
 from cctv_api.security.audit import AuditLogError, record_audit_event, scrub_audit_payload
 
 
@@ -66,6 +75,7 @@ def create_alert(
     actor_type: ActorType | None = None,
     actor_id: uuid.UUID | None = None,
     metadata: dict[str, object | None] | None = None,
+    send_notifications: bool = True,
 ) -> Alert:
     existing = _find_existing_alert(
         db,
@@ -105,7 +115,8 @@ def create_alert(
             "linked_resource": resource,
         },
     )
-    _send_email_notifications_if_needed(db, settings=settings, alert=alert)
+    if send_notifications:
+        _send_email_notifications_if_needed(db, settings=settings, alert=alert)
     return alert
 
 
@@ -195,7 +206,121 @@ def detect_alert_from_audit_event(
             },
         )
 
+    audit_alerts: dict[str, tuple[AlertSeverity, AlertCategory, str, str]] = {
+        "auth.csrf.denied": (
+            AlertSeverity.high,
+            AlertCategory.security,
+            "CSRF protection failure",
+            "A browser request failed CSRF validation. Review the source and session context.",
+        ),
+        "auth.login.denied.user_disabled": (
+            AlertSeverity.high,
+            AlertCategory.security,
+            "Disabled user attempted login",
+            "A disabled user attempted to access Panoptix.",
+        ),
+        "auth.gateway.denied.credential_invalid": (
+            AlertSeverity.high,
+            AlertCategory.security,
+            "Invalid gateway credential used",
+            "A gateway request used an invalid or unconfigured gateway credential.",
+        ),
+        "gateway.heartbeat.denied.signing_failed": (
+            AlertSeverity.high,
+            AlertCategory.operations,
+            "Gateway heartbeat signing failed",
+            "The backend could not sign pending gateway commands during heartbeat.",
+        ),
+        "gateway.control.denied.unauthenticated": (
+            AlertSeverity.high,
+            AlertCategory.security,
+            "Unauthenticated gateway control attempt",
+            "A gateway control WebSocket connection was rejected before authentication.",
+        ),
+        "gateway.control.denied.signing_failed": (
+            AlertSeverity.high,
+            AlertCategory.operations,
+            "Gateway control signing failed",
+            "The backend could not sign gateway control commands.",
+        ),
+        "gateway.ingest.denied.livekit_config": (
+            AlertSeverity.high,
+            AlertCategory.operations,
+            "Gateway ingest failed due LiveKit config",
+            "A gateway publish token could not be minted because LiveKit configuration failed closed.",
+        ),
+        "viewer.token.denied.livekit_config": (
+            AlertSeverity.high,
+            AlertCategory.operations,
+            "Viewer token failed due LiveKit config",
+            "A viewer token could not be minted because LiveKit configuration failed closed.",
+        ),
+        "system.alert.email.failed": (
+            AlertSeverity.high,
+            AlertCategory.availability,
+            "Alert email delivery failed",
+            "An alert email delivery attempt failed. Review SMTP/Resend configuration and provider logs.",
+        ),
+    }
+    if audit_log.action in audit_alerts:
+        severity, category, title, message = audit_alerts[audit_log.action]
+        return create_alert(
+            db,
+            settings=settings,
+            severity=severity,
+            category=category,
+            title=title,
+            message=message,
+            source="audit_log",
+            source_event_id=audit_log.id,
+            resource=audit_log.resource,
+            actor_type=audit_log.actor_type,
+            actor_id=audit_log.actor_id,
+            metadata={
+                "action": audit_log.action,
+                "detail": payload.get("detail"),
+                "reason": payload.get("reason"),
+                "gateway_id": payload.get("gateway_id"),
+                "camera_id": payload.get("camera_id"),
+            },
+        )
+
     return None
+
+
+def create_visitor_entry_alert(
+    db: DbSession,
+    *,
+    settings: Settings,
+    visit: VisitorVisit,
+    risk_context: dict[str, object],
+) -> Alert:
+    risk_flags = [
+        key
+        for key, value in risk_context.items()
+        if key != "repeat_visitor_count" and value is True
+    ]
+    server_context = visit.server_context if isinstance(visit.server_context, dict) else {}
+    return create_alert(
+        db,
+        settings=settings,
+        severity=AlertSeverity.high,
+        category=AlertCategory.security,
+        title="Visitor continued to secure sign-in",
+        message="A visitor continued from the public entry notice toward secure sign-in.",
+        source="visitor_entry",
+        resource=f"visitor_visit:{visit.id}",
+        actor_type=ActorType.system,
+        actor_id=None,
+        metadata={
+            "visit_id": str(visit.id),
+            "page_path": visit.page_path,
+            "cf_country": server_context.get("cf_country"),
+            "risk_flags": risk_flags,
+            "repeat_visitor_count": risk_context.get("repeat_visitor_count"),
+            "ip_enrichment_status": visit.ip_enrichment_status,
+        },
+    )
 
 
 def detect_alert_from_gateway_command_rejection(
@@ -364,6 +489,12 @@ def _send_email_notifications_if_needed(
                     "error": str(exc),
                 },
             )
+            _create_email_delivery_failed_alert(
+                db,
+                settings=settings,
+                alert=alert,
+                notification=notification,
+            )
             continue
         notification.status = AlertNotificationStatus.sent
         notification.sent_at = datetime.now(timezone.utc)
@@ -378,6 +509,35 @@ def _send_email_notifications_if_needed(
                 "recipient": recipient,
             },
         )
+
+
+def _create_email_delivery_failed_alert(
+    db: DbSession,
+    *,
+    settings: Settings,
+    alert: Alert,
+    notification: AlertNotification,
+) -> None:
+    create_alert(
+        db,
+        settings=settings,
+        severity=AlertSeverity.high,
+        category=AlertCategory.availability,
+        title="Alert email delivery failed",
+        message="An alert email delivery attempt failed. Review SMTP/Resend configuration and provider logs.",
+        source="alert_email",
+        resource=f"alert_notification:{notification.id}",
+        actor_type=ActorType.system,
+        actor_id=None,
+        metadata={
+            "alert_id": str(alert.id),
+            "notification_id": str(notification.id),
+            "alert_title": alert.title,
+            "alert_severity": _enum_value(alert.severity),
+            "delivery_status": "failed",
+        },
+        send_notifications=False,
+    )
 
 
 def _email_recipients_for_alert(db: DbSession, settings: Settings) -> list[str]:

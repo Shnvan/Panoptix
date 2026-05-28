@@ -30,7 +30,7 @@ Use this quick order before drilling into the detailed examples below:
 
 Current evidence: local full-stack smoke has been verified with a local FastAPI backend, an ignored `apps/api/.env`, a Neon-backed test database, frontend dev auth, and the Vite same-origin proxy. Dashboard/bootstrap, live-camera camera list, Users & Access, Camera Management, Gateways, Audit Logs, audit verification, DSR list, break-glass status, backup status, deep health, sessions, and health returned successful responses without the earlier broad Internal Server Error failures.
 
-Production evidence: the same-domain `/entry` flow and expanded admin visitor detail API smoke passed on 2026-05-24. Admin visitor detail responses expose `ip_details`, `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, and `risk_context`; the admin visitor investigation UI remains frontend handoff work.
+Production evidence: the same-domain `/entry` flow and expanded admin visitor detail API smoke passed on 2026-05-24. Admin visitor detail responses expose `ip_details`, `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, and `risk_context`; successful `/entry` Continue collection now creates a high-severity backend alert/email to active admins. The admin visitor investigation UI remains frontend handoff work.
 
 Expected local-only limitations:
 
@@ -4421,3 +4421,11 @@ Production email delivery is active through Resend SMTP with `ALERT_EMAIL_RECIPI
 Expected email content:
 - **Subject**: `[Panoptix <SEVERITY>] <Alert Title>`
 - **Body**: Lists alert severity, category, status, resource, message, and timestamp without secrets, database URLs, tokens, or raw provider responses.
+
+Expected high/critical email-triggering alert sources now include:
+- `/entry` Continue collection: `Visitor continued to secure sign-in`
+- break-glass opened, audit chain verification failure, admin role granted, gateway disabled
+- CSRF protection failure, disabled-user login attempt, invalid gateway credential
+- gateway heartbeat/control signing failures and unauthenticated gateway control attempts
+- LiveKit config fail-closed events for gateway ingest or viewer token minting
+- alert email delivery failure records, created without recursively emailing if SMTP is already failing
