@@ -921,16 +921,28 @@ def _email_html_body(alert: Alert, settings: Settings) -> str:  # noqa: PLR0914
     action_esc = _html.escape(_recommended_action(alert))
     base_url = _html.escape(settings.APP_PUBLIC_BASE_URL.rstrip("/"))
 
-    # Logo — try file path first, fall back to bundled base64
-    logo_b64 = _LOGO_B64
+    # Logo — try url config, file path, or default to public website logo
     logo_path = getattr(settings, "ALERT_EMAIL_LOGO_PATH", "")
-    if logo_path and os.path.isfile(logo_path):
-        try:
-            with open(logo_path, "rb") as fh:
-                logo_b64 = base64.b64encode(fh.read()).decode()
-        except OSError:
-            pass  # fall back to bundled logo
-    logo_src = f"data:image/png;base64,{logo_b64}"
+    if logo_path:
+        if logo_path.startswith(("http://", "https://")):
+            logo_src = logo_path
+        elif os.path.isfile(logo_path):
+            try:
+                with open(logo_path, "rb") as fh:
+                    logo_b64 = base64.b64encode(fh.read()).decode()
+                logo_src = f"data:image/png;base64,{logo_b64}"
+            except OSError:
+                logo_src = "https://panoptix.site/logo.png"
+        else:
+            logo_src = "https://panoptix.site/logo.png"
+    else:
+        # Default to the site's public logo.
+        # Fall back to production URL if testing on localhost so Gmail can load it correctly.
+        clean_base = settings.APP_PUBLIC_BASE_URL.rstrip("/")
+        if "127.0.0.1" in clean_base or "localhost" in clean_base or "cctv.example.test" in clean_base:
+            logo_src = "https://panoptix.site/logo.png"
+        else:
+            logo_src = f"{clean_base}/logo.png"
 
     # Safe metadata rows (capped at 10 keys, values truncated at 200 chars)
     metadata = alert.metadata_json
