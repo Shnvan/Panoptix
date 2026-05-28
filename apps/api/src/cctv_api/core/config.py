@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     ALERT_EMAIL_USE_TLS: bool = True
     ALERT_EMAIL_MIN_SEVERITY: str = "high"
     ALERT_EMAIL_TIMEOUT_SECONDS: int = Field(default=10, ge=1, le=60)
+    ALERT_EMAIL_LOGO_PATH: str = ""  # absolute path to a small logo PNG; empty = text header
+
 
     # ── Suspicious login detection (pilot) ──
     SUSPICIOUS_LOGIN_DETECTION_ENABLED: bool = False

@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 from __future__ import annotations
 
 import sqlite3
@@ -11,6 +12,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import String, create_engine, event
 from sqlalchemy.orm import Session as DbSession, sessionmaker
 from sqlalchemy.pool import StaticPool
+
+from cctv_api.core.config import Settings
+
+# Prevent loading of local .env file during testing to ensure isolation
+Settings.model_config["env_file"] = None
 
 from cctv_api.db import db_session
 from cctv_api.main import create_app

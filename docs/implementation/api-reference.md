@@ -8,7 +8,7 @@ FastAPI remains the security authority. Browser responses must not expose RTSP U
 
 - Browser routes require Cloudflare Access/app-session auth, or dev auth only in local development, except the explicit public visitor entry endpoints.
 - Admin routes require the `admin` role unless explicitly marked as monitor/internal.
-- Gateway HTTP and WebSocket routes require gateway identity.
+- Gateway HTTP and WebSocket routes require gateway identity. Production gateway HTTP calls also use the gateway service token and, when crossing Cloudflare Access, Cloudflare Access service-token headers.
 - Unsafe authenticated browser mutations require CSRF protection.
 - Errors use RFC 9457-style Problem Details.
 - Lists use cursor pagination where implemented.
@@ -143,6 +143,8 @@ Backup status:
 
 Production evidence note, 2026-05-25: production R2 credentials are present, bucket listing succeeds, and the bucket contains one encrypted `.dump.age` backup artifact. Object keys are intentionally withheld from docs and API output. Production `backup_runs` has two diagnostic failures, one successful uploaded/finished backup row `78901812-df12-4a32-b91f-9975772fdca2` with `restore_format_ok=true`, and one isolated restore-drill evidence row `564e2bfd-b449-4c9f-b46d-a0366856a7e0` with `restore_schema_ok=true`. Dry-run restore validation decrypted the artifact locally and `pg_restore --list` succeeded; the isolated restore drill used a temporary Neon branch, which was deleted after validation. Backup status returned `ok` after restore-drill evidence was recorded.
 
+Production evidence note, 2026-05-26: the scheduled GitHub Actions production backup workflow has run successfully after the `RAILWAY_TOKEN` secret and production Railway variables were confirmed. The workflow runs the encrypted R2 backup first and then R2 retention only after backup success. API output and docs continue to withhold object keys, database URLs, R2 secrets, private `age` identities, and decrypted content.
+
 ## Alert Routes
 
 Admin-only alert records are available under:
@@ -217,6 +219,15 @@ Create request:
 The API records `admin.dsr.created`, `admin.dsr.viewed`, and `admin.dsr.updated` audit events. It tracks the case lifecycle only; it does not automatically search, export, redact, or delete footage.
 
 ## Gateway Routes
+
+Production edge-agent HTTP requests to gateway routes use:
+
+- `x-panoptix-gateway-id: <gateway_id>`
+- `Authorization: Bearer <gateway_service_token>`
+- `CF-Access-Client-Id: <client-id>` and `CF-Access-Client-Secret: <client-secret>` when the public hostname is protected by Cloudflare Access
+- `User-Agent: Panoptix-Edge-Agent/<version>`
+
+The raw gateway service token and Cloudflare Access client secret must be stored only on the gateway host. They must not be placed in frontend code, GitHub secrets, Railway frontend variables, docs, screenshots, or repository files. Paste only token values, not header names.
 
 | Method | Path | Notes |
 |---|---|---|
