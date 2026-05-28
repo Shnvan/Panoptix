@@ -11,6 +11,7 @@ from cctv_api.core.config import Settings, get_settings
 from cctv_api.db import db_session
 from cctv_api.models.enums import ActorType
 from cctv_api.security.audit import AuditLogError, record_audit_event
+from cctv_api.security.alerts import detect_alert_from_audit_event
 from cctv_api.security.cloudflare_access import AccessVerificationError, CloudflareAccessVerifier
 from cctv_api.security.csrf import (
     CSRF_COOKIE_NAME,
@@ -318,7 +319,7 @@ def _record_auth_audit_safely(
     try:
         ip = browser_request_ip(request, settings)
         ua = request.headers.get("user-agent")
-        record_audit_event(
+        audit_log = record_audit_event(
             db,
             actor_type=actor_type,
             audit_hmac_key_version=settings.AUDIT_HMAC_KEY_VERSION,
@@ -331,5 +332,6 @@ def _record_auth_audit_safely(
             ua=ua,
             session_id=session_id,
         )
+        detect_alert_from_audit_event(db, settings=settings, audit_log=audit_log)
     except (AuditLogError, Exception):
         pass

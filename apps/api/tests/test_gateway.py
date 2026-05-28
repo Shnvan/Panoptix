@@ -223,7 +223,10 @@ def test_gateway_heartbeat_signing_failure_writes_audit(test_db_session: DbSessi
     )
 
     assert response.status_code == 503
-    assert _audit_actions(test_db_session) == ["gateway.heartbeat.denied.signing_failed"]
+    assert _audit_actions(test_db_session) == [
+        "gateway.heartbeat.denied.signing_failed",
+        "system.alert.created",
+    ]
 
 
 def test_gateway_id_mismatch_returns_forbidden() -> None:
@@ -554,7 +557,10 @@ def test_gateway_control_ws_unauthenticated_writes_audit(test_db_session: DbSess
         with client.websocket_connect("/api/v1/gateway-control/ws"):
             pass
 
-    assert _audit_actions(test_db_session) == ["gateway.control.denied.unauthenticated"]
+    assert _audit_actions(test_db_session) == [
+        "gateway.control.denied.unauthenticated",
+        "system.alert.created",
+    ]
 
 
 def test_gateway_control_ws_rejects_browser_dev_auth() -> None:
@@ -765,4 +771,7 @@ def test_gateway_control_ws_signing_failure_writes_audit(test_db_session: DbSess
         with pytest.raises(WebSocketDisconnect):
             ws.receive_json()
 
-    assert _audit_actions(test_db_session) == ["gateway.control.denied.signing_failed"]
+    assert _audit_actions(test_db_session) == [
+        "gateway.control.denied.signing_failed",
+        "system.alert.created",
+    ]

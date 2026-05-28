@@ -1052,7 +1052,7 @@ def _record_user_audit_safely(
     payload: dict[str, object] | None = None,
 ) -> AuditLog | None:
     try:
-        return record_audit_event(
+        audit_log = record_audit_event(
             db,
             actor_type=ActorType.user,
             audit_hmac_key_version=settings.AUDIT_HMAC_KEY_VERSION,
@@ -1065,6 +1065,8 @@ def _record_user_audit_safely(
             ua=_request_ua(request),
             session_id=_audit_session_id(request),
         )
+        _detect_alert_from_audit_safely(db, settings=settings, audit_log=audit_log)
+        return audit_log
     except AuditLogError:
         return None
 
@@ -1080,7 +1082,7 @@ def _record_user_audit_required(
     payload: dict[str, object] | None = None,
 ) -> AuditLog:
     try:
-        return record_audit_event(
+        audit_log = record_audit_event(
             db,
             actor_type=ActorType.user,
             audit_hmac_key_version=settings.AUDIT_HMAC_KEY_VERSION,
@@ -1093,6 +1095,8 @@ def _record_user_audit_required(
             ua=_request_ua(request),
             session_id=_audit_session_id(request),
         )
+        _detect_alert_from_audit_safely(db, settings=settings, audit_log=audit_log)
+        return audit_log
     except AuditLogError as exc:
         raise ProblemDetail(
             status=503,

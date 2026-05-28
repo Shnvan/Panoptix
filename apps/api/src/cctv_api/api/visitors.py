@@ -17,6 +17,7 @@ from cctv_api.models.enums import ActorType
 from cctv_api.models.tables import Session as UserSession
 from cctv_api.models.tables import VisitorVisit
 from cctv_api.security.audit import AuditLogError, record_audit_event
+from cctv_api.security.alerts import create_visitor_entry_alert
 from cctv_api.security.dependencies import require_authenticated_user
 from cctv_api.security.device_intelligence import device_detail_payload
 from cctv_api.security.identity import Principal
@@ -158,6 +159,7 @@ def collect_visitor_visit(
     db.add(visit)
     db.commit()
     db.refresh(visit)
+    _create_collect_alert_safely(db, settings=settings, visit=visit)
     response.set_cookie(
         key=settings.VISITOR_COOKIE_NAME,
         value=create_visitor_cookie(visit.id, settings.VISITOR_COOKIE_SIGNING_KEY),
@@ -561,6 +563,22 @@ def _repeat_visitor_count(row: VisitorVisit, db: DbSession) -> int | None:
         .where(VisitorVisit.ip == str(row.ip))
         .where(VisitorVisit.ua == row.ua)
     ).scalar_one()
+
+
+def _create_collect_alert_safely(
+    db: DbSession,
+    *,
+    settings: Settings,
+    visit: VisitorVisit,
+) -> None:
+    try:
+        browser_context = _stored_dict(visit.browser_context)
+        webrtc_context = _stored_dict(visit.webrtc_context)
+        risk_context = _risk_context(visit, db, None, browser_context, webrtc_context)
+        create_visitor_entry_alert(db, settings=settings, visit=visit, risk_context=risk_context)
+        db.commit()
+    except Exception:
+        db.rollback()
 
 
 def _record_detail_audit_safely(

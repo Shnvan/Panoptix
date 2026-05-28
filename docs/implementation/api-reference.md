@@ -37,7 +37,7 @@ FastAPI remains the security authority. Browser responses must not expose RTSP U
 
 ## Public Visitor Entry Routes
 
-The visitor collector pilot uses the narrowly public same-domain `https://panoptix.site/entry` frontend entry view. That page fetches the notice first and posts collection only after the visitor explicitly continues. Production Cloudflare redirects first-time `https://panoptix.site/` requests to `/entry` only when `panoptix_visitor` is absent; returning visitors with that signed cookie go directly to the protected Cloudflare Access flow. The protected root itself does not collect visitor browser signals.
+The visitor collector pilot uses the narrowly public same-domain `https://panoptix.site/entry` frontend entry view. That page fetches the notice first and posts collection only after the visitor explicitly continues. Production Cloudflare redirects first-time `https://panoptix.site/` requests to `/entry` only when `panoptix_visitor` is absent; returning visitors with that signed cookie go directly to the protected Cloudflare Access flow. A successful Continue collection creates a high-severity backend alert/email to active admins with sanitized metadata only. The protected root itself does not collect visitor browser signals.
 
 Public Access exceptions are limited to `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect`. Keep `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` protected. Never make broad `/api/v1/*` public.
 
@@ -158,7 +158,7 @@ Alert severities are `informational`, `low`, `medium`, `high`, and `critical`. A
 
 The backend currently creates alert records for high-value security and operations events: break-glass opened, invalid/tampered audit verification, admin role grant, gateway disable, rejected gateway command, and backup status `missing`/`degraded`. Duplicate source events are treated idempotently where the source event has a stable ID.
 
-Email notification is backend SMTP only. Production uses Resend with `ALERT_EMAIL_RECIPIENT_MODE=admins`, so alerts at or above `ALERT_EMAIL_MIN_SEVERITY` are sent to active admin users. Non-production environments can use `static`, `admins`, or `both`; static recipients come from `ALERT_EMAIL_TO`. Alert API responses, notification records, audit payloads, and email bodies must not include SMTP passwords, gateway tokens, LiveKit secrets, raw provider responses, database URLs, or RTSP credentials.
+Email notification is backend SMTP only. Production uses Resend with `ALERT_EMAIL_RECIPIENT_MODE=admins`, so alerts at or above `ALERT_EMAIL_MIN_SEVERITY` are sent to active admin users. High-value sources include break-glass, audit-chain failure, admin role grant, gateway disable, degraded backup status, `/entry` Continue collection, CSRF denial, disabled-user login attempts, invalid gateway credentials, gateway signing failures, unauthenticated gateway control attempts, LiveKit config fail-closed events, and alert email delivery failures. Non-production environments can use `static`, `admins`, or `both`; static recipients come from `ALERT_EMAIL_TO`. Alert API responses, notification records, audit payloads, and email bodies must not include SMTP passwords, gateway tokens, LiveKit secrets, raw provider responses, database URLs, cookies, headers, or RTSP credentials.
 
 Alert response shape:
 
