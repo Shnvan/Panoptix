@@ -3760,7 +3760,7 @@ Verification:
 Exposed an alerting model with optional SMTP email integration for critical system events:
 
 - Database migration `0008_alerts_email` added `alerts` and `alert_notifications` tables.
-- Alert detection from security/operational events (break-glass open, audit verification failure, admin role grant, gateway disable, command rejection, and degraded backups).
+- Alert detection from security/operational events (break-glass open, audit verification failure, admin role grant, gateway disable, command rejection, degraded backups, `/entry` Continue, CSRF denial, disabled-user login, invalid gateway credentials, gateway signing failures, LiveKit config failures, and alert email delivery failures).
 - SMTP notification support in `integrations/email_alerts.py`; production delivery now uses Resend with `ALERT_EMAIL_RECIPIENT_MODE=admins`, while local/staging email remains opt-in.
 - Endpoints:
   ```text
