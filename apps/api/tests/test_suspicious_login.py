@@ -76,7 +76,8 @@ def test_first_login_creates_baseline_no_alert(test_db_session: DbSession) -> No
 def test_same_ip_no_alert(test_db_session: DbSession) -> None:
     user = _seed_user(test_db_session)
     settings = _settings()
-    now = _now()
+    # Use a fixed hour that is guaranteed to be within normal hours (6-23)
+    now = datetime(2026, 5, 30, 12, 0, 0, tzinfo=timezone.utc)
 
     # First login
     check_login_suspicion(
