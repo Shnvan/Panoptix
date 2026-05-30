@@ -1,105 +1,413 @@
-import { AlertTriangle, XCircle, Info, Clock, AlertCircle } from 'lucide-react';
-import { motion } from 'motion/react';
+/* ── AlertsPanel ──
+ * Wired to real backend alert APIs:
+ *   GET  /api/v1/admin/alerts
+ *   GET  /api/v1/admin/alerts/{alert_id}
+ *   POST /api/v1/admin/alerts/{alert_id}/acknowledge
+ *   POST /api/v1/admin/alerts/{alert_id}/resolve
+ *
+ * Guardrails:
+ *   - No browser notification push or email delivery.
+ *   - Alert records and statuses only — display only.
+ */
+
+import { useState } from 'react';
+import {
+  AlertTriangle, XCircle, Info, Clock, AlertCircle,
+  CheckCircle2, ShieldAlert, ChevronDown, ChevronUp,
+  RefreshCw, Loader2, Filter,
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from '../../lib/theme';
-import type { CameraEvent } from '../../lib/types';
+import { useAdminAlerts } from '../../lib/hooks';
+import type { AdminAlert, AlertSeverity, AlertStatus } from '../../lib/types';
 
-interface AlertsPanelProps {
-  events?: CameraEvent[];
+// ── Severity config ──
+
+type SeverityConfig = {
+  icon: typeof AlertCircle;
+  badge: string;
+  border: string;
+  bg: string;
+  text: string;
+};
+
+const SEVERITY_CONFIG: Record<AlertSeverity, SeverityConfig> = {
+  critical: {
+    icon: XCircle,
+    badge: 'bg-red-500/20 text-red-400 border border-red-500/40',
+    border: 'border-red-500/30',
+    bg: 'bg-red-500/10',
+    text: 'text-red-400',
+  },
+  high: {
+    icon: AlertTriangle,
+    badge: 'bg-orange-500/20 text-orange-400 border border-orange-500/40',
+    border: 'border-orange-500/30',
+    bg: 'bg-orange-500/10',
+    text: 'text-orange-400',
+  },
+  medium: {
+    icon: AlertCircle,
+    badge: 'bg-amber-500/20 text-amber-400 border border-amber-500/40',
+    border: 'border-amber-500/30',
+    bg: 'bg-amber-500/10',
+    text: 'text-amber-400',
+  },
+  low: {
+    icon: Info,
+    badge: 'bg-blue-500/20 text-blue-400 border border-blue-500/40',
+    border: 'border-blue-500/30',
+    bg: 'bg-blue-500/10',
+    text: 'text-blue-400',
+  },
+  informational: {
+    icon: Info,
+    badge: 'bg-slate-500/20 text-slate-400 border border-slate-500/40',
+    border: 'border-slate-500/30',
+    bg: 'bg-slate-500/10',
+    text: 'text-slate-400',
+  },
+};
+
+const STATUS_BADGE: Record<AlertStatus, string> = {
+  open: 'bg-red-500/15 text-red-400 border border-red-500/30',
+  acknowledged: 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
+  resolved: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
+};
+
+const CATEGORY_LABEL: Record<string, string> = {
+  security: 'Security',
+  operations: 'Operations',
+  compliance: 'Compliance',
+  availability: 'Availability',
+};
+
+function fmt(iso: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleString('en-US', {
+    month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  });
 }
 
-interface Alert {
-  id: string;
-  type: 'critical' | 'warning' | 'info';
-  title: string;
-  message: string;
-  timestamp: string;
+function relativeTime(iso: string | null): string {
+  if (!iso) return '—';
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function eventsToAlerts(events: CameraEvent[]): Alert[] {
-  return events.slice(0, 10).map((e) => ({
-    id: e.event_id,
-    type: e.kind === 'offline' || e.kind === 'retired' ? 'critical' as const
-        : e.kind === 'degraded' || e.kind === 'reconnecting' ? 'warning' as const
-        : 'info' as const,
-    title: `Camera ${e.kind}`,
-    message: `Camera ${e.camera_id.slice(0, 8)} is ${e.kind}${e.gateway_id ? ` via gateway ${e.gateway_id.slice(0, 8)}` : ''}`,
-    timestamp: new Date(e.at).toLocaleTimeString('en-US', { hour12: false }),
-  }));
+// ── Alert Row ──
+
+interface AlertRowProps {
+  alert: AdminAlert;
+  expanded: boolean;
+  onToggle: () => void;
+  onAcknowledge: () => Promise<void>;
+  onResolve: () => Promise<void>;
+  dark: boolean;
 }
 
-const defaultAlerts: Alert[] = [
-  { id: '1', type: 'info', title: 'System Ready', message: 'All monitoring systems are operational. No active alerts.', timestamp: 'Now' },
-];
+function AlertRow({ alert, expanded, onToggle, onAcknowledge, onResolve, dark }: AlertRowProps) {
+  const [actioning, setActioning] = useState<string | null>(null);
+  const cfg = SEVERITY_CONFIG[alert.severity] ?? SEVERITY_CONFIG.informational;
+  const Icon = cfg.icon;
 
-export function AlertsPanel({ events = [] }: AlertsPanelProps) {
-  const { theme } = useTheme();
-  const alerts = events.length > 0 ? eventsToAlerts(events) : defaultAlerts;
-
-  const alertConfig = {
-    critical: { icon: XCircle, bg: 'from-red-500/20 to-red-600/20', border: 'border-red-500/30', iconColor: 'text-red-400', textColor: 'text-red-400', lightBg: 'from-red-50 to-red-100/50', lightBorder: 'border-red-200', lightText: 'text-red-700' },
-    warning: { icon: AlertTriangle, bg: 'from-amber-500/20 to-amber-600/20', border: 'border-amber-500/30', iconColor: 'text-amber-400', textColor: 'text-amber-400', lightBg: 'from-amber-50 to-amber-100/50', lightBorder: 'border-amber-200', lightText: 'text-amber-700' },
-    info: { icon: Info, bg: 'from-orange-500/20 to-orange-600/20', border: 'border-orange-500/30', iconColor: 'text-orange-400', textColor: 'text-orange-400', lightBg: 'from-orange-50 to-orange-100/50', lightBorder: 'border-orange-200', lightText: 'text-orange-700' },
+  const handle = async (action: 'ack' | 'resolve', fn: () => Promise<void>) => {
+    setActioning(action);
+    try { await fn(); } catch { /* ApiError shown via refetch */ }
+    finally { setActioning(null); }
   };
 
   return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`border rounded-lg overflow-hidden transition-colors ${
+        dark
+          ? `bg-slate-900/60 ${cfg.border}`
+          : `bg-white ${cfg.border} border`
+      }`}
+    >
+      {/* Header row */}
+      <button
+        id={`alert-row-${alert.alert_id}`}
+        className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-white/5 transition-colors"
+        onClick={onToggle}
+        aria-expanded={expanded}
+      >
+        {/* Severity icon */}
+        <div className={`mt-0.5 w-8 h-8 rounded flex items-center justify-center flex-shrink-0 ${cfg.bg}`}>
+          <Icon className={`w-4 h-4 ${cfg.text}`} />
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full uppercase tracking-wide ${cfg.badge}`}>
+              {alert.severity}
+            </span>
+            <span className={`text-xs px-2 py-0.5 rounded-full border ${dark ? 'border-slate-700 text-slate-400' : 'border-slate-200 text-slate-500'}`}>
+              {CATEGORY_LABEL[alert.category] ?? alert.category}
+            </span>
+            <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_BADGE[alert.status]}`}>
+              {alert.status}
+            </span>
+          </div>
+          <h4 className={`font-semibold text-sm leading-snug ${dark ? 'text-white' : 'text-slate-900'}`}>
+            {alert.title}
+          </h4>
+          <p className={`text-xs mt-0.5 ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+            {alert.message}
+          </p>
+        </div>
+
+        {/* Timestamp + chevron */}
+        <div className={`flex flex-col items-end gap-1 flex-shrink-0 ${dark ? 'text-slate-500' : 'text-slate-400'}`}>
+          <div className="flex items-center gap-1 text-xs">
+            <Clock className="w-3 h-3" />
+            <span>{relativeTime(alert.created_at)}</span>
+          </div>
+          {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </div>
+      </button>
+
+      {/* Expanded detail */}
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className={`border-t px-4 py-3 space-y-3 ${dark ? 'border-slate-800' : 'border-slate-100'}`}
+          >
+            {/* Meta grid */}
+            <div className={`grid grid-cols-2 gap-2 text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+              <div>
+                <span className="font-medium">Source</span>
+                <p className="mt-0.5 truncate">{alert.source}</p>
+              </div>
+              {alert.resource && (
+                <div>
+                  <span className="font-medium">Resource</span>
+                  <p className="mt-0.5 truncate">{alert.resource}</p>
+                </div>
+              )}
+              {alert.actor_type && (
+                <div>
+                  <span className="font-medium">Actor</span>
+                  <p className="mt-0.5">{alert.actor_type}{alert.actor_id ? ` · ${alert.actor_id.slice(0, 8)}…` : ''}</p>
+                </div>
+              )}
+              <div>
+                <span className="font-medium">Created</span>
+                <p className="mt-0.5">{fmt(alert.created_at)}</p>
+              </div>
+              {alert.acknowledged_at && (
+                <div>
+                  <span className="font-medium">Acknowledged</span>
+                  <p className="mt-0.5">{fmt(alert.acknowledged_at)}</p>
+                </div>
+              )}
+              {alert.resolved_at && (
+                <div>
+                  <span className="font-medium">Resolved</span>
+                  <p className="mt-0.5">{fmt(alert.resolved_at)}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            {alert.status !== 'resolved' && (
+              <div className="flex items-center gap-2 pt-1">
+                {alert.status === 'open' && (
+                  <button
+                    id={`alert-ack-${alert.alert_id}`}
+                    disabled={actioning !== null}
+                    onClick={() => handle('ack', onAcknowledge)}
+                    className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded transition-colors disabled:opacity-50 ${
+                      dark
+                        ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/30'
+                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
+                    }`}
+                  >
+                    {actioning === 'ack'
+                      ? <Loader2 className="w-3 h-3 animate-spin" />
+                      : <CheckCircle2 className="w-3 h-3" />}
+                    Acknowledge
+                  </button>
+                )}
+                <button
+                  id={`alert-resolve-${alert.alert_id}`}
+                  disabled={actioning !== null}
+                  onClick={() => handle('resolve', onResolve)}
+                  className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded transition-colors disabled:opacity-50 ${
+                    dark
+                      ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30'
+                      : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                  }`}
+                >
+                  {actioning === 'resolve'
+                    ? <Loader2 className="w-3 h-3 animate-spin" />
+                    : <CheckCircle2 className="w-3 h-3" />}
+                  Resolve
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+// ── Main Panel ──
+
+const STATUS_TABS: { label: string; value?: string }[] = [
+  { label: 'All' },
+  { label: 'Open', value: 'open' },
+  { label: 'Acknowledged', value: 'acknowledged' },
+  { label: 'Resolved', value: 'resolved' },
+];
+
+export function AlertsPanel() {
+  const { theme } = useTheme();
+  const dark = theme === 'dark';
+
+  const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const { alerts, loading, error, hasMore, loadMore, refetch, acknowledge, resolve } =
+    useAdminAlerts(statusFilter);
+
+  const openCount = alerts.filter((a) => a.status === 'open').length;
+  const criticalCount = alerts.filter((a) => a.severity === 'critical' && a.status !== 'resolved').length;
+
+  return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      {/* Section header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center">
-            <AlertCircle className="w-5 h-5 text-red-400" />
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${dark ? 'bg-red-500/20' : 'bg-red-50'}`}>
+            <ShieldAlert className="w-5 h-5 text-red-400" />
           </div>
           <div>
-            <h3 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Active Alerts</h3>
-            <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
-              {alerts.length} notification{alerts.length !== 1 ? 's' : ''}
+            <h3 className={`font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>
+              Active Alerts
+            </h3>
+            <p className={`text-sm ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+              {loading ? 'Loading…' : `${alerts.length} alert${alerts.length !== 1 ? 's' : ''}${openCount > 0 ? ` · ${openCount} open` : ''}${criticalCount > 0 ? ` · ${criticalCount} critical` : ''}`}
             </p>
           </div>
         </div>
+        <button
+          id="alerts-refresh"
+          onClick={refetch}
+          disabled={loading}
+          className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 ${
+            dark
+              ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
       </div>
 
-      <div className="space-y-3">
-        {alerts.map((alert, index) => {
-          const config = alertConfig[alert.type];
-          const Icon = config.icon;
-          return (
-            <motion.div
-              key={alert.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className={`backdrop-blur-xl border rounded-lg p-4 transition-all duration-300 hover:shadow-lg ${
-                theme === 'dark'
-                  ? `bg-gradient-to-br ${config.bg} ${config.border}`
-                  : `bg-gradient-to-br ${config.lightBg} ${config.lightBorder}`
-              }`}
-            >
-              <div className="flex gap-4">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                  theme === 'dark' ? 'bg-slate-900/50' : 'bg-white/80'
-                }`}>
-                  <Icon className={`w-5 h-5 ${config.iconColor}`} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <h4 className={`font-semibold ${theme === 'dark' ? config.textColor : config.lightText}`}>
-                      {alert.title}
-                    </h4>
-                    <div className={`flex items-center gap-1.5 text-xs flex-shrink-0 ${
-                      theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
-                    }`}>
-                      <Clock className="w-3 h-3" />
-                      <span>{alert.timestamp}</span>
-                    </div>
-                  </div>
-                  <p className={`text-sm ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
-                    {alert.message}
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-          );
-        })}
+      {/* Status filter tabs */}
+      <div className={`flex items-center gap-1 border-b ${dark ? 'border-slate-800' : 'border-slate-200'}`}>
+        <Filter className={`w-3.5 h-3.5 mr-1 ${dark ? 'text-slate-500' : 'text-slate-400'}`} />
+        {STATUS_TABS.map((tab) => (
+          <button
+            key={tab.label}
+            id={`alert-tab-${tab.label.toLowerCase()}`}
+            onClick={() => { setStatusFilter(tab.value); setExpandedId(null); }}
+            className={`text-xs px-3 py-2 border-b-2 transition-colors ${
+              statusFilter === tab.value
+                ? 'border-orange-500 text-orange-500'
+                : `border-transparent ${dark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-700'}`
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
+
+      {/* Error */}
+      {error && (
+        <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${dark ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-red-50 text-red-600 border border-red-200'}`}>
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* Loading skeleton */}
+      {loading && alerts.length === 0 && (
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className={`h-20 rounded-lg animate-pulse ${dark ? 'bg-slate-800/50' : 'bg-slate-100'}`} />
+          ))}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && !error && alerts.length === 0 && (
+        <div className={`text-center py-12 border rounded-lg ${dark ? 'bg-slate-900/50 border-slate-700/50' : 'bg-slate-50 border-slate-200'}`}>
+          <CheckCircle2 className={`w-12 h-12 mx-auto mb-3 ${dark ? 'text-emerald-500' : 'text-emerald-400'}`} />
+          <h4 className={`font-medium mb-1 ${dark ? 'text-white' : 'text-slate-900'}`}>
+            {statusFilter ? `No ${statusFilter} alerts` : 'No alerts'}
+          </h4>
+          <p className={`text-sm ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+            {statusFilter === 'open'
+              ? 'All clear — no open alerts at this time.'
+              : 'No alerts match the current filter.'}
+          </p>
+        </div>
+      )}
+
+      {/* Alert list */}
+      {alerts.length > 0 && (
+        <div className="space-y-2">
+          {alerts.map((alert) => (
+            <AlertRow
+              key={alert.alert_id}
+              alert={alert}
+              expanded={expandedId === alert.alert_id}
+              onToggle={() => setExpandedId((id) => (id === alert.alert_id ? null : alert.alert_id))}
+              onAcknowledge={async () => { await acknowledge(alert.alert_id); }}
+              onResolve={async () => { await resolve(alert.alert_id); }}
+              dark={dark}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Load more */}
+      {hasMore && (
+        <div className="text-center pt-2">
+          <button
+            id="alerts-load-more"
+            onClick={loadMore}
+            disabled={loading}
+            className={`text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50 ${
+              dark
+                ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            {loading ? (
+              <span className="flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading…</span>
+            ) : 'Load more'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

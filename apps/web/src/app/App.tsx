@@ -16,6 +16,8 @@ import { CamerasManageSection } from './components/CamerasManageSection';
 import { GatewaysSection } from './components/GatewaysSection';
 import { HealthSection } from './components/HealthSection';
 import { BreakGlassSection } from './components/BreakGlassSection';
+import { VisitorInvestigationPage } from './components/VisitorInvestigationPage';
+import { ActorInvestigationPage } from './components/ActorInvestigationPage';
 import { useMe, useCameras, useCameraEvents, useSystemHealth, usePrivacyNotice, useAdminDashboard } from '../lib/hooks';
 import { useTheme } from '../lib/theme';
 import type { CameraSummary, CameraTileStatus } from '../lib/types';
@@ -181,9 +183,31 @@ export function App() {
           <div className="space-y-6">
             <div>
               <h2 className={`text-2xl font-bold mb-1 ${d ? 'text-white' : 'text-slate-900'}`}>Alerts & Notifications</h2>
-              <p className={d ? 'text-slate-400' : 'text-slate-500'}>Camera events, system warnings, and security notifications</p>
+              <p className={d ? 'text-slate-400' : 'text-slate-500'}>Security events, system warnings, and operational alerts</p>
             </div>
-            <AlertsPanel events={events} />
+            <AlertsPanel />
+          </div>
+        );
+
+      case 'visitors':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h2 className={`text-2xl font-bold mb-1 ${d ? 'text-white' : 'text-slate-900'}`}>Visitor Investigation</h2>
+              <p className={d ? 'text-slate-400' : 'text-slate-500'}>Public entry visit records and browser/network/risk context</p>
+            </div>
+            <VisitorInvestigationPage />
+          </div>
+        );
+
+      case 'actors':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h2 className={`text-2xl font-bold mb-1 ${d ? 'text-white' : 'text-slate-900'}`}>Actor Investigation</h2>
+              <p className={d ? 'text-slate-400' : 'text-slate-500'}>Profile and activity timeline for users, gateways, and system actors</p>
+            </div>
+            <ActorInvestigationPage />
           </div>
         );
 

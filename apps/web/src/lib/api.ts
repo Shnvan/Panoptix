@@ -250,11 +250,33 @@ export const api = {
     apiFetch<import('./types').MaintenanceResponse>('/api/v1/admin/jobs/run-maintenance', { method: 'POST' }),
 
   // ── Admin: Audit ──
-  listAudit: (cursor?: number, limit = 50, action?: string) => {
+  listAudit: (opts: {
+    cursor?: number;
+    limit?: number;
+    action?: string;
+    actor_type?: string;
+    actor_id?: string;
+    severity?: string;
+    category?: string;
+    outcome?: string;
+    resource?: string;
+    session_id?: string;
+    ts_from?: string;
+    ts_to?: string;
+  } = {}) => {
     const p = new URLSearchParams();
-    if (cursor != null) p.set('cursor', String(cursor));
-    p.set('limit', String(limit));
-    if (action) p.set('action', action);
+    if (opts.cursor != null) p.set('cursor', String(opts.cursor));
+    p.set('limit', String(opts.limit ?? 50));
+    if (opts.action) p.set('action', opts.action);
+    if (opts.actor_type) p.set('actor_type', opts.actor_type);
+    if (opts.actor_id) p.set('actor_id', opts.actor_id);
+    if (opts.severity) p.set('severity', opts.severity);
+    if (opts.category) p.set('category', opts.category);
+    if (opts.outcome) p.set('outcome', opts.outcome);
+    if (opts.resource) p.set('resource', opts.resource);
+    if (opts.session_id) p.set('session_id', opts.session_id);
+    if (opts.ts_from) p.set('ts_from', opts.ts_from);
+    if (opts.ts_to) p.set('ts_to', opts.ts_to);
     return apiFetch<import('./types').AuditListResponse>(`/api/v1/admin/audit?${p}`);
   },
 
@@ -286,15 +308,11 @@ export const api = {
   getBreakGlassStatus: () =>
     apiFetch<import('./types').BreakGlassStatusResponse>('/api/v1/admin/internal/break-glass-status'),
 
-  // ── Admin: Sites (v4 §14.1) ──
-  listSites: () =>
-    apiFetch<import('./types').SiteListResponse>('/api/v1/admin/sites'),
-
-  attestSignage: (siteId: string, notes = 'Signage attested from Panoptix admin console') =>
-    apiFetch<import('./types').SignageAttestResponse>(
-      `/api/v1/admin/sites/${siteId}/signage-attest`,
-      { method: 'POST', body: JSON.stringify({ notes }) },
-    ),
+  // ── Admin: Sites ── DISABLED: backend routes /api/v1/admin/sites and
+  // /api/v1/admin/sites/{site_id}/signage-attest do not exist in the current
+  // branch. Do not call these from UI until backend routes are implemented.
+  // listSites: () => apiFetch<SiteListResponse>('/api/v1/admin/sites'),
+  // attestSignage: (siteId, notes) => apiFetch(...),
 
   // ── Admin: DPA Export (v4 §15.1) ──
   exportDpa: () =>
@@ -364,6 +382,50 @@ export const api = {
   // ── Admin: Backup Status ──
   getBackupStatus: () =>
     apiFetch<import('./types').BackupStatusResponse>('/api/v1/admin/backups/status'),
+
+  // ── Admin: Visitor Visits ──
+  listAdminVisitorVisits: (cursor?: string, limit = 50) => {
+    const p = new URLSearchParams();
+    if (cursor) p.set('cursor', cursor);
+    p.set('limit', String(limit));
+    return apiFetch<import('./types').VisitorVisitListResponse>(`/api/v1/admin/visitor-visits?${p}`);
+  },
+
+  getAdminVisitorVisit: (visitId: string) =>
+    apiFetch<import('./types').VisitorVisitDetail>(`/api/v1/admin/visitor-visits/${visitId}`),
+
+  // ── Admin: Actor Profile ──
+  getActorProfile: (actorType: string, actorId: string) =>
+    apiFetch<import('./types').ActorProfileResponse>(`/api/v1/admin/actors/${actorType}/${actorId}/profile`),
+
+  getActorActivity: (actorType: string, actorId: string, cursor?: string, limit = 50) => {
+    const p = new URLSearchParams();
+    if (cursor) p.set('cursor', cursor);
+    p.set('limit', String(limit));
+    return apiFetch<import('./types').ActorActivityResponse>(`/api/v1/admin/actors/${actorType}/${actorId}/activity?${p}`);
+  },
+
+  // ── Admin: Alerts ──
+  listAdminAlerts: (cursor?: string, limit = 50, status?: string) => {
+    const p = new URLSearchParams();
+    if (cursor) p.set('cursor', cursor);
+    p.set('limit', String(limit));
+    if (status) p.set('status', status);
+    return apiFetch<import('./types').AlertListResponse>(`/api/v1/admin/alerts?${p}`);
+  },
+
+  getAdminAlert: (alertId: string) =>
+    apiFetch<import('./types').AdminAlert>(`/api/v1/admin/alerts/${alertId}`),
+
+  acknowledgeAlert: (alertId: string) =>
+    apiFetch<import('./types').AdminAlert>(`/api/v1/admin/alerts/${alertId}/acknowledge`, {
+      method: 'POST',
+    }),
+
+  resolveAlert: (alertId: string) =>
+    apiFetch<import('./types').AdminAlert>(`/api/v1/admin/alerts/${alertId}/resolve`, {
+      method: 'POST',
+    }),
 
   // ── Health ──
   getHealth: () => apiFetch<import('./types').HealthResponse>('/health'),

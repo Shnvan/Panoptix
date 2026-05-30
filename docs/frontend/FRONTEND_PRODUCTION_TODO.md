@@ -59,7 +59,7 @@ These must be resolved before treating the frontend as production-ready.
 
 | Task | Status | Notes |
 |---|---|---|
-| Real LiveKit browser viewer playback | Not done | Use backend viewer tokens to connect with the LiveKit client as a subscriber only. |
+| Real LiveKit browser viewer playback | ✅ Done | Use backend viewer viewer tokens to connect with the LiveKit client as a subscriber only. |
 | Verify real gateway UI data | Required | Gateway list/detail, command history, assignment, update, disable, enable, and rotate views are wired; smoke them against local/staging backend data. |
 | Verify viewer/admin camera split | Required | Viewer dashboard uses `/api/v1/cameras`; admin camera management uses `/api/v1/admin/cameras` and detail routes. |
 | Remove or disable nonexistent endpoint calls | Required | Security reports and site listing must not appear as broken production features. |
@@ -78,9 +78,9 @@ These are important for production operations, but can follow the P0 blockers.
 
 | Task | Status | Notes |
 |---|---|---|
-| Full audit filtering UI | Partial | Expose actor type/id, severity, category, outcome, resource, session ID, and date range filters supported by the backend. |
-| Actor investigation pages | Not done | Use `/api/v1/admin/actors/{actor_type}/{actor_id}/profile` and `/activity`; link from users, gateways, and audit rows. |
-| Admin visitor investigation UI | Not done | Use `/api/v1/admin/visitor-visits` and detail. Display visitor summary, IP/location/security flags, device/browser, browser preferences, WebRTC check, timing, server context, login correlation, and risk context. |
+| Full audit filtering UI | ✅ Done | Expose actor type/id, severity, category, outcome, resource, session ID, and date range filters supported by the backend. |
+| Actor investigation pages | ✅ Done | Use `/api/v1/admin/actors/{actor_type}/{actor_id}/profile` and `/activity`; link from users, gateways, and audit rows. |
+| Admin visitor investigation UI | ✅ Done | Use `/api/v1/admin/visitor-visits` and detail. Display visitor summary, IP/location/security flags, device/browser, browser preferences, WebRTC check, timing, server context, login correlation, and risk context. |
 | Admin dashboard integration | Wired; needs smoke | Use `/api/v1/admin/dashboard` for backend-provided operational metrics and verify empty/degraded states. |
 | Gateway command workflow | Partial | Verify command creation, list, cancel, cleanup, and maintenance against real backend data and production copy. |
 | Session management UI | Partial | Make active sessions and revoke behavior clear, including current-session consequences. |

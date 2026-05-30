@@ -11,6 +11,8 @@
     "start": "node server.mjs"
   },
   "dependencies": {
+    "@livekit/components-react": "^2.9.21",
+    "livekit-client": "^2.19.1",
     "lucide-react": "^0.468.0",
     "motion": "^12.12.1",
     "react": "^19.1.0",
