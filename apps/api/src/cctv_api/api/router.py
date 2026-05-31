@@ -590,6 +590,7 @@ def get_camera_view_token(
     record_stream_grant(
         db,
         user_id=user.id,
+        session_id=_audit_session_id(request),
         camera_id=camera_uuid,
         kind=StreamKind.viewer_subscribe,
         jti=grant.jti,
