@@ -180,8 +180,8 @@ This report documents the results of a comprehensive audit of the Panoptix front
 
 ## 📋 Remaining Work
 
-1. **LiveKit Player Integration** — The camera detail modal can request viewer tokens but does not yet render the LiveKit player component. Requires `@livekit/components-react` dependency.
-2. **Sites Listing Backend** — Confirm `GET /admin/sites` is available for bystander signage attestation.
+1. ~~**LiveKit Player Integration**~~ — ✅ Done. CameraDetailModal now renders a real LiveKit subscriber-only viewer using `@livekit/components-react@^2.9.21` and `livekit-client@^2.19.1`. Production validation with real cameras is pending.
+2. **Sites Listing Backend** — Confirm `GET /admin/sites` is available for bystander signage attestation. Frontend call is currently commented out.
 3. **Smoke Test** — Run all POST/PATCH/DELETE actions against a live backend to verify CSRF headers and response shapes.
 4. **Camera Event Streaming** — The AlertsPanel can consume `CameraEvent[]` but no WebSocket/SSE connection is wired yet for real-time events.
 

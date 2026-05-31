@@ -148,7 +148,7 @@ Expected local-only limitations:
 
 ### Current limits
 
-The frontend is integrated but not production-complete. Browser LiveKit subscriber playback is still pending; the camera modal can request a short-lived viewer token but does not yet render the real stream. Staging/deployed frontend browser smoke and production routing are still pending. Browser code must never call gateway-only endpoints or receive publisher tokens.
+The frontend is integrated and feature-complete. Browser LiveKit subscriber playback is implemented using `@livekit/components-react` (subscriber-only); the camera modal requests a viewer token and renders the real stream. Alerts, actor investigation, visitor investigation, and full audit filters are all wired to real backend APIs. Production browser smoke testing at `panoptix.site` is still pending. Browser code must never call gateway-only endpoints or receive publisher tokens.
 
 ---
 
@@ -3761,7 +3761,10 @@ Exposed an alerting model with optional SMTP email integration for critical syst
 
 - Database migration `0008_alerts_email` added `alerts` and `alert_notifications` tables.
 - Alert detection from security/operational events (break-glass open, audit verification failure, admin role grant, gateway disable, command rejection, degraded backups, `/entry` Continue, CSRF denial, disabled-user login, invalid gateway credentials, gateway signing failures, LiveKit config failures, and alert email delivery failures).
-- SMTP notification support in `integrations/email_alerts.py`; production delivery now uses Resend with `ALERT_EMAIL_RECIPIENT_MODE=admins`, while local/staging email remains opt-in.
+- SMTP notification support in `integrations/email_alerts.py` upgraded to professional multipart MIME (HTML layout and rich plain-text fallback).
+- Email templates style using a modern, accessible dark mode palette tailored by severity (red/yellow/blue/slate) with clear Call-to-Action to the console, full metadata tables, and anti-phishing safety footers.
+- Custom organization logo support via `ALERT_EMAIL_LOGO_PATH` config to embed a local logo PNG dynamically.
+- Production delivery now uses Resend with `ALERT_EMAIL_RECIPIENT_MODE=admins`, while local/staging email remains opt-in.
 - Endpoints:
   ```text
   GET /api/v1/admin/alerts
@@ -3773,11 +3776,12 @@ Exposed an alerting model with optional SMTP email integration for critical syst
 Implementation files:
 - `apps/api/src/cctv_api/security/alerts.py`
 - `apps/api/src/cctv_api/integrations/email_alerts.py`
+- `apps/api/src/cctv_api/core/config.py`
 - `apps/api/tests/test_alerts.py`
 - `apps/api/alembic/versions/0008_alerts_email.py`
 
 Verification:
-- `python -m pytest tests/test_alerts.py -v` (15 passed)
+- `python -m pytest tests/test_alerts.py -v` (29 passed)
 
 ---
 

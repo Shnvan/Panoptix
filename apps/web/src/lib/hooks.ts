@@ -15,6 +15,7 @@ import type {
   DsrRequest,
   BackupStatusResponse,
   BreakGlassStatusResponse,
+  AdminAlert,
 } from './types';
 
 // ── useMe ──
@@ -32,6 +33,7 @@ export function useMe() {
       setUser(data);
     } catch (err) {
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        setError(err.detail === 'user-disabled' ? 'user-disabled' : null);
         setUser(null);
       } else {
         setError(err instanceof Error ? err.message : 'Failed to load user');
@@ -144,15 +146,54 @@ export function useAdminUsers() {
 
 // ── useAdminAudit ──
 
-export function useAdminAudit(actionFilter?: string) {
+export interface AuditFilters {
+  action?: string;
+  actor_type?: string;
+  actor_id?: string;
+  severity?: string;
+  category?: string;
+  outcome?: string;
+  resource?: string;
+  session_id?: string;
+  ts_from?: string;
+  ts_to?: string;
+}
+
+export function useAdminAudit(filters: AuditFilters = {}) {
   const [logs, setLogs] = useState<AuditLogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
 
+  const {
+    action,
+    actor_type,
+    actor_id,
+    severity,
+    category,
+    outcome,
+    resource,
+    session_id,
+    ts_from,
+    ts_to,
+  } = filters;
+
   const fetchLogs = useCallback(async (cursor?: number) => {
     setLoading(true);
     try {
-      const data = await api.listAudit(cursor, 50, actionFilter);
+      const data = await api.listAudit({
+        cursor,
+        limit: 50,
+        action,
+        actor_type,
+        actor_id,
+        severity,
+        category,
+        outcome,
+        resource,
+        session_id,
+        ts_from,
+        ts_to,
+      });
       setLogs((prev) => (cursor ? [...prev, ...data.items] : data.items));
       setNextCursor(data.next_cursor);
     } catch {
@@ -160,9 +201,23 @@ export function useAdminAudit(actionFilter?: string) {
     } finally {
       setLoading(false);
     }
-  }, [actionFilter]);
+  }, [
+    action,
+    actor_type,
+    actor_id,
+    severity,
+    category,
+    outcome,
+    resource,
+    session_id,
+    ts_from,
+    ts_to,
+  ]);
 
-  useEffect(() => { fetchLogs(); }, [fetchLogs]);
+  useEffect(() => {
+    setLogs([]);
+    fetchLogs();
+  }, [fetchLogs]);
 
   return {
     logs,
@@ -418,4 +473,52 @@ export function useBreakGlassStatus() {
   useEffect(() => { fetchStatus(); }, [fetchStatus]);
 
   return { status, loading, refetch: fetchStatus };
+}
+
+// ── useAdminAlerts ──
+
+export function useAdminAlerts(statusFilter?: string, severityFilter?: string, categoryFilter?: string) {
+  const [alerts, setAlerts] = useState<AdminAlert[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+
+  const fetchAlerts = useCallback(async (cursor?: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.listAdminAlerts(cursor, 50, statusFilter, severityFilter, categoryFilter);
+      setAlerts((prev) => (cursor ? [...prev, ...data.items] : data.items));
+      setNextCursor(data.next_cursor);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load alerts');
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter, severityFilter, categoryFilter]);
+
+  useEffect(() => { fetchAlerts(); }, [fetchAlerts]);
+
+  const acknowledge = async (alertId: string) => {
+    const updated = await api.acknowledgeAlert(alertId);
+    setAlerts((prev) => prev.map((a) => a.alert_id === alertId ? updated : a));
+    return updated;
+  };
+
+  const resolve = async (alertId: string) => {
+    const updated = await api.resolveAlert(alertId);
+    setAlerts((prev) => prev.map((a) => a.alert_id === alertId ? updated : a));
+    return updated;
+  };
+
+  return {
+    alerts,
+    loading,
+    error,
+    loadMore: () => { if (nextCursor) fetchAlerts(nextCursor); },
+    hasMore: !!nextCursor,
+    refetch: () => { setAlerts([]); fetchAlerts(); },
+    acknowledge,
+    resolve,
+  };
 }

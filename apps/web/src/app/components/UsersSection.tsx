@@ -35,6 +35,12 @@ export function UsersSection() {
   const [inviteLoading, setInviteLoading] = useState(false);
 
   const show = (text: string, type: 'success' | 'error') => { setMsg({ text, type }); setTimeout(() => setMsg(null), 4000); };
+  const userActionError = (err: unknown, fallback: string) => {
+    if (err instanceof ApiError && err.detail === 'user-disabled') {
+      return 'This Panoptix account is disabled. Re-enable it explicitly before changing roles or sending another invite.';
+    }
+    return err instanceof ApiError ? err.detail : fallback;
+  };
 
   const handleRoleUpdate = async () => {
     if (!roleModal) return;
@@ -42,7 +48,7 @@ export function UsersSection() {
       await api.updateUserRole(roleModal.userId, roleAction, roleName);
       show(`Role "${roleName}" ${roleAction}ed for ${roleModal.email}`, 'success');
       setRoleModal(null); refetch();
-    } catch (err) { show(err instanceof ApiError ? err.detail : 'Failed to update role', 'error'); }
+    } catch (err) { show(userActionError(err, 'Failed to update role'), 'error'); }
   };
 
   const handleDisable = async () => {
@@ -61,7 +67,7 @@ export function UsersSection() {
       await api.resetUserMfa(mfaModal.userId);
       show(`MFA reset for ${mfaModal.email}`, 'success');
       setMfaModal(null);
-    } catch (err) { show(err instanceof ApiError ? err.detail : 'MFA reset failed', 'error'); }
+    } catch (err) { show(userActionError(err, 'MFA reset failed'), 'error'); }
     setMfaLoading(false);
   };
 
@@ -77,7 +83,7 @@ export function UsersSection() {
       show(`Invited ${res.email}. Next: ${res.next_step}`, 'success');
       setInviteModal(false); setInviteEmail(''); setInviteRoles('viewer'); setInviteReason('');
       refetch();
-    } catch (err) { show(err instanceof ApiError ? err.detail : 'Invite failed', 'error'); }
+    } catch (err) { show(userActionError(err, 'Invite failed'), 'error'); }
     setInviteLoading(false);
   };
 

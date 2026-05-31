@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Video, Server, Users, FileText,
   Activity, Settings, ChevronLeft, Sun, Moon,
-  Camera, ShieldAlert, AlertTriangle,
+  Camera, ShieldAlert, AlertTriangle, Eye, UserSearch,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useTheme } from '../../lib/theme';
@@ -30,6 +30,8 @@ const navItems = [
   { id: 'users', label: 'Users & Access', icon: Users, adminOnly: true },
   { id: 'audit', label: 'Audit Logs', icon: FileText, adminOnly: true },
   { id: 'alerts', label: 'Alerts', icon: AlertTriangle, adminOnly: true },
+  { id: 'visitors', label: 'Visitor Visits', icon: Eye, adminOnly: true },
+  { id: 'actors', label: 'Actor Investigation', icon: UserSearch, adminOnly: true },
   { id: 'health', label: 'System Health', icon: Activity, adminOnly: true },
   { id: 'break-glass', label: 'Break Glass', icon: ShieldAlert, adminOnly: true },
   { id: 'settings', label: 'Settings', icon: Settings, adminOnly: false },

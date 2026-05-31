@@ -4,6 +4,7 @@ import { useTheme } from '../../lib/theme';
 
 interface LoginPageProps {
   onLogin: () => void;
+  authError?: string | null;
 }
 
 /**
@@ -14,7 +15,7 @@ interface LoginPageProps {
  * In dev mode (VITE_DEV_AUTH=true), clicking the SSO button simulates
  * a dev-auth session by calling /api/v1/me with dev headers.
  */
-export function LoginPage({ onLogin }: LoginPageProps) {
+export function LoginPage({ onLogin, authError }: LoginPageProps) {
   const { theme } = useTheme();
 
   const handleSSOLogin = () => {
@@ -103,6 +104,12 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 Sign in through Cloudflare Access to access the CCTV dashboard.
               </p>
             </div>
+
+            {authError === 'user-disabled' && (
+              <div className="p-3 bg-red-500/10 border border-red-500/25 rounded-lg text-sm text-red-400">
+                This Panoptix account is disabled. Contact an administrator; signing in through Cloudflare Access will not re-enable it.
+              </div>
+            )}
 
             {/* Cloudflare Access button. In production, users normally see the Access page before the app. */}
             <button

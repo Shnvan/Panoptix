@@ -38,7 +38,7 @@ Latest full-stack integration commits:
 
 ## Current Objective
 
-Maintain the combined backend/frontend integration branch as the production-candidate review branch. Production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Successful `/entry` Continue collection now creates a high-severity backend alert/email to active admins, and selected intrusion/abuse audit events promote into alert records through the existing Resend pipeline. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The encrypted R2 backup path, isolated restore drill, scheduled GitHub Actions backup workflow, and retention job are implemented, and the production backup workflow has succeeded. Gateway Discovery V2 backend/edge-agent work is implemented and active on `main`, and production Neon is migrated to `0012_gateway_discovery_runs`. Production edge heartbeats now require gateway auth plus Cloudflare Access service-token headers, and the edge agent sends a stable `Panoptix-Edge-Agent/<version>` user agent for Cloudflare-protected traffic. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, Alerts page backend API wiring, actor investigation UI, admin visitor investigation UI, and full audit filter UI.
+Maintain the combined backend/frontend integration branch as the production-candidate review branch. Production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Successful `/entry` Continue collection now creates a high-severity backend alert/email to active admins, and selected intrusion/abuse audit events promote into alert records through the existing Resend pipeline. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The encrypted R2 backup path, isolated restore drill, scheduled GitHub Actions backup workflow, and retention job are implemented, and the production backup workflow has succeeded. Gateway Discovery V2 backend/edge-agent work is implemented and active on `main`, and production Neon is migrated to `0012_gateway_discovery_runs`. Production edge heartbeats now require gateway auth plus Cloudflare Access service-token headers, and the edge agent sends a stable `Panoptix-Edge-Agent/<version>` user agent for Cloudflare-protected traffic. The remaining product gates are real CCTV hardware validation. Five major frontend features — alerts page real API wiring, actor investigation UI, admin visitor investigation UI, real LiveKit subscriber playback (via `@livekit/components-react`), and full audit filter UI — are now implemented.
 
 The system is Panoptix, a secure live-view CCTV web monitoring system with three planes:
 
@@ -134,7 +134,7 @@ Current state:
 - LiveKit token minting exists in backend tests/source
 - LiveKit Cloud account is provisioned and direct synthetic FFmpeg-to-LiveKit smoke has passed
 - backend-controlled gateway command publish smoke has passed with accepted ACK
-- frontend browser playback still needs real subscriber-only LiveKit integration
+- frontend browser playback is implemented using `@livekit/components-react` subscriber-only integration
 - fallback LiveKit app remains operational future work
 
 ### Frontend
@@ -144,11 +144,12 @@ Location: `apps/web/`
 Current state:
 
 - `origin/integratedCompleteFrontend` has been merged into `fullstack-integration`
-- React/Vite frontend includes the login shell, viewer dashboard, camera modal, admin dashboard, users, cameras, gateways, audit/compliance, DSR, break-glass, health, settings, dev-auth headers, and same-origin API client
+- React/Vite frontend includes the login shell, viewer dashboard, camera modal, admin dashboard, users, cameras, gateways, audit/compliance, DSR, break-glass, health, settings, dev-auth headers, same-origin API client, alerts real API wiring, actor investigation UI, visitor investigation UI, real LiveKit subscriber playback (via `@livekit/components-react`), and full audit filters
 - frontend lint/build passed after merge and after local smoke cleanup
 - local same-origin smoke has passed through the Vite proxy for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health
 - local camera modal viewer-token smoke passed with `admin-smoke@example.test` assigned to an existing synthetic camera; the modal called `/api/v1/cameras/{camera_id}/view-token`, connected as a LiveKit subscriber, made no browser media capture calls, and persisted no token material beyond the theme preference
-- production browser smoke at `panoptix.site` is next after the viewer-token/session fix is deployed or otherwise confirmed present in production
+- production viewer-token smoke passed on 2026-05-31 after PR #20 deployed: `ivanliao41` was granted access to existing smoke cameras, `/api/v1/cameras/{camera_id}/view-token` returned `200` with `camera_id`, `room`, `livekit_url`, `token`, and `expires_at`, the UI showed `Token ready`, no `500` occurred, and no camera/mic prompt or browser publishing behavior was observed; do not publish token screenshots
+- full 10-sidebar-page production browser smoke at `panoptix.site` is still pending; the current deployed production modal still shows token-only copy (`LiveKit player not wired yet`) even though subscriber playback exists in the integration branch
 - local API configuration uses `apps/api/.env`, which is ignored by Git; do not commit database URLs, audit keys, LiveKit keys, GitHub tokens, R2 secrets, or gateway service tokens
 - production backend migration state is at Alembic head `0012_gateway_discovery_runs`
 - `github-invites-not-configured` is expected locally while `GITHUB_INVITES_ENABLED=false`
@@ -171,7 +172,7 @@ Latest full-stack integration commits:
 
 ## Current Objective
 
-Maintain the combined backend/frontend integration branch as the production-candidate review branch. Production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Successful `/entry` Continue collection now creates a high-severity backend alert/email to active admins, and selected intrusion/abuse audit events promote into alert records through the existing Resend pipeline. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The encrypted R2 backup path, isolated restore drill, scheduled GitHub Actions backup workflow, and retention job are implemented, and the production backup workflow has succeeded. Gateway Discovery V2 backend/edge-agent work is implemented and active on `main`, and production Neon is migrated to `0012_gateway_discovery_runs`. Production edge heartbeats now require gateway auth plus Cloudflare Access service-token headers, and the edge agent sends a stable `Panoptix-Edge-Agent/<version>` user agent for Cloudflare-protected traffic. The remaining product gates are real LiveKit browser subscriber playback, real CCTV hardware validation, Alerts page backend API wiring, actor investigation UI, admin visitor investigation UI, and full audit filter UI.
+Maintain the combined backend/frontend integration branch as the production-candidate review branch. Production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Successful `/entry` Continue collection now creates a high-severity backend alert/email to active admins, and selected intrusion/abuse audit events promote into alert records through the existing Resend pipeline. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The encrypted R2 backup path, isolated restore drill, scheduled GitHub Actions backup workflow, and retention job are implemented, and the production backup workflow has succeeded. Gateway Discovery V2 backend/edge-agent work is implemented and active on `main`, and production Neon is migrated to `0012_gateway_discovery_runs`. Production edge heartbeats now require gateway auth plus Cloudflare Access service-token headers, and the edge agent sends a stable `Panoptix-Edge-Agent/<version>` user agent for Cloudflare-protected traffic. The remaining product gates are real CCTV hardware validation. Five major frontend features — alerts page real API wiring, actor investigation UI, admin visitor investigation UI, real LiveKit subscriber playback (via `@livekit/components-react`), and full audit filter UI — are now implemented.
 
 The system is Panoptix, a secure live-view CCTV web monitoring system with three planes:
 
@@ -268,7 +269,7 @@ Current state:
 - LiveKit token minting exists in backend tests/source
 - LiveKit Cloud account is provisioned and direct synthetic FFmpeg-to-LiveKit smoke has passed
 - backend-controlled gateway command publish smoke has passed with accepted ACK
-- frontend browser playback still needs real subscriber-only LiveKit integration
+- frontend browser playback is implemented using `@livekit/components-react` subscriber-only integration
 - fallback LiveKit app remains operational future work
 
 ### Frontend
@@ -278,16 +279,17 @@ Location: `apps/web/`
 Current state:
 
 - `origin/integratedCompleteFrontend` has been merged into `fullstack-integration`
-- React/Vite frontend includes the login shell, viewer dashboard, camera modal, admin dashboard, users, cameras, gateways, audit/compliance, DSR, break-glass, health, settings, dev-auth headers, and same-origin API client
+- React/Vite frontend includes the login shell, viewer dashboard, camera modal, admin dashboard, users, cameras, gateways, audit/compliance, DSR, break-glass, health, settings, dev-auth headers, same-origin API client, alerts real API wiring, actor investigation UI, visitor investigation UI, real LiveKit subscriber playback (via `@livekit/components-react`), and full audit filters
 - frontend lint/build passed after merge and after local smoke cleanup
 - local same-origin smoke has passed through the Vite proxy for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health
 - local camera modal viewer-token smoke passed with `admin-smoke@example.test` assigned to an existing synthetic camera; the modal called `/api/v1/cameras/{camera_id}/view-token`, connected as a LiveKit subscriber, made no browser media capture calls, and persisted no token material beyond the theme preference
-- production browser smoke at `panoptix.site` is next after the viewer-token/session fix is deployed or otherwise confirmed present in production
+- production viewer-token smoke passed on 2026-05-31 after PR #20 deployed: `ivanliao41` was granted access to existing smoke cameras, `/api/v1/cameras/{camera_id}/view-token` returned `200` with `camera_id`, `room`, `livekit_url`, `token`, and `expires_at`, the UI showed `Token ready`, no `500` occurred, and no camera/mic prompt or browser publishing behavior was observed; do not publish token screenshots
+- full 10-sidebar-page production browser smoke at `panoptix.site` is still pending; the current deployed production modal still shows token-only copy (`LiveKit player not wired yet`) even though subscriber playback exists in the integration branch
 - local API configuration uses `apps/api/.env`, which is ignored by Git; do not commit database URLs, audit keys, LiveKit keys, GitHub tokens, R2 secrets, or gateway service tokens
 - production backend migration state is at Alembic head `0012_gateway_discovery_runs`
 - `github-invites-not-configured` is expected locally while `GITHUB_INVITES_ENABLED=false`
 - one-time gateway service tokens must never be screenshotted or committed; the exposed local test gateway named `what` was disabled during smoke cleanup
-- camera modal can request a short-lived viewer token, but real LiveKit subscriber playback is still pending
+- camera modal requests a short-lived viewer token and real LiveKit subscriber playback is implemented using `@livekit/components-react`
 - do not add backend/security logic here; browsers remain viewers only
 
 ### Database
@@ -1977,17 +1979,14 @@ The production backup workflow has passed and the Gateway Discovery V2 backend/e
 ## Not Implemented Yet
 
 - real camera onboarding (credential file exists, needs real hardware + LiveKit Cloud)
-- real LiveKit browser subscriber playback (frontend/system-owner integration path; browser must subscribe only)
-- Alerts page wiring to real backend alert APIs (frontend coworker)
-- actor investigation UI (frontend coworker)
-- admin visitor investigation UI (frontend coworker)
-- full audit filter UI (frontend coworker)
 - Gateway Discovery UI is optional future frontend work only; backend/edge discovery exists, but no frontend discovery UI is required unless Ivan explicitly reassigns it
 - production Docker/systemd gateway supervision (runbook templates exist)
 - Google Workspace IdP setup (GitHub OAuth currently deployed)
 - WARP device posture production activation (checklist done in `cloudflare-production-setup.md`)
 
-The proven backup/restore path, scheduled backup automation, retention code, Gateway Discovery V2, and production migration `0012_gateway_discovery_runs` are complete. Hardware validation, production gateway service installation, and coworker-owned UI gaps remain.
+**Now completed (previously listed here):** real LiveKit browser subscriber playback (via `@livekit/components-react`), Alerts page wiring to real backend alert APIs, actor investigation UI, admin visitor investigation UI, and full audit filter UI.
+
+The proven backup/restore path, scheduled backup automation, retention code, Gateway Discovery V2, and production migration `0012_gateway_discovery_runs` are complete. Hardware validation and production gateway service installation remain.
 
 ## 7-Day Staging Gate
 
