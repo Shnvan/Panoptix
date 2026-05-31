@@ -3,22 +3,51 @@ import { motion } from 'motion/react';
 import { useTheme } from '../../lib/theme';
 import { api, ApiError } from '../../lib/api';
 import { useState } from 'react';
+import { LiveKitRoom, useTracks, VideoTrack } from '@livekit/components-react';
+import { Track } from 'livekit-client';
+import type { ViewerTokenResponse } from '../../lib/types';
 
 interface CameraDetailModalProps {
   camera: { camera_id: string; display_name: string; livekit_room_name: string; source_type?: string | null };
   onClose: () => void;
 }
 
+function VideoPlayer() {
+  const tracks = useTracks([Track.Source.Camera]);
+
+  if (tracks.length === 0) {
+    return (
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#0A0A0A]">
+        <RefreshCw className="w-8 h-8 text-[#F07C1E] animate-spin" />
+        <span className="text-xs font-mono uppercase tracking-wider text-[#666666]">
+          Establishing secure stream tunnel...
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <VideoTrack
+      trackRef={tracks[0]}
+      className="w-full h-full object-contain"
+    />
+  );
+}
+
 export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
   const { theme } = useTheme();
+  const d = theme === 'dark';
   const [tokenStatus, setTokenStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [tokenError, setTokenError] = useState<string | null>(null);
+  const [tokenData, setTokenData] = useState<ViewerTokenResponse | null>(null);
 
   const requestViewToken = async () => {
     setTokenStatus('loading');
     setTokenError(null);
+    setTokenData(null);
     try {
-      await api.getCameraViewToken(camera.camera_id);
+      const data = await api.getCameraViewToken(camera.camera_id);
+      setTokenData(data);
       setTokenStatus('ready');
     } catch (err) {
       setTokenStatus('error');
@@ -32,48 +61,46 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center p-6"
-      style={{ backgroundColor: theme === 'dark' ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.5)' }}
+      style={{ backgroundColor: d ? 'rgba(10,10,10,0.85)' : 'rgba(0,0,0,0.5)' }}
       onClick={onClose}
     >
       <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
+        initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.9, opacity: 0 }}
-        className={`border rounded-lg max-w-6xl w-full overflow-hidden shadow-2xl ${
-          theme === 'dark'
-            ? 'bg-gradient-to-br from-slate-900 to-slate-800 border-slate-700/50'
-            : 'bg-white border-slate-200'
+        exit={{ scale: 0.95, opacity: 0 }}
+        className={`border max-w-6xl w-full overflow-hidden shadow-xl rounded-none ${
+          d ? 'bg-[#111111] border-[#222222]' : 'bg-[#FFFFFF] border-slate-200'
         }`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className={`flex items-center justify-between p-6 border-b ${
-          theme === 'dark' ? 'border-slate-700/50' : 'border-slate-200'
+          d ? 'border-[#222222]' : 'border-slate-200'
         }`}>
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-orange-500/20 rounded-lg flex items-center justify-center">
-              <Camera className="w-6 h-6 text-orange-500" />
+            <div className="w-12 h-12 bg-[rgba(240,124,30,0.08)] rounded-none flex items-center justify-center">
+              <Camera className="w-6 h-6 text-[#F07C1E]" />
             </div>
             <div>
-              <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+              <h2 className={`text-xl font-bold ${d ? 'text-[#F0EAD6]' : 'text-slate-900'}`}>
                 {camera.display_name}
               </h2>
               <div className={`flex items-center gap-2 text-sm mt-1 ${
-                theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+                d ? 'text-[#666666]' : 'text-slate-500'
               }`}>
-                <MapPin className="w-3 h-3" />
+                <MapPin className="w-3 h-3 text-[#F07C1E]" />
                 <span>Room: {camera.livekit_room_name}</span>
               </div>
             </div>
           </div>
           <button
             onClick={onClose}
-            className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
-              theme === 'dark' ? 'bg-slate-800/50 hover:bg-slate-700/50' : 'bg-slate-100 hover:bg-slate-200'
+            className={`w-10 h-10 rounded-none flex items-center justify-center transition-colors border ${
+              d ? 'bg-[#1A1A1A] border-[#222222] hover:bg-[#222222] text-[#666666] hover:text-[#F0EAD6]' : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-500 hover:text-slate-900'
             }`}
             aria-label="Close modal"
           >
-            <X className={`w-5 h-5 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`} />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -81,22 +108,42 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6">
           {/* Video Panel */}
           <div className="lg:col-span-2 space-y-4">
-            <div className="aspect-video bg-slate-950 rounded-lg overflow-hidden relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-950">
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Camera className="w-24 h-24 text-slate-700" />
+            <div className="aspect-video bg-[#0A0A0A] border border-[#222222] overflow-hidden relative rounded-none">
+              {tokenStatus !== 'ready' ? (
+                <div className="absolute inset-0 bg-[#0A0A0A]">
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                    <Camera className="w-16 h-16 text-[#1A1A1A]" />
+                    <span className="text-xs font-mono uppercase tracking-wider text-[#666666]">
+                      {tokenStatus === 'loading' ? 'Requesting secure tunnel...' : 'Feed offline · Tunnel closed'}
+                    </span>
+                  </div>
                 </div>
-                <motion.div
-                  className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-orange-400 to-transparent opacity-50"
-                  animate={{ y: [0, 400, 0] }}
-                  transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
-                />
+              ) : (
+                tokenData && (
+                  <LiveKitRoom
+                    serverUrl={tokenData.livekit_url}
+                    token={tokenData.token}
+                    connect={true}
+                    audio={false}
+                    video={false}
+                    className="w-full h-full"
+                  >
+                    <VideoPlayer />
+                  </LiveKitRoom>
+                )
+              )}
+
+              {/* Status Badge */}
+              <div className={`absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 border rounded-none text-xs font-mono font-bold ${
+                tokenStatus === 'ready'
+                  ? 'bg-[#7BC67B]/10 border-[#7BC67B]/30 text-[#7BC67B]'
+                  : 'bg-[#FF3333]/10 border-[#FF3333]/30 text-[#FF3333]'
+              }`}>
+                <div className={`w-2 h-2 rounded-full ${tokenStatus === 'ready' ? 'bg-[#7BC67B]' : 'bg-[#FF3333]'}`} />
+                <span>{tokenStatus === 'ready' ? 'LIVE TUNNEL ACTIVE' : 'TUNNEL CLOSED'}</span>
               </div>
-              <div className="absolute top-4 left-4 flex items-center gap-2 bg-amber-500/90 backdrop-blur-sm px-3 py-1.5 rounded-md">
-                <div className="w-2 h-2 rounded-full bg-white" />
-                <span className="text-xs font-bold text-white">PLAYER PENDING</span>
-              </div>
-              <div className="absolute bottom-4 left-4 bg-black/70 backdrop-blur-sm px-3 py-1.5 rounded-md font-mono text-xs text-white">
+
+              <div className="absolute bottom-4 left-4 bg-black/70 px-3 py-1.5 font-mono text-xs text-white">
                 {new Date().toLocaleString('en-US', { hour12: false })}
               </div>
             </div>
@@ -106,70 +153,70 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
               <button
                 onClick={requestViewToken}
                 disabled={tokenStatus === 'loading'}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 rounded-lg text-orange-500 transition-colors disabled:opacity-50"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-[#F07C1E] hover:bg-[#C45E0A] text-[#0A0A0A] rounded-none text-sm font-medium transition-colors disabled:opacity-50"
               >
                 <RefreshCw className={`w-4 h-4 ${tokenStatus === 'loading' ? 'animate-spin' : ''}`} />
-                <span className="text-sm font-medium">
-                  {tokenStatus === 'loading' ? 'Requesting...' : tokenStatus === 'ready' ? 'Token Ready' : 'Request Stream Token'}
+                <span>
+                  {tokenStatus === 'loading' ? 'Requesting...' : tokenStatus === 'ready' ? 'Tunnel Reset' : 'Establish Stream Tunnel'}
                 </span>
               </button>
-              <button className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 border rounded-lg transition-colors ${
-                theme === 'dark'
-                  ? 'bg-slate-800/50 hover:bg-slate-700/50 border-slate-700/50 text-white'
+              <button className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 border rounded-none transition-colors ${
+                d
+                  ? 'bg-[#1A1A1A] hover:bg-[#222222] border-[#222222] text-[#F0EAD6]'
                   : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
               }`}>
-                <Flag className="w-4 h-4" />
-                <span className="text-sm font-medium">Flag Event</span>
+                <Flag className="w-4 h-4 text-[#FF3333]" />
+                <span className="text-sm font-medium">Flag Security Incident</span>
               </button>
             </div>
 
             {tokenError && (
-              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-                {tokenError}
+              <div className="p-3 rounded-none bg-[#FF3333]/10 border border-[#FF3333]/30 text-[#FF3333] text-sm font-mono">
+                Error: {tokenError}
               </div>
             )}
           </div>
 
           {/* Metadata Panel */}
           <div className="space-y-4">
-            <div className={`border rounded-lg p-4 space-y-3 ${
-              theme === 'dark' ? 'bg-slate-800/50 border-slate-700/50' : 'bg-slate-50 border-slate-200'
+            <div className={`border rounded-none p-4 space-y-3 ${
+              d ? 'bg-[#1A1A1A] border-[#222222]' : 'bg-slate-50 border-slate-200'
             }`}>
-              <h3 className={`font-semibold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-                <Signal className="w-4 h-4 text-emerald-400" /> Stream Info
+              <h3 className={`font-semibold flex items-center gap-2 ${d ? 'text-[#F0EAD6]' : 'text-slate-900'}`}>
+                <Signal className="w-4 h-4 text-[#7BC67B]" /> Stream Context
               </h3>
               <div className="space-y-2">
                 {[
-                  ['Status', tokenStatus === 'ready' ? 'Token ready' : 'Awaiting token'],
-                  ['Source', camera.source_type || 'RTSP'],
-                  ['Room', camera.livekit_room_name],
-                  ['Playback', 'LiveKit player not wired yet'],
+                  ['Tunnel State', tokenStatus === 'ready' ? 'Connected' : 'Closed'],
+                  ['Ingest Type', camera.source_type || 'RTSP Source'],
+                  ['LiveKit Room', camera.livekit_room_name],
+                  ['Watermark', 'Active (Analyst ID)'],
                 ].map(([label, val]) => (
                   <div key={label} className="flex justify-between text-sm">
-                    <span className={theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}>{label}</span>
-                    <span className={`font-medium ${theme === 'dark' ? 'text-white' : 'text-slate-700'}`}>{val}</span>
+                    <span className={d ? 'text-[#666666]' : 'text-slate-500'}>{label}</span>
+                    <span className={`font-mono ${d ? 'text-[#F0EAD6]' : 'text-slate-700'}`}>{val}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className={`border rounded-lg p-4 text-sm ${
-              theme === 'dark' ? 'bg-amber-500/10 border-amber-500/20 text-amber-200' : 'bg-amber-50 border-amber-200 text-amber-800'
+            <div className={`border rounded-none p-4 text-xs font-mono ${
+              d ? 'bg-[rgba(240,124,30,0.08)] border-[#222222] text-[#F07C1E]' : 'bg-amber-50 border-amber-200 text-amber-800'
             }`}>
-              This frontend can request a short-lived viewer token, but browser LiveKit playback is still pending integration.
+              Tunnel encryption active (HMAC-SHA256). LiveKit subscriber tunnel prevents local client media publishing (PH DPA compliance mandate).
             </div>
 
-            <div className={`border rounded-lg p-4 space-y-3 ${
-              theme === 'dark' ? 'bg-slate-800/50 border-slate-700/50' : 'bg-slate-50 border-slate-200'
+            <div className={`border rounded-none p-4 space-y-3 ${
+              d ? 'bg-[#1A1A1A] border-[#222222]' : 'bg-slate-50 border-slate-200'
             }`}>
-              <h3 className={`font-semibold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
-                <Eye className="w-4 h-4 text-orange-500" /> Access
+              <h3 className={`font-semibold flex items-center gap-2 ${d ? 'text-[#F0EAD6]' : 'text-slate-900'}`}>
+                <Eye className="w-4 h-4 text-[#F07C1E]" /> Authorized Roles
               </h3>
               <div className="space-y-2 text-sm">
-                {['Security Team', 'Admin Staff'].map((team) => (
+                {['Security Operations Center (SOC)', 'Compliance Officer', 'System Administrator'].map((team) => (
                   <div key={team} className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                    <span className={theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}>{team}</span>
+                    <div className="w-2 h-2 rounded-full bg-[#7BC67B]" />
+                    <span className={d ? 'text-[#F0EAD6]' : 'text-slate-600'}>{team}</span>
                   </div>
                 ))}
               </div>

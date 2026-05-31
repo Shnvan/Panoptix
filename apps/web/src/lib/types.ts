@@ -589,3 +589,172 @@ export interface LivekitFallbackResponse {
   mode: 'cloud' | 'fallback';
   applied: boolean;
 }
+
+// ── Admin Alerts ──
+
+export type AlertSeverity = 'informational' | 'low' | 'medium' | 'high' | 'critical';
+export type AlertCategory = 'security' | 'operations' | 'compliance' | 'availability';
+export type AlertStatus = 'open' | 'acknowledged' | 'resolved';
+
+export interface AdminAlert {
+  alert_id: string;
+  severity: AlertSeverity;
+  category: AlertCategory;
+  title: string;
+  message: string;
+  status: AlertStatus;
+  source: string;
+  source_event_id: number | null;
+  resource: string | null;
+  actor_type: string | null;
+  actor_id: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string | null;
+  acknowledged_at: string | null;
+  acknowledged_by: string | null;
+  resolved_at: string | null;
+  resolved_by: string | null;
+}
+
+export interface AlertListResponse {
+  items: AdminAlert[];
+  next_cursor: string | null;
+}
+
+export interface AlertActionResponse {
+  alert_id: string;
+  status: AlertStatus;
+  acknowledged_at: string | null;
+  resolved_at: string | null;
+}
+
+// ── Visitor Visit (admin investigation) ──
+
+export interface VisitorVisitSummary {
+  visit_id: string;
+  collected_at: string | null;
+  page_path: string;
+  notice_version: string;
+  user_agent: string | null;
+  login: {
+    logged_in: boolean;
+    user_id: string | null;
+    session_id: string | null;
+    logged_in_at: string | null;
+    ip: string | null;
+  };
+}
+
+export interface VisitorVisitDetail extends VisitorVisitSummary {
+  ip_details: {
+    ip: string | null;
+    status: string;
+    provider: string | null;
+    location?: {
+      country_code?: string | null;
+      country_name?: string | null;
+      city?: string | null;
+      timezone?: string | null;
+    };
+    [key: string]: unknown;
+  };
+  browser_context: {
+    referrer?: string | null;
+    screen?: { width: number | null; height: number | null };
+    viewport?: { width: number | null; height: number | null };
+    device_pixel_ratio?: number | null;
+    touch_supported?: boolean | null;
+    color_scheme?: string | null;
+    cookies_enabled?: boolean | null;
+    privacy?: { do_not_track?: string | null; global_privacy_control?: boolean | null };
+    timezone?: string | null;
+    language?: string | null;
+    languages?: string[];
+    [key: string]: unknown;
+  };
+  network_context: {
+    effective_type?: string | null;
+    downlink_mbps?: number | null;
+    rtt_ms?: number | null;
+    save_data?: boolean | null;
+  };
+  webrtc_details: {
+    available?: boolean | null;
+    tested?: boolean | null;
+    candidate_count?: number | null;
+    candidate_types?: string[];
+    local_ip_candidates?: string[];
+    public_ip_candidates?: string[];
+    relay_ip_candidates?: string[];
+    mdns_hostname_seen?: boolean | null;
+    error?: string | null;
+  };
+  timing: {
+    notice_loaded_at_ms?: number | null;
+    continue_clicked_at_ms?: number | null;
+    collect_started_at_ms?: number | null;
+    webrtc_elapsed_ms?: number | null;
+  };
+  server_context: {
+    cf_ray_id?: string | null;
+    cf_country?: string | null;
+  };
+  risk_context: {
+    timezone_ip_mismatch?: boolean | null;
+    language_country_mismatch?: boolean | null;
+    webrtc_public_ip_request_ip_mismatch?: boolean | null;
+    ip_changed_between_entry_and_login?: boolean | null;
+    repeat_visitor_count?: number | null;
+  };
+}
+
+export interface VisitorVisitListResponse {
+  items: VisitorVisitSummary[];
+  next_cursor: string | null;
+}
+
+// ── Actor Profile / Activity ──
+
+export interface ActorProfileResponse {
+  actor_type: string;
+  actor_id: string | null;
+  // user actor fields
+  email?: string | null;
+  roles?: string[];
+  disabled_at?: string | null;
+  created_at?: string | null;
+  recent_logins?: Array<{ ip: string | null; ua: string | null; ts: string | null }>;
+  // gateway actor fields
+  name?: string | null;
+  status?: string | null;
+  last_seen_at?: string | null;
+  // shared
+  alert_summary?: {
+    open: number;
+    acknowledged: number;
+    resolved: number;
+    critical: number;
+  };
+  [key: string]: unknown;
+}
+
+export interface ActorActivityItem {
+  id: number;
+  ts: string | null;
+  actor_id: string | null;
+  actor_type: string | null;
+  action: string;
+  resource: string | null;
+  payload: Record<string, unknown> | null;
+  ip: string | null;
+  ua: string | null;
+  event_severity: string | null;
+  event_outcome: string | null;
+  event_category: string | null;
+  session_id: string | null;
+}
+
+export interface ActorActivityResponse {
+  items: ActorActivityItem[];
+  next_cursor: string | null;
+}

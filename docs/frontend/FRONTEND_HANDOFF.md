@@ -1,6 +1,6 @@
 # Frontend Coworker Handoff
 
-Last updated: 2026-05-28 (production Resend alert email active; frontend gaps unchanged)
+Last updated: 2026-05-30 (frontend UI gaps closed: alerts, actor investigation, visitor investigation, LiveKit playback, audit filters all implemented)
 
 This is the first document the frontend coworker should read before changing the React app on `fullstack-integration`. It summarizes what the system owner has verified, what backend APIs are ready, and what frontend work should happen next.
 
@@ -20,7 +20,7 @@ This is the first document the frontend coworker should read before changing the
 - Local and production databases should be at Alembic head `0012_gateway_discovery_runs`.
 - Local full-stack smoke through Vite and FastAPI has passed for the main same-origin admin surfaces already tested: dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health.
 - GitHub organization invites are live on staging (`panoptix-site` org). Inviting users through the Users & Access page creates local user records and sends GitHub org invitations.
-- Alert records and backend SMTP email notifications are implemented. Production sends high/critical alert emails through Resend to active admin users with `ALERT_EMAIL_RECIPIENT_MODE=admins`, including `/entry` Continue events and selected intrusion/abuse audit events. The Alerts page currently shows a frontend placeholder and needs wiring to the real backend alert APIs.
+- Alert records and backend SMTP email notifications are implemented. Production sends high/critical alert emails through Resend to active admin users with `ALERT_EMAIL_RECIPIENT_MODE=admins`, including `/entry` Continue events and selected intrusion/abuse audit events. The Alerts page is now wired to real backend alert APIs with status filtering, acknowledge, and resolve actions.
 - Staging deployed browser smoke passed 2026-05-21: all 10 sidebar pages loaded through Cloudflare Access at `staging.panoptix.site` with no 500/502 errors.
 - **Production is now live at `panoptix.site` (2026-05-22)** behind Cloudflare Access with GitHub OAuth. Railway production backend + frontend deployed with new cryptographic keys.
 - `SUSPICIOUS_LOGIN_DETECTION_ENABLED=true` in production (login baselines track normal device/IP patterns).
@@ -29,30 +29,16 @@ This is the first document the frontend coworker should read before changing the
 - Production backup status is now `ok`: encrypted R2 backup evidence exists, isolated restore-drill evidence was recorded against a temporary Neon branch, that temporary branch was deleted, and the production GitHub Actions backup/retention workflow has succeeded. Backup automation and retention are system-owner work, not frontend work.
 - Gateway Discovery V2 backend and edge-agent APIs are implemented and active on `main`, and production is migrated through `0012_gateway_discovery_runs`. Gateway Discovery UI is optional future frontend work only; do not start it unless Ivan explicitly reassigns it.
 - Production gateway host traffic uses gateway auth plus Cloudflare Access service-token headers. Raw gateway service tokens and Cloudflare Access client secrets belong only on the gateway host, never in frontend code.
-- Real LiveKit browser subscriber playback is still not production-complete.
+- Real LiveKit browser subscriber playback is implemented using `@livekit/components-react` and `livekit-client`; production validation with real cameras is pending.
 - Real CCTV hardware validation is still pending.
 
 ## What To Do Next
 
-1. Wire the existing Alerts page to the real backend alert APIs:
-   - `GET /api/v1/admin/alerts`
-   - `GET /api/v1/admin/alerts/{alert_id}`
-   - `POST /api/v1/admin/alerts/{alert_id}/acknowledge`
-   - `POST /api/v1/admin/alerts/{alert_id}/resolve`
-2. Build the admin visitor investigation UI from `GET /api/v1/admin/visitor-visits` and `GET /api/v1/admin/visitor-visits/{visit_id}`:
-   - visitor summary
-   - IP/location/security flags
-   - browser/device context
-   - WebRTC check
-   - timing/server context
-   - login correlation and risk context
-3. Build the actor investigation UI from `GET /api/v1/admin/actors/{actor_type}/{actor_id}/profile` and `/activity`:
-   - profile drawer/page
-   - activity timeline
-   - alert summary
-   - login baseline and IP/device context for user actors
-4. Finish real LiveKit subscriber playback using `GET /api/v1/cameras/{camera_id}/view-token`.
-5. Add full audit filter controls for actor, severity, category, outcome, resource, session, and date range.
+1. ~~Wire the existing Alerts page to the real backend alert APIs~~ — ✅ Done. AlertsPanel wired to list/detail/acknowledge/resolve APIs.
+2. ~~Build the admin visitor investigation UI~~ — ✅ Done. VisitorInvestigationPage shows all 8 documented sections.
+3. ~~Build the actor investigation UI~~ — ✅ Done. ActorInvestigationPage shows profile + activity timeline.
+4. ~~Finish real LiveKit subscriber playback~~ — ✅ Done. CameraDetailModal uses `@livekit/components-react` subscriber-only viewer.
+5. ~~Add full audit filter controls~~ — ✅ Done. AuditLogTable has all 10 backend-supported filter parameters.
 6. Browser-smoke every current sidebar page and destructive/error states against production-like data:
    - Dashboard
    - Live Cameras
@@ -64,8 +50,11 @@ This is the first document the frontend coworker should read before changing the
    - System Health
    - Break Glass
    - Settings
-7. Fix only API contract and wiring issues found during smoke. Do not redesign UI/UX or add roadmap-only pages unless explicitly assigned.
-8. Do not implement Gateway Discovery UI unless Ivan explicitly reassigns it. The backend/edge discovery path exists, but real camera LAN/VLAN validation remains system-owner work.
+7. Validate production LiveKit camera playback with real cameras once hardware is connected.
+8. Verify disabled-account UX returns clear messaging on login and invite attempts.
+9. Remove any remaining phantom API calls (requests to endpoints that do not exist or are not yet implemented).
+10. Fix only API contract and wiring issues found during smoke. Do not redesign UI/UX or add roadmap-only pages unless explicitly assigned.
+11. Do not implement Gateway Discovery UI unless Ivan explicitly reassigns it. The backend/edge discovery path exists, but real camera LAN/VLAN validation remains system-owner work.
 
 ## Hard Guardrails
 
