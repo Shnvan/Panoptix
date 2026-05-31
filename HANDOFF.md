@@ -147,6 +147,8 @@ Current state:
 - React/Vite frontend includes the login shell, viewer dashboard, camera modal, admin dashboard, users, cameras, gateways, audit/compliance, DSR, break-glass, health, settings, dev-auth headers, and same-origin API client
 - frontend lint/build passed after merge and after local smoke cleanup
 - local same-origin smoke has passed through the Vite proxy for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health
+- local camera modal viewer-token smoke passed with `admin-smoke@example.test` assigned to an existing synthetic camera; the modal called `/api/v1/cameras/{camera_id}/view-token`, connected as a LiveKit subscriber, made no browser media capture calls, and persisted no token material beyond the theme preference
+- production browser smoke at `panoptix.site` is next after the viewer-token/session fix is deployed or otherwise confirmed present in production
 - local API configuration uses `apps/api/.env`, which is ignored by Git; do not commit database URLs, audit keys, LiveKit keys, GitHub tokens, R2 secrets, or gateway service tokens
 - production backend migration state is at Alembic head `0012_gateway_discovery_runs`
 - `github-invites-not-configured` is expected locally while `GITHUB_INVITES_ENABLED=false`
@@ -279,6 +281,8 @@ Current state:
 - React/Vite frontend includes the login shell, viewer dashboard, camera modal, admin dashboard, users, cameras, gateways, audit/compliance, DSR, break-glass, health, settings, dev-auth headers, and same-origin API client
 - frontend lint/build passed after merge and after local smoke cleanup
 - local same-origin smoke has passed through the Vite proxy for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health
+- local camera modal viewer-token smoke passed with `admin-smoke@example.test` assigned to an existing synthetic camera; the modal called `/api/v1/cameras/{camera_id}/view-token`, connected as a LiveKit subscriber, made no browser media capture calls, and persisted no token material beyond the theme preference
+- production browser smoke at `panoptix.site` is next after the viewer-token/session fix is deployed or otherwise confirmed present in production
 - local API configuration uses `apps/api/.env`, which is ignored by Git; do not commit database URLs, audit keys, LiveKit keys, GitHub tokens, R2 secrets, or gateway service tokens
 - production backend migration state is at Alembic head `0012_gateway_discovery_runs`
 - `github-invites-not-configured` is expected locally while `GITHUB_INVITES_ENABLED=false`

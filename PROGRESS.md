@@ -27,6 +27,7 @@
 ### What We Control vs What's Blocked
 
 **Can do now (no external dependencies):**
+- Local camera modal viewer-token smoke now passes with `admin-smoke@example.test` assigned to an existing synthetic camera. The modal hits `/api/v1/cameras/{camera_id}/view-token`, connects as a LiveKit subscriber, makes no browser media capture calls, and persists no token material beyond the theme preference. Production browser smoke should run only after the viewer-token/session fix is deployed or confirmed present in production.
 - Keep static checks green, document operational changes, and prepare the real gateway host runbook flow. Production is live; the main product-path blockers are real LiveKit browser playback, real camera hardware validation, Alerts page API wiring, actor investigation UI, admin visitor investigation UI, and full audit filters.
 - GitHub organization invites are now live on staging (`panoptix-site` org). `GITHUB_INVITES_ENABLED=true`, `GITHUB_ORG=panoptix-site`, and `GITHUB_INVITE_TOKEN` are set in Railway. Staging smoke confirmed invite endpoint works — invited users appear in Users & Access with assigned roles (2026-05-21).
 - Pilot alert records exist for high-value backend events, `/entry` Continue events, and selected intrusion/abuse audit events. Production alert email delivery is active through Resend SMTP with `ALERT_EMAIL_RECIPIENT_MODE=admins`, so active admin users receive high/critical alert emails; local/staging email delivery remains opt-in and must use approved SMTP secrets only.
