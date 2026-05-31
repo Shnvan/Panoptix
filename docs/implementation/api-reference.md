@@ -39,16 +39,19 @@ FastAPI remains the security authority. Browser responses must not expose RTSP U
 
 The visitor collector pilot uses the narrowly public same-domain `https://panoptix.site/entry` frontend entry view. That page fetches the notice first and posts collection only after the visitor explicitly continues. Production Cloudflare redirects first-time `https://panoptix.site/` requests to `/entry` only when `panoptix_visitor` is absent; returning visitors with that signed cookie go directly to the protected Cloudflare Access flow. A successful Continue collection creates a high-severity backend alert/email to active admins with sanitized metadata only. The protected root itself does not collect visitor browser signals.
 
-Public Access exceptions are limited to `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect`. Keep `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` protected. Never make broad `/api/v1/*` public.
+Public Access exceptions are limited to `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, `/api/v1/visitor/collect`, and `/api/v1/visitor/access-requests`. Keep `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` protected. Never make broad `/api/v1/*` public.
 
 | Method | Path | Auth | Notes |
 |---|---|---|---|
 | `GET` | `/api/v1/visitor/notice` | public when collector enabled | current visitor security notice version/text |
 | `POST` | `/api/v1/visitor/collect` | public when collector enabled | records approved entry signals after notice acknowledgement and sets signed visitor correlation cookie |
+| `POST` | `/api/v1/visitor/access-requests` | public when collector enabled | creates a pending access request for admin review; never creates an account or invite directly |
 
 `POST /api/v1/visitor/collect` accepts the notice version, `notice_acknowledged = true`, entry `page_path`, screen width/height, browser timezone/language, referrer, viewport size, device pixel ratio, touch support, color scheme, cookie support, browser privacy flags, browser language list, network hints, entry timing, and a normalized WebRTC candidate summary. The backend records the trusted request IP, Cloudflare Ray/country headers when present, request user-agent, timestamp, and a stored normalized Ipregistry subset when available. Raw WebRTC SDP/candidate strings, raw Ipregistry payloads, canvas/audio/WebGL/font fingerprints, coordinates, and reverse-geocoded addresses are not stored.
 
 Admin visitor list/detail responses expose the collected data as readable sections: `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, and `risk_context`. `risk_context` includes timezone/IP mismatch, language/country mismatch, WebRTC public-IP/request-IP mismatch, entry-IP/login-IP change, and repeat visitor count. The admin visitor investigation UI remains frontend handoff work.
+
+Visitor access requests collect only minimal applicant identity: name, email, optional organization, reason, and requested role. Admin review routes live under `/api/v1/admin/access-requests`; approval uses the existing GitHub organization invite flow and still respects disabled-user denial. Public requests do not grant roles, camera ACLs, Cloudflare access, or application sessions.
 
 ## Admin Routes
 
@@ -86,6 +89,10 @@ Admin visitor list/detail responses expose the collected data as readable sectio
 | `GET` | `/api/v1/admin/actors/{actor_type}/{actor_id}/activity` | actor-scoped audit activity timeline |
 | `GET` | `/api/v1/admin/visitor-visits` | list collected public entry visits |
 | `GET` | `/api/v1/admin/visitor-visits/{visit_id}` | collected public entry visit detail; detail view is audited |
+| `GET` | `/api/v1/admin/access-requests` | list pending or historical visitor access requests |
+| `GET` | `/api/v1/admin/access-requests/{request_id}` | access request detail |
+| `POST` | `/api/v1/admin/access-requests/{request_id}/approve` | approve a pending request and send the existing GitHub org invite |
+| `POST` | `/api/v1/admin/access-requests/{request_id}/reject` | reject a pending request with an optional admin note |
 | `GET` | `/api/v1/admin/audit` | list scrubbed audit rows |
 | `GET` | `/api/v1/admin/audit/verify` | verify audit HMAC chain |
 | `GET` | `/api/v1/admin/audit/export` | export scrubbed audit JSONL |

@@ -41,6 +41,7 @@ from cctv_api.models.enums import (
     RequestType,
     StreamKind,
     SubjectType,
+    VisitorAccessRequestStatus,
 )
 
 
@@ -153,6 +154,47 @@ class VisitorVisit(Base):
     __table_args__ = (
         Index("ix_visitor_visits_collected_at", "collected_at"),
         Index("ix_visitor_visits_user_id", "user_id"),
+    )
+
+
+class VisitorAccessRequest(Base):
+    __tablename__ = "visitor_access_requests"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    visitor_visit_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("visitor_visits.id", ondelete="SET NULL")
+    )
+    applicant_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    organization: Mapped[str | None] = mapped_column(String(255))
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    requested_role: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[VisitorAccessRequestStatus] = mapped_column(
+        Enum(VisitorAccessRequestStatus, name="visitor_access_request_status"),
+        nullable=False,
+        server_default=text("'pending'"),
+    )
+    requester_ip: Mapped[str | None] = mapped_column(INET)
+    requester_ua: Mapped[str | None] = mapped_column(String(512))
+    request_context: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()"), nullable=False
+    )
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decided_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    decision_note: Mapped[str | None] = mapped_column(Text)
+    github_invitation_id: Mapped[int | None] = mapped_column(Integer)
+    github_org: Mapped[str | None] = mapped_column(String(255))
+    github_invite_status: Mapped[str | None] = mapped_column(String(64))
+
+    __table_args__ = (
+        Index("ix_visitor_access_requests_status_created", "status", "created_at"),
+        Index("ix_visitor_access_requests_email_status", "email", "status"),
+        Index("ix_visitor_access_requests_visitor_visit_id", "visitor_visit_id"),
     )
 
 

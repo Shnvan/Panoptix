@@ -182,6 +182,38 @@ def require_authenticated_user(
     )
 
 
+def _ensure_dev_session_context(
+    request: Request,
+    response: Response,
+    *,
+    settings: Settings,
+    db: DbSession,
+    principal: Principal,
+) -> None:
+    """Attach a local dev session only where a DB-backed grant requires it."""
+    user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    cookie_value = request.cookies.get(settings.SESSION_COOKIE_NAME)
+    session_id = read_session_cookie(cookie_value or "", settings.SESSION_SIGNING_KEY) if cookie_value else None
+    session_row = get_active_session(db, session_id) if session_id else None
+    if session_row is None or session_row.user_id != user.id:
+        ip = browser_request_ip(request, settings)
+        ua = request.headers.get("user-agent", "")[:255]
+        session_row = create_session(db, user_id=user.id, ua_fp=ua, ip=ip)
+        signed = create_session_cookie(session_row.id, settings.SESSION_SIGNING_KEY)
+        response.set_cookie(
+            key=settings.SESSION_COOKIE_NAME,
+            value=signed,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            path="/",
+        )
+    else:
+        touch_session(db, session_row.id)
+    _set_csrf_cookie(response, session_row.id, settings)
+    request.state.audit_session_id = session_row.id
+
+
 def require_gateway_identity(
     request: Request,
     settings: Settings = Depends(get_settings),
