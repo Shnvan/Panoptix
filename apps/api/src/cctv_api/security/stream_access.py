@@ -62,11 +62,13 @@ def record_stream_grant(
     expires_at: datetime,
     user_id: uuid.UUID | None = None,
     gateway_id: uuid.UUID | None = None,
+    session_id: uuid.UUID | None = None,
 ) -> StreamGrant:
     grant = StreamGrant(
         id=uuid.uuid4(),
         user_id=user_id,
         gateway_id=gateway_id,
+        session_id=session_id,
         camera_id=camera_id,
         jti=jti,
         kind=kind,

@@ -19,6 +19,7 @@ from cctv_api.models.tables import (
     CameraAcl,
     EdgeGateway,
     GatewayCameraAssignment,
+    Session,
     StreamGrant,
     User,
 )
@@ -134,6 +135,8 @@ def test_viewer_token_succeeds_with_active_camera_acl(test_db_session: DbSession
     grants = test_db_session.execute(select(StreamGrant)).scalars().all()
     assert len(grants) == 1
     assert grants[0].kind == StreamKind.viewer_subscribe
+    assert grants[0].session_id is not None
+    assert test_db_session.get(Session, grants[0].session_id) is not None
     audit_rows = test_db_session.execute(select(AuditLog)).scalars().all()
     assert [row.action for row in audit_rows] == ["viewer.token.issued"]
     assert audit_rows[0].payload is not None

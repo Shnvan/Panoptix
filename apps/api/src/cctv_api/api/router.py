@@ -71,7 +71,7 @@ from cctv_api.security.policy import require_role
 from cctv_api.security.rate_limit import RateLimitConfig, get_rate_limiter
 from cctv_api.security.request_ip import browser_request_ip
 from cctv_api.security.service_tokens import generate_service_token, hash_service_token
-from cctv_api.security.sessions import list_active_sessions, revoke_all_user_sessions, revoke_session
+from cctv_api.security.sessions import create_session, list_active_sessions, revoke_all_user_sessions, revoke_session
 from cctv_api.security.stream_access import (
     get_active_camera,
     record_stream_grant,
@@ -590,6 +590,13 @@ def get_camera_view_token(
     record_stream_grant(
         db,
         user_id=user.id,
+        session_id=_viewer_stream_grant_session_id(
+            request,
+            db=db,
+            settings=settings,
+            principal=principal,
+            user=user,
+        ),
         camera_id=camera_uuid,
         kind=StreamKind.viewer_subscribe,
         jti=grant.jti,
@@ -1039,6 +1046,30 @@ def _normalize_invite_email(value: str) -> str:
 
 def _audit_session_id(request: Request) -> uuid.UUID | None:
     return getattr(request.state, "audit_session_id", None)
+
+
+def _viewer_stream_grant_session_id(
+    request: Request,
+    *,
+    db: DbSession,
+    settings: Settings,
+    principal: Principal,
+    user: User,
+) -> uuid.UUID | None:
+    session_id = _audit_session_id(request)
+    if session_id is not None:
+        return session_id
+    if not principal.is_dev:
+        return None
+
+    session_row = create_session(
+        db,
+        user_id=user.id,
+        ua_fp=request.headers.get("user-agent", "")[:255],
+        ip=browser_request_ip(request, settings),
+    )
+    request.state.audit_session_id = session_row.id
+    return session_row.id
 
 
 def _record_user_audit_safely(
