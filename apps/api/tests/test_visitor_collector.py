@@ -13,8 +13,9 @@ import cctv_api.security.dependencies as dependencies
 from cctv_api.api.visitors import CURRENT_VISITOR_NOTICE_BODY
 from cctv_api.core.config import Settings
 from cctv_api.db import db_session
+from cctv_api.integrations.github_invites import GitHubInviteResult
 from cctv_api.main import create_app
-from cctv_api.models.enums import AlertNotificationStatus, AlertSeverity
+from cctv_api.models.enums import AlertNotificationStatus, AlertSeverity, VisitorAccessRequestStatus
 from cctv_api.models.tables import (
     Alert,
     AlertNotification,
@@ -23,6 +24,7 @@ from cctv_api.models.tables import (
     Session as UserSession,
     User,
     UserRole,
+    VisitorAccessRequest,
     VisitorVisit,
 )
 from cctv_api.security.identity import Principal, PrincipalKind
@@ -459,6 +461,235 @@ def test_visitor_collection_is_rate_limited(test_db_session: DbSession) -> None:
     assert response.status_code == 429
     assert response.json()["detail"] == "visitor-collect-rate-limited"
     get_rate_limiter().reset()
+
+
+def test_public_access_request_creates_pending_request_and_links_visitor_cookie(
+    test_db_session: DbSession,
+) -> None:
+    client = _client(test_db_session)
+    collect = client.post("/api/v1/visitor/collect", json=_collect_payload())
+    assert collect.status_code == 201
+
+    response = client.post(
+        "/api/v1/visitor/access-requests",
+        headers={"user-agent": "Mozilla/5.0"},
+        json={
+            "applicant_name": "Ivan Liao",
+            "email": "IVAN@example.test",
+            "organization": "Security Team",
+            "reason": "Need viewer access for CCTV monitoring.",
+            "requested_role": "viewer",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["status"] == "pending"
+    row = test_db_session.execute(select(VisitorAccessRequest)).scalar_one()
+    visit = test_db_session.execute(select(VisitorVisit)).scalar_one()
+    assert row.email == "ivan@example.test"
+    assert row.status == VisitorAccessRequestStatus.pending
+    assert str(row.visitor_visit_id) == str(visit.id)
+    audit = test_db_session.execute(
+        select(AuditLog).where(AuditLog.action == "visitor.access_request.created")
+    ).scalar_one()
+    assert audit.resource == f"visitor-access-request:{row.id}"
+
+
+def test_public_access_request_rejects_invalid_duplicate_and_rate_limited_requests(
+    test_db_session: DbSession,
+) -> None:
+    get_rate_limiter().reset()
+    client = _client(
+        test_db_session,
+        RATE_LIMIT_VISITOR_COLLECT_MAX=10,
+        RATE_LIMIT_VISITOR_COLLECT_WINDOW=60,
+    )
+    invalid_email = client.post(
+        "/api/v1/visitor/access-requests",
+        json={
+            "applicant_name": "Ivan",
+            "email": "not-an-email",
+            "reason": "Need access.",
+            "requested_role": "viewer",
+        },
+    )
+    invalid_role = client.post(
+        "/api/v1/visitor/access-requests",
+        json={
+            "applicant_name": "Ivan",
+            "email": "ivan@example.test",
+            "reason": "Need access.",
+            "requested_role": "owner",
+        },
+    )
+    first = client.post(
+        "/api/v1/visitor/access-requests",
+        json={
+            "applicant_name": "Ivan",
+            "email": "ivan@example.test",
+            "reason": "Need access.",
+            "requested_role": "viewer",
+        },
+    )
+    duplicate = client.post(
+        "/api/v1/visitor/access-requests",
+        json={
+            "applicant_name": "Ivan",
+            "email": "ivan@example.test",
+            "reason": "Need access again.",
+            "requested_role": "viewer",
+        },
+    )
+
+    assert invalid_email.status_code == 400
+    assert invalid_email.json()["detail"] == "email-invalid"
+    assert invalid_role.status_code == 400
+    assert invalid_role.json()["detail"] == "requested-role-invalid"
+    assert first.status_code == 201
+    assert duplicate.status_code == 409
+    assert duplicate.json()["detail"] == "access-request-already-pending"
+
+    get_rate_limiter().reset()
+    limited_client = _client(
+        test_db_session,
+        RATE_LIMIT_VISITOR_COLLECT_MAX=1,
+        RATE_LIMIT_VISITOR_COLLECT_WINDOW=60,
+    )
+    assert limited_client.post(
+        "/api/v1/visitor/access-requests",
+        json={
+            "applicant_name": "One",
+            "email": "one@example.test",
+            "reason": "Need access.",
+            "requested_role": "viewer",
+        },
+    ).status_code == 201
+    limited = limited_client.post(
+        "/api/v1/visitor/access-requests",
+        json={
+            "applicant_name": "Two",
+            "email": "two@example.test",
+            "reason": "Need access.",
+            "requested_role": "viewer",
+        },
+    )
+    assert limited.status_code == 429
+    assert limited.json()["detail"] == "access-request-rate-limited"
+    get_rate_limiter().reset()
+
+
+def test_admin_access_request_review_requires_admin_and_supports_reject(
+    test_db_session: DbSession,
+) -> None:
+    row = VisitorAccessRequest(
+        id=uuid.uuid4(),
+        applicant_name="Ivan",
+        email="ivan@example.test",
+        reason="Need access.",
+        requested_role="viewer",
+        status=VisitorAccessRequestStatus.pending,
+    )
+    test_db_session.add(row)
+    test_db_session.commit()
+    client = _client(test_db_session)
+
+    unauthenticated = client.get("/api/v1/admin/access-requests")
+    viewer = client.get("/api/v1/admin/access-requests", headers=_VIEWER_HEADERS)
+    listed = client.get("/api/v1/admin/access-requests", headers=_ADMIN_HEADERS)
+    rejected = client.post(
+        f"/api/v1/admin/access-requests/{row.id}/reject",
+        headers=_ADMIN_HEADERS,
+        json={"decision_note": "Not approved for pilot."},
+    )
+
+    assert unauthenticated.status_code == 401
+    assert viewer.status_code == 403
+    assert listed.status_code == 200
+    assert listed.json()["items"][0]["email"] == "ivan@example.test"
+    assert rejected.status_code == 200
+    assert rejected.json()["status"] == "rejected"
+    audit = test_db_session.execute(
+        select(AuditLog).where(AuditLog.action == "admin.access_request.rejected")
+    ).scalar_one()
+    assert audit.resource == f"visitor-access-request:{row.id}"
+
+
+def test_admin_access_request_approve_invites_and_assigns_requested_role(
+    test_db_session: DbSession,
+) -> None:
+    role = Role(id=1, name="viewer")
+    row = VisitorAccessRequest(
+        id=uuid.uuid4(),
+        applicant_name="Ivan",
+        email="ivan@example.test",
+        organization="Security Team",
+        reason="Need access.",
+        requested_role="viewer",
+        status=VisitorAccessRequestStatus.pending,
+    )
+    test_db_session.add_all([role, row])
+    test_db_session.commit()
+    client = _client(test_db_session, GITHUB_INVITES_ENABLED=True)
+
+    with patch("cctv_api.api.visitors.create_github_org_invitation") as mock_invite:
+        mock_invite.return_value = GitHubInviteResult(
+            invitation_id=123,
+            org="panoptix-test",
+            status="invited",
+        )
+        response = client.post(
+            f"/api/v1/admin/access-requests/{row.id}/approve",
+            headers=_ADMIN_HEADERS,
+            json={"decision_note": "Approved for pilot."},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "approved"
+    assert data["github_invitation_id"] == 123
+    user = test_db_session.execute(select(User).where(User.email == "ivan@example.test")).scalar_one()
+    assigned = test_db_session.execute(select(UserRole).where(UserRole.user_id == str(user.id))).scalar_one()
+    assert assigned.role_id == 1
+    mock_invite.assert_called_once()
+    audit = test_db_session.execute(
+        select(AuditLog).where(AuditLog.action == "admin.access_request.approved")
+    ).scalar_one()
+    assert audit.payload["target_email"] == "ivan@example.test"
+
+
+def test_admin_access_request_approve_denies_disabled_user_without_invite(
+    test_db_session: DbSession,
+) -> None:
+    role = Role(id=1, name="viewer")
+    user = User(id=uuid.uuid4(), email="disabled@example.test", disabled_at=datetime.now(timezone.utc))
+    row = VisitorAccessRequest(
+        id=uuid.uuid4(),
+        applicant_name="Disabled User",
+        email="disabled@example.test",
+        reason="Need access.",
+        requested_role="viewer",
+        status=VisitorAccessRequestStatus.pending,
+    )
+    test_db_session.add_all([role, user, row])
+    test_db_session.commit()
+    client = _client(test_db_session, GITHUB_INVITES_ENABLED=True)
+
+    with patch("cctv_api.api.visitors.create_github_org_invitation") as mock_invite:
+        response = client.post(
+            f"/api/v1/admin/access-requests/{row.id}/approve",
+            headers=_ADMIN_HEADERS,
+            json={"decision_note": "Check disabled account."},
+        )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "user-disabled"
+    mock_invite.assert_not_called()
+    test_db_session.refresh(row)
+    assert row.status == VisitorAccessRequestStatus.pending
+    audit = test_db_session.execute(
+        select(AuditLog).where(AuditLog.action == "admin.access_request.approve.denied.user_disabled")
+    ).scalar_one()
+    assert audit.resource == f"visitor-access-request:{row.id}"
 
 
 def test_admin_visitor_read_apis_require_admin_and_audit_detail(

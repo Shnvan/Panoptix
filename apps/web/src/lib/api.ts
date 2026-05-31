@@ -135,6 +135,12 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  createVisitorAccessRequest: (body: import('./types').VisitorAccessRequestCreate) =>
+    apiFetch<import('./types').VisitorAccessRequestCreateResponse>('/api/v1/visitor/access-requests', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
   // ── Admin: Users ──
   listAdminUsers: (cursor?: string, limit = 50, email?: string) => {
     const p = new URLSearchParams();
@@ -394,23 +400,67 @@ export const api = {
   getAdminVisitorVisit: (visitId: string) =>
     apiFetch<import('./types').VisitorVisitDetail>(`/api/v1/admin/visitor-visits/${visitId}`),
 
-  // ── Admin: Actor Profile ──
-  getActorProfile: (actorType: string, actorId: string) =>
-    apiFetch<import('./types').ActorProfileResponse>(`/api/v1/admin/actors/${actorType}/${actorId}/profile`),
-
-  getActorActivity: (actorType: string, actorId: string, cursor?: string, limit = 50) => {
-    const p = new URLSearchParams();
-    if (cursor) p.set('cursor', cursor);
-    p.set('limit', String(limit));
-    return apiFetch<import('./types').ActorActivityResponse>(`/api/v1/admin/actors/${actorType}/${actorId}/activity?${p}`);
-  },
-
-  // ── Admin: Alerts ──
-  listAdminAlerts: (cursor?: string, limit = 50, status?: string) => {
+  listAdminAccessRequests: (cursor?: string, limit = 50, status?: string) => {
     const p = new URLSearchParams();
     if (cursor) p.set('cursor', cursor);
     p.set('limit', String(limit));
     if (status) p.set('status', status);
+    return apiFetch<import('./types').VisitorAccessRequestListResponse>(`/api/v1/admin/access-requests?${p}`);
+  },
+
+  getAdminAccessRequest: (requestId: string) =>
+    apiFetch<import('./types').VisitorAccessRequest>(`/api/v1/admin/access-requests/${requestId}`),
+
+  approveAccessRequest: (requestId: string, decisionNote?: string) =>
+    apiFetch<import('./types').VisitorAccessRequest>(`/api/v1/admin/access-requests/${requestId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ decision_note: decisionNote || undefined }),
+    }),
+
+  rejectAccessRequest: (requestId: string, decisionNote?: string) =>
+    apiFetch<import('./types').VisitorAccessRequest>(`/api/v1/admin/access-requests/${requestId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ decision_note: decisionNote || undefined }),
+    }),
+
+  // ── Admin: Actor Profile ──
+  getActorProfile: (actorType: string, actorId: string) =>
+    apiFetch<import('./types').ActorProfileResponse>(`/api/v1/admin/actors/${actorType}/${actorId}/profile`),
+
+  getActorActivity: (actorType: string, actorId: string, opts: {
+    cursor?: string;
+    limit?: number;
+    action?: string;
+    severity?: string;
+    category?: string;
+    outcome?: string;
+    resource?: string;
+    session_id?: string;
+    ts_from?: string;
+    ts_to?: string;
+  } = {}) => {
+    const p = new URLSearchParams();
+    if (opts.cursor) p.set('cursor', opts.cursor);
+    p.set('limit', String(opts.limit ?? 50));
+    if (opts.action) p.set('action', opts.action);
+    if (opts.severity) p.set('severity', opts.severity);
+    if (opts.category) p.set('category', opts.category);
+    if (opts.outcome) p.set('outcome', opts.outcome);
+    if (opts.resource) p.set('resource', opts.resource);
+    if (opts.session_id) p.set('session_id', opts.session_id);
+    if (opts.ts_from) p.set('ts_from', opts.ts_from);
+    if (opts.ts_to) p.set('ts_to', opts.ts_to);
+    return apiFetch<import('./types').ActorActivityResponse>(`/api/v1/admin/actors/${actorType}/${actorId}/activity?${p}`);
+  },
+
+  // ── Admin: Alerts ──
+  listAdminAlerts: (cursor?: string, limit = 50, status?: string, severity?: string, category?: string) => {
+    const p = new URLSearchParams();
+    if (cursor) p.set('cursor', cursor);
+    p.set('limit', String(limit));
+    if (status) p.set('status', status);
+    if (severity) p.set('severity', severity);
+    if (category) p.set('category', category);
     return apiFetch<import('./types').AlertListResponse>(`/api/v1/admin/alerts?${p}`);
   },
 

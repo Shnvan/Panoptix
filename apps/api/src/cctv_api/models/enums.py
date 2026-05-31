@@ -141,3 +141,10 @@ class AlertNotificationStatus(str, enum.Enum):
     sent = "sent"
     failed = "failed"
 
+
+class VisitorAccessRequestStatus(str, enum.Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+    cancelled = "cancelled"
+

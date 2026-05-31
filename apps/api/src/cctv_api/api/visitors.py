@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import uuid
+import re
 from ipaddress import ip_address
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Query, Request, Response
@@ -13,7 +14,13 @@ from sqlalchemy.orm import Session as DbSession
 from cctv_api.api.errors import ProblemDetail
 from cctv_api.core.config import Settings, get_settings
 from cctv_api.db import db_session
-from cctv_api.models.enums import ActorType
+from cctv_api.integrations.github_invites import (
+    GitHubInviteConfigError,
+    GitHubInviteError,
+    create_github_org_invitation,
+)
+from cctv_api.models.enums import ActorType, VisitorAccessRequestStatus
+from cctv_api.models.tables import Role, User, UserRole, VisitorAccessRequest
 from cctv_api.models.tables import Session as UserSession
 from cctv_api.models.tables import VisitorVisit
 from cctv_api.security.audit import AuditLogError, record_audit_event
@@ -30,7 +37,8 @@ from cctv_api.security.policy import require_role
 from cctv_api.security.rate_limit import RateLimitConfig, get_rate_limiter
 from cctv_api.security.request_ip import browser_request_ip
 from cctv_api.security.users import get_or_create_user
-from cctv_api.security.visitor_cookie import create_visitor_cookie
+from cctv_api.security.users import get_user_roles
+from cctv_api.security.visitor_cookie import create_visitor_cookie, read_visitor_cookie
 
 router = APIRouter()
 
@@ -112,6 +120,47 @@ class VisitorCollectResponse(BaseModel):
     collected_at: datetime
 
 
+class VisitorAccessRequestCreate(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    applicant_name: str = Field(min_length=1, max_length=255)
+    email: str = Field(min_length=3, max_length=320)
+    organization: str | None = Field(default=None, max_length=255)
+    reason: str = Field(min_length=1, max_length=2000)
+    requested_role: str = Field(default="viewer", min_length=1, max_length=64)
+
+
+class VisitorAccessRequestDecision(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    decision_note: str | None = Field(default=None, max_length=2000)
+
+
+class VisitorAccessRequestResponse(BaseModel):
+    request_id: uuid.UUID
+    applicant_name: str
+    email: str
+    organization: str | None
+    reason: str
+    requested_role: str
+    status: str
+    visitor_visit_id: uuid.UUID | None
+    requester_ip: str | None
+    created_at: datetime | None
+    decided_at: datetime | None
+    decided_by_user_id: uuid.UUID | None
+    decision_note: str | None
+    github_invitation_id: int | None
+    github_org: str | None
+    github_invite_status: str | None
+
+
+class VisitorAccessRequestCreateResponse(BaseModel):
+    request_id: uuid.UUID
+    status: str
+    next_step: str
+
+
 @router.get("/visitor/notice")
 def get_visitor_notice(
     settings: Settings = Depends(get_settings),
@@ -177,6 +226,59 @@ def collect_visitor_visit(
     )
 
 
+@router.post("/visitor/access-requests", status_code=201)
+def create_visitor_access_request(
+    body: VisitorAccessRequestCreate,
+    request: Request,
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> VisitorAccessRequestCreateResponse:
+    _require_collector_enabled(settings)
+    email = _normalize_email(body.email)
+    requested_role = _normalize_requested_role(body.requested_role)
+    applicant_name = _bounded_required(body.applicant_name, "applicant-name-required", 255)
+    reason = _bounded_required(body.reason, "access-request-reason-required", 2000)
+    organization = _optional_bounded(body.organization, 255)
+    ip = browser_request_ip(request, settings)
+    _check_access_request_rate_limit(ip=ip, email=email, settings=settings)
+
+    existing = db.execute(
+        select(VisitorAccessRequest)
+        .where(VisitorAccessRequest.email == email)
+        .where(VisitorAccessRequest.status == VisitorAccessRequestStatus.pending)
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise ProblemDetail(
+            status=409,
+            title="Conflict",
+            detail="access-request-already-pending",
+            type_uri="https://panoptix.local/problems/conflict",
+        )
+
+    access_request = VisitorAccessRequest(
+        id=uuid.uuid4(),
+        visitor_visit_id=_visitor_visit_id_from_cookie(request, settings),
+        applicant_name=applicant_name,
+        email=email,
+        organization=organization,
+        reason=reason,
+        requested_role=requested_role,
+        requester_ip=ip,
+        requester_ua=_request_ua(request),
+        request_context=_server_context_payload(request),
+    )
+    db.add(access_request)
+    db.flush()
+    _record_public_access_request_audit_safely(db, settings=settings, request=request, row=access_request)
+    db.commit()
+    db.refresh(access_request)
+    return VisitorAccessRequestCreateResponse(
+        request_id=access_request.id,
+        status=access_request.status.value,
+        next_step="An administrator must review this request before any account invite is sent.",
+    )
+
+
 @router.get("/admin/visitor-visits")
 def list_visitor_visits(
     cursor: str | None = Query(default=None, max_length=36),
@@ -227,9 +329,239 @@ def get_visitor_visit(
     return _visit_response(row, db)
 
 
+@router.get("/admin/access-requests")
+def list_access_requests(
+    status: str | None = Query(default=None, max_length=32),
+    cursor: str | None = Query(default=None, max_length=36),
+    limit: int = Query(default=50, ge=1, le=200),
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+) -> dict[str, object]:
+    require_role(principal, "admin")
+    query = select(VisitorAccessRequest).order_by(
+        VisitorAccessRequest.created_at.desc(), VisitorAccessRequest.id.desc()
+    )
+    if status is not None:
+        query = query.where(VisitorAccessRequest.status == _parse_access_request_status(status))
+    if cursor is not None:
+        cursor_id = _parse_uuid(cursor, "cursor-invalid")
+        cursor_row = db.execute(
+            select(VisitorAccessRequest).where(VisitorAccessRequest.id == str(cursor_id))
+        ).scalar_one_or_none()
+        if cursor_row is not None:
+            query = query.where(VisitorAccessRequest.created_at < cursor_row.created_at)
+    rows = list(db.execute(query.limit(limit + 1)).scalars().all())
+    has_more = len(rows) > limit
+    if has_more:
+        rows = rows[:limit]
+    return {
+        "items": [_access_request_response(row) for row in rows],
+        "next_cursor": str(rows[-1].id) if has_more and rows else None,
+    }
+
+
+@router.get("/admin/access-requests/{request_id}")
+def get_access_request(
+    request_id: str,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+) -> VisitorAccessRequestResponse:
+    require_role(principal, "admin")
+    return _access_request_response(_get_access_request_or_404(db, request_id))
+
+
+@router.post("/admin/access-requests/{request_id}/approve")
+def approve_access_request(
+    request_id: str,
+    body: VisitorAccessRequestDecision,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> VisitorAccessRequestResponse:
+    require_role(principal, "admin")
+    row = _get_access_request_or_404(db, request_id)
+    _require_pending_access_request(row)
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    role = _role_or_404(db, row.requested_role)
+    target_user = db.execute(select(User).where(User.email == row.email)).scalar_one_or_none()
+    if target_user is not None and target_user.disabled_at is not None:
+        _record_access_request_audit_safely(
+            db,
+            settings=settings,
+            request=request,
+            actor_id=actor.id,
+            action="admin.access_request.approve.denied.user_disabled",
+            row=row,
+            payload={"target_email": row.email, "decision_note": body.decision_note},
+        )
+        raise ProblemDetail(
+            status=409,
+            title="Conflict",
+            detail="user-disabled",
+            type_uri="https://panoptix.local/problems/conflict",
+        )
+    if target_user is None:
+        target_user = User(id=uuid.uuid4(), email=row.email, idp_subject=None)
+        db.add(target_user)
+        db.flush()
+    existing_role_ids = set(
+        db.execute(select(UserRole.role_id).where(UserRole.user_id == str(target_user.id))).scalars().all()
+    )
+    if role.id not in existing_role_ids:
+        db.add(UserRole(user_id=target_user.id, role_id=role.id))
+    db.flush()
+
+    try:
+        invite_result = create_github_org_invitation(settings, email=row.email)
+    except GitHubInviteConfigError as exc:
+        db.rollback()
+        raise ProblemDetail(
+            status=503,
+            title="Service Unavailable",
+            detail=str(exc),
+            type_uri="https://panoptix.local/problems/service-unavailable",
+        ) from exc
+    except GitHubInviteError as exc:
+        db.rollback()
+        raise ProblemDetail(
+            status=502,
+            title="Bad Gateway",
+            detail=str(exc),
+            type_uri="https://panoptix.local/problems/bad-gateway",
+        ) from exc
+
+    row.status = VisitorAccessRequestStatus.approved
+    row.decided_at = datetime.now(timezone.utc)
+    row.decided_by_user_id = actor.id
+    row.decision_note = _optional_bounded(body.decision_note, 2000)
+    row.github_invitation_id = invite_result.invitation_id
+    row.github_org = invite_result.org
+    row.github_invite_status = invite_result.status
+    _record_access_request_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=actor.id,
+        action="admin.access_request.approved",
+        row=row,
+        payload={
+            "target_user_id": str(target_user.id),
+            "target_email": row.email,
+            "role_names": sorted(set(get_user_roles(db, target_user.id)) | {row.requested_role}),
+            "github_org": invite_result.org,
+            "github_invitation_id": invite_result.invitation_id,
+            "github_invite_status": invite_result.status,
+            "decision_note": row.decision_note,
+        },
+    )
+    db.commit()
+    db.refresh(row)
+    return _access_request_response(row)
+
+
+@router.post("/admin/access-requests/{request_id}/reject")
+def reject_access_request(
+    request_id: str,
+    body: VisitorAccessRequestDecision,
+    request: Request,
+    principal: Principal = Depends(require_authenticated_user),
+    db: DbSession = Depends(db_session),
+    settings: Settings = Depends(get_settings),
+) -> VisitorAccessRequestResponse:
+    require_role(principal, "admin")
+    row = _get_access_request_or_404(db, request_id)
+    _require_pending_access_request(row)
+    actor = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
+    row.status = VisitorAccessRequestStatus.rejected
+    row.decided_at = datetime.now(timezone.utc)
+    row.decided_by_user_id = actor.id
+    row.decision_note = _optional_bounded(body.decision_note, 2000)
+    _record_access_request_audit_required(
+        db,
+        settings=settings,
+        request=request,
+        actor_id=actor.id,
+        action="admin.access_request.rejected",
+        row=row,
+        payload={"target_email": row.email, "decision_note": row.decision_note},
+    )
+    db.commit()
+    db.refresh(row)
+    return _access_request_response(row)
+
+
 def _require_collector_enabled(settings: Settings) -> None:
     if not settings.VISITOR_COLLECTOR_ENABLED:
         raise _not_found("visitor-collector-disabled")
+
+
+def _normalize_email(value: str) -> str:
+    email = value.strip().lower()
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        raise ProblemDetail(
+            status=400,
+            title="Bad Request",
+            detail="email-invalid",
+            type_uri="https://panoptix.local/problems/bad-request",
+        )
+    return email
+
+
+def _normalize_requested_role(value: str) -> str:
+    role = value.strip().lower()
+    if role not in {"viewer", "admin"}:
+        raise ProblemDetail(
+            status=400,
+            title="Bad Request",
+            detail="requested-role-invalid",
+            type_uri="https://panoptix.local/problems/bad-request",
+        )
+    return role
+
+
+def _bounded_required(value: str, detail: str, max_length: int) -> str:
+    stripped = value.strip()
+    if not stripped:
+        raise ProblemDetail(
+            status=400,
+            title="Bad Request",
+            detail=detail,
+            type_uri="https://panoptix.local/problems/bad-request",
+        )
+    return stripped[:max_length]
+
+
+def _optional_bounded(value: str | None, max_length: int) -> str | None:
+    stripped = value.strip() if value else ""
+    return stripped[:max_length] if stripped else None
+
+
+def _visitor_visit_id_from_cookie(request: Request, settings: Settings) -> uuid.UUID | None:
+    cookie = request.cookies.get(settings.VISITOR_COOKIE_NAME)
+    if not cookie:
+        return None
+    return read_visitor_cookie(cookie, settings.VISITOR_COOKIE_SIGNING_KEY)
+
+
+def _check_access_request_rate_limit(*, ip: str | None, email: str, settings: Settings) -> None:
+    limiter = get_rate_limiter()
+    for key in (f"visitor-access-request:ip:{ip or 'unknown'}", f"visitor-access-request:email:{email}"):
+        result = limiter.check(
+            key,
+            RateLimitConfig(
+                max_requests=settings.RATE_LIMIT_VISITOR_COLLECT_MAX,
+                window_seconds=settings.RATE_LIMIT_VISITOR_COLLECT_WINDOW,
+            ),
+        )
+        if not result.allowed:
+            raise ProblemDetail(
+                status=429,
+                title="Too Many Requests",
+                detail="access-request-rate-limited",
+                type_uri="https://panoptix.local/problems/rate-limited",
+                headers={"Retry-After": str(result.retry_after)},
+            )
 
 
 def _require_notice_acknowledged(body: VisitorCollectRequest, settings: Settings) -> None:
@@ -579,6 +911,159 @@ def _create_collect_alert_safely(
         db.commit()
     except Exception:
         db.rollback()
+
+
+def _access_request_response(row: VisitorAccessRequest) -> VisitorAccessRequestResponse:
+    return VisitorAccessRequestResponse(
+        request_id=row.id,
+        applicant_name=row.applicant_name,
+        email=row.email,
+        organization=row.organization,
+        reason=row.reason,
+        requested_role=row.requested_role,
+        status=row.status.value,
+        visitor_visit_id=row.visitor_visit_id,
+        requester_ip=str(row.requester_ip) if row.requester_ip is not None else None,
+        created_at=row.created_at,
+        decided_at=row.decided_at,
+        decided_by_user_id=row.decided_by_user_id,
+        decision_note=row.decision_note,
+        github_invitation_id=row.github_invitation_id,
+        github_org=row.github_org,
+        github_invite_status=row.github_invite_status,
+    )
+
+
+def _parse_access_request_status(value: str) -> VisitorAccessRequestStatus:
+    try:
+        return VisitorAccessRequestStatus(value)
+    except ValueError as exc:
+        raise ProblemDetail(
+            status=400,
+            title="Bad Request",
+            detail="access-request-status-invalid",
+            type_uri="https://panoptix.local/problems/bad-request",
+        ) from exc
+
+
+def _get_access_request_or_404(db: DbSession, request_id: str) -> VisitorAccessRequest:
+    row = db.execute(
+        select(VisitorAccessRequest).where(
+            VisitorAccessRequest.id == str(_parse_uuid(request_id, "access-request-id-invalid"))
+        )
+    ).scalar_one_or_none()
+    if row is None:
+        raise _not_found("access-request-not-found")
+    return row
+
+
+def _require_pending_access_request(row: VisitorAccessRequest) -> None:
+    if row.status != VisitorAccessRequestStatus.pending:
+        raise ProblemDetail(
+            status=409,
+            title="Conflict",
+            detail="access-request-not-pending",
+            type_uri="https://panoptix.local/problems/conflict",
+        )
+
+
+def _role_or_404(db: DbSession, role_name: str) -> Role:
+    role = db.execute(select(Role).where(Role.name == role_name)).scalar_one_or_none()
+    if role is None:
+        raise ProblemDetail(
+            status=404,
+            title="Not Found",
+            detail="role-not-found",
+            type_uri="https://panoptix.local/problems/not-found",
+        )
+    return role
+
+
+def _record_public_access_request_audit_safely(
+    db: DbSession,
+    *,
+    settings: Settings,
+    request: Request,
+    row: VisitorAccessRequest,
+) -> None:
+    try:
+        record_audit_event(
+            db,
+            actor_type=ActorType.system,
+            audit_hmac_key_version=settings.AUDIT_HMAC_KEY_VERSION,
+            audit_hmac_key=settings.AUDIT_HMAC_KEY,
+            actor_id=None,
+            action="visitor.access_request.created",
+            resource=f"visitor-access-request:{row.id}",
+            payload={
+                "request_id": str(row.id),
+                "email": row.email,
+                "requested_role": row.requested_role,
+                "visitor_visit_id": str(row.visitor_visit_id) if row.visitor_visit_id else None,
+            },
+            ip=browser_request_ip(request, settings),
+            ua=_request_ua(request),
+            session_id=None,
+        )
+    except AuditLogError:
+        return
+
+
+def _record_access_request_audit_safely(
+    db: DbSession,
+    *,
+    settings: Settings,
+    request: Request,
+    actor_id: uuid.UUID,
+    action: str,
+    row: VisitorAccessRequest,
+    payload: dict[str, object] | None = None,
+) -> None:
+    try:
+        _record_access_request_audit_required(
+            db,
+            settings=settings,
+            request=request,
+            actor_id=actor_id,
+            action=action,
+            row=row,
+            payload=payload,
+        )
+    except AuditLogError:
+        return
+
+
+def _record_access_request_audit_required(
+    db: DbSession,
+    *,
+    settings: Settings,
+    request: Request,
+    actor_id: uuid.UUID,
+    action: str,
+    row: VisitorAccessRequest,
+    payload: dict[str, object] | None = None,
+) -> None:
+    base_payload: dict[str, object] = {
+        "request_id": str(row.id),
+        "email": row.email,
+        "requested_role": row.requested_role,
+        "status": row.status.value,
+    }
+    if payload:
+        base_payload.update(payload)
+    record_audit_event(
+        db,
+        actor_type=ActorType.user,
+        audit_hmac_key_version=settings.AUDIT_HMAC_KEY_VERSION,
+        audit_hmac_key=settings.AUDIT_HMAC_KEY,
+        actor_id=actor_id,
+        action=action,
+        resource=f"visitor-access-request:{row.id}",
+        payload=base_payload,
+        ip=browser_request_ip(request, settings),
+        ua=_request_ua(request),
+        session_id=getattr(request.state, "audit_session_id", None),
+    )
 
 
 def _record_detail_audit_safely(

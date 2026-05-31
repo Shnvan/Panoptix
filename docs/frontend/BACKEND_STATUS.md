@@ -2,20 +2,20 @@
 
 This document lists every implemented backend API endpoint, what the frontend can build against today, what is not ready yet, and local dev setup instructions.
 
-Last updated: 2026-05-28 (production Resend alert email active; Gateway Discovery V2 backend/edge active on main)
+Last updated: 2026-06-01 (visitor access request APIs added locally; production deploy/smoke pending)
 
 Read first: [Frontend Coworker Handoff](FRONTEND_HANDOFF.md).
 
 ## Current Backend State For Frontend
 
 - Local full-stack smoke is working through Vite and FastAPI when `apps/api/.env` is configured locally. That file is ignored and must never be committed.
-- Expanded visitor context uses Alembic migration `0011_visitor_expanded_signals`; production is now at Alembic head `0012_gateway_discovery_runs` and local dev databases should run `alembic upgrade head`.
+- Expanded visitor context uses Alembic migration `0011_visitor_expanded_signals`; production is currently at Alembic head `0012_gateway_discovery_runs`. The visitor access request workflow adds pending migration `0013_visitor_access_requests`; local dev databases should run `alembic upgrade head`.
 - Admin users, cameras, gateways, DSR requests, backup status, break-glass, health, and alert APIs are backend-available.
 - `POST /api/v1/admin/users/invite` is implemented, but `github-invites-not-configured` is expected unless GitHub invite settings are intentionally enabled.
 - Alert records and backend SMTP email notifications are implemented. Production sends high/critical alert emails through Resend to active admin users with `ALERT_EMAIL_RECIPIENT_MODE=admins`, including `/entry` Continue events and selected intrusion/abuse audit events.
-- Real LiveKit browser playback is still not production-complete. The backend mints subscriber-only viewer tokens; the frontend still needs the subscriber player.
+- Real LiveKit browser playback code is implemented using `@livekit/components-react` subscriber-only viewer. Production validation with real cameras is pending.
 - Real CCTV hardware validation is still pending. Staging browser smoke passed 2026-05-21. Production deployed at `panoptix.site` 2026-05-22.
-- The public visitor collector pilot is operational on same-domain `/entry`. First-time root visits redirect to `/entry` only when `panoptix_visitor` is absent; production admin API smoke confirmed expanded visitor detail sections are present. The future admin visitor dashboard remains frontend handoff work.
+- The public visitor collector pilot is operational on same-domain `/entry`. First-time root visits redirect to `/entry` only when `panoptix_visitor` is absent; production admin API smoke confirmed expanded visitor detail sections are present. The admin visitor dashboard is implemented. The new visitor access request form is implemented locally and waits on migration `0013_visitor_access_requests` plus a narrow public `POST /api/v1/visitor/access-requests` Cloudflare exception before production use.
 - Disabled users are enforced by the backend even if Cloudflare Access still authenticates the identity: protected API calls return `403 user-disabled`, app session cookies are cleared, and active Panoptix sessions for that disabled user are revoked when seen.
 - Backup status is backend evidence only, not direct browser/R2 object inspection. Production currently reports `ok` because encrypted R2 backup evidence exists, isolated restore-drill evidence has been recorded, and the GitHub Actions production backup/retention workflow has succeeded.
 - Gateway Discovery V2 backend and edge-agent APIs exist and are active on `main`, but Gateway Discovery UI is optional future frontend work only. Do not start it unless Ivan explicitly reassigns it.
@@ -167,16 +167,19 @@ These are the endpoints the frontend consumes directly.
 
 The Cloudflare Access-protected app root cannot run pre-auth frontend JavaScript. The first frontend entry view runs on narrowly public `https://panoptix.site/entry`, shows the backend notice before its explicit Continue action, and redirects to `https://panoptix.site/` after the collection attempt. Production Cloudflare redirects first-time root requests to `/entry` only when `panoptix_visitor` is absent; the protected root itself does not collect browser signals.
 
-Cloudflare must make only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect` public; broad `/api/v1/*` must remain private. `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` remain protected.
+Cloudflare must make only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, `/api/v1/visitor/collect`, and after deploy `POST /api/v1/visitor/access-requests` public; broad `/api/v1/*` must remain private. `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` remain protected.
 
 | Method | Path | Auth | Use |
 |---|---|---|---|
 | `GET` | `/api/v1/visitor/notice` | public when collector enabled | render the current visitor security notice |
 | `POST` | `/api/v1/visitor/collect` | public when collector enabled | record approved entry-page signals after the visitor continues |
+| `POST` | `/api/v1/visitor/access-requests` | public when collector enabled | create a pending admin-reviewed access request |
 
 The collect request now carries `notice_version`, `notice_acknowledged`, `page_path`, screen width/height, timezone/language, referrer, viewport size, device pixel ratio, touch support, color scheme, cookie support, browser privacy flags, browser language list, network hints, entry timing, and a normalized WebRTC candidate summary. The backend adds request IP, Cloudflare Ray/country headers when present, user-agent, Ipregistry subset when configured, and an HttpOnly visitor cookie for later login correlation. Do not render raw Ipregistry payloads or raw WebRTC SDP/candidate strings.
 
-Admin visitor list/detail responses are backend-ready with `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, and `risk_context`. The admin visitor investigation UI remains coworker-owned frontend handoff work.
+The access request body collects only minimal applicant data: `applicant_name`, `email`, `organization`, `reason`, and `requested_role` (`viewer` or `admin`). Valid submissions create pending rows only; they do not create accounts, roles, sessions, camera ACLs, GitHub invites, or Cloudflare authorization. Invalid email, missing name/reason, unsupported role, duplicate pending request, and rate-limited request return readable problem details. The form should show clear pending-review copy and must not imply automatic approval.
+
+Admin visitor list/detail responses are backend-ready with `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, and `risk_context`. The admin visitor investigation UI is implemented.
 
 ---
 
@@ -192,11 +195,16 @@ All admin endpoints require the `admin` role.
 | `POST` | `/api/v1/admin/users/{user_id}/role` | `{ "action": "grant"/"revoke", "role_name" }` | role action result |
 | `POST` | `/api/v1/admin/users/{user_id}/disable` | `{ "reason" }` | `{ "user_id", "disabled_at", "sessions_revoked" }` |
 | `POST` | `/api/v1/admin/users/invite` | `{ "email", "roles" }` | invite result |
+| `GET` | `/api/v1/admin/access-requests` | query: `status`, `cursor`, `limit`, `email` | paginated access request list |
+| `GET` | `/api/v1/admin/access-requests/{request_id}` | none | access request detail |
+| `POST` | `/api/v1/admin/access-requests/{request_id}/approve` | `{ "note"? }` | approved request + GitHub invite metadata |
+| `POST` | `/api/v1/admin/access-requests/{request_id}/reject` | `{ "reason" }` | rejected request |
 
 - Returned user list fields: `user_id`, `email`, `roles`, `role_default`, `disabled_at`, `created_at`
 - Role assignment: `action` must be `grant` or `revoke`; `role_name` must match a known role
 - Disable: sets `disabled_at` and bulk-revokes all active sessions immediately
 - Inviting an existing disabled local user returns `409 user-disabled`, does not add roles, and does not call the GitHub invite API. Re-enable must be a separate explicit admin action later.
+- Access request approval uses the existing GitHub organization invite flow, assigns requested roles only during admin approval, and marks the request approved. If the email belongs to a disabled local user, approval returns/records `409 user-disabled` and does not re-enable the user or send an invite. Rejection requires/admin-stores a reason and removes the request from the pending queue.
 
 ### Camera Management
 
@@ -358,6 +366,10 @@ Common `detail` values the frontend should handle:
 | `privacy-notice-version-mismatch` | 409 | frontend submitted a stale privacy notice version |
 | `visitor-notice-version-mismatch` | 409 | public entry page submitted a stale visitor notice version |
 | `visitor-notice-acknowledgement-required` | 400 | public entry collect was attempted without explicit acknowledgement |
+| `access-request-already-pending` | 409 | public access request already exists for this email |
+| `access-request-rate-limited` | 429 | public access request IP/email rate limit triggered |
+| `access-request-not-found` | 404 | admin access request detail/action target does not exist |
+| `access-request-not-pending` | 409 | admin tried to approve/reject an already decided request |
 | `cursor-invalid` | 400 | cursor is not a valid UUID for UUID-cursor endpoints |
 
 ---
@@ -411,10 +423,10 @@ List endpoints use cursor-based pagination:
 - [x] DSR request list/create/detail/update APIs are backend-ready
 - [x] Backup status is implemented from database-known backup readiness
 - [x] Disabled-user enforcement returns `403 user-disabled`; disabled-user invite returns `409 user-disabled`
-- [ ] Alerts page should use the real alert list/detail/acknowledge/resolve APIs
-- [ ] Actor investigation should use the real profile/activity APIs
-- [ ] Admin visitor investigation should use the real visitor visit list/detail APIs
-- [ ] Audit log UI should expose the full backend-supported filter set
+- [x] Alerts page uses the real alert list/detail/acknowledge/resolve APIs
+- [x] Actor investigation uses the real profile/activity APIs
+- [x] Admin visitor investigation uses the real visitor visit list/detail APIs
+- [x] Audit log UI exposes the full backend-supported filter set
 
 ### Session Management
 
@@ -434,7 +446,7 @@ These features are either incomplete in the frontend, need staged/production smo
 
 | Feature | Status |
 |---|---|
-| Real LiveKit Cloud video playback | LiveKit Cloud account provisioned; direct synthetic FFmpeg-to-LiveKit and backend-controlled synthetic gateway publish smoke passed. Frontend still needs subscriber playback UI. |
+| Real LiveKit Cloud video playback | LiveKit Cloud account provisioned; direct synthetic FFmpeg-to-LiveKit and backend-controlled synthetic gateway publish smoke passed. `@livekit/components-react` subscriber viewer implemented; production camera validation pending. |
 | Real camera streams | Edge agent supports opt-in `livekit-ffmpeg` publishing and synthetic RTSP smoke has passed. Real CCTV hardware validation is still pending. |
 | Full admin user management | Role update, disable, MFA reset, and GitHub-backed invite flow are implemented. GitHub invite requires configured invite env before real emails are sent. |
 | Gateway credential rotation | `POST /api/v1/admin/gateways/{id}/rotate-credential` is **implemented** (generates new service token, revokes old hash, audit-logged) |
@@ -448,11 +460,11 @@ These features are either incomplete in the frontend, need staged/production smo
 
 | Area | Backend status | Frontend gap |
 |---|---|---|
-| Alerts | List/detail/acknowledge/resolve APIs exist. | Current Alerts page still uses placeholder/default/camera-event-derived alerts instead of backend alert records. |
-| Actor investigation | Profile and activity APIs exist with alerts, login baseline, IP/device, and audit context. | No actor profile drawer/page or activity timeline UI. |
-| Admin visitor visits | List/detail APIs exist and detail reads are audited. Detail includes `ip_details`, `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, `risk_context`, and login correlation fields. | No admin visitor investigation UI. |
-| LiveKit playback | Viewer token endpoint exists and returns subscriber-only LiveKit tokens. | Browser subscriber player remains incomplete. |
-| Audit filters | Backend supports actor, severity, category, outcome, resource, session, and date filters. | Frontend currently exposes limited filtering. |
+| Alerts | List/detail/acknowledge/resolve APIs exist. | ✅ Closed — AlertsPanel wired to real backend alert APIs. |
+| Actor investigation | Profile and activity APIs exist with alerts, login baseline, IP/device, and audit context. | ✅ Closed — ActorInvestigationPage implemented. |
+| Admin visitor visits | List/detail APIs exist and detail reads are audited. Detail includes `ip_details`, `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, `risk_context`, and login correlation fields. | ✅ Closed — VisitorInvestigationPage implemented. |
+| LiveKit playback | Viewer token endpoint exists and returns subscriber-only LiveKit tokens. | ✅ Code implemented — `@livekit/components-react` subscriber viewer. Production camera validation pending. |
+| Audit filters | Backend supports actor, severity, category, outcome, resource, session, and date filters. | ✅ Closed — All 10 backend filter parameters exposed. |
 | Admin camera detail/update | Backend supports admin camera detail and `PATCH`. | Verify all fields and edge states are fully covered in UI smoke. |
 | Site listing | `POST /api/v1/admin/sites/{site_id}/signage-attest` exists. | `GET /api/v1/admin/sites` is not implemented; any site-list UI/client call must remain disabled/planned until a backend source exists. |
 | Disabled local users | Backend blocks disabled users at auth with `403 user-disabled`, clears app cookies, revokes their seen session, and denies invites for disabled users with `409 user-disabled`. | UI should render a clear disabled-account state and should not imply that a GitHub invite re-enables a disabled Panoptix account. |

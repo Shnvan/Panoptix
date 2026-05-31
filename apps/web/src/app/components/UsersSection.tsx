@@ -3,7 +3,8 @@ import { motion } from 'motion/react';
 import { useTheme } from '../../lib/theme';
 import { useAdminUsers } from '../../lib/hooks';
 import { api, ApiError } from '../../lib/api';
-import { useState } from 'react';
+import type { VisitorAccessRequest } from '../../lib/types';
+import { useCallback, useEffect, useState } from 'react';
 
 /**
  * Admin Users — per ux-product-spec.md:
@@ -33,8 +34,17 @@ export function UsersSection() {
   const [inviteRoles, setInviteRoles] = useState('viewer');
   const [inviteReason, setInviteReason] = useState('');
   const [inviteLoading, setInviteLoading] = useState(false);
+  const [accessRequests, setAccessRequests] = useState<VisitorAccessRequest[]>([]);
+  const [accessRequestsLoading, setAccessRequestsLoading] = useState(false);
+  const [accessRequestActionId, setAccessRequestActionId] = useState<string | null>(null);
 
   const show = (text: string, type: 'success' | 'error') => { setMsg({ text, type }); setTimeout(() => setMsg(null), 4000); };
+  const userActionError = (err: unknown, fallback: string) => {
+    if (err instanceof ApiError && err.detail === 'user-disabled') {
+      return 'This Panoptix account is disabled. Re-enable it explicitly before changing roles or sending another invite.';
+    }
+    return err instanceof ApiError ? err.detail : fallback;
+  };
 
   const handleRoleUpdate = async () => {
     if (!roleModal) return;
@@ -42,7 +52,7 @@ export function UsersSection() {
       await api.updateUserRole(roleModal.userId, roleAction, roleName);
       show(`Role "${roleName}" ${roleAction}ed for ${roleModal.email}`, 'success');
       setRoleModal(null); refetch();
-    } catch (err) { show(err instanceof ApiError ? err.detail : 'Failed to update role', 'error'); }
+    } catch (err) { show(userActionError(err, 'Failed to update role'), 'error'); }
   };
 
   const handleDisable = async () => {
@@ -61,7 +71,7 @@ export function UsersSection() {
       await api.resetUserMfa(mfaModal.userId);
       show(`MFA reset for ${mfaModal.email}`, 'success');
       setMfaModal(null);
-    } catch (err) { show(err instanceof ApiError ? err.detail : 'MFA reset failed', 'error'); }
+    } catch (err) { show(userActionError(err, 'MFA reset failed'), 'error'); }
     setMfaLoading(false);
   };
 
@@ -77,8 +87,53 @@ export function UsersSection() {
       show(`Invited ${res.email}. Next: ${res.next_step}`, 'success');
       setInviteModal(false); setInviteEmail(''); setInviteRoles('viewer'); setInviteReason('');
       refetch();
-    } catch (err) { show(err instanceof ApiError ? err.detail : 'Invite failed', 'error'); }
+    } catch (err) { show(userActionError(err, 'Invite failed'), 'error'); }
     setInviteLoading(false);
+  };
+
+  const loadAccessRequests = useCallback(async () => {
+    setAccessRequestsLoading(true);
+    try {
+      const res = await api.listAdminAccessRequests(undefined, 50, 'pending');
+      setAccessRequests(res.items);
+    } catch {
+      setAccessRequests([]);
+    } finally {
+      setAccessRequestsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void loadAccessRequests(); }, [loadAccessRequests]);
+
+  const handleApproveAccessRequest = async (request: VisitorAccessRequest) => {
+    if (!window.confirm(`Approve access request for ${request.email} and send a GitHub invite?`)) return;
+    const decisionNote = window.prompt('Decision note (optional)', 'Approved for Panoptix access') || undefined;
+    setAccessRequestActionId(request.request_id);
+    try {
+      await api.approveAccessRequest(request.request_id, decisionNote);
+      show(`Approved ${request.email} and sent invite workflow`, 'success');
+      await loadAccessRequests();
+      refetch();
+    } catch (err) {
+      show(userActionError(err, 'Access request approval failed'), 'error');
+    } finally {
+      setAccessRequestActionId(null);
+    }
+  };
+
+  const handleRejectAccessRequest = async (request: VisitorAccessRequest) => {
+    const decisionNote = window.prompt(`Reason for rejecting ${request.email}`, 'Not approved for current rollout');
+    if (decisionNote === null) return;
+    setAccessRequestActionId(request.request_id);
+    try {
+      await api.rejectAccessRequest(request.request_id, decisionNote || undefined);
+      show(`Rejected access request for ${request.email}`, 'success');
+      await loadAccessRequests();
+    } catch (err) {
+      show(err instanceof ApiError ? err.detail : 'Access request rejection failed', 'error');
+    } finally {
+      setAccessRequestActionId(null);
+    }
   };
 
   const filtered = users.filter((u) => !searchQuery || u.email.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -100,6 +155,58 @@ export function UsersSection() {
           {msg.type === 'error' ? <XCircle className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}{msg.text}
         </div>
       )}
+
+      <div className={`border rounded-lg p-5 ${d ? 'bg-slate-900/70 border-slate-700/50' : 'bg-white border-slate-200'}`}>
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div>
+            <h3 className={`font-semibold ${d ? 'text-white' : 'text-slate-900'}`}>Access Requests</h3>
+            <p className={`text-sm ${d ? 'text-slate-400' : 'text-slate-500'}`}>Public applications from the entry page require admin approval before an invite is sent.</p>
+          </div>
+          <button onClick={loadAccessRequests} className={`px-3 py-2 rounded-lg text-sm ${d ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
+            Refresh
+          </button>
+        </div>
+        {accessRequestsLoading ? (
+          <p className="text-sm text-slate-400">Loading access requests...</p>
+        ) : accessRequests.length === 0 ? (
+          <p className="text-sm text-slate-400">No pending access requests</p>
+        ) : (
+          <div className="space-y-3">
+            {accessRequests.map((request) => (
+              <div key={request.request_id} className={`rounded-lg border p-4 ${d ? 'border-slate-700/50 bg-slate-950/40' : 'border-slate-200 bg-slate-50'}`}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className={`font-semibold ${d ? 'text-white' : 'text-slate-900'}`}>{request.applicant_name}</p>
+                    <p className={`text-sm ${d ? 'text-slate-400' : 'text-slate-500'}`}>{request.email}</p>
+                    <p className={`mt-1 text-sm ${d ? 'text-slate-300' : 'text-slate-600'}`}>{request.reason}</p>
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                      <span className={`px-2 py-1 rounded ${d ? 'bg-orange-500/15 text-orange-300' : 'bg-orange-50 text-orange-700'}`}>Role: {request.requested_role}</span>
+                      {request.organization && <span className={`px-2 py-1 rounded ${d ? 'bg-slate-800 text-slate-300' : 'bg-white text-slate-600'}`}>{request.organization}</span>}
+                      {request.visitor_visit_id && <span className={`px-2 py-1 rounded ${d ? 'bg-cyan-500/15 text-cyan-300' : 'bg-cyan-50 text-cyan-700'}`}>Visitor linked</span>}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleApproveAccessRequest(request)}
+                      disabled={accessRequestActionId === request.request_id}
+                      className="px-3 py-2 rounded-lg text-sm bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 disabled:opacity-50"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => handleRejectAccessRequest(request)}
+                      disabled={accessRequestActionId === request.request_id}
+                      className="px-3 py-2 rounded-lg text-sm bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 disabled:opacity-50"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Search */}
       <div className="relative max-w-md">

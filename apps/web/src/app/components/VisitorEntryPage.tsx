@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Eye, ShieldCheck } from 'lucide-react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { ArrowRight, Eye, ShieldCheck, UserPlus } from 'lucide-react';
 import { api } from '../../lib/api';
 import type { VisitorCollectRequest, VisitorNoticeResponse } from '../../lib/types';
 
@@ -212,6 +212,13 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
   const [noticeState, setNoticeState] = useState<NoticeState>('loading');
   const [continuing, setContinuing] = useState(false);
   const [statusText, setStatusText] = useState('Loading the visitor security notice.');
+  const [accessName, setAccessName] = useState('');
+  const [accessEmail, setAccessEmail] = useState('');
+  const [accessOrganization, setAccessOrganization] = useState('');
+  const [accessReason, setAccessReason] = useState('');
+  const [accessRole, setAccessRole] = useState('viewer');
+  const [accessLoading, setAccessLoading] = useState(false);
+  const [accessMessage, setAccessMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const pageStartedAt = useRef(performance.now());
   const noticeLoadedAtMs = useRef<number | null>(null);
 
@@ -259,6 +266,38 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
     }
 
     window.location.assign(protectedAppHref);
+  };
+
+  const submitAccessRequest = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (accessLoading) return;
+    setAccessLoading(true);
+    setAccessMessage(null);
+    try {
+      const result = await api.createVisitorAccessRequest({
+        applicant_name: accessName,
+        email: accessEmail,
+        organization: accessOrganization || null,
+        reason: accessReason,
+        requested_role: accessRole,
+      });
+      setAccessMessage({ type: 'success', text: result.next_step });
+      setAccessName('');
+      setAccessEmail('');
+      setAccessOrganization('');
+      setAccessReason('');
+      setAccessRole('viewer');
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : 'Access request failed';
+      setAccessMessage({
+        type: 'error',
+        text: detail.includes('access-request-already-pending')
+          ? 'A pending request already exists for that email.'
+          : 'Access request could not be submitted. Check the fields and try again.',
+      });
+    } finally {
+      setAccessLoading(false);
+    }
   };
 
   return (
@@ -327,6 +366,71 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
                 <ArrowRight className="h-4 w-4" />
               </button>
             </div>
+
+            <form onSubmit={submitAccessRequest} className="mt-6 border-t border-slate-800 pt-5">
+              <div className="mb-4 flex items-center gap-2">
+                <UserPlus className="h-4 w-4 text-orange-300" />
+                <div>
+                  <p className="text-sm font-semibold text-white">Request access</p>
+                  <p className="text-xs text-slate-400">Admin review is required before any invite is sent.</p>
+                </div>
+              </div>
+              <div className="grid gap-3">
+                <input
+                  required
+                  value={accessName}
+                  onChange={(event) => setAccessName(event.target.value)}
+                  maxLength={255}
+                  placeholder="Full name"
+                  className="border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-orange-400"
+                />
+                <input
+                  required
+                  type="email"
+                  value={accessEmail}
+                  onChange={(event) => setAccessEmail(event.target.value)}
+                  maxLength={320}
+                  placeholder="Email address"
+                  className="border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-orange-400"
+                />
+                <input
+                  value={accessOrganization}
+                  onChange={(event) => setAccessOrganization(event.target.value)}
+                  maxLength={255}
+                  placeholder="Organization or team"
+                  className="border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-orange-400"
+                />
+                <select
+                  value={accessRole}
+                  onChange={(event) => setAccessRole(event.target.value)}
+                  className="border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-orange-400"
+                >
+                  <option value="viewer">Viewer</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <textarea
+                  required
+                  value={accessReason}
+                  onChange={(event) => setAccessReason(event.target.value)}
+                  maxLength={2000}
+                  rows={3}
+                  placeholder="Reason for access"
+                  className="resize-none border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-orange-400"
+                />
+              </div>
+              {accessMessage && (
+                <p className={`mt-3 text-sm ${accessMessage.type === 'success' ? 'text-emerald-300' : 'text-red-300'}`}>
+                  {accessMessage.text}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={accessLoading}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 border border-orange-500/40 px-4 py-3 font-semibold text-orange-200 transition hover:bg-orange-500/10 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+              >
+                {accessLoading ? 'Submitting' : 'Submit access request'}
+              </button>
+            </form>
           </div>
         </div>
       </section>

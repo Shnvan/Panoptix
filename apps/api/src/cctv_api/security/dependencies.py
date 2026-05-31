@@ -71,7 +71,6 @@ def require_authenticated_user(
         raise _auth_problem(exc.detail) from exc
 
     if principal.is_dev:
-        _ensure_dev_session_context(request, response, settings=settings, db=db, principal=principal)
         return principal
 
     user = get_or_create_user(db, email=principal.email or principal.subject, idp_subject=principal.subject)
