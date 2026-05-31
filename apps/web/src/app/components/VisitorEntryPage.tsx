@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowRight, Eye, ShieldCheck, UserPlus } from 'lucide-react';
 import { api } from '../../lib/api';
 import type { VisitorCollectRequest, VisitorNoticeResponse } from '../../lib/types';
@@ -216,11 +216,21 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
   const [accessEmail, setAccessEmail] = useState('');
   const [accessOrganization, setAccessOrganization] = useState('');
   const [accessReason, setAccessReason] = useState('');
-  const [accessRole, setAccessRole] = useState('viewer');
   const [accessLoading, setAccessLoading] = useState(false);
   const [accessMessage, setAccessMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const pageStartedAt = useRef(performance.now());
   const noticeLoadedAtMs = useRef<number | null>(null);
+  const accessFormRef = useRef<HTMLFormElement>(null);
+  const accessNameRef = useRef<HTMLInputElement>(null);
+  const shouldFocusAccessRequest = useRef(
+    new URLSearchParams(window.location.search).get('mode') === 'request-access'
+      || window.location.hash === '#request-access',
+  );
+
+  const focusAccessRequest = useCallback(() => {
+    accessFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    accessNameRef.current?.focus({ preventScroll: true });
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -243,6 +253,12 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!shouldFocusAccessRequest.current) return undefined;
+    const handle = window.setTimeout(focusAccessRequest, 0);
+    return () => window.clearTimeout(handle);
+  }, [focusAccessRequest]);
 
   const continueToProtectedApp = async () => {
     if (continuing || noticeState === 'loading') return;
@@ -279,14 +295,13 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
         email: accessEmail,
         organization: accessOrganization || null,
         reason: accessReason,
-        requested_role: accessRole,
+        requested_role: 'viewer',
       });
       setAccessMessage({ type: 'success', text: result.next_step });
       setAccessName('');
       setAccessEmail('');
       setAccessOrganization('');
       setAccessReason('');
-      setAccessRole('viewer');
     } catch (err) {
       const detail = err instanceof Error ? err.message : 'Access request failed';
       setAccessMessage({
@@ -365,18 +380,33 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
                 {continuing ? 'Continuing' : 'Continue to secure sign-in'}
                 <ArrowRight className="h-4 w-4" />
               </button>
+              <a
+                href="/entry?mode=request-access#request-access"
+                onClick={() => window.setTimeout(focusAccessRequest, 0)}
+                className="mt-3 inline-flex w-full items-center justify-center text-sm font-medium text-orange-200 underline-offset-4 hover:text-orange-100 hover:underline"
+              >
+                Need access? Request access instead.
+              </a>
             </div>
 
-            <form onSubmit={submitAccessRequest} className="mt-6 border-t border-slate-800 pt-5">
+            <form
+              id="request-access"
+              ref={accessFormRef}
+              onSubmit={submitAccessRequest}
+              className="mt-6 border-t border-slate-800 pt-5"
+            >
               <div className="mb-4 flex items-center gap-2">
                 <UserPlus className="h-4 w-4 text-orange-300" />
                 <div>
                   <p className="text-sm font-semibold text-white">Request access</p>
-                  <p className="text-xs text-slate-400">Admin review is required before any invite is sent.</p>
+                  <p className="text-xs text-slate-400">
+                    User access requires owner review before any invite is sent.
+                  </p>
                 </div>
               </div>
               <div className="grid gap-3">
                 <input
+                  ref={accessNameRef}
                   required
                   value={accessName}
                   onChange={(event) => setAccessName(event.target.value)}
@@ -400,14 +430,6 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
                   placeholder="Organization or team"
                   className="border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-orange-400"
                 />
-                <select
-                  value={accessRole}
-                  onChange={(event) => setAccessRole(event.target.value)}
-                  className="border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-orange-400"
-                >
-                  <option value="viewer">Viewer</option>
-                  <option value="admin">Admin</option>
-                </select>
                 <textarea
                   required
                   value={accessReason}

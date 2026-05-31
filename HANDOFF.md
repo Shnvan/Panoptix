@@ -38,6 +38,8 @@ Latest full-stack integration commits:
 
 ## Current Objective
 
+Current correction: production is migrated through `0013_visitor_access_requests`, and public visitor access requests must remain admin-reviewed, user/viewer-only, and directly reachable at `/entry?mode=request-access` for visitors who already clicked Continue to secure sign-in.
+
 Maintain the combined backend/frontend integration branch as the production-candidate review branch. Production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Successful `/entry` Continue collection now creates a high-severity backend alert/email to active admins, and selected intrusion/abuse audit events promote into alert records through the existing Resend pipeline. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The encrypted R2 backup path, isolated restore drill, scheduled GitHub Actions backup workflow, and retention job are implemented, and the production backup workflow has succeeded. Gateway Discovery V2 backend/edge-agent work is implemented and active on `main`, and production Neon is migrated to `0012_gateway_discovery_runs`. Production edge heartbeats now require gateway auth plus Cloudflare Access service-token headers, and the edge agent sends a stable `Panoptix-Edge-Agent/<version>` user agent for Cloudflare-protected traffic. The remaining product gates are real CCTV hardware validation. Five major frontend features — alerts page real API wiring, actor investigation UI, admin visitor investigation UI, real LiveKit subscriber playback (via `@livekit/components-react`), and full audit filter UI — are now implemented.
 
 The system is Panoptix, a secure live-view CCTV web monitoring system with three planes:
@@ -48,7 +50,7 @@ The system is Panoptix, a secure live-view CCTV web monitoring system with three
 
 Permanent product constraint: browsers are viewers only. No browser, phone, or laptop camera publishing.
 
-Visitor access request workflow note: this change adds public `/entry` access requests backed by `visitor_access_requests`, with no automatic account creation and admin review/approval/rejection in Users & Access through the existing GitHub org invite path. Before production use, deploy migration `0013_visitor_access_requests` and add only the narrow public `POST /api/v1/visitor/access-requests` Cloudflare exception.
+Visitor access request workflow note: public `/entry` access requests are live in production behind `visitor_access_requests`, with no automatic account creation and admin review/approval/rejection in Users & Access through the existing GitHub org invite path. Production smoke on 2026-06-01 confirmed `main` is at `40391cf`, migration `0013_visitor_access_requests` is applied, the deployed `/entry` frontend bundle (`index-CW3RKpya.js`) contains the request-access UI/API call, and the narrow Cloudflare public `POST /api/v1/visitor/access-requests` exception is active. Public create returned `201 pending`, duplicate submit returned `409 access-request-already-pending`, and admin reject cleared the pending smoke request. Approval/GitHub invite and disabled-user approval denial still need targeted smoke with safe real test identities.
 
 V380ProQ16S queue note: validate whether the V380 Pro camera exposes local RTSP/ONVIF or only vendor-cloud/P2P access. If local RTSP/ONVIF is unavailable, plan for an always-on gateway on the camera LAN or a deliberate vendor-cloud integration decision. Do not store vendor-cloud credentials, credentialed RTSP URLs, or service tokens in docs, screenshots, frontend code, or browser storage.
 
@@ -156,7 +158,7 @@ Current state:
 - PR #21 deployed the subscriber-playback frontend bundle to production on 2026-05-31; public asset checks show `index-DudfvjqN.js` is live and the old `LiveKit player not wired yet` copy is absent from the deployed bundle
 - full 10-sidebar-page authenticated production browser smoke at `panoptix.site` is still pending
 - local API configuration uses `apps/api/.env`, which is ignored by Git; do not commit database URLs, audit keys, LiveKit keys, GitHub tokens, R2 secrets, or gateway service tokens
-- production backend migration state is at Alembic head `0012_gateway_discovery_runs`
+- production backend migration state is at Alembic head `0013_visitor_access_requests`
 - `github-invites-not-configured` is expected locally while `GITHUB_INVITES_ENABLED=false`
 - one-time gateway service tokens must never be screenshotted or committed; the exposed local test gateway named `what` was disabled during smoke cleanup
 
@@ -292,7 +294,7 @@ Current state:
 - PR #21 deployed the subscriber-playback frontend bundle to production on 2026-05-31; public asset checks show `index-DudfvjqN.js` is live and the old `LiveKit player not wired yet` copy is absent from the deployed bundle
 - full 10-sidebar-page authenticated production browser smoke at `panoptix.site` is still pending
 - local API configuration uses `apps/api/.env`, which is ignored by Git; do not commit database URLs, audit keys, LiveKit keys, GitHub tokens, R2 secrets, or gateway service tokens
-- production backend migration state is at Alembic head `0012_gateway_discovery_runs`
+- production backend migration state is at Alembic head `0013_visitor_access_requests`
 - `github-invites-not-configured` is expected locally while `GITHUB_INVITES_ENABLED=false`
 - one-time gateway service tokens must never be screenshotted or committed; the exposed local test gateway named `what` was disabled during smoke cleanup
 - camera modal requests a short-lived viewer token and real LiveKit subscriber playback is implemented using `@livekit/components-react`
@@ -332,9 +334,9 @@ Completed in this milestone:
 
 - **Same-domain entry**: `https://panoptix.site/entry` is operational on the existing frontend service.
 - **First-visit redirect**: Cloudflare redirects `https://panoptix.site/` to `/entry` only when the signed `panoptix_visitor` cookie is absent. Returning visitors go directly to the protected app/Access flow.
-- **Public bypass scope**: Only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect` bypass Cloudflare Access.
+- **Public bypass scope**: Only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, `/api/v1/visitor/collect`, and `POST /api/v1/visitor/access-requests` bypass Cloudflare Access.
 - **Protected scope**: `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` remain protected. Never make broad `/api/v1/*` public.
-- **Backend collector**: Visitor notice/collect APIs, `0010_visitor_visits`, `0011_visitor_expanded_signals`, signed visitor cookie correlation, admin visitor visit list/detail APIs, and maintenance retention cleanup are implemented. Production is now migrated through `0012_gateway_discovery_runs`.
+- **Backend collector**: Visitor notice/collect APIs, `0010_visitor_visits`, `0011_visitor_expanded_signals`, signed visitor cookie correlation, admin visitor visit list/detail APIs, user/viewer-only access request APIs, and maintenance retention cleanup are implemented. Production is now migrated through `0013_visitor_access_requests`.
 - **Expanded signal boundary**: `/entry` collection starts only after explicit Continue and stores approved browser/network/WebRTC summary signals. Raw WebRTC SDP/candidate strings, raw Ipregistry payloads, reverse geocoding, coordinates, canvas/audio/WebGL/font fingerprints, and broad fingerprint dumps remain out of scope.
 - **Frontend handoff**: Admin visitor investigation UI is still coworker-owned frontend work; backend responses now expose `ip_details`, `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, `risk_context`, and login correlation fields for that future UI.
 - **Production smoke**: Admin visitor list/detail API smoke passed on 2026-05-24 with expanded sections present.

@@ -487,12 +487,55 @@ def test_public_access_request_creates_pending_request_and_links_visitor_cookie(
     row = test_db_session.execute(select(VisitorAccessRequest)).scalar_one()
     visit = test_db_session.execute(select(VisitorVisit)).scalar_one()
     assert row.email == "ivan@example.test"
+    assert row.requested_role == "viewer"
     assert row.status == VisitorAccessRequestStatus.pending
     assert str(row.visitor_visit_id) == str(visit.id)
     audit = test_db_session.execute(
         select(AuditLog).where(AuditLog.action == "visitor.access_request.created")
     ).scalar_one()
     assert audit.resource == f"visitor-access-request:{row.id}"
+
+
+def test_public_access_request_forces_admin_request_to_viewer(
+    test_db_session: DbSession,
+) -> None:
+    client = _client(test_db_session)
+
+    response = client.post(
+        "/api/v1/visitor/access-requests",
+        json={
+            "applicant_name": "Ivan Liao",
+            "email": "ivan@example.test",
+            "organization": "Security Team",
+            "reason": "Need access for CCTV monitoring.",
+            "requested_role": "admin",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["status"] == "pending"
+    row = test_db_session.execute(select(VisitorAccessRequest)).scalar_one()
+    assert row.requested_role == "viewer"
+
+
+def test_public_access_request_without_role_defaults_to_viewer(
+    test_db_session: DbSession,
+) -> None:
+    client = _client(test_db_session)
+
+    response = client.post(
+        "/api/v1/visitor/access-requests",
+        json={
+            "applicant_name": "Ivan Liao",
+            "email": "ivan@example.test",
+            "organization": "Security Team",
+            "reason": "Need access for CCTV monitoring.",
+        },
+    )
+
+    assert response.status_code == 201
+    row = test_db_session.execute(select(VisitorAccessRequest)).scalar_one()
+    assert row.requested_role == "viewer"
 
 
 def test_public_access_request_rejects_invalid_duplicate_and_rate_limited_requests(

@@ -235,7 +235,7 @@ def create_visitor_access_request(
 ) -> VisitorAccessRequestCreateResponse:
     _require_collector_enabled(settings)
     email = _normalize_email(body.email)
-    requested_role = _normalize_requested_role(body.requested_role)
+    requested_role = _normalize_public_requested_role(body.requested_role)
     applicant_name = _bounded_required(body.applicant_name, "applicant-name-required", 255)
     reason = _bounded_required(body.reason, "access-request-reason-required", 2000)
     organization = _optional_bounded(body.organization, 255)
@@ -508,7 +508,7 @@ def _normalize_email(value: str) -> str:
     return email
 
 
-def _normalize_requested_role(value: str) -> str:
+def _normalize_public_requested_role(value: str) -> str:
     role = value.strip().lower()
     if role not in {"viewer", "admin"}:
         raise ProblemDetail(
@@ -517,7 +517,7 @@ def _normalize_requested_role(value: str) -> str:
             detail="requested-role-invalid",
             type_uri="https://panoptix.local/problems/bad-request",
         )
-    return role
+    return "viewer"
 
 
 def _bounded_required(value: str, detail: str, max_length: int) -> str:
