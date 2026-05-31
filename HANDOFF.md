@@ -149,7 +149,8 @@ Current state:
 - local same-origin smoke has passed through the Vite proxy for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health
 - local camera modal viewer-token smoke passed with `admin-smoke@example.test` assigned to an existing synthetic camera; the modal called `/api/v1/cameras/{camera_id}/view-token`, connected as a LiveKit subscriber, made no browser media capture calls, and persisted no token material beyond the theme preference
 - production viewer-token smoke passed on 2026-05-31 after PR #20 deployed: `ivanliao41` was granted access to existing smoke cameras, `/api/v1/cameras/{camera_id}/view-token` returned `200` with `camera_id`, `room`, `livekit_url`, `token`, and `expires_at`, the UI showed `Token ready`, no `500` occurred, and no camera/mic prompt or browser publishing behavior was observed; do not publish token screenshots
-- full 10-sidebar-page production browser smoke at `panoptix.site` is still pending; the current deployed production modal still shows token-only copy (`LiveKit player not wired yet`) even though subscriber playback exists in the integration branch
+- PR #21 deployed the subscriber-playback frontend bundle to production on 2026-05-31; public asset checks show `index-DudfvjqN.js` is live and the old `LiveKit player not wired yet` copy is absent from the deployed bundle
+- full 10-sidebar-page authenticated production browser smoke at `panoptix.site` is still pending
 - local API configuration uses `apps/api/.env`, which is ignored by Git; do not commit database URLs, audit keys, LiveKit keys, GitHub tokens, R2 secrets, or gateway service tokens
 - production backend migration state is at Alembic head `0012_gateway_discovery_runs`
 - `github-invites-not-configured` is expected locally while `GITHUB_INVITES_ENABLED=false`
@@ -284,7 +285,8 @@ Current state:
 - local same-origin smoke has passed through the Vite proxy for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health
 - local camera modal viewer-token smoke passed with `admin-smoke@example.test` assigned to an existing synthetic camera; the modal called `/api/v1/cameras/{camera_id}/view-token`, connected as a LiveKit subscriber, made no browser media capture calls, and persisted no token material beyond the theme preference
 - production viewer-token smoke passed on 2026-05-31 after PR #20 deployed: `ivanliao41` was granted access to existing smoke cameras, `/api/v1/cameras/{camera_id}/view-token` returned `200` with `camera_id`, `room`, `livekit_url`, `token`, and `expires_at`, the UI showed `Token ready`, no `500` occurred, and no camera/mic prompt or browser publishing behavior was observed; do not publish token screenshots
-- full 10-sidebar-page production browser smoke at `panoptix.site` is still pending; the current deployed production modal still shows token-only copy (`LiveKit player not wired yet`) even though subscriber playback exists in the integration branch
+- PR #21 deployed the subscriber-playback frontend bundle to production on 2026-05-31; public asset checks show `index-DudfvjqN.js` is live and the old `LiveKit player not wired yet` copy is absent from the deployed bundle
+- full 10-sidebar-page authenticated production browser smoke at `panoptix.site` is still pending
 - local API configuration uses `apps/api/.env`, which is ignored by Git; do not commit database URLs, audit keys, LiveKit keys, GitHub tokens, R2 secrets, or gateway service tokens
 - production backend migration state is at Alembic head `0012_gateway_discovery_runs`
 - `github-invites-not-configured` is expected locally while `GITHUB_INVITES_ENABLED=false`
