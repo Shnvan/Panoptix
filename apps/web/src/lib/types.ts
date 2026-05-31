@@ -168,6 +168,46 @@ export interface VisitorCollectResponse {
   collected_at: string;
 }
 
+export interface VisitorAccessRequestCreate {
+  applicant_name: string;
+  email: string;
+  organization?: string | null;
+  reason: string;
+  requested_role: string;
+}
+
+export interface VisitorAccessRequestCreateResponse {
+  request_id: string;
+  status: string;
+  next_step: string;
+}
+
+export type VisitorAccessRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+export interface VisitorAccessRequest {
+  request_id: string;
+  applicant_name: string;
+  email: string;
+  organization: string | null;
+  reason: string;
+  requested_role: string;
+  status: VisitorAccessRequestStatus;
+  visitor_visit_id: string | null;
+  requester_ip: string | null;
+  created_at: string | null;
+  decided_at: string | null;
+  decided_by_user_id: string | null;
+  decision_note: string | null;
+  github_invitation_id: number | null;
+  github_org: string | null;
+  github_invite_status: string | null;
+}
+
+export interface VisitorAccessRequestListResponse {
+  items: VisitorAccessRequest[];
+  next_cursor: string | null;
+}
+
 // ── Admin Users ──
 
 export interface AdminUser {

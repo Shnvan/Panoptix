@@ -48,6 +48,10 @@ The system is Panoptix, a secure live-view CCTV web monitoring system with three
 
 Permanent product constraint: browsers are viewers only. No browser, phone, or laptop camera publishing.
 
+Visitor access request workflow note: this change adds public `/entry` access requests backed by `visitor_access_requests`, with no automatic account creation and admin review/approval/rejection in Users & Access through the existing GitHub org invite path. Before production use, deploy migration `0013_visitor_access_requests` and add only the narrow public `POST /api/v1/visitor/access-requests` Cloudflare exception.
+
+V380ProQ16S queue note: validate whether the V380 Pro camera exposes local RTSP/ONVIF or only vendor-cloud/P2P access. If local RTSP/ONVIF is unavailable, plan for an always-on gateway on the camera LAN or a deliberate vendor-cloud integration decision. Do not store vendor-cloud credentials, credentialed RTSP URLs, or service tokens in docs, screenshots, frontend code, or browser storage.
+
 ## High-Level Architecture
 
 ### Control Plane
@@ -1972,7 +1976,7 @@ Recommended next task:
 Real Gateway Host And Camera LAN Validation
 ```
 
-The production backup workflow has passed and the Gateway Discovery V2 backend/edge-agent path is implemented and active on `main`. Next, install/configure the edge agent on the real gateway host, keep the raw gateway service token and Cloudflare Access client secret only on that host, validate heartbeat through `panoptix.site`, then run discovery only after the isolated private camera LAN/VLAN exists.
+The production backup workflow has passed and the Gateway Discovery V2 backend/edge-agent path is implemented and active on `main`. Next, package/deploy the visitor access request workflow, then install/configure the edge agent on the real gateway host, keep the raw gateway service token and Cloudflare Access client secret only on that host, validate heartbeat through `panoptix.site`, and run discovery only after the isolated private camera LAN/VLAN exists. Track V380 Pro / V380ProQ16S internet-camera feasibility separately; do not store vendor-cloud credentials, RTSP URLs with credentials, or service tokens in docs, screenshots, frontend code, or browser storage.
 
 **Note**: Production is already live at `panoptix.site`; the old staging-gate/procurement wording below is historical context only. Do not restore into production Neon. Keep private `age` identities outside Railway and outside the repo. Do not put gateway service tokens, Cloudflare Access service-token secrets, LiveKit API secrets, ingest tokens, RTSP URLs, R2 keys, DB URLs, or backend-only credentials in frontend code, docs, screenshots, or repository files.
 

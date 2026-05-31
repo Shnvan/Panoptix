@@ -8,7 +8,7 @@ import uuid
 from collections.abc import Generator, Sequence
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
@@ -63,7 +63,7 @@ from cctv_api.security.alerts import (
     detect_alert_from_backup_status,
     resolve_alert,
 )
-from cctv_api.security.dependencies import require_authenticated_user
+from cctv_api.security.dependencies import _ensure_dev_session_context, require_authenticated_user
 from cctv_api.security.identity import Principal
 from cctv_api.security.livekit_rooms import remove_gateway_participants, remove_room_viewers, remove_user_participants
 from cctv_api.security.livekit_tokens import LiveKitTokenConfigError, mint_viewer_subscribe_token
@@ -491,6 +491,7 @@ def accept_privacy_notice(
 def get_camera_view_token(
     camera_id: str,
     request: Request,
+    response: Response,
     principal: Principal = Depends(require_authenticated_user),
     db: DbSession = Depends(db_session),
     settings: Settings = Depends(get_settings),
@@ -586,6 +587,9 @@ def get_camera_view_token(
             detail=str(exc),
             type_uri="https://panoptix.local/problems/service-unavailable",
         ) from exc
+
+    if _audit_session_id(request) is None and principal.is_dev:
+        _ensure_dev_session_context(request, response, settings=settings, db=db, principal=principal)
 
     record_stream_grant(
         db,

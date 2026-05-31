@@ -135,6 +135,12 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  createVisitorAccessRequest: (body: import('./types').VisitorAccessRequestCreate) =>
+    apiFetch<import('./types').VisitorAccessRequestCreateResponse>('/api/v1/visitor/access-requests', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
   // ── Admin: Users ──
   listAdminUsers: (cursor?: string, limit = 50, email?: string) => {
     const p = new URLSearchParams();
@@ -395,6 +401,29 @@ export const api = {
     apiFetch<import('./types').VisitorVisitDetail>(`/api/v1/admin/visitor-visits/${visitId}`),
 
   // ── Admin: Actor Profile ──
+  listAdminAccessRequests: (cursor?: string, limit = 50, status?: string) => {
+    const p = new URLSearchParams();
+    if (cursor) p.set('cursor', cursor);
+    p.set('limit', String(limit));
+    if (status) p.set('status', status);
+    return apiFetch<import('./types').VisitorAccessRequestListResponse>(`/api/v1/admin/access-requests?${p}`);
+  },
+
+  getAdminAccessRequest: (requestId: string) =>
+    apiFetch<import('./types').VisitorAccessRequest>(`/api/v1/admin/access-requests/${requestId}`),
+
+  approveAccessRequest: (requestId: string, decisionNote?: string) =>
+    apiFetch<import('./types').VisitorAccessRequest>(`/api/v1/admin/access-requests/${requestId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ decision_note: decisionNote || undefined }),
+    }),
+
+  rejectAccessRequest: (requestId: string, decisionNote?: string) =>
+    apiFetch<import('./types').VisitorAccessRequest>(`/api/v1/admin/access-requests/${requestId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ decision_note: decisionNote || undefined }),
+    }),
+
   getActorProfile: (actorType: string, actorId: string) =>
     apiFetch<import('./types').ActorProfileResponse>(`/api/v1/admin/actors/${actorType}/${actorId}/profile`),
 

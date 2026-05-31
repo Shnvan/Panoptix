@@ -27,6 +27,7 @@
 ### What We Control vs What's Blocked
 
 **Can do now (no external dependencies):**
+- Visitor access request workflow is implemented in this change: `/entry` has a public request form, the backend stores pending `visitor_access_requests` without creating accounts automatically, and admins can review/approve/reject from Users & Access. Approval uses the existing GitHub org invite path and respects disabled-user denial. Before production use, deploy migration `0013_visitor_access_requests` and add only the narrow Cloudflare public exception for `POST /api/v1/visitor/access-requests`.
 - Local camera modal viewer-token smoke passes with `admin-smoke@example.test` assigned to an existing synthetic camera. Production viewer-token smoke also passed on 2026-05-31 after PR #20 deployed: `ivanliao41` was granted access to existing smoke cameras, `/api/v1/cameras/{camera_id}/view-token` returned `200` with the expected short-lived viewer token response shape, the UI showed `Token ready`, no `500` occurred, and no browser camera/mic prompt or publishing behavior was observed. Do not publish screenshots containing the token value.
 - Keep static checks green, document operational changes, and prepare the real gateway host runbook flow. Production is live; the main product-path blockers are real camera hardware validation and full 10-page production browser smoke testing. Frontend UI gaps (Alerts API wiring, actor investigation, visitor investigation, LiveKit subscriber playback, full audit filters) are implemented in the integration branch, but the currently deployed production modal still shows token-only copy (`LiveKit player not wired yet`). Nonexistent endpoint calls have been cleaned up.
 - GitHub organization invites are now live on staging (`panoptix-site` org). `GITHUB_INVITES_ENABLED=true`, `GITHUB_ORG=panoptix-site`, and `GITHUB_INVITE_TOKEN` are set in Railway. Staging smoke confirmed invite endpoint works — invited users appear in Users & Access with assigned roles (2026-05-21).
@@ -753,19 +754,25 @@ See `docs/implementation/team-raci-checklist.md` for full RACI details.
 
 ## Next Steps (In Order)
 
-### 1. Real gateway host validation
+### 1. Package and deploy visitor access requests
+Review and ship the visitor access request workflow, run Alembic migration `0013_visitor_access_requests`, and update Cloudflare with only the narrow public `POST /api/v1/visitor/access-requests` exception. Then smoke `/entry` request submission and Users & Access admin approval/rejection.
+
+### 2. Real gateway host validation
 Install/configure the edge agent on the real gateway host, store the raw Panoptix gateway service token and Cloudflare Access client secret only on that host, and confirm production heartbeat through `panoptix.site`.
 
-### 2. Camera LAN/VLAN discovery validation
+### 3. Camera LAN/VLAN discovery validation
 After the isolated private camera LAN/VLAN exists, run Gateway Discovery V2 from approved CIDRs only. Do not run discovery against public, loopback, wildcard, or unrelated networks.
 
-### 3. Production security evidence
+### 4. V380ProQ16S internet camera feasibility
+Investigate the V380 Pro / V380ProQ16S camera path without exposing credentials. Determine whether the camera offers local RTSP/ONVIF or only vendor-cloud/P2P access. If local RTSP/ONVIF is unavailable, plan for either an always-on gateway on the camera LAN or a vendor-cloud integration decision; do not put vendor-cloud credentials in Panoptix docs, frontend code, or browser storage.
+
+### 5. Production security evidence
 Continue production evidence work for WARP/device posture activation and browser security smoke. Keep Cloudflare Access, `/entry`, protected APIs, disabled-user enforcement, and visitor collector boundaries unchanged unless a specific security task requires a documented change.
 
-### 4. External blockers
+### 6. External blockers
 Track real CCTV hardware, physical gateway deployment, and break-glass YubiKey hardware as external blockers. Real camera onboarding can begin once hardware is available.
 
-### 5. Frontend coworker handoff
+### 7. Frontend coworker handoff
 Keep Alerts real API UI, admin visitor investigation UI, actor investigation UI, real LiveKit subscriber playback, and full audit filters assigned to the frontend coworker unless Ivan explicitly reassigns frontend work. Gateway Discovery UI is optional future frontend work only; backend/edge discovery exists, but no frontend discovery UI is required yet.
 
 ---

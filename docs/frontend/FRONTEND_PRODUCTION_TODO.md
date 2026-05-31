@@ -4,6 +4,8 @@ Start here for current frontend coordination: [Frontend Coworker Handoff](FRONTE
 
 ## What Frontend Should Do Next
 
+**Current active task (2026-06-01):** smoke the new Visitor Access Request workflow after backend migration `0013_visitor_access_requests` and the narrow Cloudflare public `POST /api/v1/visitor/access-requests` exception are deployed. Verify `/entry` request-access success, validation, duplicate pending, rate-limit, and readable error states; verify Users & Access pending list, approve, reject, and `user-disabled` approval/invite errors. Do not start Gateway Discovery UI or V380/V380ProQ16S camera integration from the frontend side unless Ivan explicitly reassigns it.
+
 1. ~~Wire the existing Alerts page to the backend alert APIs~~ — ✅ Done. AlertsPanel wired to `GET /api/v1/admin/alerts`, detail, acknowledge, and resolve.
 2. ~~Build the admin visitor investigation UI from the backend-ready visitor visit list/detail APIs~~ — ✅ Done. VisitorInvestigationPage displays all 8 documented investigation sections.
 3. ~~Build actor profile/activity investigation UI from the backend-ready actor APIs~~ — ✅ Done. ActorInvestigationPage shows profile, alerts, activity timeline with full filters.
@@ -26,11 +28,13 @@ Design direction: new frontend work **must** follow [Panoptix Design System](PAN
 | Implemented and wired | `/api/v1/cameras/{camera_id}/view-token` | ✅ CameraDetailModal uses `@livekit/components-react` as subscriber-only viewer in the integration branch; current production modal still shows token-only copy (`LiveKit player not wired yet`) | Production token request smoke passed 2026-05-31 with HTTP 200. Deploy/verify the subscriber-playback frontend version before marking production playback complete. |
 | Implemented but incomplete | `/api/v1/cameras/events` | Disabled in dev-auth mode because EventSource cannot send custom headers | Keep production SSE path; test with Cloudflare/session cookies in staging. |
 | Implemented and usable | `/api/v1/privacy/notice`, `/api/v1/privacy/notice/accept` | Privacy notice gate exists | Verify notice mismatch and accepted states in browser. |
-| Implemented and operational | `/entry`, `/api/v1/visitor/notice`, `/api/v1/visitor/collect` | Production same-domain entry flow works before Cloudflare Access, and expanded collect payload is live | Keep public handling limited to `/entry`, `/assets/*`, `/logo.png`, and the two visitor API endpoints. |
+| Implemented and operational | `/entry`, `/api/v1/visitor/notice`, `/api/v1/visitor/collect` | Production same-domain entry flow works before Cloudflare Access, and expanded collect payload is live | Keep current public handling limited to `/entry`, `/assets/*`, `/logo.png`, and the two visitor API endpoints. |
+| Implemented; pending deploy smoke | `POST /api/v1/visitor/access-requests` | `/entry` request-access form is implemented locally | Public creation stores a pending request only. It must not create accounts, roles, sessions, camera ACLs, GitHub invites, or Cloudflare authorization. Add only this narrow Cloudflare public exception after backend deploy. |
 | Implemented and usable | `/api/v1/sessions/active`, `/api/v1/sessions/revoke` | Settings/session UI exists | Verify revoke UX and session refresh behavior. |
 | Implemented and wired | `/api/v1/admin/users`, role update, disable | User admin UI exists and local smoke has loaded real users/roles | Continue browser smoke for destructive actions, disable behavior, and edge-case error states. |
 | Implemented and wired | `/api/v1/admin/users/{user_id}/mfa/reset` | MFA reset modal calls the backend route | Browser smoke success/error states and audit copy. |
 | Implemented and wired | `/api/v1/admin/users/invite` | GitHub invite form calls the backend route; staging-verified with `panoptix-site` org (2026-05-21) | Browser smoke success, validation, and `409 user-disabled` states. Invite should succeed on staging for new/active users; `github-invites-not-configured` is acceptable locally without GitHub env vars. |
+| Implemented; pending deploy smoke | `/api/v1/admin/access-requests`, detail, approve, reject | Users & Access has an Access Requests review panel | Browser smoke pending list, approve invite, reject reason, duplicate/invalid states, and `409 user-disabled` when the email belongs to a disabled local user. |
 | Implemented and wired | `/api/v1/admin/audit`, verify, export | ✅ AuditLogTable has all 10 backend-supported filter parameters | Browser smoke full filter combinations and export. |
 | Implemented and wired | `/api/v1/admin/actors/{actor_type}/{actor_id}/profile` | ✅ ActorInvestigationPage shows profile, alerts, and activity | Browser smoke actor investigation linked from users, gateways, and audit rows. |
 | Implemented and wired | `/api/v1/admin/actors/{actor_type}/{actor_id}/activity` | ✅ Activity timeline with cursor pagination and filters | Browser smoke activity timeline pagination and filter combinations. |
@@ -71,6 +75,7 @@ These must be resolved before treating the frontend as production-ready.
 | Browser publishing absence check | Partially passed | Production Live Cameras token smoke showed no camera/mic prompt and no browser publishing behavior. Reconfirm during full production smoke. |
 | Sensitive-value exposure check | Partially passed | Production token response was visible only in DevTools for the short-lived viewer token; do not publish token screenshots. Recheck storage/logs during full production smoke. |
 | Disabled-account UX | Required | Backend returns `403 user-disabled` for disabled users and `409 user-disabled` when inviting an existing disabled local user. UI should show clear disabled-account and invite-denied states. |
+| Visitor access request smoke | Required | `/entry` request-access and Users & Access review UI are implemented locally. Production use waits for backend migration `0013_visitor_access_requests` and the narrow public access-request Cloudflare exception. |
 
 ## P1 Admin Feature Completion
 
@@ -176,4 +181,4 @@ Current local evidence: Dashboard/bootstrap, live-camera camera list, Users & Ac
 
 ## Current Default Next Task
 
-Alerts wiring, visitor investigation, actor investigation, LiveKit subscriber playback, and audit filtering are all done. The current next task is full smoke testing of every sidebar page against local/staging/production data, followed by fixing any API contract or wiring issues found during smoke.
+Alerts wiring, visitor investigation, actor investigation, LiveKit subscriber playback, and audit filtering are all done. The current next task is visitor access request smoke and error-state polish, followed by full sidebar smoke and fixes for any API contract or wiring issues found during smoke.
