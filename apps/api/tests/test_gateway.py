@@ -30,6 +30,8 @@ def _dev_gateway_client(*, signing_key: str = "replace-me") -> TestClient:
             GATEWAY_COMMAND_SIGNING_KEY=signing_key,
         )
     )
+    app.state.gateway_control_command_provider = lambda gateway_id: []
+    app.state.gateway_control_ack_sink = lambda gateway_id, ack: None
     return TestClient(app)
 
 
@@ -48,6 +50,8 @@ def _dev_gateway_client_with_db(test_db_session: DbSession, *, signing_key: str 
         return test_db_session
 
     app.dependency_overrides[db_session] = _override_db
+    app.state.gateway_control_command_provider = lambda gateway_id: []
+    app.state.gateway_control_ack_sink = lambda gateway_id, ack: None
     return TestClient(app)
 
 
