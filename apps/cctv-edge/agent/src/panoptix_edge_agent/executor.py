@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -10,6 +11,8 @@ from panoptix_edge_agent.camera_credentials import (
 from panoptix_edge_agent.commands import GatewayCommand
 from panoptix_edge_agent.media import MediaController
 from panoptix_edge_agent.publish_state import PublishState
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -53,7 +56,14 @@ class CommandExecutor:
             )
 
         if self.publish_state.is_publishing(camera_id):
-            return CommandExecutionResult(accepted=True)
+            if _media_controller_is_healthy(self.media_controller, camera_id=camera_id, room=room):
+                return CommandExecutionResult(accepted=True)
+            logger.warning(
+                "clearing stale publish state before start camera_id=%s room=%s",
+                camera_id,
+                room,
+            )
+            self.publish_state.stop(camera_id)
 
         source_url: str | None = None
         rtsp_username: str | None = None
@@ -122,3 +132,15 @@ def _str_field(payload: dict[str, object], key: str) -> str | None:
     if isinstance(value, str) and value:
         return value
     return None
+
+
+def _media_controller_is_healthy(
+    media_controller: MediaController,
+    *,
+    camera_id: str,
+    room: str,
+) -> bool:
+    health_check = getattr(media_controller, "is_publishing_healthy", None)
+    if health_check is None:
+        return True
+    return bool(health_check(camera_id=camera_id, room=room))

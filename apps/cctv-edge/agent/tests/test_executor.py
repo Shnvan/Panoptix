@@ -12,6 +12,15 @@ from panoptix_edge_agent.publish_state import PublishState
 NOW = datetime(2026, 5, 7, 12, 0, 0, tzinfo=timezone.utc)
 
 
+class HealthAwareStubMediaController(StubMediaController):
+    def __init__(self) -> None:
+        super().__init__()
+        self.healthy = True
+
+    def is_publishing_healthy(self, *, camera_id: str, room: str) -> bool:
+        return self.healthy
+
+
 def _start_command(**overrides: object) -> GatewayCommand:
     payload: dict[str, object] = {
         "camera_id": "camera-1",
@@ -84,6 +93,21 @@ def test_start_publish_already_publishing_is_idempotent() -> None:
     assert first.accepted is True
     assert second.accepted is True
     assert len(controller.start_calls) == 1
+
+
+def test_start_publish_restarts_when_publish_state_is_stale() -> None:
+    controller = HealthAwareStubMediaController()
+    executor = CommandExecutor(controller)
+
+    first = asyncio.run(executor.execute(_start_command()))
+    controller.healthy = False
+    second = asyncio.run(executor.execute(_start_command(gateway_publish_token="fresh-token")))
+
+    assert first.accepted is True
+    assert second.accepted is True
+    assert len(controller.start_calls) == 2
+    assert controller.start_calls[1]["token"] == "fresh-token"
+    assert executor.publish_state.is_publishing("camera-1")
 
 
 def test_stop_publish_calls_media_controller_and_clears_state() -> None:
