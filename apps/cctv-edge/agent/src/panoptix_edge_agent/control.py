@@ -273,6 +273,27 @@ class GatewayControlClient:
         headers = {"Accept": "application/json"}
         if self.config.dev_identity_enabled:
             headers["x-panoptix-dev-gateway-id"] = self.config.gateway_id
+            return headers
+
+        service_token = self.config.gateway_service_token.strip()
+        if not service_token:
+            raise ControlClientError(
+                "PANOPTIX_GATEWAY_SERVICE_TOKEN is required when dev gateway identity is disabled",
+                retryable=False,
+            )
+        headers["x-panoptix-gateway-id"] = self.config.gateway_id
+        headers["Authorization"] = f"Bearer {service_token}"
+
+        cf_access_client_id = self.config.cf_access_client_id.strip()
+        cf_access_client_secret = self.config.cf_access_client_secret.strip()
+        if bool(cf_access_client_id) != bool(cf_access_client_secret):
+            raise ControlClientError(
+                "PANOPTIX_CF_ACCESS_CLIENT_ID and PANOPTIX_CF_ACCESS_CLIENT_SECRET must be configured together",
+                retryable=False,
+            )
+        if cf_access_client_id and cf_access_client_secret:
+            headers["CF-Access-Client-Id"] = cf_access_client_id
+            headers["CF-Access-Client-Secret"] = cf_access_client_secret
         return headers
 
 

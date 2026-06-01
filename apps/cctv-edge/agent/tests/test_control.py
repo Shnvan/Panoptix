@@ -85,6 +85,18 @@ def _config(**overrides: Any) -> AgentConfig:
     return AgentConfig(**values)
 
 
+def _production_config(**overrides: Any) -> AgentConfig:
+    values: dict[str, Any] = {
+        "api_base_url": "https://api.example.test/",
+        "gateway_id": "gateway-1",
+        "request_timeout_seconds": 3.0,
+        "gateway_service_token": "test-gateway-service-token",
+        "command_signing_key": SIGNING_KEY,
+    }
+    values.update(overrides)
+    return AgentConfig(**values)
+
+
 def _hello(gateway_id: str = "gateway-1") -> str:
     return json.dumps({"type": "connected", "gateway_id": gateway_id})
 
@@ -149,6 +161,75 @@ def test_run_once_connects_with_dev_gateway_header() -> None:
             3.0,
         )
     ]
+
+
+def test_run_once_connects_with_production_gateway_auth_headers() -> None:
+    connector = RecordingConnector([_hello()])
+    client = GatewayControlClient(_production_config(), connector=connector)
+
+    result = asyncio.run(client.run_once())
+
+    assert result.connected is True
+    assert result.hello_received is True
+    assert connector.calls == [
+        (
+            "wss://api.example.test/api/v1/gateway-control/ws",
+            {
+                "Accept": "application/json",
+                "x-panoptix-gateway-id": "gateway-1",
+                "Authorization": "Bearer test-gateway-service-token",
+            },
+            3.0,
+        )
+    ]
+
+
+def test_run_once_connects_with_cloudflare_access_headers_when_configured() -> None:
+    connector = RecordingConnector([_hello()])
+    client = GatewayControlClient(
+        _production_config(
+            cf_access_client_id="test-client-id.access",
+            cf_access_client_secret="test-client-secret",
+        ),
+        connector=connector,
+    )
+
+    result = asyncio.run(client.run_once())
+
+    assert result.connected is True
+    assert result.hello_received is True
+    _url, headers, _timeout_seconds = connector.calls[0]
+    assert headers["x-panoptix-gateway-id"] == "gateway-1"
+    assert headers["Authorization"] == "Bearer test-gateway-service-token"
+    assert headers["CF-Access-Client-Id"] == "test-client-id.access"
+    assert headers["CF-Access-Client-Secret"] == "test-client-secret"
+    assert "x-panoptix-dev-gateway-id" not in headers
+
+
+def test_run_once_requires_gateway_service_token_outside_dev_mode() -> None:
+    connector = RecordingConnector([_hello()])
+    client = GatewayControlClient(
+        _production_config(gateway_service_token=""),
+        connector=connector,
+    )
+
+    with pytest.raises(ControlClientError, match="PANOPTIX_GATEWAY_SERVICE_TOKEN"):
+        asyncio.run(client.run_once())
+
+    assert connector.calls == []
+
+
+def test_run_once_requires_complete_cloudflare_access_pair_when_configured() -> None:
+    connector = RecordingConnector([_hello()])
+    client = GatewayControlClient(
+        _production_config(cf_access_client_id="test-client-id.access"),
+        connector=connector,
+    )
+
+    with pytest.raises(ControlClientError, match="PANOPTIX_CF_ACCESS_CLIENT_ID"):
+        asyncio.run(client.run_once())
+
+    assert connector.calls == []
 
 
 def test_handle_message_accepts_matching_hello() -> None:
