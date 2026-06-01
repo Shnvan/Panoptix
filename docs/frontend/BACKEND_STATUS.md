@@ -2,7 +2,7 @@
 
 This document lists every implemented backend API endpoint, what the frontend can build against today, what is not ready yet, and local dev setup instructions.
 
-Last updated: 2026-06-01 (visitor access request user-only production smoke passed)
+Last updated: 2026-06-01 (visitor access request final production smoke passed)
 
 Read first: [Frontend Coworker Handoff](FRONTEND_HANDOFF.md).
 
@@ -15,8 +15,8 @@ Read first: [Frontend Coworker Handoff](FRONTEND_HANDOFF.md).
 - Alert records and backend SMTP email notifications are implemented. Production sends high/critical alert emails through Resend to active admin users with `ALERT_EMAIL_RECIPIENT_MODE=admins`, including `/entry` Continue events and selected intrusion/abuse audit events.
 - Real LiveKit browser playback code is implemented using `@livekit/components-react` subscriber-only viewer. Production validation with real cameras is pending.
 - Real CCTV hardware validation is still pending. Staging browser smoke passed 2026-05-21. Production deployed at `panoptix.site` 2026-05-22.
-- The public visitor collector pilot is operational on same-domain `/entry`. First-time root visits redirect to `/entry` only when `panoptix_visitor` is absent; production admin API smoke confirmed expanded visitor detail sections are present. The admin visitor dashboard is implemented. The visitor access request form and `/entry?mode=request-access` return link are present in the deployed production frontend bundle. 2026-06-01 production smoke confirmed the narrow public `POST /api/v1/visitor/access-requests` Cloudflare exception works: public create returned `201 pending`, duplicate submit returned `409 access-request-already-pending`, Users & Access reject cleared the first pending smoke request, and a manual public `requested_role: "admin"` payload was stored as `viewer`.
-- Disabled users are enforced by the backend even if Cloudflare Access still authenticates the identity: protected API calls return `403 user-disabled`, app session cookies are cleared, and active Panoptix sessions for that disabled user are revoked when seen.
+- The public visitor collector pilot is operational on same-domain `/entry`. First-time root visits redirect to `/entry` only when `panoptix_visitor` is absent; production admin API smoke confirmed expanded visitor detail sections are present. The admin visitor dashboard is implemented. The visitor access request form and `/entry?mode=request-access` return link are present in the deployed production frontend bundle. 2026-06-01 production smoke confirmed the narrow public `POST /api/v1/visitor/access-requests` Cloudflare exception works: public create returned `201 pending`, duplicate submit returned `409 access-request-already-pending`, Users & Access reject cleared smoke requests, a manual public `requested_role: "admin"` payload was stored as `viewer`, approval sent/recorded a GitHub org invite as viewer, and disabled-user approval returned `409 user-disabled`.
+- Disabled users are enforced by the backend even if Cloudflare Access still authenticates the identity: protected API calls return `403 user-disabled`, app session cookies are cleared, active Panoptix sessions for that disabled user are revoked when seen, and access-request approval does not re-enable or invite disabled local users.
 - Backup status is backend evidence only, not direct browser/R2 object inspection. Production currently reports `ok` because encrypted R2 backup evidence exists, isolated restore-drill evidence has been recorded, and the GitHub Actions production backup/retention workflow has succeeded.
 - Gateway Discovery V2 backend and edge-agent APIs exist and are active on `main`, but Gateway Discovery UI is optional future frontend work only. Do not start it unless Ivan explicitly reassigns it.
 
