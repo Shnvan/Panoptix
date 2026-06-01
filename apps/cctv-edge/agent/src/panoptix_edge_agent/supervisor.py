@@ -80,7 +80,7 @@ class GatewayRuntimeSupervisor:
             mediamtx_started = start_result.started
 
         try:
-            heartbeat_result = self.heartbeat_runner.run_once()
+            heartbeat_result = await asyncio.to_thread(self.heartbeat_runner.run_once)
             if not heartbeat_result.ok:
                 return self._with_mediamtx_stop(
                     GatewayRuntimeSupervisorResult(
@@ -119,7 +119,7 @@ class GatewayRuntimeSupervisor:
                 raise RuntimeError(start_result.error or "mediamtx-start-failed")
         try:
             while True:
-                self.heartbeat_runner.run_once()
+                await asyncio.to_thread(self.heartbeat_runner.run_once)
                 await self.control_supervisor.run_once(
                     cycles=1,
                     max_messages=max_messages,
