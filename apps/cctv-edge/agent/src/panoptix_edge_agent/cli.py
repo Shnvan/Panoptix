@@ -23,7 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--control-once",
         action="store_true",
-        help="connect to gateway control WebSocket, read one message, and exit",
+        help="connect to gateway control WebSocket, read hello plus one command if queued, and exit",
     )
     parser.add_argument(
         "--control-loop-once",

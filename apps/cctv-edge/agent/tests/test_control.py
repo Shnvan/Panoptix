@@ -312,7 +312,7 @@ def test_run_once_handles_hello_then_command() -> None:
     connector = RecordingConnector([_hello(), _command()])
     client = GatewayControlClient(_config(), connector=connector)
 
-    result = asyncio.run(client.run_once(max_messages=2))
+    result = asyncio.run(client.run_once())
 
     assert result.hello_received is True
     assert result.accepted_commands == 1

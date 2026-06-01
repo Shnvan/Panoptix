@@ -195,6 +195,7 @@ class GatewayControlClient:
         hello_received = False
         accepted_commands = 0
         rejected_commands = 0
+        received_messages = 0
 
         try:
             async with self.connector.connect(
@@ -202,8 +203,24 @@ class GatewayControlClient:
                 self._headers(),
                 self.config.request_timeout_seconds,
             ) as websocket:
-                for _ in range(max_messages):
-                    result = await self.handle_message(await websocket.recv())
+                while accepted_commands + rejected_commands < max_messages:
+                    timeout_seconds = (
+                        self.config.request_timeout_seconds
+                        if received_messages == 0
+                        else min(self.config.request_timeout_seconds, 1.0)
+                    )
+                    try:
+                        raw_message = await asyncio.wait_for(
+                            websocket.recv(),
+                            timeout=timeout_seconds,
+                        )
+                    except (asyncio.TimeoutError, IndexError):
+                        if received_messages > 0:
+                            break
+                        raise
+
+                    received_messages += 1
+                    result = await self.handle_message(raw_message)
                     if result.kind == "hello" and result.accepted:
                         hello_received = True
                     elif result.kind == "command" and result.accepted:
