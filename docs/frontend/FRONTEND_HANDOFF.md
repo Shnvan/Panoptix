@@ -1,6 +1,6 @@
 # Frontend Coworker Handoff
 
-Last updated: 2026-06-01 (visitor access request workflow implemented locally; frontend smoke is next after backend deploy)
+Last updated: 2026-06-01 (visitor access request user-only production smoke passed)
 
 This is the first document the frontend coworker should read before changing the React app on `fullstack-integration`. It summarizes what the system owner has verified, what backend APIs are ready, and what frontend work should happen next.
 
@@ -25,7 +25,7 @@ This is the first document the frontend coworker should read before changing the
 - **Production is now live at `panoptix.site` (2026-05-22)** behind Cloudflare Access with GitHub OAuth. Railway production backend + frontend deployed with new cryptographic keys.
 - `SUSPICIOUS_LOGIN_DETECTION_ENABLED=true` in production (login baselines track normal device/IP patterns).
 - The same-domain public visitor entry flow is operational at `https://panoptix.site/entry`. First-time root visits redirect to `/entry` only when `panoptix_visitor` is absent; visitors can manually return to `https://panoptix.site/entry?mode=request-access` after trying secure sign-in. Only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, `/api/v1/visitor/collect`, and the narrow public `POST /api/v1/visitor/access-requests` exception bypass Cloudflare Access. Production admin API smoke confirms visitor detail responses expose `ip_details`, `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, and `risk_context`.
-- Visitor access request workflow is implemented: `/entry` includes a secondary request-access form, and Users & Access includes an Access Requests review panel. Public requests are always ordinary user/viewer requests and create pending rows only; they do not create accounts, roles, sessions, camera ACLs, GitHub invites, Cloudflare authorization, or admin requests. Admin approval remains required and uses the existing GitHub organization invite flow.
+- Visitor access request workflow is implemented and deployed: `/entry` includes a secondary request-access form, `/entry?mode=request-access#request-access` returns visitors directly to it, and Users & Access includes an Access Requests review panel. Public requests are always ordinary user/viewer requests and create pending rows only; they do not create accounts, roles, sessions, camera ACLs, GitHub invites, Cloudflare authorization, or admin requests. Production smoke confirmed a manual public `requested_role: "admin"` payload is stored as `viewer`. Admin approval remains required and uses the existing GitHub organization invite flow.
 - Disabled local users are blocked by the backend with `403 user-disabled`, and invites for existing disabled users return `409 user-disabled`. A GitHub or Cloudflare Access session does not re-enable a disabled Panoptix account.
 - Production backup status is now `ok`: encrypted R2 backup evidence exists, isolated restore-drill evidence was recorded against a temporary Neon branch, that temporary branch was deleted, and the production GitHub Actions backup/retention workflow has succeeded. Backup automation and retention are system-owner work, not frontend work.
 - Gateway Discovery V2 backend and edge-agent APIs are implemented and active on `main`, and production is migrated through `0013_visitor_access_requests`. Gateway Discovery UI is optional future frontend work only; do not start it unless Ivan explicitly reassigns it.
@@ -40,11 +40,11 @@ This is the first document the frontend coworker should read before changing the
 3. ~~Build the actor investigation UI~~ — ✅ Done. ActorInvestigationPage shows profile + activity timeline.
 4. ~~Finish real LiveKit subscriber playback~~ — ✅ Done. CameraDetailModal uses `@livekit/components-react` subscriber-only viewer.
 5. ~~Add full audit filter controls~~ — ✅ Done. AuditLogTable has all 10 backend-supported filter parameters.
-6. Smoke the visitor access request workflow after backend migration/deploy and the narrow Cloudflare exception are live:
-   - `/entry` request-access success, validation, duplicate pending, rate-limit, direct `?mode=request-access` return path, and readable error states
+6. Finish visitor access request edge-case smoke:
+   - `/entry` request-access validation, rate-limit, and readable error states
    - Users & Access pending request list
    - Approve flow sends the GitHub org invite
-   - Reject flow records the admin reason and removes the request from pending list
+   - Reject flow records the admin reason and removes the request from pending list (core smoke passed once on production)
    - Disabled-user approval/invite returns readable `user-disabled` messaging
 7. Browser-smoke every current sidebar page and destructive/error states against production-like data:
    - Dashboard
@@ -70,7 +70,7 @@ This is the first document the frontend coworker should read before changing the
 - Do not store auth tokens in `localStorage`, `sessionStorage`, or IndexedDB.
 - Do not expose RTSP URLs, LiveKit API secrets, LiveKit ingest tokens, gateway service tokens, Cloudflare Access service-token secrets, R2 keys, database URLs, backend-only credentials, or `.env` values in frontend code, logs, screenshots, storage, or UI.
 - Do not call gateway-only endpoints from browser code.
-- Never make broad `/api/v1/*` public or browser-call protected API groups from public entry code; only the documented visitor entry endpoints are public. The only planned new public exception is `POST /api/v1/visitor/access-requests`.
+- Never make broad `/api/v1/*` public or browser-call protected API groups from public entry code; only the documented visitor entry endpoints are public. The only access-request public exception is `POST /api/v1/visitor/access-requests`.
 - Do not treat email alerts as frontend-delivered. Email delivery is backend SMTP only; browsers should display alert records and statuses, never send alert email.
 - Do not redesign the coworker UI/UX unless the assigned task is explicitly design-system migration.
 
