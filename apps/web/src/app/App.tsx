@@ -29,7 +29,7 @@ export function App() {
   const { user, loading: userLoading, error: userError, refetch: refetchMe } = useMe();
   const { notice, accept: acceptNotice } = usePrivacyNotice();
   const { cameras, loading: camerasLoading } = useCameras();
-  const { events, cameraStatuses } = useCameraEvents();
+  const { cameraStatuses } = useCameraEvents();
   const systemStatus = useSystemHealth();
   const { dashboard } = useAdminDashboard();
 
