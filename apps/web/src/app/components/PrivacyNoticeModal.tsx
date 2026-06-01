@@ -21,20 +21,20 @@ export function PrivacyNoticeModal({ title, body, version, onAccept, loading }: 
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         className={`max-w-lg w-full border rounded-2xl shadow-2xl overflow-hidden ${
-          theme === 'dark' ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
+          theme === 'dark' ? 'bg-neutral-900 border-neutral-700' : 'bg-white border-neutral-200'
         }`}
       >
         <div className="p-8 text-center">
           <div className="w-20 h-20 mx-auto bg-gradient-to-br from-orange-500 to-amber-600 rounded-2xl flex items-center justify-center mb-6 shadow-xl shadow-orange-500/30">
             <Shield className="w-10 h-10 text-white" />
           </div>
-          <h2 className={`text-2xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{title}</h2>
-          <p className={`text-sm mb-6 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Version: {version}</p>
+          <h2 className={`text-2xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>{title}</h2>
+          <p className={`text-sm mb-6 ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>Version: {version}</p>
         </div>
 
-        <div className={`px-8 pb-6 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
+        <div className={`px-8 pb-6 ${theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}`}>
           <div className={`p-4 rounded-lg border mb-6 ${
-            theme === 'dark' ? 'bg-slate-800/50 border-slate-700/50' : 'bg-slate-50 border-slate-200'
+            theme === 'dark' ? 'bg-neutral-800/50 border-neutral-700/50' : 'bg-neutral-50 border-neutral-200'
           }`}>
             <div className="flex items-start gap-3">
               <FileText className={`w-5 h-5 flex-shrink-0 mt-0.5 ${theme === 'dark' ? 'text-orange-400' : 'text-orange-600'}`} />
@@ -53,7 +53,7 @@ export function PrivacyNoticeModal({ title, body, version, onAccept, loading }: 
           >
             {loading ? 'Accepting...' : 'I Accept & Understand'}
           </button>
-          <p className={`text-center text-xs mt-4 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>
+          <p className={`text-center text-xs mt-4 ${theme === 'dark' ? 'text-neutral-500' : 'text-neutral-400'}`}>
             You must accept this notice to use the system. This acceptance is logged.
           </p>
         </div>

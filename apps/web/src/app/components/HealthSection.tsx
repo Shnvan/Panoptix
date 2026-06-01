@@ -69,12 +69,12 @@ export function HealthSection() {
   };
 
   const renderSecurityCheck = (title: string, IconComp: typeof Shield) => (
-    <div className={`backdrop-blur-xl border rounded-lg p-5 ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
+    <div className={`backdrop-blur-xl border rounded-lg p-5 ${d ? 'bg-gradient-to-br from-neutral-900/90 to-neutral-800/90 border-neutral-700/50' : 'bg-white border-neutral-200'}`}>
       <div className="flex items-center gap-3 mb-3">
-        <IconComp className="w-5 h-5 text-slate-400" />
-        <h4 className={`font-semibold ${d ? 'text-white' : 'text-slate-900'}`}>{title}</h4>
+        <IconComp className="w-5 h-5 text-neutral-400" />
+        <h4 className={`font-semibold ${d ? 'text-white' : 'text-neutral-900'}`}>{title}</h4>
       </div>
-      <p className={`text-sm ${d ? 'text-slate-500' : 'text-slate-400'}`}>
+      <p className={`text-sm ${d ? 'text-neutral-500' : 'text-neutral-400'}`}>
         Planned pilot check. Backend endpoint is not implemented in the current branch.
       </p>
     </div>
@@ -85,8 +85,8 @@ export function HealthSection() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className={`text-2xl font-bold mb-1 ${d ? 'text-white' : 'text-slate-900'}`}>System Health</h2>
-        <p className={d ? 'text-slate-400' : 'text-slate-500'}>Deep health monitoring, backup status, and maintenance controls</p>
+        <h2 className={`text-2xl font-bold mb-1 ${d ? 'text-white' : 'text-neutral-900'}`}>System Health</h2>
+        <p className={d ? 'text-neutral-400' : 'text-neutral-500'}>Deep health monitoring, backup status, and maintenance controls</p>
       </div>
 
       {msg && (
@@ -99,23 +99,23 @@ export function HealthSection() {
       )}
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-        className={`backdrop-blur-xl border rounded-lg p-6 ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
+        className={`backdrop-blur-xl border rounded-lg p-6 ${d ? 'bg-gradient-to-br from-neutral-900/90 to-neutral-800/90 border-neutral-700/50' : 'bg-white border-neutral-200'}`}>
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 bg-emerald-500/20 rounded-lg flex items-center justify-center">
             <Activity className="w-5 h-5 text-emerald-500" />
           </div>
           <div>
-            <h3 className={`font-semibold ${d ? 'text-white' : 'text-slate-900'}`}>Deep Health Check</h3>
-            <p className={`text-sm ${d ? 'text-slate-400' : 'text-slate-500'}`}>DB, LiveKit, and gateway reachability</p>
+            <h3 className={`font-semibold ${d ? 'text-white' : 'text-neutral-900'}`}>Deep Health Check</h3>
+            <p className={`text-sm ${d ? 'text-neutral-400' : 'text-neutral-500'}`}>DB, LiveKit, and gateway reachability</p>
           </div>
         </div>
 
         {healthLoading ? (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className={`p-4 rounded-lg animate-pulse ${d ? 'bg-slate-800/50' : 'bg-slate-100'}`}>
-                <div className="h-4 w-16 rounded bg-slate-700/50 mb-2" />
-                <div className="h-6 w-12 rounded bg-slate-700/50" />
+              <div key={i} className={`p-4 rounded-lg animate-pulse ${d ? 'bg-neutral-800/50' : 'bg-neutral-100'}`}>
+                <div className="h-4 w-16 rounded bg-neutral-700/50 mb-2" />
+                <div className="h-6 w-12 rounded bg-neutral-700/50" />
               </div>
             ))}
           </div>
@@ -130,7 +130,7 @@ export function HealthSection() {
               <div key={item.label} className={`p-4 rounded-lg border ${statusBg(item.status)}`}>
                 <div className="flex items-center gap-2 mb-2">
                   <item.icon className={`w-4 h-4 ${item.status === 'ok' ? 'text-emerald-400' : item.status === 'degraded' ? 'text-amber-400' : 'text-red-400'}`} />
-                  <span className={`text-sm font-medium ${d ? 'text-slate-300' : 'text-slate-600'}`}>{item.label}</span>
+                  <span className={`text-sm font-medium ${d ? 'text-neutral-300' : 'text-neutral-600'}`}>{item.label}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   {statusIcon(item.status)}
@@ -146,49 +146,49 @@ export function HealthSection() {
 
       {/* Backup Status — from GET /admin/backups/status */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-        className={`backdrop-blur-xl border rounded-lg p-6 ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
+        className={`backdrop-blur-xl border rounded-lg p-6 ${d ? 'bg-gradient-to-br from-neutral-900/90 to-neutral-800/90 border-neutral-700/50' : 'bg-white border-neutral-200'}`}>
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center">
             <Database className="w-5 h-5 text-orange-500" />
           </div>
           <div>
-            <h3 className={`font-semibold ${d ? 'text-white' : 'text-slate-900'}`}>Backup Status</h3>
-            <p className={`text-sm ${d ? 'text-slate-400' : 'text-slate-500'}`}>Latest database backup from R2 storage</p>
+            <h3 className={`font-semibold ${d ? 'text-white' : 'text-neutral-900'}`}>Backup Status</h3>
+            <p className={`text-sm ${d ? 'text-neutral-400' : 'text-neutral-500'}`}>Latest database backup from R2 storage</p>
           </div>
         </div>
         {latestBackup ? (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className={`p-3 rounded-lg ${d ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
-              <p className={`text-xs mb-1 ${d ? 'text-slate-400' : 'text-slate-500'}`}>Status</p>
+            <div className={`p-3 rounded-lg ${d ? 'bg-neutral-800/50' : 'bg-neutral-50'}`}>
+              <p className={`text-xs mb-1 ${d ? 'text-neutral-400' : 'text-neutral-500'}`}>Status</p>
               <p className={`text-sm font-medium ${backup?.status === 'ok' ? 'text-emerald-400' : backup?.status === 'degraded' ? 'text-amber-400' : 'text-red-400'}`}>
                 {(backup?.status || 'missing').toUpperCase()}
               </p>
             </div>
-            <div className={`p-3 rounded-lg ${d ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
-              <p className={`text-xs mb-1 ${d ? 'text-slate-400' : 'text-slate-500'}`}>Upload</p>
-              <p className={`text-sm font-medium ${d ? 'text-white' : 'text-slate-900'}`}>{latestBackup.upload_status}</p>
+            <div className={`p-3 rounded-lg ${d ? 'bg-neutral-800/50' : 'bg-neutral-50'}`}>
+              <p className={`text-xs mb-1 ${d ? 'text-neutral-400' : 'text-neutral-500'}`}>Upload</p>
+              <p className={`text-sm font-medium ${d ? 'text-white' : 'text-neutral-900'}`}>{latestBackup.upload_status}</p>
             </div>
-            <div className={`p-3 rounded-lg ${d ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
-              <p className={`text-xs mb-1 ${d ? 'text-slate-400' : 'text-slate-500'}`}>Started</p>
-              <p className={`text-sm font-medium ${d ? 'text-white' : 'text-slate-900'}`}>{new Date(latestBackup.started_at).toLocaleString()}</p>
+            <div className={`p-3 rounded-lg ${d ? 'bg-neutral-800/50' : 'bg-neutral-50'}`}>
+              <p className={`text-xs mb-1 ${d ? 'text-neutral-400' : 'text-neutral-500'}`}>Started</p>
+              <p className={`text-sm font-medium ${d ? 'text-white' : 'text-neutral-900'}`}>{new Date(latestBackup.started_at).toLocaleString()}</p>
             </div>
-            <div className={`p-3 rounded-lg ${d ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
-              <p className={`text-xs mb-1 ${d ? 'text-slate-400' : 'text-slate-500'}`}>Size</p>
-              <p className={`text-sm font-medium ${d ? 'text-white' : 'text-slate-900'}`}>
+            <div className={`p-3 rounded-lg ${d ? 'bg-neutral-800/50' : 'bg-neutral-50'}`}>
+              <p className={`text-xs mb-1 ${d ? 'text-neutral-400' : 'text-neutral-500'}`}>Size</p>
+              <p className={`text-sm font-medium ${d ? 'text-white' : 'text-neutral-900'}`}>
                 {latestBackup.size_bytes ? `${(latestBackup.size_bytes / 1024 / 1024).toFixed(2)} MB` : '—'}
               </p>
             </div>
           </div>
         ) : (
-          <div className={`p-4 rounded-lg text-sm text-center ${d ? 'bg-slate-800/50 text-slate-400' : 'bg-slate-50 text-slate-500'}`}>
-            <HardDrive className={`w-8 h-8 mx-auto mb-2 ${d ? 'text-slate-600' : 'text-slate-300'}`} />
+          <div className={`p-4 rounded-lg text-sm text-center ${d ? 'bg-neutral-800/50 text-neutral-400' : 'bg-neutral-50 text-neutral-500'}`}>
+            <HardDrive className={`w-8 h-8 mx-auto mb-2 ${d ? 'text-neutral-600' : 'text-neutral-300'}`} />
             No backup data available
           </div>
         )}
       </motion.div>
 
       <div>
-        <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${d ? 'text-white' : 'text-slate-900'}`}>
+        <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${d ? 'text-white' : 'text-neutral-900'}`}>
           <Shield className="w-5 h-5 text-orange-500" /> Security Check Reports
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -199,20 +199,20 @@ export function HealthSection() {
       </div>
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-        className={`backdrop-blur-xl border rounded-lg p-6 ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
+        className={`backdrop-blur-xl border rounded-lg p-6 ${d ? 'bg-gradient-to-br from-neutral-900/90 to-neutral-800/90 border-neutral-700/50' : 'bg-white border-neutral-200'}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
               <Radio className="w-5 h-5 text-purple-500" />
             </div>
             <div>
-              <h3 className={`font-semibold ${d ? 'text-white' : 'text-slate-900'}`}>LiveKit Media Plane</h3>
-              <p className={`text-sm ${d ? 'text-slate-400' : 'text-slate-500'}`}>
+              <h3 className={`font-semibold ${d ? 'text-white' : 'text-neutral-900'}`}>LiveKit Media Plane</h3>
+              <p className={`text-sm ${d ? 'text-neutral-400' : 'text-neutral-500'}`}>
                 Current mode: <span className={`font-medium ${livekitMode === 'cloud' ? 'text-emerald-400' : 'text-amber-400'}`}>
                   {livekitMode === 'cloud' ? 'LiveKit Cloud (Primary)' : 'Self-Hosted Fallback'}
                 </span>
               </p>
-              <p className={`text-xs mt-1 ${d ? 'text-slate-500' : 'text-slate-400'}`}>
+              <p className={`text-xs mt-1 ${d ? 'text-neutral-500' : 'text-neutral-400'}`}>
                 Admin only. Switches dynamic CSP connect-src on next request. No redeploy needed.
               </p>
             </div>
@@ -229,15 +229,15 @@ export function HealthSection() {
       </motion.div>
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-        className={`backdrop-blur-xl border rounded-lg p-6 ${d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'}`}>
+        className={`backdrop-blur-xl border rounded-lg p-6 ${d ? 'bg-gradient-to-br from-neutral-900/90 to-neutral-800/90 border-neutral-700/50' : 'bg-white border-neutral-200'}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-amber-500/20 rounded-lg flex items-center justify-center">
               <Wrench className="w-5 h-5 text-amber-500" />
             </div>
             <div>
-              <h3 className={`font-semibold ${d ? 'text-white' : 'text-slate-900'}`}>Manual Maintenance</h3>
-              <p className={`text-sm ${d ? 'text-slate-400' : 'text-slate-500'}`}>Clean expired commands and enqueue pending stop-publish commands</p>
+              <h3 className={`font-semibold ${d ? 'text-white' : 'text-neutral-900'}`}>Manual Maintenance</h3>
+              <p className={`text-sm ${d ? 'text-neutral-400' : 'text-neutral-500'}`}>Clean expired commands and enqueue pending stop-publish commands</p>
             </div>
           </div>
           <button onClick={handleMaintenance} disabled={runningMaintenance}

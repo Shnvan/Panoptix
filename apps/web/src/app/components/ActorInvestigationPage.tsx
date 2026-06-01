@@ -47,7 +47,7 @@ const SEVERITY_CLASS: Record<string, string> = {
   high: 'text-orange-400',
   medium: 'text-amber-400',
   low: 'text-blue-400',
-  informational: 'text-slate-400',
+  informational: 'text-neutral-400',
 };
 
 const OUTCOME_BADGE: Record<string, string> = {
@@ -66,10 +66,10 @@ function Section({ title, icon: Icon, children, dark }: {
   dark: boolean;
 }) {
   return (
-    <div className={`border rounded-lg overflow-hidden ${dark ? 'border-slate-700/50 bg-slate-900/60' : 'border-slate-200 bg-white'}`}>
-      <div className={`flex items-center gap-2 px-4 py-3 border-b ${dark ? 'border-slate-700/50' : 'border-slate-100'}`}>
+    <div className={`border rounded-lg overflow-hidden ${dark ? 'border-neutral-700/50 bg-neutral-900/60' : 'border-neutral-200 bg-white'}`}>
+      <div className={`flex items-center gap-2 px-4 py-3 border-b ${dark ? 'border-neutral-700/50' : 'border-neutral-100'}`}>
         <Icon className={`w-4 h-4 ${dark ? 'text-orange-400' : 'text-orange-600'}`} />
-        <h4 className={`text-sm font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>{title}</h4>
+        <h4 className={`text-sm font-semibold ${dark ? 'text-white' : 'text-neutral-900'}`}>{title}</h4>
       </div>
       <div className="p-4">{children}</div>
     </div>
@@ -79,8 +79,8 @@ function Section({ title, icon: Icon, children, dark }: {
 function KV({ label, value, dark }: { label: string; value: React.ReactNode; dark: boolean }) {
   return (
     <div className="flex items-start justify-between gap-4 py-1.5">
-      <span className={`text-xs flex-shrink-0 w-36 ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{label}</span>
-      <span className={`text-xs text-right break-all ${dark ? 'text-slate-200' : 'text-slate-800'}`}>{value ?? '—'}</span>
+      <span className={`text-xs flex-shrink-0 w-36 ${dark ? 'text-neutral-400' : 'text-neutral-500'}`}>{label}</span>
+      <span className={`text-xs text-right break-all ${dark ? 'text-neutral-200' : 'text-neutral-800'}`}>{value ?? '—'}</span>
     </div>
   );
 }
@@ -91,35 +91,35 @@ function ActivityRow({ item, dark }: { item: ActorActivityItem; dark: boolean })
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className={`border-b ${dark ? 'border-slate-800' : 'border-slate-100'}`}>
+    <div className={`border-b ${dark ? 'border-neutral-800' : 'border-neutral-100'}`}>
       <button
-        className={`w-full text-left flex items-center gap-3 px-4 py-2.5 transition-colors ${dark ? 'hover:bg-slate-800/40' : 'hover:bg-slate-50'}`}
+        className={`w-full text-left flex items-center gap-3 px-4 py-2.5 transition-colors ${dark ? 'hover:bg-neutral-800/40' : 'hover:bg-neutral-50'}`}
         onClick={() => setExpanded((e) => !e)}
       >
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-0.5">
-            <span className={`text-xs font-medium ${SEVERITY_CLASS[item.event_severity ?? ''] ?? 'text-slate-400'}`}>
+            <span className={`text-xs font-medium ${SEVERITY_CLASS[item.event_severity ?? ''] ?? 'text-neutral-400'}`}>
               {item.event_severity ?? '?'}
             </span>
             {item.event_outcome && (
-              <span className={`text-xs px-1.5 py-0.5 rounded border ${OUTCOME_BADGE[item.event_outcome] ?? 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}>
+              <span className={`text-xs px-1.5 py-0.5 rounded border ${OUTCOME_BADGE[item.event_outcome] ?? 'bg-neutral-500/10 text-neutral-400 border-neutral-500/20'}`}>
                 {item.event_outcome}
               </span>
             )}
             {item.event_category && (
-              <span className={`text-xs ${dark ? 'text-slate-500' : 'text-slate-400'}`}>{item.event_category}</span>
+              <span className={`text-xs ${dark ? 'text-neutral-500' : 'text-neutral-400'}`}>{item.event_category}</span>
             )}
           </div>
-          <p className={`text-xs truncate font-mono ${dark ? 'text-slate-300' : 'text-slate-700'}`}>{item.action}</p>
+          <p className={`text-xs truncate font-mono ${dark ? 'text-neutral-300' : 'text-neutral-700'}`}>{item.action}</p>
           {item.resource && (
-            <p className={`text-xs truncate ${dark ? 'text-slate-500' : 'text-slate-400'}`}>{item.resource}</p>
+            <p className={`text-xs truncate ${dark ? 'text-neutral-500' : 'text-neutral-400'}`}>{item.resource}</p>
           )}
         </div>
-        <div className={`flex-shrink-0 text-xs ${dark ? 'text-slate-500' : 'text-slate-400'}`}>
+        <div className={`flex-shrink-0 text-xs ${dark ? 'text-neutral-500' : 'text-neutral-400'}`}>
           {item.ts ? new Date(item.ts).toLocaleTimeString('en-US', { hour12: false }) : '—'}
         </div>
         {item.payload ? (
-          expanded ? <ChevronUp className="w-3.5 h-3.5 flex-shrink-0 text-slate-500" /> : <ChevronDown className="w-3.5 h-3.5 flex-shrink-0 text-slate-500" />
+          expanded ? <ChevronUp className="w-3.5 h-3.5 flex-shrink-0 text-neutral-500" /> : <ChevronDown className="w-3.5 h-3.5 flex-shrink-0 text-neutral-500" />
         ) : null}
       </button>
       <AnimatePresence>
@@ -129,12 +129,12 @@ function ActivityRow({ item, dark }: { item: ActorActivityItem; dark: boolean })
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className={`px-4 pb-3 border-t ${dark ? 'border-slate-800' : 'border-slate-100'}`}
+            className={`px-4 pb-3 border-t ${dark ? 'border-neutral-800' : 'border-neutral-100'}`}
           >
-            <pre className={`text-xs mt-2 p-2 rounded overflow-auto max-h-40 ${dark ? 'bg-slate-800 text-slate-300' : 'bg-slate-50 text-slate-700'}`}>
+            <pre className={`text-xs mt-2 p-2 rounded overflow-auto max-h-40 ${dark ? 'bg-neutral-800 text-neutral-300' : 'bg-neutral-50 text-neutral-700'}`}>
               {JSON.stringify(item.payload, null, 2)}
             </pre>
-            <div className={`flex gap-4 mt-2 text-xs ${dark ? 'text-slate-500' : 'text-slate-400'}`}>
+            <div className={`flex gap-4 mt-2 text-xs ${dark ? 'text-neutral-500' : 'text-neutral-400'}`}>
               {item.ip && <span>IP: {item.ip}</span>}
               {item.session_id && <span>Session: {item.session_id.slice(0, 8)}…</span>}
             </div>
@@ -155,15 +155,15 @@ function ProfilePanel({ profile, dark }: { profile: ActorProfileResponse; dark: 
   return (
     <div className="space-y-4">
       {/* Identity header */}
-      <div className={`flex items-center gap-3 p-4 border rounded-lg ${dark ? 'border-slate-700/50 bg-slate-900/60' : 'border-slate-200 bg-white'}`}>
+      <div className={`flex items-center gap-3 p-4 border rounded-lg ${dark ? 'border-neutral-700/50 bg-neutral-900/60' : 'border-neutral-200 bg-white'}`}>
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${dark ? 'bg-orange-500/20' : 'bg-orange-50'}`}>
           <Icon className="w-5 h-5 text-orange-400" />
         </div>
         <div>
-          <p className={`font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>
+          <p className={`font-semibold ${dark ? 'text-white' : 'text-neutral-900'}`}>
             {profile.email ?? profile.name ?? actorCfg.label}
           </p>
-          <p className={`text-xs font-mono ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+          <p className={`text-xs font-mono ${dark ? 'text-neutral-400' : 'text-neutral-500'}`}>
             {profile.actor_type} · {profile.actor_id?.slice(0, 12) ?? 'n/a'}
           </p>
         </div>
@@ -174,7 +174,7 @@ function ProfilePanel({ profile, dark }: { profile: ActorProfileResponse; dark: 
           <span className={`ml-auto text-xs px-2 py-0.5 rounded border ${
             profile.status === 'active' || profile.status === 'enabled'
               ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-              : 'bg-slate-500/15 text-slate-400 border-slate-500/30'
+              : 'bg-neutral-500/15 text-neutral-400 border-neutral-500/30'
           }`}>{profile.status}</span>
         )}
       </div>
@@ -189,9 +189,9 @@ function ProfilePanel({ profile, dark }: { profile: ActorProfileResponse; dark: 
               { label: 'Resolved', val: as.resolved, cls: 'text-emerald-400' },
               { label: 'Critical', val: as.critical, cls: 'text-red-500' },
             ].map(({ label, val, cls }) => (
-              <div key={label} className={`text-center p-3 rounded-lg ${dark ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
+              <div key={label} className={`text-center p-3 rounded-lg ${dark ? 'bg-neutral-800/50' : 'bg-neutral-50'}`}>
                 <p className={`text-xl font-bold ${cls}`}>{val}</p>
-                <p className={`text-xs mt-1 ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{label}</p>
+                <p className={`text-xs mt-1 ${dark ? 'text-neutral-400' : 'text-neutral-500'}`}>{label}</p>
               </div>
             ))}
           </div>
@@ -201,7 +201,7 @@ function ProfilePanel({ profile, dark }: { profile: ActorProfileResponse; dark: 
       {/* User-specific fields */}
       {profile.actor_type === 'user' && (
         <Section title="User Profile" icon={User} dark={dark}>
-          <div className={`divide-y ${dark ? 'divide-slate-800' : 'divide-slate-100'}`}>
+          <div className={`divide-y ${dark ? 'divide-neutral-800' : 'divide-neutral-100'}`}>
             <KV label="Email" value={profile.email ?? '—'} dark={dark} />
             <KV label="Roles" value={profile.roles?.join(', ') || 'none'} dark={dark} />
             <KV label="Created" value={fmt(profile.created_at)} dark={dark} />
@@ -213,7 +213,7 @@ function ProfilePanel({ profile, dark }: { profile: ActorProfileResponse; dark: 
       {/* Gateway-specific fields */}
       {profile.actor_type === 'gateway' && (
         <Section title="Gateway Profile" icon={Server} dark={dark}>
-          <div className={`divide-y ${dark ? 'divide-slate-800' : 'divide-slate-100'}`}>
+          <div className={`divide-y ${dark ? 'divide-neutral-800' : 'divide-neutral-100'}`}>
             <KV label="Name" value={profile.name ?? '—'} dark={dark} />
             <KV label="Status" value={profile.status ?? '—'} dark={dark} />
             <KV label="Last seen" value={fmt(profile.last_seen_at)} dark={dark} />
@@ -226,10 +226,10 @@ function ProfilePanel({ profile, dark }: { profile: ActorProfileResponse; dark: 
         <Section title="Login Baseline" icon={Clock} dark={dark}>
           <div className="space-y-2">
             {profile.recent_logins.slice(0, 5).map((login, i) => (
-              <div key={i} className={`flex items-center gap-3 p-2.5 rounded text-xs ${dark ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
-                <span className={`font-mono ${dark ? 'text-slate-300' : 'text-slate-700'}`}>{login.ip ?? '—'}</span>
-                <span className={`flex-1 truncate ${dark ? 'text-slate-500' : 'text-slate-400'}`}>{login.ua ?? '—'}</span>
-                <span className={dark ? 'text-slate-500' : 'text-slate-400'}>{fmt(login.ts)}</span>
+              <div key={i} className={`flex items-center gap-3 p-2.5 rounded text-xs ${dark ? 'bg-neutral-800/50' : 'bg-neutral-50'}`}>
+                <span className={`font-mono ${dark ? 'text-neutral-300' : 'text-neutral-700'}`}>{login.ip ?? '—'}</span>
+                <span className={`flex-1 truncate ${dark ? 'text-neutral-500' : 'text-neutral-400'}`}>{login.ua ?? '—'}</span>
+                <span className={dark ? 'text-neutral-500' : 'text-neutral-400'}>{fmt(login.ts)}</span>
               </div>
             ))}
           </div>
@@ -357,17 +357,17 @@ export function ActorInvestigationPage() {
           <UserSearch className="w-5 h-5 text-purple-400" />
         </div>
         <div>
-          <h3 className={`font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>Actor Investigation</h3>
-          <p className={`text-sm ${dark ? 'text-slate-400' : 'text-slate-500'}`}>Profile and activity timeline for users, gateways, and system actors</p>
+          <h3 className={`font-semibold ${dark ? 'text-white' : 'text-neutral-900'}`}>Actor Investigation</h3>
+          <p className={`text-sm ${dark ? 'text-neutral-400' : 'text-neutral-500'}`}>Profile and activity timeline for users, gateways, and system actors</p>
         </div>
       </div>
 
       {/* Search form */}
-      <div className={`border rounded-lg p-4 ${dark ? 'border-slate-700/50 bg-slate-900/60' : 'border-slate-200 bg-white'}`}>
+      <div className={`border rounded-lg p-4 ${dark ? 'border-neutral-700/50 bg-neutral-900/60' : 'border-neutral-200 bg-white'}`}>
         <div className="flex flex-wrap gap-3 items-end">
           {/* Actor type */}
           <div className="flex-shrink-0">
-            <label className={`block text-xs mb-1.5 ${dark ? 'text-slate-400' : 'text-slate-500'}`}>Actor type</label>
+            <label className={`block text-xs mb-1.5 ${dark ? 'text-neutral-400' : 'text-neutral-500'}`}>Actor type</label>
             <div className="flex gap-1">
               {ACTOR_TYPES.map((t) => {
                 const Icon = t.icon;
@@ -380,8 +380,8 @@ export function ActorInvestigationPage() {
                       actorType === t.value
                         ? 'bg-orange-500/20 text-orange-400 border-orange-500/30'
                         : dark
-                          ? 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-600'
-                          : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'
+                          ? 'bg-neutral-800 text-neutral-400 border-neutral-700 hover:border-neutral-600'
+                          : 'bg-neutral-50 text-neutral-500 border-neutral-200 hover:border-neutral-300'
                     }`}
                   >
                     <Icon className="w-3 h-3" />
@@ -395,7 +395,7 @@ export function ActorInvestigationPage() {
           {/* ID input (not shown for system actors) */}
           {!isSystemActor && (
             <div className="flex-1 min-w-48">
-              <label className={`block text-xs mb-1.5 ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+              <label className={`block text-xs mb-1.5 ${dark ? 'text-neutral-400' : 'text-neutral-500'}`}>
                 {actorType === 'user' ? 'User ID (UUID)' : 'Gateway ID (UUID)'}
               </label>
               <input
@@ -407,8 +407,8 @@ export function ActorInvestigationPage() {
                 placeholder="Paste UUID from Users or Audit Logs…"
                 className={`w-full text-sm px-3 py-2 rounded border outline-none transition-colors font-mono ${
                   dark
-                    ? 'bg-slate-800 border-slate-700 text-slate-200 placeholder-slate-600 focus:border-orange-500/50'
-                    : 'bg-white border-slate-200 text-slate-800 placeholder-slate-300 focus:border-orange-400'
+                    ? 'bg-neutral-800 border-neutral-700 text-neutral-200 placeholder-neutral-600 focus:border-orange-500/50'
+                    : 'bg-white border-neutral-200 text-neutral-800 placeholder-neutral-300 focus:border-orange-400'
                 }`}
               />
             </div>
@@ -429,7 +429,7 @@ export function ActorInvestigationPage() {
               id="actor-refresh-btn"
               onClick={() => { loadProfile(); setActivity([]); loadActivity(); }}
               disabled={profileLoading}
-              className={`flex items-center gap-1.5 text-sm px-3 py-2 rounded transition-colors ${dark ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+              className={`flex items-center gap-1.5 text-sm px-3 py-2 rounded transition-colors ${dark ? 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}
             >
               <RefreshCw className={`w-3.5 h-3.5 ${profileLoading ? 'animate-spin' : ''}`} />
             </button>
@@ -438,19 +438,19 @@ export function ActorInvestigationPage() {
       </div>
 
       {/* Activity filters */}
-      <div className={`border rounded-lg p-4 ${dark ? 'border-slate-700/50 bg-slate-900/60' : 'border-slate-200 bg-white'}`}>
+      <div className={`border rounded-lg p-4 ${dark ? 'border-neutral-700/50 bg-neutral-900/60' : 'border-neutral-200 bg-white'}`}>
         <div className="flex items-center justify-between gap-3 mb-3">
           <div>
-            <h4 className={`text-sm font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>Activity Filters</h4>
-            <p className={`text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>Applied to the actor activity endpoint.</p>
+            <h4 className={`text-sm font-semibold ${dark ? 'text-white' : 'text-neutral-900'}`}>Activity Filters</h4>
+            <p className={`text-xs ${dark ? 'text-neutral-400' : 'text-neutral-500'}`}>Applied to the actor activity endpoint.</p>
           </div>
           <button
             id="actor-clear-filters"
             onClick={clearActivityFilters}
             className={`text-xs px-3 py-1.5 rounded border transition-colors ${
               dark
-                ? 'border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600'
-                : 'border-slate-200 text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                ? 'border-neutral-700 text-neutral-400 hover:text-neutral-200 hover:border-neutral-600'
+                : 'border-neutral-200 text-neutral-500 hover:text-neutral-700 hover:border-neutral-300'
             }`}
           >
             Clear Filters
@@ -462,13 +462,13 @@ export function ActorInvestigationPage() {
             value={actionFilter}
             onChange={(e) => setActionFilter(e.target.value)}
             placeholder="Action exact match"
-            className={`text-xs px-3 py-2 rounded border outline-none ${dark ? 'bg-slate-800 border-slate-700 text-slate-200 placeholder-slate-600' : 'bg-white border-slate-200 text-slate-800 placeholder-slate-400'}`}
+            className={`text-xs px-3 py-2 rounded border outline-none ${dark ? 'bg-neutral-800 border-neutral-700 text-neutral-200 placeholder-neutral-600' : 'bg-white border-neutral-200 text-neutral-800 placeholder-neutral-400'}`}
           />
           <select
             id="actor-severity-filter"
             value={severityFilter}
             onChange={(e) => setSeverityFilter(e.target.value)}
-            className={`text-xs px-3 py-2 rounded border outline-none ${dark ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-800'}`}
+            className={`text-xs px-3 py-2 rounded border outline-none ${dark ? 'bg-neutral-800 border-neutral-700 text-neutral-200' : 'bg-white border-neutral-200 text-neutral-800'}`}
           >
             {SEVERITY_OPTIONS.map((value) => <option key={value || 'all'} value={value}>{value || 'All severities'}</option>)}
           </select>
@@ -476,7 +476,7 @@ export function ActorInvestigationPage() {
             id="actor-category-filter"
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className={`text-xs px-3 py-2 rounded border outline-none ${dark ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-800'}`}
+            className={`text-xs px-3 py-2 rounded border outline-none ${dark ? 'bg-neutral-800 border-neutral-700 text-neutral-200' : 'bg-white border-neutral-200 text-neutral-800'}`}
           >
             {CATEGORY_OPTIONS.map((value) => <option key={value || 'all'} value={value}>{value ? value.replace(/_/g, ' ') : 'All categories'}</option>)}
           </select>
@@ -484,7 +484,7 @@ export function ActorInvestigationPage() {
             id="actor-outcome-filter"
             value={outcomeFilter}
             onChange={(e) => setOutcomeFilter(e.target.value)}
-            className={`text-xs px-3 py-2 rounded border outline-none ${dark ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-800'}`}
+            className={`text-xs px-3 py-2 rounded border outline-none ${dark ? 'bg-neutral-800 border-neutral-700 text-neutral-200' : 'bg-white border-neutral-200 text-neutral-800'}`}
           >
             {OUTCOME_OPTIONS.map((value) => <option key={value || 'all'} value={value}>{value || 'All outcomes'}</option>)}
           </select>
@@ -493,28 +493,28 @@ export function ActorInvestigationPage() {
             value={resourceFilter}
             onChange={(e) => setResourceFilter(e.target.value)}
             placeholder="Resource exact match"
-            className={`text-xs px-3 py-2 rounded border outline-none ${dark ? 'bg-slate-800 border-slate-700 text-slate-200 placeholder-slate-600' : 'bg-white border-slate-200 text-slate-800 placeholder-slate-400'}`}
+            className={`text-xs px-3 py-2 rounded border outline-none ${dark ? 'bg-neutral-800 border-neutral-700 text-neutral-200 placeholder-neutral-600' : 'bg-white border-neutral-200 text-neutral-800 placeholder-neutral-400'}`}
           />
           <input
             id="actor-session-filter"
             value={sessionFilter}
             onChange={(e) => setSessionFilter(e.target.value)}
             placeholder="Session UUID"
-            className={`text-xs px-3 py-2 rounded border outline-none ${dark ? 'bg-slate-800 border-slate-700 text-slate-200 placeholder-slate-600' : 'bg-white border-slate-200 text-slate-800 placeholder-slate-400'}`}
+            className={`text-xs px-3 py-2 rounded border outline-none ${dark ? 'bg-neutral-800 border-neutral-700 text-neutral-200 placeholder-neutral-600' : 'bg-white border-neutral-200 text-neutral-800 placeholder-neutral-400'}`}
           />
           <input
             id="actor-ts-from-filter"
             type="datetime-local"
             value={tsFromFilter}
             onChange={(e) => setTsFromFilter(e.target.value)}
-            className={`text-xs px-3 py-2 rounded border outline-none ${dark ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-800'}`}
+            className={`text-xs px-3 py-2 rounded border outline-none ${dark ? 'bg-neutral-800 border-neutral-700 text-neutral-200' : 'bg-white border-neutral-200 text-neutral-800'}`}
           />
           <input
             id="actor-ts-to-filter"
             type="datetime-local"
             value={tsToFilter}
             onChange={(e) => setTsToFilter(e.target.value)}
-            className={`text-xs px-3 py-2 rounded border outline-none ${dark ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-800'}`}
+            className={`text-xs px-3 py-2 rounded border outline-none ${dark ? 'bg-neutral-800 border-neutral-700 text-neutral-200' : 'bg-white border-neutral-200 text-neutral-800'}`}
           />
         </div>
       </div>
@@ -535,9 +535,9 @@ export function ActorInvestigationPage() {
 
       {/* Empty hint */}
       {!profile && !profileLoading && !profileError && (
-        <div className={`text-center py-12 border rounded-lg ${dark ? 'border-slate-700/50 border-dashed' : 'border-slate-200 border-dashed'}`}>
-          <Info className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-slate-700' : 'text-slate-300'}`} />
-          <p className={`text-sm ${dark ? 'text-slate-500' : 'text-slate-400'}`}>
+        <div className={`text-center py-12 border rounded-lg ${dark ? 'border-neutral-700/50 border-dashed' : 'border-neutral-200 border-dashed'}`}>
+          <Info className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-neutral-700' : 'text-neutral-300'}`} />
+          <p className={`text-sm ${dark ? 'text-neutral-500' : 'text-neutral-400'}`}>
             {isSystemActor ? 'Click "Load System Actor" to investigate' : 'Paste a user or gateway ID and click Investigate'}
           </p>
         </div>
@@ -551,18 +551,18 @@ export function ActorInvestigationPage() {
 
           {/* Right — activity timeline */}
           <div className="space-y-3">
-            <div className={`border rounded-lg overflow-hidden ${dark ? 'border-slate-700/50' : 'border-slate-200'}`}>
-              <div className={`flex items-center justify-between px-4 py-3 border-b ${dark ? 'border-slate-700/50 bg-slate-900/60' : 'border-slate-100 bg-slate-50'}`}>
+            <div className={`border rounded-lg overflow-hidden ${dark ? 'border-neutral-700/50' : 'border-neutral-200'}`}>
+              <div className={`flex items-center justify-between px-4 py-3 border-b ${dark ? 'border-neutral-700/50 bg-neutral-900/60' : 'border-neutral-100 bg-neutral-50'}`}>
                 <div className="flex items-center gap-2">
                   <Activity className={`w-4 h-4 ${dark ? 'text-orange-400' : 'text-orange-600'}`} />
-                  <span className={`text-sm font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>Activity Timeline</span>
-                  <span className={`text-xs ${dark ? 'text-slate-500' : 'text-slate-400'}`}>({activity.length} events)</span>
+                  <span className={`text-sm font-semibold ${dark ? 'text-white' : 'text-neutral-900'}`}>Activity Timeline</span>
+                  <span className={`text-xs ${dark ? 'text-neutral-500' : 'text-neutral-400'}`}>({activity.length} events)</span>
                 </div>
                 <button
                   id="activity-refresh"
                   onClick={() => { setActivity([]); loadActivity(); }}
                   disabled={activityLoading}
-                  className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors ${dark ? 'bg-slate-800 text-slate-400 hover:bg-slate-700' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-200'}`}
+                  className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors ${dark ? 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700' : 'bg-white text-neutral-500 hover:bg-neutral-50 border border-neutral-200'}`}
                 >
                   <RefreshCw className={`w-3 h-3 ${activityLoading ? 'animate-spin' : ''}`} />
                 </button>
@@ -581,7 +581,7 @@ export function ActorInvestigationPage() {
               )}
 
               {!activityLoading && !activityError && activity.length === 0 && (
-                <div className={`text-center py-8 text-sm ${dark ? 'text-slate-500' : 'text-slate-400'}`}>
+                <div className={`text-center py-8 text-sm ${dark ? 'text-neutral-500' : 'text-neutral-400'}`}>
                   No activity recorded for this actor.
                 </div>
               )}
@@ -591,12 +591,12 @@ export function ActorInvestigationPage() {
               ))}
 
               {activityCursor && (
-                <div className={`p-3 text-center border-t ${dark ? 'border-slate-800' : 'border-slate-100'}`}>
+                <div className={`p-3 text-center border-t ${dark ? 'border-neutral-800' : 'border-neutral-100'}`}>
                   <button
                     id="activity-load-more"
                     onClick={() => loadActivity(activityCursor)}
                     disabled={activityLoading}
-                    className={`text-xs px-3 py-1.5 rounded transition-colors ${dark ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                    className={`text-xs px-3 py-1.5 rounded transition-colors ${dark ? 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}
                   >
                     {activityLoading ? 'Loading…' : 'Load more'}
                   </button>

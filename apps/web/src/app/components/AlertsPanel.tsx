@@ -62,10 +62,10 @@ const SEVERITY_CONFIG: Record<AlertSeverity, SeverityConfig> = {
   },
   informational: {
     icon: Info,
-    badge: 'bg-slate-500/20 text-slate-400 border border-slate-500/40',
-    border: 'border-slate-500/30',
-    bg: 'bg-slate-500/10',
-    text: 'text-slate-400',
+    badge: 'bg-neutral-500/20 text-neutral-400 border border-neutral-500/40',
+    border: 'border-neutral-500/30',
+    bg: 'bg-neutral-500/10',
+    text: 'text-neutral-400',
   },
 };
 
@@ -130,7 +130,7 @@ function AlertRow({ alert, expanded, onToggle, onAcknowledge, onResolve, dark }:
       animate={{ opacity: 1, y: 0 }}
       className={`border rounded-lg overflow-hidden transition-colors ${
         dark
-          ? `bg-slate-900/60 ${cfg.border}`
+          ? `bg-neutral-900/60 ${cfg.border}`
           : `bg-white ${cfg.border} border`
       }`}
     >
@@ -152,23 +152,23 @@ function AlertRow({ alert, expanded, onToggle, onAcknowledge, onResolve, dark }:
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full uppercase tracking-wide ${cfg.badge}`}>
               {alert.severity}
             </span>
-            <span className={`text-xs px-2 py-0.5 rounded-full border ${dark ? 'border-slate-700 text-slate-400' : 'border-slate-200 text-slate-500'}`}>
+            <span className={`text-xs px-2 py-0.5 rounded-full border ${dark ? 'border-neutral-700 text-neutral-400' : 'border-neutral-200 text-neutral-500'}`}>
               {CATEGORY_LABEL[alert.category] ?? alert.category}
             </span>
             <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_BADGE[alert.status]}`}>
               {alert.status}
             </span>
           </div>
-          <h4 className={`font-semibold text-sm leading-snug ${dark ? 'text-white' : 'text-slate-900'}`}>
+          <h4 className={`font-semibold text-sm leading-snug ${dark ? 'text-white' : 'text-neutral-900'}`}>
             {alert.title}
           </h4>
-          <p className={`text-xs mt-0.5 ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+          <p className={`text-xs mt-0.5 ${dark ? 'text-neutral-400' : 'text-neutral-500'}`}>
             {alert.message}
           </p>
         </div>
 
         {/* Timestamp + chevron */}
-        <div className={`flex flex-col items-end gap-1 flex-shrink-0 ${dark ? 'text-slate-500' : 'text-slate-400'}`}>
+        <div className={`flex flex-col items-end gap-1 flex-shrink-0 ${dark ? 'text-neutral-500' : 'text-neutral-400'}`}>
           <div className="flex items-center gap-1 text-xs">
             <Clock className="w-3 h-3" />
             <span>{relativeTime(alert.created_at)}</span>
@@ -185,10 +185,10 @@ function AlertRow({ alert, expanded, onToggle, onAcknowledge, onResolve, dark }:
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className={`border-t px-4 py-3 space-y-3 ${dark ? 'border-slate-800' : 'border-slate-100'}`}
+            className={`border-t px-4 py-3 space-y-3 ${dark ? 'border-neutral-800' : 'border-neutral-100'}`}
           >
             {/* Meta grid */}
-            <div className={`grid grid-cols-2 gap-2 text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+            <div className={`grid grid-cols-2 gap-2 text-xs ${dark ? 'text-neutral-400' : 'text-neutral-500'}`}>
               <div>
                 <span className="font-medium">Source</span>
                 <p className="mt-0.5 truncate">{alert.source}</p>
@@ -317,10 +317,10 @@ export function AlertsPanel() {
             <ShieldAlert className="w-5 h-5 text-red-400" />
           </div>
           <div>
-            <h3 className={`font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>
+            <h3 className={`font-semibold ${dark ? 'text-white' : 'text-neutral-900'}`}>
               Active Alerts
             </h3>
-            <p className={`text-sm ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+            <p className={`text-sm ${dark ? 'text-neutral-400' : 'text-neutral-500'}`}>
               {loading ? 'Loading…' : `${alerts.length} alert${alerts.length !== 1 ? 's' : ''}${openCount > 0 ? ` · ${openCount} open` : ''}${criticalCount > 0 ? ` · ${criticalCount} critical` : ''}`}
             </p>
           </div>
@@ -331,8 +331,8 @@ export function AlertsPanel() {
           disabled={loading}
           className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 ${
             dark
-              ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              ? 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
+              : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
           }`}
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
@@ -341,8 +341,8 @@ export function AlertsPanel() {
       </div>
 
       {/* Status filter tabs */}
-      <div className={`flex items-center gap-1 border-b ${dark ? 'border-slate-800' : 'border-slate-200'}`}>
-        <Filter className={`w-3.5 h-3.5 mr-1 ${dark ? 'text-slate-500' : 'text-slate-400'}`} />
+      <div className={`flex items-center gap-1 border-b ${dark ? 'border-neutral-800' : 'border-neutral-200'}`}>
+        <Filter className={`w-3.5 h-3.5 mr-1 ${dark ? 'text-neutral-500' : 'text-neutral-400'}`} />
         {STATUS_TABS.map((tab) => (
           <button
             key={tab.label}
@@ -351,7 +351,7 @@ export function AlertsPanel() {
             className={`text-xs px-3 py-2 border-b-2 transition-colors ${
               statusFilter === tab.value
                 ? 'border-orange-500 text-orange-500'
-                : `border-transparent ${dark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-700'}`
+                : `border-transparent ${dark ? 'text-neutral-400 hover:text-neutral-200' : 'text-neutral-500 hover:text-neutral-700'}`
             }`}
           >
             {tab.label}
@@ -367,8 +367,8 @@ export function AlertsPanel() {
           onChange={(e) => { setSeverityFilter(e.target.value || undefined); setExpandedId(null); }}
           className={`text-xs px-3 py-2 rounded-lg border outline-none transition-colors ${
             dark
-              ? 'bg-slate-900 border-slate-700 text-slate-300 focus:border-orange-500/50'
-              : 'bg-white border-slate-200 text-slate-700 focus:border-orange-400'
+              ? 'bg-neutral-900 border-neutral-700 text-neutral-300 focus:border-orange-500/50'
+              : 'bg-white border-neutral-200 text-neutral-700 focus:border-orange-400'
           }`}
         >
           {SEVERITY_OPTIONS.map((option) => (
@@ -381,8 +381,8 @@ export function AlertsPanel() {
           onChange={(e) => { setCategoryFilter(e.target.value || undefined); setExpandedId(null); }}
           className={`text-xs px-3 py-2 rounded-lg border outline-none transition-colors ${
             dark
-              ? 'bg-slate-900 border-slate-700 text-slate-300 focus:border-orange-500/50'
-              : 'bg-white border-slate-200 text-slate-700 focus:border-orange-400'
+              ? 'bg-neutral-900 border-neutral-700 text-neutral-300 focus:border-orange-500/50'
+              : 'bg-white border-neutral-200 text-neutral-700 focus:border-orange-400'
           }`}
         >
           {CATEGORY_OPTIONS.map((option) => (
@@ -394,7 +394,7 @@ export function AlertsPanel() {
             id="alert-clear-extra-filters"
             onClick={() => { setSeverityFilter(undefined); setCategoryFilter(undefined); setExpandedId(null); }}
             className={`text-xs px-3 py-2 rounded-lg transition-colors ${
-              dark ? 'bg-slate-800 text-slate-400 hover:text-slate-200' : 'bg-slate-100 text-slate-500 hover:text-slate-700'
+              dark ? 'bg-neutral-800 text-neutral-400 hover:text-neutral-200' : 'bg-neutral-100 text-neutral-500 hover:text-neutral-700'
             }`}
           >
             Clear alert filters
@@ -414,19 +414,19 @@ export function AlertsPanel() {
       {loading && alerts.length === 0 && (
         <div className="space-y-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className={`h-20 rounded-lg animate-pulse ${dark ? 'bg-slate-800/50' : 'bg-slate-100'}`} />
+            <div key={i} className={`h-20 rounded-lg animate-pulse ${dark ? 'bg-neutral-800/50' : 'bg-neutral-100'}`} />
           ))}
         </div>
       )}
 
       {/* Empty state */}
       {!loading && !error && alerts.length === 0 && (
-        <div className={`text-center py-12 border rounded-lg ${dark ? 'bg-slate-900/50 border-slate-700/50' : 'bg-slate-50 border-slate-200'}`}>
+        <div className={`text-center py-12 border rounded-lg ${dark ? 'bg-neutral-900/50 border-neutral-700/50' : 'bg-neutral-50 border-neutral-200'}`}>
           <CheckCircle2 className={`w-12 h-12 mx-auto mb-3 ${dark ? 'text-emerald-500' : 'text-emerald-400'}`} />
-          <h4 className={`font-medium mb-1 ${dark ? 'text-white' : 'text-slate-900'}`}>
+          <h4 className={`font-medium mb-1 ${dark ? 'text-white' : 'text-neutral-900'}`}>
             {statusFilter ? `No ${statusFilter} alerts` : 'No alerts'}
           </h4>
-          <p className={`text-sm ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+          <p className={`text-sm ${dark ? 'text-neutral-400' : 'text-neutral-500'}`}>
             {statusFilter === 'open'
               ? 'All clear — no open alerts at this time.'
               : 'No alerts match the current filter.'}
@@ -460,8 +460,8 @@ export function AlertsPanel() {
             disabled={loading}
             className={`text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50 ${
               dark
-                ? 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                ? 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
+                : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
             }`}
           >
             {loading ? (

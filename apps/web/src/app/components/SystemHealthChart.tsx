@@ -15,8 +15,8 @@ export function SystemHealthChart() {
   return (
     <div className={`backdrop-blur-xl border rounded-lg p-6 ${
       theme === 'dark'
-        ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50'
-        : 'bg-white border-slate-200'
+        ? 'bg-gradient-to-br from-neutral-900/90 to-neutral-800/90 border-neutral-700/50'
+        : 'bg-white border-neutral-200'
     }`}>
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
@@ -24,8 +24,8 @@ export function SystemHealthChart() {
             <Activity className="w-5 h-5 text-emerald-400" />
           </div>
           <div>
-            <h3 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Network Activity</h3>
-            <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Last 24 hours</p>
+            <h3 className={`font-semibold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>Network Activity</h3>
+            <p className={`text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>Last 24 hours</p>
           </div>
         </div>
         <div className="flex items-center gap-2 text-emerald-500">

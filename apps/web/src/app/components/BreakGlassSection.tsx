@@ -119,16 +119,16 @@ export function BreakGlassSection() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h2 className={`text-2xl font-bold mb-1 flex items-center gap-3 ${d ? 'text-white' : 'text-slate-900'}`}>
+          <h2 className={`text-2xl font-bold mb-1 flex items-center gap-3 ${d ? 'text-white' : 'text-neutral-900'}`}>
             <ShieldAlert className="w-7 h-7 text-red-500" />
             Break-Glass Emergency Access
           </h2>
-          <p className={d ? 'text-slate-400' : 'text-slate-500'}>
+          <p className={d ? 'text-neutral-400' : 'text-neutral-500'}>
             Emergency admin access for when normal admin access fails. All actions are logged and flagged.
           </p>
         </div>
         <button onClick={() => refetchStatus()} disabled={statusLoading}
-          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${d ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}>
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${d ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300' : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-700'}`}>
           <RefreshCw className={`w-4 h-4 ${statusLoading ? 'animate-spin' : ''}`} /> Refresh Status
         </button>
       </div>
@@ -150,27 +150,27 @@ export function BreakGlassSection() {
         className={`backdrop-blur-xl border rounded-lg p-6 ${
           isOpen
             ? 'bg-gradient-to-br from-red-900/30 to-orange-900/20 border-red-500/30'
-            : d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'
+            : d ? 'bg-gradient-to-br from-neutral-900/90 to-neutral-800/90 border-neutral-700/50' : 'bg-white border-neutral-200'
         }`}
       >
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
             <div className={`w-14 h-14 rounded-lg flex items-center justify-center ${
-              isOpen ? 'bg-red-500/20' : d ? 'bg-slate-800/50' : 'bg-slate-100'
+              isOpen ? 'bg-red-500/20' : d ? 'bg-neutral-800/50' : 'bg-neutral-100'
             }`}>
-              <ShieldAlert className={`w-7 h-7 ${isOpen ? 'text-red-400 animate-pulse' : d ? 'text-slate-500' : 'text-slate-400'}`} />
+              <ShieldAlert className={`w-7 h-7 ${isOpen ? 'text-red-400 animate-pulse' : d ? 'text-neutral-500' : 'text-neutral-400'}`} />
             </div>
             <div>
-              <h3 className={`text-lg font-bold ${isOpen ? 'text-red-400' : d ? 'text-white' : 'text-slate-900'}`}>
+              <h3 className={`text-lg font-bold ${isOpen ? 'text-red-400' : d ? 'text-white' : 'text-neutral-900'}`}>
                 {isOpen ? '🔴 BREAK-GLASS ACTIVE' : 'Break-Glass Inactive'}
               </h3>
               {isOpen && openedAt && (
-                <p className={`text-sm ${d ? 'text-slate-300' : 'text-slate-600'}`}>
+                <p className={`text-sm ${d ? 'text-neutral-300' : 'text-neutral-600'}`}>
                   Opened: {new Date(openedAt).toLocaleString()}
                 </p>
               )}
               {!isOpen && (
-                <p className={d ? 'text-slate-400' : 'text-slate-500'}>No active emergency window</p>
+                <p className={d ? 'text-neutral-400' : 'text-neutral-500'}>No active emergency window</p>
               )}
             </div>
           </div>
@@ -186,7 +186,7 @@ export function BreakGlassSection() {
                     {timeRemaining}
                   </span>
                 </div>
-                <p className="text-xs text-slate-400 mt-0.5">Auto-disable countdown</p>
+                <p className="text-xs text-neutral-400 mt-0.5">Auto-disable countdown</p>
               </div>
               <button onClick={() => setShowCloseModal(true)}
                 className="px-4 py-2.5 bg-red-500 hover:bg-red-400 text-white rounded-lg text-sm font-medium transition-colors">
@@ -199,24 +199,24 @@ export function BreakGlassSection() {
 
       {/* Security requirements */}
       <div className={`backdrop-blur-xl border rounded-lg p-6 ${
-        d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'
+        d ? 'bg-gradient-to-br from-neutral-900/90 to-neutral-800/90 border-neutral-700/50' : 'bg-white border-neutral-200'
       }`}>
-        <h3 className={`font-semibold mb-4 flex items-center gap-2 ${d ? 'text-white' : 'text-slate-900'}`}>
+        <h3 className={`font-semibold mb-4 flex items-center gap-2 ${d ? 'text-white' : 'text-neutral-900'}`}>
           <KeyRound className="w-5 h-5 text-amber-500" /> Security Requirements
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className={`p-4 rounded-lg ${d ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
-            <h4 className={`text-sm font-medium mb-2 ${d ? 'text-white' : 'text-slate-900'}`}>To Open</h4>
-            <ul className={`text-sm space-y-1.5 ${d ? 'text-slate-300' : 'text-slate-600'}`}>
+          <div className={`p-4 rounded-lg ${d ? 'bg-neutral-800/50' : 'bg-neutral-50'}`}>
+            <h4 className={`text-sm font-medium mb-2 ${d ? 'text-white' : 'text-neutral-900'}`}>To Open</h4>
+            <ul className={`text-sm space-y-1.5 ${d ? 'text-neutral-300' : 'text-neutral-600'}`}>
               <li>• Sealed account (break-glass-prime@domain)</li>
               <li>• Hardware security key required</li>
               <li>• Cloudflare Access App C verification</li>
               <li>• Reason must be documented</li>
             </ul>
           </div>
-          <div className={`p-4 rounded-lg ${d ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
-            <h4 className={`text-sm font-medium mb-2 ${d ? 'text-white' : 'text-slate-900'}`}>Automatic Safeguards</h4>
-            <ul className={`text-sm space-y-1.5 ${d ? 'text-slate-300' : 'text-slate-600'}`}>
+          <div className={`p-4 rounded-lg ${d ? 'bg-neutral-800/50' : 'bg-neutral-50'}`}>
+            <h4 className={`text-sm font-medium mb-2 ${d ? 'text-white' : 'text-neutral-900'}`}>Automatic Safeguards</h4>
+            <ul className={`text-sm space-y-1.5 ${d ? 'text-neutral-300' : 'text-neutral-600'}`}>
               <li>• 90-minute auto-disable (enforced at request time)</li>
               <li>• All actions logged with break_glass actor type</li>
               <li>• External monitor checks every 5 minutes</li>
@@ -238,21 +238,21 @@ export function BreakGlassSection() {
 
       {/* Rotation Checklist (shown always as reference) */}
       <div className={`backdrop-blur-xl border rounded-lg p-6 ${
-        d ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50' : 'bg-white border-slate-200'
+        d ? 'bg-gradient-to-br from-neutral-900/90 to-neutral-800/90 border-neutral-700/50' : 'bg-white border-neutral-200'
       }`}>
-        <h3 className={`font-semibold mb-4 flex items-center gap-2 ${d ? 'text-white' : 'text-slate-900'}`}>
+        <h3 className={`font-semibold mb-4 flex items-center gap-2 ${d ? 'text-white' : 'text-neutral-900'}`}>
           <AlertTriangle className="w-5 h-5 text-amber-500" /> Rotation Checklist (Required on Close)
         </h3>
-        <p className={`text-sm mb-4 ${d ? 'text-slate-400' : 'text-slate-500'}`}>
+        <p className={`text-sm mb-4 ${d ? 'text-neutral-400' : 'text-neutral-500'}`}>
           When closing a break-glass window, the following credential rotations are mandatory:
         </p>
         <div className="space-y-2">
           {rotationChecklist.map((item, i) => (
-            <div key={i} className={`flex items-center gap-3 p-3 rounded-lg ${d ? 'bg-slate-800/50' : 'bg-slate-50'}`}>
+            <div key={i} className={`flex items-center gap-3 p-3 rounded-lg ${d ? 'bg-neutral-800/50' : 'bg-neutral-50'}`}>
               <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${d ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-100 text-amber-700'}`}>
                 {i + 1}
               </div>
-              <span className={`text-sm ${d ? 'text-slate-300' : 'text-slate-600'}`}>{item}</span>
+              <span className={`text-sm ${d ? 'text-neutral-300' : 'text-neutral-600'}`}>{item}</span>
             </div>
           ))}
         </div>
@@ -261,26 +261,26 @@ export function BreakGlassSection() {
       {/* Open Confirm Modal */}
       {showOpenConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/50" onClick={() => setShowOpenConfirm(false)}>
-          <div className={`border rounded-lg p-6 max-w-md w-full ${d ? 'bg-slate-900 border-red-500/30' : 'bg-white border-slate-200'}`} onClick={(e) => e.stopPropagation()}>
+          <div className={`border rounded-lg p-6 max-w-md w-full ${d ? 'bg-neutral-900 border-red-500/30' : 'bg-white border-neutral-200'}`} onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-bold mb-2 text-red-400 flex items-center gap-2">
               <ShieldAlert className="w-5 h-5" /> Confirm Break-Glass Open
             </h3>
-            <p className={`text-sm mb-4 ${d ? 'text-slate-300' : 'text-slate-600'}`}>
+            <p className={`text-sm mb-4 ${d ? 'text-neutral-300' : 'text-neutral-600'}`}>
               ⚠ This opens a 90-minute emergency admin window. All actions will be audited with elevated scrutiny.
               A hardware security key is required. Credential rotation is mandatory on close.
             </p>
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <label className={`text-sm font-medium ${d ? 'text-slate-300' : 'text-slate-700'}`}>Reason *</label>
+                <label className={`text-sm font-medium ${d ? 'text-neutral-300' : 'text-neutral-700'}`}>Reason *</label>
                 <textarea required value={reason} onChange={(e) => setReason(e.target.value)}
                   placeholder="Describe why emergency access is needed..."
                   className={`w-full rounded-lg px-4 py-2.5 text-sm min-h-20 focus:outline-none focus:ring-2 focus:ring-red-500/50 ${
-                    d ? 'bg-slate-800 border border-slate-700 text-white placeholder-slate-500' : 'bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400'
+                    d ? 'bg-neutral-800 border border-neutral-700 text-white placeholder-neutral-500' : 'bg-neutral-50 border border-neutral-200 text-neutral-900 placeholder-neutral-400'
                   }`} />
               </div>
               <div className="flex gap-2">
                 <button onClick={() => setShowOpenConfirm(false)}
-                  className={`flex-1 py-2 rounded-lg text-sm ${d ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>Cancel</button>
+                  className={`flex-1 py-2 rounded-lg text-sm ${d ? 'bg-neutral-800 text-neutral-300' : 'bg-neutral-100 text-neutral-600'}`}>Cancel</button>
                 <button onClick={handleOpen} disabled={loading || !reason.trim()}
                   className="flex-1 py-2 bg-red-500 hover:bg-red-400 text-white rounded-lg text-sm font-medium disabled:opacity-50">
                   {loading ? 'Opening...' : 'Open Emergency Window'}
@@ -294,20 +294,20 @@ export function BreakGlassSection() {
       {/* Close Modal */}
       {showCloseModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/50" onClick={() => setShowCloseModal(false)}>
-          <div className={`border rounded-lg p-6 max-w-md w-full ${d ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`} onClick={(e) => e.stopPropagation()}>
+          <div className={`border rounded-lg p-6 max-w-md w-full ${d ? 'bg-neutral-900 border-neutral-700' : 'bg-white border-neutral-200'}`} onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-bold mb-2 text-amber-400">Close Break-Glass Window</h3>
-            <p className={`text-sm mb-4 ${d ? 'text-slate-300' : 'text-slate-600'}`}>
+            <p className={`text-sm mb-4 ${d ? 'text-neutral-300' : 'text-neutral-600'}`}>
               Closing requires completing the credential rotation checklist. Document the close reason below.
             </p>
             <div className="space-y-4">
               <textarea required value={closeReason} onChange={(e) => setCloseReason(e.target.value)}
                 placeholder="Close reason and rotation status..."
                 className={`w-full rounded-lg px-4 py-2.5 text-sm min-h-20 focus:outline-none focus:ring-2 focus:ring-amber-500/50 ${
-                  d ? 'bg-slate-800 border border-slate-700 text-white placeholder-slate-500' : 'bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400'
+                  d ? 'bg-neutral-800 border border-neutral-700 text-white placeholder-neutral-500' : 'bg-neutral-50 border border-neutral-200 text-neutral-900 placeholder-neutral-400'
                 }`} />
               <div className="flex gap-2">
                 <button onClick={() => setShowCloseModal(false)}
-                  className={`flex-1 py-2 rounded-lg text-sm ${d ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>Cancel</button>
+                  className={`flex-1 py-2 rounded-lg text-sm ${d ? 'bg-neutral-800 text-neutral-300' : 'bg-neutral-100 text-neutral-600'}`}>Cancel</button>
                 <button onClick={handleClose} disabled={loading || !closeReason.trim()}
                   className="flex-1 py-2 bg-amber-500 hover:bg-amber-400 text-white rounded-lg text-sm font-medium disabled:opacity-50">
                   {loading ? 'Closing...' : 'Close Window'}

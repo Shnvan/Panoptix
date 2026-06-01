@@ -138,8 +138,8 @@ export function AuditLogTable() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className={`text-2xl font-bold mb-1 ${d ? 'text-[#F0EAD6]' : 'text-slate-900'}`}>Audit & Compliance</h2>
-        <p className={d ? 'text-[#666666]' : 'text-slate-500'}>Review security events, manage compliance records, and track data subject requests</p>
+        <h2 className={`text-2xl font-bold mb-1 ${d ? 'text-[#F0EAD6]' : 'text-neutral-900'}`}>Audit & Compliance</h2>
+        <p className={d ? 'text-[#666666]' : 'text-neutral-500'}>Review security events, manage compliance records, and track data subject requests</p>
       </div>
 
       {/* Status messages */}
@@ -182,8 +182,8 @@ export function AuditLogTable() {
                   <FileText className="w-5 h-5 text-[#F07C1E]" />
                 </div>
                 <div>
-                  <h3 className={`font-semibold ${d ? 'text-[#F0EAD6]' : 'text-slate-900'}`}>Security Event Timeline</h3>
-                  <p className={`text-sm ${d ? 'text-[#666666]' : 'text-slate-500'}`}>{logs.length} events loaded · Tamper-evident HMAC chain</p>
+                  <h3 className={`font-semibold ${d ? 'text-[#F0EAD6]' : 'text-neutral-900'}`}>Security Event Timeline</h3>
+                  <p className={`text-sm ${d ? 'text-[#666666]' : 'text-neutral-500'}`}>{logs.length} events loaded · Tamper-evident HMAC chain</p>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -223,7 +223,7 @@ export function AuditLogTable() {
                     placeholder="Filter current view by actor, action, resource, IP..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className={`w-full pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#F07C1E] border rounded-none ${d ? 'bg-[#1A1A1A] border-[#222222] text-[#F0EAD6] placeholder-[#666666]' : 'bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400'}`}
+                    className={`w-full pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#F07C1E] border rounded-none ${d ? 'bg-[#1A1A1A] border-[#222222] text-[#F0EAD6] placeholder-[#666666]' : 'bg-neutral-50 border border-neutral-200 text-neutral-900 placeholder-neutral-400'}`}
                   />
                 </div>
 
@@ -232,7 +232,7 @@ export function AuditLogTable() {
                   <select
                     value={action}
                     onChange={(e) => setAction(e.target.value)}
-                    className={`w-full px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#F07C1E] border rounded-none ${d ? 'bg-[#1A1A1A] border-[#222222] text-[#F0EAD6]' : 'bg-slate-50 border border-slate-200 text-slate-900'}`}
+                    className={`w-full px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#F07C1E] border rounded-none ${d ? 'bg-[#1A1A1A] border-[#222222] text-[#F0EAD6]' : 'bg-neutral-50 border border-neutral-200 text-neutral-900'}`}
                   >
                     <option value="">All Actions</option>
                     <option value="camera.create">Camera Create</option>
@@ -257,7 +257,7 @@ export function AuditLogTable() {
                   <select
                     value={actorType}
                     onChange={(e) => setActorType(e.target.value)}
-                    className={`w-full px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#F07C1E] border rounded-none ${d ? 'bg-[#1A1A1A] border-[#222222] text-[#F0EAD6]' : 'bg-slate-50 border border-slate-200 text-slate-900'}`}
+                    className={`w-full px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#F07C1E] border rounded-none ${d ? 'bg-[#1A1A1A] border-[#222222] text-[#F0EAD6]' : 'bg-neutral-50 border border-neutral-200 text-neutral-900'}`}
                   >
                     <option value="">All Actor Types</option>
                     <option value="user">User</option>
@@ -273,7 +273,7 @@ export function AuditLogTable() {
                   <select
                     value={severity}
                     onChange={(e) => setSeverity(e.target.value)}
-                    className={`w-full px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#F07C1E] border rounded-none ${d ? 'bg-[#1A1A1A] border-[#222222] text-[#F0EAD6]' : 'bg-slate-50 border border-slate-200 text-slate-900'}`}
+                    className={`w-full px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#F07C1E] border rounded-none ${d ? 'bg-[#1A1A1A] border-[#222222] text-[#F0EAD6]' : 'bg-neutral-50 border border-neutral-200 text-neutral-900'}`}
                   >
                     <option value="">All Severities</option>
                     <option value="informational">Informational</option>
@@ -289,7 +289,7 @@ export function AuditLogTable() {
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className={`w-full px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#F07C1E] border rounded-none ${d ? 'bg-[#1A1A1A] border-[#222222] text-[#F0EAD6]' : 'bg-slate-50 border border-slate-200 text-slate-900'}`}
+                    className={`w-full px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#F07C1E] border rounded-none ${d ? 'bg-[#1A1A1A] border-[#222222] text-[#F0EAD6]' : 'bg-neutral-50 border border-neutral-200 text-neutral-900'}`}
                   >
                     <option value="">All Categories</option>
                     <option value="authentication">Authentication</option>
@@ -306,7 +306,7 @@ export function AuditLogTable() {
                   <select
                     value={outcome}
                     onChange={(e) => setOutcome(e.target.value)}
-                    className={`w-full px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#F07C1E] border rounded-none ${d ? 'bg-[#1A1A1A] border-[#222222] text-[#F0EAD6]' : 'bg-slate-50 border border-slate-200 text-slate-900'}`}
+                    className={`w-full px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#F07C1E] border rounded-none ${d ? 'bg-[#1A1A1A] border-[#222222] text-[#F0EAD6]' : 'bg-neutral-50 border border-neutral-200 text-neutral-900'}`}
                   >
                     <option value="">All Outcomes</option>
                     <option value="success">Success</option>
@@ -323,7 +323,7 @@ export function AuditLogTable() {
                     placeholder="Actor UUID"
                     value={actorId}
                     onChange={(e) => setActorId(e.target.value)}
-                    className={`w-full px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#F07C1E] border rounded-none ${d ? 'bg-[#1A1A1A] border-[#222222] text-[#F0EAD6] placeholder-[#666666]' : 'bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400'}`}
+                    className={`w-full px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#F07C1E] border rounded-none ${d ? 'bg-[#1A1A1A] border-[#222222] text-[#F0EAD6] placeholder-[#666666]' : 'bg-neutral-50 border border-neutral-200 text-neutral-900 placeholder-neutral-400'}`}
                   />
                 </div>
 
@@ -334,7 +334,7 @@ export function AuditLogTable() {
                     placeholder="Session UUID"
                     value={sessionId}
                     onChange={(e) => setSessionId(e.target.value)}
-                    className={`w-full px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#F07C1E] border rounded-none ${d ? 'bg-[#1A1A1A] border-[#222222] text-[#F0EAD6] placeholder-[#666666]' : 'bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400'}`}
+                    className={`w-full px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#F07C1E] border rounded-none ${d ? 'bg-[#1A1A1A] border-[#222222] text-[#F0EAD6] placeholder-[#666666]' : 'bg-neutral-50 border border-neutral-200 text-neutral-900 placeholder-neutral-400'}`}
                   />
                 </div>
 
@@ -345,7 +345,7 @@ export function AuditLogTable() {
                     placeholder="Resource Name"
                     value={resource}
                     onChange={(e) => setResource(e.target.value)}
-                    className={`w-full px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#F07C1E] border rounded-none ${d ? 'bg-[#1A1A1A] border-[#222222] text-[#F0EAD6] placeholder-[#666666]' : 'bg-slate-50 border border-slate-200 text-slate-900 placeholder-slate-400'}`}
+                    className={`w-full px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#F07C1E] border rounded-none ${d ? 'bg-[#1A1A1A] border-[#222222] text-[#F0EAD6] placeholder-[#666666]' : 'bg-neutral-50 border border-neutral-200 text-neutral-900 placeholder-neutral-400'}`}
                   />
                 </div>
               </div>
@@ -354,21 +354,21 @@ export function AuditLogTable() {
               <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="flex items-center gap-2">
-                    <span className={`text-xs font-mono uppercase tracking-wider ${d ? 'text-[#666666]' : 'text-slate-500'}`}>From:</span>
+                    <span className={`text-xs font-mono uppercase tracking-wider ${d ? 'text-[#666666]' : 'text-neutral-500'}`}>From:</span>
                     <input
                       type="datetime-local"
                       value={tsFrom}
                       onChange={(e) => setTsFrom(e.target.value)}
-                      className={`px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#F07C1E] border rounded-none ${d ? 'bg-[#1A1A1A] border-[#222222] text-[#F0EAD6]' : 'bg-slate-50 border border-slate-200 text-slate-900'}`}
+                      className={`px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#F07C1E] border rounded-none ${d ? 'bg-[#1A1A1A] border-[#222222] text-[#F0EAD6]' : 'bg-neutral-50 border border-neutral-200 text-neutral-900'}`}
                     />
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`text-xs font-mono uppercase tracking-wider ${d ? 'text-[#666666]' : 'text-slate-500'}`}>To:</span>
+                    <span className={`text-xs font-mono uppercase tracking-wider ${d ? 'text-[#666666]' : 'text-neutral-500'}`}>To:</span>
                     <input
                       type="datetime-local"
                       value={tsTo}
                       onChange={(e) => setTsTo(e.target.value)}
-                      className={`px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#F07C1E] border rounded-none ${d ? 'bg-[#1A1A1A] border-[#222222] text-[#F0EAD6]' : 'bg-slate-50 border border-slate-200 text-slate-900'}`}
+                      className={`px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#F07C1E] border rounded-none ${d ? 'bg-[#1A1A1A] border-[#222222] text-[#F0EAD6]' : 'bg-neutral-50 border border-neutral-200 text-neutral-900'}`}
                     />
                   </div>
                 </div>
@@ -386,7 +386,7 @@ export function AuditLogTable() {
                     setTsFrom('');
                     setTsTo('');
                   }}
-                  className={`px-4 py-2 border text-xs font-medium transition-colors rounded-none ${d ? 'border-[#222222] text-[#666666] hover:text-[#F0EAD6] hover:border-[#F07C1E]' : 'border-slate-200 text-slate-500 hover:text-slate-900 hover:border-slate-400'}`}
+                  className={`px-4 py-2 border text-xs font-medium transition-colors rounded-none ${d ? 'border-[#222222] text-[#666666] hover:text-[#F0EAD6] hover:border-[#F07C1E]' : 'border-neutral-200 text-neutral-500 hover:text-neutral-900 hover:border-neutral-400'}`}
                 >
                   Clear Filters
                 </button>
@@ -398,30 +398,30 @@ export function AuditLogTable() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className={`border-b ${d ? 'border-[#222222] bg-[#0A0A0A]' : 'border-slate-200 bg-slate-50'}`}>
+                <tr className={`border-b ${d ? 'border-[#222222] bg-[#0A0A0A]' : 'border-neutral-200 bg-neutral-50'}`}>
                   {['Timestamp', 'Actor', 'Action', 'Resource', 'IP', 'Risk'].map(h => (
-                    <th key={h} className={`text-left px-6 py-3 text-xs font-mono uppercase tracking-wider ${d ? 'text-[#666666]' : 'text-slate-500'}`}>{h}</th>
+                    <th key={h} className={`text-left px-6 py-3 text-xs font-mono uppercase tracking-wider ${d ? 'text-[#666666]' : 'text-neutral-500'}`}>{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className={`divide-y ${d ? 'divide-[#222222]' : 'divide-slate-100'}`}>
+              <tbody className={`divide-y ${d ? 'divide-[#222222]' : 'divide-neutral-100'}`}>
                 {loading && filtered.length === 0 ? (
                   <tr><td colSpan={6} className="px-6 py-12 text-center text-[#666666]">Loading audit logs...</td></tr>
                 ) : filtered.length === 0 ? (
                   <tr><td colSpan={6} className="px-6 py-12 text-center text-[#666666]">No audit events found</td></tr>
                 ) : filtered.map(log => (
-                  <tr key={log.id} className={`transition-colors ${d ? 'hover:bg-[#1A1A1A]' : 'hover:bg-slate-50'}`}>
-                    <td className={`px-6 py-4 text-sm font-mono ${d ? 'text-[#F0EAD6]' : 'text-slate-600'}`}>{log.ts ? new Date(log.ts).toLocaleString('en-US', { hour12: false }) : '—'}</td>
-                    <td className={`px-6 py-4 text-sm font-mono ${d ? 'text-[#F0EAD6]' : 'text-slate-900'}`}>
+                  <tr key={log.id} className={`transition-colors ${d ? 'hover:bg-[#1A1A1A]' : 'hover:bg-neutral-50'}`}>
+                    <td className={`px-6 py-4 text-sm font-mono ${d ? 'text-[#F0EAD6]' : 'text-neutral-600'}`}>{log.ts ? new Date(log.ts).toLocaleString('en-US', { hour12: false }) : '—'}</td>
+                    <td className={`px-6 py-4 text-sm font-mono ${d ? 'text-[#F0EAD6]' : 'text-neutral-900'}`}>
                       {log.actor_type === 'user' ? (
                         <span className="text-[#F07C1E]">{log.actor_id?.slice(0, 12) || '—'} (User)</span>
                       ) : (
                         <span>{log.actor_id?.slice(0, 12) || '—'} ({log.actor_type})</span>
                       )}
                     </td>
-                    <td className={`px-6 py-4 text-sm ${d ? 'text-[#F0EAD6]' : 'text-slate-600'}`}>{log.action}</td>
-                    <td className={`px-6 py-4 text-sm font-mono ${d ? 'text-[#F0EAD6]' : 'text-slate-600'}`}>{log.resource || '—'}</td>
-                    <td className={`px-6 py-4 text-sm font-mono ${d ? 'text-[#666666]' : 'text-slate-500'}`}>{log.ip || '—'}</td>
+                    <td className={`px-6 py-4 text-sm ${d ? 'text-[#F0EAD6]' : 'text-neutral-600'}`}>{log.action}</td>
+                    <td className={`px-6 py-4 text-sm font-mono ${d ? 'text-[#F0EAD6]' : 'text-neutral-600'}`}>{log.resource || '—'}</td>
+                    <td className={`px-6 py-4 text-sm font-mono ${d ? 'text-[#666666]' : 'text-neutral-500'}`}>{log.ip || '—'}</td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-mono border ${riskColor(log.action)}`}>
                         {log.action.includes('disable') || log.action.includes('denied') || log.action.includes('break_glass') ? 'HIGH' : log.action.includes('grant') || log.action.includes('role') || log.action.includes('rotate') ? 'MEDIUM' : 'LOW'}
@@ -447,15 +447,15 @@ export function AuditLogTable() {
         /* Compliance & DPA Tab */
         <div className="space-y-6">
           {/* DPA Export */}
-          <div className={`border rounded-none p-6 ${d ? 'bg-[#111111] border-[#222222]' : 'bg-[#FFFFFF] border-slate-200'}`}>
+          <div className={`border rounded-none p-6 ${d ? 'bg-[#111111] border-[#222222]' : 'bg-[#FFFFFF] border-neutral-200'}`}>
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-[rgba(240,124,30,0.08)] rounded-none flex items-center justify-center">
                   <FileStack className="w-5 h-5 text-[#F07C1E]" />
                 </div>
                 <div>
-                  <h3 className={`font-semibold ${d ? 'text-[#F0EAD6]' : 'text-slate-900'}`}>DPA Artefact Export</h3>
-                  <p className={`text-sm ${d ? 'text-[#666666]' : 'text-slate-500'}`}>Generate compliance documents: ROPA, PIAs, processor DPAs, breach logs, retention policies, signage attestations</p>
+                  <h3 className={`font-semibold ${d ? 'text-[#F0EAD6]' : 'text-neutral-900'}`}>DPA Artefact Export</h3>
+                  <p className={`text-sm ${d ? 'text-[#666666]' : 'text-neutral-500'}`}>Generate compliance documents: ROPA, PIAs, processor DPAs, breach logs, retention policies, signage attestations</p>
                 </div>
               </div>
               <button
@@ -467,35 +467,35 @@ export function AuditLogTable() {
                 {dpaExporting ? 'Exporting...' : 'Export DPA Bundle'}
               </button>
             </div>
-            <p className={`text-xs ${d ? 'text-[#666666]' : 'text-slate-400'}`}>POST /api/v1/admin/dpa/export · Signed bundle includes all compliance artefact types</p>
+            <p className={`text-xs ${d ? 'text-[#666666]' : 'text-neutral-400'}`}>POST /api/v1/admin/dpa/export · Signed bundle includes all compliance artefact types</p>
           </div>
 
           {/* Bystander Signage Attestation — per core-features §7 + v4 §16.12 */}
-          <div className={`border rounded-none p-6 ${d ? 'bg-[#111111] border-[#222222]' : 'bg-[#FFFFFF] border-slate-200'}`}>
+          <div className={`border rounded-none p-6 ${d ? 'bg-[#111111] border-[#222222]' : 'bg-[#FFFFFF] border-neutral-200'}`}>
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 bg-[rgba(240,124,30,0.08)] rounded-none flex items-center justify-center">
                 <MapPin className="w-5 h-5 text-[#F07C1E]" />
               </div>
               <div>
-                <h3 className={`font-semibold ${d ? 'text-[#F0EAD6]' : 'text-slate-900'}`}>Bystander Signage Attestation</h3>
-                <p className={`text-sm ${d ? 'text-[#666666]' : 'text-slate-500'}`}>Record that physical privacy signs are posted at each camera site (PH DPA §16.12)</p>
+                <h3 className={`font-semibold ${d ? 'text-[#F0EAD6]' : 'text-neutral-900'}`}>Bystander Signage Attestation</h3>
+                <p className={`text-sm ${d ? 'text-[#666666]' : 'text-neutral-500'}`}>Record that physical privacy signs are posted at each camera site (PH DPA §16.12)</p>
               </div>
             </div>
 
             {sitesLoading ? (
               <div className="text-center py-8 text-[#666666]">Loading sites...</div>
             ) : sites.length === 0 ? (
-              <div className={`text-center py-8 rounded-none border border-dashed ${d ? 'bg-[#1A1A1A] border-[#222222]' : 'bg-slate-50 border-slate-200'}`}>
-                <MapPin className={`w-10 h-10 mx-auto mb-2 ${d ? 'text-[#666666]' : 'text-slate-300'}`} />
-                <p className={d ? 'text-[#666666]' : 'text-slate-500 text-sm'}>Site listing is planned; signage attestation is unavailable until sites are available.</p>
+              <div className={`text-center py-8 rounded-none border border-dashed ${d ? 'bg-[#1A1A1A] border-[#222222]' : 'bg-neutral-50 border-neutral-200'}`}>
+                <MapPin className={`w-10 h-10 mx-auto mb-2 ${d ? 'text-[#666666]' : 'text-neutral-300'}`} />
+                <p className={d ? 'text-[#666666]' : 'text-neutral-500 text-sm'}>Site listing is planned; signage attestation is unavailable until sites are available.</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {sites.map(site => (
-                  <div key={site.id} className={`flex items-center justify-between p-4 rounded-none border ${d ? 'bg-[#1A1A1A] border-[#222222]' : 'bg-slate-50 border-slate-200'}`}>
+                  <div key={site.id} className={`flex items-center justify-between p-4 rounded-none border ${d ? 'bg-[#1A1A1A] border-[#222222]' : 'bg-neutral-50 border-neutral-200'}`}>
                     <div>
-                      <h4 className={`font-medium ${d ? 'text-[#F0EAD6]' : 'text-slate-900'}`}>{site.name}</h4>
-                      {site.address && <p className={`text-sm ${d ? 'text-[#666666]' : 'text-slate-500'}`}>{site.address}</p>}
+                      <h4 className={`font-medium ${d ? 'text-[#F0EAD6]' : 'text-neutral-900'}`}>{site.name}</h4>
+                      {site.address && <p className={`text-sm ${d ? 'text-[#666666]' : 'text-neutral-500'}`}>{site.address}</p>}
                       {site.bystander_signage_attested_at ? (
                         <p className="text-xs text-[#7BC67B] mt-1 flex items-center gap-1">
                           <CheckCircle className="w-3 h-3" /> Attested: {new Date(site.bystander_signage_attested_at).toLocaleDateString()}
@@ -522,15 +522,15 @@ export function AuditLogTable() {
         </div>
       ) : (
         /* DSR Request Ledger Tab — per ux-product-spec.md */
-        <div className={`border rounded-none overflow-hidden ${d ? 'bg-[#111111] border-[#222222]' : 'bg-[#FFFFFF] border-slate-200'}`}>
-          <div className={`p-6 border-b ${d ? 'border-[#222222]' : 'border-slate-200'}`}>
+        <div className={`border rounded-none overflow-hidden ${d ? 'bg-[#111111] border-[#222222]' : 'bg-[#FFFFFF] border-neutral-200'}`}>
+          <div className={`p-6 border-b ${d ? 'border-[#222222]' : 'border-neutral-200'}`}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-[rgba(240,124,30,0.08)] rounded-none flex items-center justify-center">
                 <FileStack className="w-5 h-5 text-[#F07C1E]" />
               </div>
               <div>
-                <h3 className={`font-semibold ${d ? 'text-[#F0EAD6]' : 'text-slate-900'}`}>Data Subject Request Ledger</h3>
-                <p className={`text-sm ${d ? 'text-[#666666]' : 'text-slate-500'}`}>Track DSR requests (access, correction, deletion, objection, restriction) per RA 10173 / NPC guidelines</p>
+                <h3 className={`font-semibold ${d ? 'text-[#F0EAD6]' : 'text-neutral-900'}`}>Data Subject Request Ledger</h3>
+                <p className={`text-sm ${d ? 'text-[#666666]' : 'text-neutral-500'}`}>Track DSR requests (access, correction, deletion, objection, restriction) per RA 10173 / NPC guidelines</p>
               </div>
             </div>
           </div>
@@ -538,26 +538,26 @@ export function AuditLogTable() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className={`border-b ${d ? 'border-[#222222] bg-[#0A0A0A]' : 'border-slate-200 bg-slate-50'}`}>
+                <tr className={`border-b ${d ? 'border-[#222222] bg-[#0A0A0A]' : 'border-neutral-200 bg-neutral-50'}`}>
                   {['Received', 'Due', 'Type', 'Subject', 'Contact', 'Status', 'Outcome'].map(h => (
-                    <th key={h} className={`text-left px-6 py-3 text-xs font-mono uppercase tracking-wider ${d ? 'text-[#666666]' : 'text-slate-500'}`}>{h}</th>
+                    <th key={h} className={`text-left px-6 py-3 text-xs font-mono uppercase tracking-wider ${d ? 'text-[#666666]' : 'text-neutral-500'}`}>{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className={`divide-y ${d ? 'divide-[#222222]' : 'divide-slate-100'}`}>
+              <tbody className={`divide-y ${d ? 'divide-[#222222]' : 'divide-neutral-100'}`}>
                 {dsrLoading ? (
                   <tr><td colSpan={7} className="px-6 py-12 text-center text-[#666666]">Loading DSR requests...</td></tr>
                 ) : dsrRequests.length === 0 ? (
                   <tr><td colSpan={7} className="px-6 py-12 text-center text-[#666666]">No DSR requests found</td></tr>
                 ) : dsrRequests.map(dsr => (
-                  <tr key={dsr.id} className={`transition-colors ${d ? 'hover:bg-[#1A1A1A]' : 'hover:bg-slate-50'}`}>
-                    <td className={`px-6 py-4 text-sm font-mono ${d ? 'text-[#F0EAD6]' : 'text-slate-600'}`}>{new Date(dsr.received_at).toLocaleDateString()}</td>
-                    <td className={`px-6 py-4 text-sm font-mono ${d ? 'text-[#F0EAD6]' : 'text-slate-600'}`}>{new Date(dsr.due_at).toLocaleDateString()}</td>
-                    <td className={`px-6 py-4 text-sm font-medium ${d ? 'text-[#F0EAD6]' : 'text-slate-900'}`}>{dsr.request_type}</td>
-                    <td className={`px-6 py-4 text-sm ${d ? 'text-[#F0EAD6]' : 'text-slate-600'}`}>{dsr.subject_type}</td>
-                    <td className={`px-6 py-4 text-sm font-mono ${d ? 'text-[#F0EAD6]' : 'text-slate-600'}`}>{dsr.requester_contact}</td>
+                  <tr key={dsr.id} className={`transition-colors ${d ? 'hover:bg-[#1A1A1A]' : 'hover:bg-neutral-50'}`}>
+                    <td className={`px-6 py-4 text-sm font-mono ${d ? 'text-[#F0EAD6]' : 'text-neutral-600'}`}>{new Date(dsr.received_at).toLocaleDateString()}</td>
+                    <td className={`px-6 py-4 text-sm font-mono ${d ? 'text-[#F0EAD6]' : 'text-neutral-600'}`}>{new Date(dsr.due_at).toLocaleDateString()}</td>
+                    <td className={`px-6 py-4 text-sm font-medium ${d ? 'text-[#F0EAD6]' : 'text-neutral-900'}`}>{dsr.request_type}</td>
+                    <td className={`px-6 py-4 text-sm ${d ? 'text-[#F0EAD6]' : 'text-neutral-600'}`}>{dsr.subject_type}</td>
+                    <td className={`px-6 py-4 text-sm font-mono ${d ? 'text-[#F0EAD6]' : 'text-neutral-600'}`}>{dsr.requester_contact}</td>
                     <td className="px-6 py-4"><span className={`px-2 py-0.5 rounded-sm text-xs font-mono ${dsrStatusColor(dsr.status)}`}>{dsr.status}</span></td>
-                    <td className={`px-6 py-4 text-sm ${d ? 'text-[#666666]' : 'text-slate-500'}`}>{dsr.outcome || '—'}</td>
+                    <td className={`px-6 py-4 text-sm ${d ? 'text-[#666666]' : 'text-neutral-500'}`}>{dsr.outcome || '—'}</td>
                   </tr>
                 ))}
               </tbody>

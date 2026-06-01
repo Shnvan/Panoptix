@@ -21,10 +21,10 @@ const statusConfig: Record<CameraTileStatus, {
   online: { label: 'Live', color: 'bg-emerald-500', icon: Signal, pulse: true },
   offline: { label: 'Offline', color: 'bg-red-500', icon: WifiOff, pulse: false },
   reconnecting: { label: 'Reconnecting', color: 'bg-amber-500', icon: Loader2, pulse: true },
-  unavailable: { label: 'Unavailable', color: 'bg-slate-500', icon: AlertTriangle, pulse: false },
+  unavailable: { label: 'Unavailable', color: 'bg-neutral-500', icon: AlertTriangle, pulse: false },
   gateway_unavailable: { label: 'Gateway Down', color: 'bg-red-500', icon: AlertTriangle, pulse: false },
   permission_denied: { label: 'No Access', color: 'bg-red-500', icon: ShieldX, pulse: false },
-  loading: { label: 'Loading', color: 'bg-slate-500', icon: Loader2, pulse: true },
+  loading: { label: 'Loading', color: 'bg-neutral-500', icon: Loader2, pulse: true },
 };
 
 /**
@@ -49,16 +49,16 @@ export function CameraCard({ id, name, location, status, onExpand }: CameraCardP
       whileHover={{ y: -2 }}
       className={`relative rounded-lg overflow-hidden cursor-pointer group transition-all duration-300 hover:shadow-xl hover:shadow-orange-500/10 ${
         theme === 'dark'
-          ? 'bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/50'
-          : 'bg-white border border-slate-200 shadow-sm'
+          ? 'bg-gradient-to-br from-neutral-900 to-neutral-800 border border-neutral-700/50'
+          : 'bg-white border border-neutral-200 shadow-sm'
       }`}
       onClick={onExpand}
     >
       {/* Video placeholder */}
-      <div className="aspect-video bg-slate-950 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-950">
+      <div className="aspect-video bg-neutral-950 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-neutral-900 to-neutral-950">
           <div className="absolute inset-0 flex items-center justify-center">
-            <Camera className="w-16 h-16 text-slate-700" />
+            <Camera className="w-16 h-16 text-neutral-700" />
           </div>
           {/* Scan line animation */}
           <motion.div
@@ -92,8 +92,8 @@ export function CameraCard({ id, name, location, status, onExpand }: CameraCardP
 
       {/* Info bar */}
       <div className={`px-4 py-3 ${theme === 'dark' ? '' : ''}`}>
-        <h4 className={`font-semibold text-sm truncate ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{name}</h4>
-        <p className={`text-xs truncate mt-0.5 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>{location}</p>
+        <h4 className={`font-semibold text-sm truncate ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>{name}</h4>
+        <p className={`text-xs truncate mt-0.5 ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>{location}</p>
       </div>
     </motion.div>
   );

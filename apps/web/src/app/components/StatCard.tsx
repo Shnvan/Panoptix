@@ -36,20 +36,20 @@ export function StatCard({ title, value, change, trend = 'neutral', icon: Icon, 
     >
       <div className="flex items-start justify-between mb-4">
         <div className={`w-12 h-12 rounded-lg flex items-center justify-center shadow-lg ${
-          theme === 'dark' ? `bg-slate-900/50 ${c.shadow}` : 'bg-white/80 shadow-sm'
+          theme === 'dark' ? `bg-neutral-900/50 ${c.shadow}` : 'bg-white/80 shadow-sm'
         }`}>
           <Icon className={`w-6 h-6 ${theme === 'dark' ? c.icon : c.lightIcon}`} />
         </div>
         {change && (
           <span className={`text-sm font-medium ${
-            trend === 'up' ? 'text-emerald-500' : trend === 'down' ? 'text-red-500' : theme === 'dark' ? 'text-slate-400' : 'text-slate-500'
+            trend === 'up' ? 'text-emerald-500' : trend === 'down' ? 'text-red-500' : theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'
           }`}>
             {change}
           </span>
         )}
       </div>
       <div>
-        <h3 className={`text-sm mb-1 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>{title}</h3>
+        <h3 className={`text-sm mb-1 ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>{title}</h3>
         <p className={`text-3xl font-bold ${theme === 'dark' ? c.text : c.lightText}`}>{value}</p>
       </div>
     </motion.div>

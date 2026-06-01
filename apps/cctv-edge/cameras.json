@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "cameras": {
+    "tapo-camera-1": {
+      "rtsp_host": "100.76.147.59",
+      "rtsp_port": 8554,
+      "rtsp_path": "/tapo",
+      "rtsp_transport": "tcp",
+      "username": "admin",
+      "password": "change-me",
+      "tls": false
+    }
+  }
+}

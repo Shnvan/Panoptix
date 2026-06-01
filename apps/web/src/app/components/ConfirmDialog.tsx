@@ -25,7 +25,7 @@ export function ConfirmDialog({
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         className={`max-w-md w-full border rounded-lg p-6 shadow-2xl ${
-          theme === 'dark' ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
+          theme === 'dark' ? 'bg-neutral-900 border-neutral-700' : 'bg-white border-neutral-200'
         }`}
         onClick={(e) => e.stopPropagation()}
       >
@@ -38,8 +38,8 @@ export function ConfirmDialog({
             }`} />
           </div>
           <div>
-            <h3 className={`text-lg font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{title}</h3>
-            <p className={`text-sm ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>{message}</p>
+            <h3 className={`text-lg font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>{title}</h3>
+            <p className={`text-sm ${theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}`}>{message}</p>
           </div>
         </div>
         <p className="text-xs text-amber-400 mb-4 flex items-center gap-1">
@@ -47,7 +47,7 @@ export function ConfirmDialog({
         </p>
         <div className="flex gap-3">
           <button onClick={onCancel} className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-            theme === 'dark' ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+            theme === 'dark' ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300' : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-600'
           }`}>{cancelLabel}</button>
           <button onClick={onConfirm} disabled={loading} className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
             variant === 'danger' ? 'bg-red-500 hover:bg-red-400 text-white' : 'bg-amber-500 hover:bg-amber-400 text-white'

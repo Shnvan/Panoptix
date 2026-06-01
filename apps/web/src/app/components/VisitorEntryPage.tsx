@@ -316,7 +316,7 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
   };
 
   return (
-    <main className="min-h-full bg-slate-950 text-slate-100">
+    <main className="min-h-full bg-neutral-950 text-neutral-100">
       <section className="mx-auto flex min-h-full w-full max-w-6xl flex-col justify-center px-6 py-12 lg:px-10">
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)] lg:items-center">
           <div className="max-w-2xl">
@@ -324,19 +324,19 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
               <img src="/logo.png" alt="" className="h-14 w-14 rounded-lg shadow-lg shadow-orange-500/20" />
               <div>
                 <p className="text-sm font-medium text-orange-300">Panoptix</p>
-                <p className="text-sm text-slate-400">Secure CCTV monitoring entry</p>
+                <p className="text-sm text-neutral-400">Secure CCTV monitoring entry</p>
               </div>
             </div>
 
             <h1 className="max-w-xl text-4xl font-semibold text-white sm:text-5xl">
               Security notice before sign-in
             </h1>
-            <p className="mt-5 max-w-xl text-base leading-7 text-slate-300">
+            <p className="mt-5 max-w-xl text-base leading-7 text-neutral-300">
               This public entry step records limited browser and network context for access security before
               Cloudflare Access opens the protected Panoptix sign-in flow.
             </p>
 
-            <div className="mt-8 flex flex-wrap gap-4 text-sm text-slate-300">
+            <div className="mt-8 flex flex-wrap gap-4 text-sm text-neutral-300">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-emerald-300" />
                 Protected system remains behind Cloudflare Access
@@ -348,15 +348,15 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
             </div>
           </div>
 
-          <div className="border border-slate-700 bg-slate-900/80 p-6 shadow-2xl shadow-black/20 sm:p-8">
-            <div className="border-b border-slate-800 pb-5">
-              <p className="text-sm font-medium text-slate-400">Visitor notice</p>
+          <div className="border border-neutral-700 bg-neutral-900/80 p-6 shadow-2xl shadow-black/20 sm:p-8">
+            <div className="border-b border-neutral-800 pb-5">
+              <p className="text-sm font-medium text-neutral-400">Visitor notice</p>
               <h2 className="mt-2 text-2xl font-semibold text-white">
                 {notice?.title || 'Panoptix Visitor Security Notice'}
               </h2>
             </div>
 
-            <div className="min-h-40 py-6 text-sm leading-7 text-slate-300">
+            <div className="min-h-40 py-6 text-sm leading-7 text-neutral-300">
               {noticeState === 'loading' && <p>Fetching the current notice.</p>}
               {noticeState === 'ready' && <p>{notice?.body}</p>}
               {noticeState === 'unavailable' && (
@@ -367,15 +367,15 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
               )}
             </div>
 
-            <div className="border-t border-slate-800 pt-5">
-              <p aria-live="polite" className="min-h-6 text-sm text-slate-400">
+            <div className="border-t border-neutral-800 pt-5">
+              <p aria-live="polite" className="min-h-6 text-sm text-neutral-400">
                 {statusText}
               </p>
               <button
                 type="button"
                 onClick={continueToProtectedApp}
                 disabled={noticeState === 'loading' || continuing}
-                className="mt-4 inline-flex w-full items-center justify-center gap-2 bg-orange-500 px-4 py-3 font-semibold text-slate-950 transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 bg-orange-500 px-4 py-3 font-semibold text-neutral-950 transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-neutral-400"
               >
                 {continuing ? 'Continuing' : 'Continue to secure sign-in'}
                 <ArrowRight className="h-4 w-4" />
@@ -393,13 +393,13 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
               id="request-access"
               ref={accessFormRef}
               onSubmit={submitAccessRequest}
-              className="mt-6 border-t border-slate-800 pt-5"
+              className="mt-6 border-t border-neutral-800 pt-5"
             >
               <div className="mb-4 flex items-center gap-2">
                 <UserPlus className="h-4 w-4 text-orange-300" />
                 <div>
                   <p className="text-sm font-semibold text-white">Request access</p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-neutral-400">
                     User access requires owner review before any invite is sent.
                   </p>
                 </div>
@@ -412,7 +412,7 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
                   onChange={(event) => setAccessName(event.target.value)}
                   maxLength={255}
                   placeholder="Full name"
-                  className="border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-orange-400"
+                  className="border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white outline-none focus:border-orange-400"
                 />
                 <input
                   required
@@ -421,14 +421,14 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
                   onChange={(event) => setAccessEmail(event.target.value)}
                   maxLength={320}
                   placeholder="Email address"
-                  className="border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-orange-400"
+                  className="border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white outline-none focus:border-orange-400"
                 />
                 <input
                   value={accessOrganization}
                   onChange={(event) => setAccessOrganization(event.target.value)}
                   maxLength={255}
                   placeholder="Organization or team"
-                  className="border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-orange-400"
+                  className="border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white outline-none focus:border-orange-400"
                 />
                 <textarea
                   required
@@ -437,7 +437,7 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
                   maxLength={2000}
                   rows={3}
                   placeholder="Reason for access"
-                  className="resize-none border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-orange-400"
+                  className="resize-none border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white outline-none focus:border-orange-400"
                 />
               </div>
               {accessMessage && (
@@ -448,7 +448,7 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
               <button
                 type="submit"
                 disabled={accessLoading}
-                className="mt-4 inline-flex w-full items-center justify-center gap-2 border border-orange-500/40 px-4 py-3 font-semibold text-orange-200 transition hover:bg-orange-500/10 disabled:cursor-not-allowed disabled:border-slate-700 disabled:text-slate-500"
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 border border-orange-500/40 px-4 py-3 font-semibold text-orange-200 transition hover:bg-orange-500/10 disabled:cursor-not-allowed disabled:border-neutral-700 disabled:text-neutral-500"
               >
                 {accessLoading ? 'Submitting' : 'Submit access request'}
               </button>
