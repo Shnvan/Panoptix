@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Protocol
 
+from panoptix_edge_agent.command_execution import loop_bound_executor
 from panoptix_edge_agent.config import AgentConfig
 from panoptix_edge_agent.control import ControlSupervisorResult, GatewayControlClient
 from panoptix_edge_agent.control import GatewayControlSupervisor as ControlSupervisor
@@ -167,9 +168,10 @@ def build_gateway_runtime_supervisor(
                 config_path=config.mediamtx_config_path,
             )
         )
+    command_executor = loop_bound_executor(executor)
     return GatewayRuntimeSupervisor(
-        HeartbeatRunner(config, executor=executor),
-        ControlSupervisor(GatewayControlClient(config, executor=executor)),
+        HeartbeatRunner(config, executor=command_executor),
+        ControlSupervisor(GatewayControlClient(config, executor=command_executor)),
         mediamtx_manager=mediamtx_manager,
         sleep=sleep,
         cycle_delay_seconds=config.heartbeat_interval_seconds,

@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import asyncio
+import json
 from typing import Any
 
 from panoptix_edge_agent.client import AgentClientError, CameraStatusReport
+from panoptix_edge_agent.command_execution import loop_bound_executor
 from panoptix_edge_agent.config import AgentConfig
+from panoptix_edge_agent.control import GatewayControlClient
+from panoptix_edge_agent.executor import CommandExecutionResult
 from panoptix_edge_agent.runner import HeartbeatRunner
 
 SIGNING_KEY = "test-command-signing-key-with-enough-entropy"
@@ -26,6 +31,18 @@ class FakeClient:
         if self.error is not None:
             raise self.error
         return self.response
+
+
+class LoopRecordingExecutor:
+    def __init__(self) -> None:
+        self.loop_ids: list[int] = []
+        self.loop_closed: list[bool] = []
+
+    async def execute(self, _command: object) -> CommandExecutionResult:
+        loop = asyncio.get_running_loop()
+        self.loop_ids.append(id(loop))
+        self.loop_closed.append(loop.is_closed())
+        return CommandExecutionResult(accepted=True)
 
 
 def _config(**overrides: Any) -> AgentConfig:
@@ -56,6 +73,42 @@ def _command(**overrides: object) -> dict[str, object]:
     }
     command.update(overrides)
     return command
+
+
+class FakeWebSocket:
+    def __init__(self, messages: list[str]) -> None:
+        self.messages = messages
+        self.sent_messages: list[str | bytes] = []
+
+    async def recv(self) -> str:
+        return self.messages.pop(0)
+
+    async def send(self, message: str | bytes) -> None:
+        self.sent_messages.append(message)
+
+
+class FakeWebSocketContext:
+    def __init__(self, websocket: FakeWebSocket) -> None:
+        self.websocket = websocket
+
+    async def __aenter__(self) -> FakeWebSocket:
+        return self.websocket
+
+    async def __aexit__(self, exc_type: object, exc: object, traceback: object) -> None:
+        return None
+
+
+class RecordingConnector:
+    def __init__(self, messages: list[str]) -> None:
+        self.messages = messages
+
+    def connect(
+        self,
+        _url: str,
+        _headers: dict[str, str],
+        _timeout_seconds: float,
+    ) -> FakeWebSocketContext:
+        return FakeWebSocketContext(FakeWebSocket(self.messages.copy()))
 
 
 def test_run_once_sends_online_heartbeat_with_configured_cameras() -> None:
@@ -96,6 +149,58 @@ def test_run_once_accepts_verified_pending_heartbeat_command() -> None:
     assert result.accepted_commands == 1
     assert result.rejected_commands == 0
     assert result.command_errors == ()
+
+
+def test_run_once_executes_sequential_commands_on_persistent_event_loop() -> None:
+    executor = LoopRecordingExecutor()
+    bridge = loop_bound_executor(executor)  # type: ignore[arg-type]
+    runner = HeartbeatRunner(
+        _config(),
+        client=FakeClient(response={"pending_commands": [_command()]}),
+        executor=bridge,
+    )
+
+    try:
+        first = runner.run_once()
+        second = runner.run_once()
+    finally:
+        bridge.close()
+
+    assert first.accepted_commands == 1
+    assert second.accepted_commands == 1
+    assert len(executor.loop_ids) == 2
+    assert len(set(executor.loop_ids)) == 1
+    assert executor.loop_closed == [False, False]
+
+
+def test_heartbeat_and_control_commands_share_persistent_event_loop() -> None:
+    executor = LoopRecordingExecutor()
+    bridge = loop_bound_executor(executor)  # type: ignore[arg-type]
+    runner = HeartbeatRunner(
+        _config(),
+        client=FakeClient(response={"pending_commands": [_command()]}),
+        executor=bridge,
+    )
+    control_client = GatewayControlClient(
+        _config(dev_identity_enabled=True),
+        connector=RecordingConnector([
+            json.dumps({"type": "connected", "gateway_id": "gateway-1"}),
+            json.dumps(_command()),
+        ]),
+        executor=bridge,
+    )
+
+    try:
+        heartbeat_result = runner.run_once()
+        control_result = asyncio.run(control_client.run_once(max_messages=1))
+    finally:
+        bridge.close()
+
+    assert heartbeat_result.accepted_commands == 1
+    assert control_result.accepted_commands == 1
+    assert len(executor.loop_ids) == 2
+    assert len(set(executor.loop_ids)) == 1
+    assert executor.loop_closed == [False, False]
 
 
 def test_run_once_rejects_tampered_pending_heartbeat_command() -> None:

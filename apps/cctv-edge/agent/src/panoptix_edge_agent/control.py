@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any, AsyncContextManager, Protocol
 from urllib.parse import urlsplit, urlunsplit
 
+from panoptix_edge_agent.command_execution import LoopBoundCommandExecutor, loop_bound_executor
 from panoptix_edge_agent.commands import (
     CommandVerificationError,
     GatewayCommand,
@@ -121,12 +122,13 @@ class GatewayControlClient:
         config: AgentConfig,
         connector: WebSocketConnector | None = None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
-        executor: CommandExecutor | None = None,
+        executor: CommandExecutor | LoopBoundCommandExecutor | None = None,
     ) -> None:
         self.config = config
         self.connector = WebSocketsConnector() if connector is None else connector
         self.sleep = sleep
-        self.executor = executor if executor is not None else CommandExecutor(StubMediaController())
+        raw_executor = executor if executor is not None else CommandExecutor(StubMediaController())
+        self.executor = loop_bound_executor(raw_executor)
 
     @property
     def websocket_url(self) -> str:
