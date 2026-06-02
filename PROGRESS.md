@@ -761,6 +761,8 @@ Full 10-sidebar-page authenticated production browser smoke is complete, and the
 
 Current no-hardware monitoring focus: keep the existing production health workflow active for `panoptix.site`, check admin deep health/gateway heartbeat recency after deploys or incidents, and treat stale gateway heartbeat, repeated gateway WebSocket reconnect failures, or any idle `ffmpeg` process on the DigitalOcean host as actionable. A healthy host check is `panoptix-edge-agent.service` active, one supervisor process, and zero idle `ffmpeg`.
 
+2026-06-02 software operations review: latest API-visible scheduled `Production Health Check` run `26816176702` completed successfully at `2026-06-02T11:16:44Z`, covering `/health` and `/api/v1/admin/health/deep` through Cloudflare Access service-token headers. Latest scheduled `Production Backup` run `26783867468` completed successfully at `2026-06-01T21:45:05Z`, covering encrypted R2 backup and retention. No open GitHub failure issues named `Production health check failed` or `Production backup automation failed` were found. A read-only gateway check at `2026-06-02T13:19:04Z` showed `panoptix-edge-agent.service` active, `NRestarts=0`, one supervisor process, zero idle `ffmpeg`, and no matching failure log lines since service start.
+
 ### 2. Production-standard camera network hardening
 The Tailscale/DigitalOcean pilot is the valid current viewing path. Production-standard on-site gateway/VLAN rollout is paused until hardware/site access exists. When hardware is available, plan a dedicated on-site gateway on an approved camera LAN/VLAN, then run Gateway Discovery V2 from approved CIDRs only. Do not run discovery against public, loopback, wildcard, or unrelated networks.
 

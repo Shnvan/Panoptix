@@ -83,6 +83,13 @@ The current no-hardware operating path is the DigitalOcean `dropletGateway` plus
 - Treat stale gateway heartbeat, repeated gateway WebSocket reconnect failures, repeated stale-session/auth/LiveKit/publish failures, or any idle `ffmpeg` process as actionable.
 - Keep RTSP URLs, gateway tokens, Cloudflare service-token secrets, LiveKit secrets, and auth tokens out of docs, screenshots, logs pasted into chat, and browser storage.
 
+Latest software operations evidence, 2026-06-02:
+
+- API-visible scheduled `Production Health Check` run `26816176702` completed with `success` at `2026-06-02T11:16:44Z`; the workflow checks `/health` and `/api/v1/admin/health/deep`.
+- Scheduled `Production Backup` run `26783867468` completed with `success` at `2026-06-01T21:45:05Z`; the workflow runs encrypted R2 backup and retention.
+- No open GitHub failure issues named `Production health check failed` or `Production backup automation failed` were found.
+- Read-only gateway host check at `2026-06-02T13:19:04Z` showed service active, `NRestarts=0`, one supervisor process, zero idle `ffmpeg`, and no matching failure log lines since service start.
+
 ## Required Services
 
 Confirm these services exist and are owned by the team before production approval:
