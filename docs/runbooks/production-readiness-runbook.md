@@ -20,11 +20,14 @@ Verified:
 
 Still required for broader production hardening:
 
-- Longer DigitalOcean gateway stability/operations evidence. Latest 2026-06-02 evidence reached the gateway through Tailscale SSH and showed the service active with one supervisor, but the soak failed because an idle long-lived `ffmpeg` child remained attached to the supervisor. Local backend mitigation now enqueues stop immediately for zero-viewer LiveKit leave events when the maintenance scheduler is disabled; deploy it and rerun idle/playback/idle evidence before marking the soak complete.
 - Production-standard on-site gateway/VLAN rollout for future camera sites.
 - Break-glass hardware key procurement/test and monitoring posture.
 
+Hardware-dependent on-site gateway/VLAN work is paused until a real site gateway, camera hardware, and approved camera network are available.
+
 ## DigitalOcean Gateway Soak Evidence
+
+Latest evidence status: passed on 2026-06-02 after production redeploy to commit `cee14ad`. Accepted evidence showed `panoptix-edge-agent.service` active with `NRestarts=0`, supervisor PID `46735`, no idle `ffmpeg`, one expected playback `ffmpeg` child PID `50457` under supervisor `46735`, and `ffmpeg` exit after playback close. Browser smoke stayed subscriber-only with no camera/mic permission prompt; `localStorage` contained only `panoptix-theme=dark`, `sessionStorage` was empty, and no RTSP URL, gateway token, Cloudflare secret, LiveKit secret, or auth token was exposed in browser storage. Keep RTSP URLs redacted in any future written evidence.
 
 Run this section from an authorized operator workstation. Do not paste `.env` files, full credential-bearing commands, RTSP URLs, gateway service tokens, Cloudflare Access service-token secrets, LiveKit tokens, or LiveKit API secrets into docs, screenshots, tickets, or chat.
 
@@ -69,6 +72,16 @@ journalctl -u panoptix-edge-agent.service --since "10 minutes ago" --no-pager \
 ```
 
 Pass criteria: service active, exactly one supervisor process, no restart loop, no repeated stale-session/auth/LiveKit/WebSocket/publish failures, `ffmpeg` absent when idle and present only while streaming, and production playback works without browser publishing or secret exposure. If any criterion fails, record the failure as the next active task instead of marking the soak complete.
+
+## Current Pilot Monitoring
+
+The current no-hardware operating path is the DigitalOcean `dropletGateway` plus Tailscale RTSP pilot camera.
+
+- Production app health remains covered by the existing production health workflow.
+- Gateway control-plane health should be checked with admin deep health and recent gateway heartbeat status after deploys or incidents.
+- DigitalOcean host health should show `panoptix-edge-agent.service` active, exactly one edge-agent supervisor process, and zero idle `ffmpeg`.
+- Treat stale gateway heartbeat, repeated gateway WebSocket reconnect failures, repeated stale-session/auth/LiveKit/publish failures, or any idle `ffmpeg` process as actionable.
+- Keep RTSP URLs, gateway tokens, Cloudflare service-token secrets, LiveKit secrets, and auth tokens out of docs, screenshots, logs pasted into chat, and browser storage.
 
 ## Required Services
 
