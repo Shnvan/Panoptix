@@ -315,6 +315,17 @@ def _maybe_enqueue_publish_command(
             event_at=event_at,
         )
     if event_name == "participant_left":
+        if not settings.ENABLE_MAINTENANCE_SCHEDULER:
+            return _enqueue_stop_publish_command(
+                db,
+                settings=settings,
+                request=request,
+                camera=camera,
+                gateway=gateway,
+                room_name=room_name,
+                event_name=event_name,
+                event_at=event_at,
+            )
         _schedule_stop_publish(
             db,
             settings=settings,

@@ -1152,7 +1152,7 @@ Expected command item:
 }
 ```
 
-`participant_left` with `participant_count: 0` schedules a stop after the 10-second grace window instead of immediately queueing `gateway.command.stop_publish`:
+When `ENABLE_MAINTENANCE_SCHEDULER=true`, `participant_left` with `participant_count: 0` schedules a stop after the 10-second grace window instead of immediately queueing `gateway.command.stop_publish`:
 
 ```json
 {
@@ -1176,7 +1176,9 @@ If another `participant_joined` arrives before `stop_due_at`, the pending stop i
 - Publish state returns to `publishing`.
 - Audit contains `livekit.publish.stop_cancelled`.
 
-When a deterministic scheduler/cron calls `enqueue_due_publish_stops()` after `stop_due_at`, the backend enqueues `gateway.command.stop_publish` and resets the publish state to `idle`. Production scheduler wiring is still a separate milestone.
+When a deterministic scheduler/cron calls `enqueue_due_publish_stops()` after `stop_due_at`, the backend enqueues `gateway.command.stop_publish` and resets the publish state to `idle`.
+
+When `ENABLE_MAINTENANCE_SCHEDULER=false`, the same zero-viewer `participant_left` fails closed by immediately enqueueing `gateway.command.stop_publish` and resetting publish state to `idle`. This prevents a camera publisher/FFmpeg process from waiting forever for a disabled due-stop scheduler.
 
 `room_finished` still queues `gateway.command.stop_publish` immediately and resets publish state to `idle`.
 
@@ -1540,7 +1542,7 @@ $env:ENABLE_MAINTENANCE_SCHEDULER = "true"
 $env:MAINTENANCE_INTERVAL_SECONDS = "30"
 ```
 
-The scheduler only starts when `DATABASE_URL` is not a placeholder. Scheduled runs write `system.maintenance.run` audit events.
+The scheduler only starts when `DATABASE_URL` is not a placeholder. Scheduled runs write `system.maintenance.run` audit events. If the scheduler is disabled, zero-viewer LiveKit leave events enqueue stop commands immediately instead of using the grace-window queue.
 
 ### Backend
 

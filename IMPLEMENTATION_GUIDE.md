@@ -1977,7 +1977,7 @@ Existing control and runner tests were updated for async execution and full comm
 
 ### What was implemented
 
-The backend now tracks camera publish lifecycle state and no longer immediately enqueues `stop_publish` when the last viewer leaves. Instead, it schedules a stop grace window and only emits a stop command when the due-stop processor runs after `stop_due_at`.
+The backend now tracks camera publish lifecycle state. When the maintenance scheduler is enabled, it schedules a stop grace window and only emits a stop command when the due-stop processor runs after `stop_due_at`. When the scheduler is disabled, zero-viewer leave events enqueue stop immediately so the gateway does not keep publishing forever.
 
 ### How it works
 
@@ -1985,13 +1985,15 @@ The backend now tracks camera publish lifecycle state and no longer immediately 
 2. If a stop is pending, the backend cancels it and audits `livekit.publish.stop_cancelled`.
 3. If the camera is already starting or publishing, no duplicate start command is enqueued.
 4. If the camera is idle, the backend marks state `starting`, mints a gateway-publish token, records a stream grant, and enqueues `gateway.command.start_publish`.
-5. `participant_left` with `participant_count == 0` marks state `stop_pending` and sets `stop_due_at = event_at + 10 seconds`.
+5. If `ENABLE_MAINTENANCE_SCHEDULER=true`, `participant_left` with `participant_count == 0` marks state `stop_pending` and sets `stop_due_at = event_at + 10 seconds`.
 6. `enqueue_due_publish_stops()` finds due `stop_pending` states, enqueues `gateway.command.stop_publish`, and resets state to `idle`.
-7. `room_finished` still immediately enqueues `stop_publish` and resets state to `idle`.
+7. If `ENABLE_MAINTENANCE_SCHEDULER=false`, the same zero-viewer leave event immediately enqueues `gateway.command.stop_publish` and resets state to `idle`.
+8. `room_finished` still immediately enqueues `stop_publish` and resets state to `idle`.
 
 ### Key design decisions
 
-- The grace timer is deterministic and testable; production scheduler/cron wiring remains a separate milestone.
+- The grace timer is deterministic and testable when the scheduler is enabled.
+- Scheduler-disabled deployments fail closed with immediate stop delivery to avoid stale gateway publishers.
 - The SQLAlchemy model is added for app/test behavior; Alembic migration remains DB-owner coordination unless explicitly requested.
 - Stop scheduling writes `livekit.publish.stop_scheduled`.
 - Stop cancellation writes `livekit.publish.stop_cancelled`.
