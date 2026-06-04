@@ -2,7 +2,7 @@
 
 This document lists every implemented backend API endpoint, what the frontend can build against today, what is not ready yet, and local dev setup instructions.
 
-Last updated: 2026-06-01 (full production sidebar smoke passed)
+Last updated: 2026-06-02 (Tailscale RTSP camera pilot passed)
 
 Read first: [Frontend Coworker Handoff](FRONTEND_HANDOFF.md).
 
@@ -13,8 +13,9 @@ Read first: [Frontend Coworker Handoff](FRONTEND_HANDOFF.md).
 - Admin users, cameras, gateways, DSR requests, backup status, break-glass, health, and alert APIs are backend-available.
 - `POST /api/v1/admin/users/invite` is implemented, but `github-invites-not-configured` is expected unless GitHub invite settings are intentionally enabled.
 - Alert records and backend SMTP email notifications are implemented. Production sends high/critical alert emails through Resend to active admin users with `ALERT_EMAIL_RECIPIENT_MODE=admins`, including `/entry` Continue events and selected intrusion/abuse audit events.
-- Real LiveKit browser playback code is implemented using `@livekit/components-react` subscriber-only viewer. Production validation with real cameras is pending.
-- Real CCTV hardware validation is still pending. Staging browser smoke passed 2026-05-21. Production deployed at `panoptix.site` 2026-05-22.
+- Real LiveKit browser playback code is implemented using `@livekit/components-react` subscriber-only viewer, and production `Tailscale RTSP Camera` playback passed on 2026-06-02 through the DigitalOcean `dropletGateway`.
+- The Tailscale RTSP pilot is the current validated real-camera path. Production-standard on-site gateway/VLAN hardening and additional camera/site onboarding remain future system-owner work. Staging browser smoke passed 2026-05-21. Production deployed at `panoptix.site` 2026-05-22.
+- Real-camera browser security smoke showed no camera/mic prompt, no browser publishing, and no RTSP URL, gateway token, Cloudflare token, or LiveKit secret in browser storage/logs/docs.
 - Full production sidebar smoke passed 2026-06-01: all 10 sidebar pages loaded through Cloudflare Access at `panoptix.site`, no unexpected `404`/`500`/`502` appeared, transient recovered `401` bootstrap calls were observed, console output was browser-extension/content-script noise only, and `localStorage`/`sessionStorage` contained no sensitive token material.
 - The public visitor collector pilot is operational on same-domain `/entry`. First-time root visits redirect to `/entry` only when `panoptix_visitor` is absent; production admin API smoke confirmed expanded visitor detail sections are present. The admin visitor dashboard is implemented. The visitor access request form and `/entry?mode=request-access` return link are present in the deployed production frontend bundle. 2026-06-01 production smoke confirmed the narrow public `POST /api/v1/visitor/access-requests` Cloudflare exception works: public create returned `201 pending`, duplicate submit returned `409 access-request-already-pending`, Users & Access reject cleared smoke requests, a manual public `requested_role: "admin"` payload was stored as `viewer`, approval sent/recorded a GitHub org invite as viewer, and disabled-user approval returned `409 user-disabled`.
 - Disabled users are enforced by the backend even if Cloudflare Access still authenticates the identity: protected API calls return `403 user-disabled`, app session cookies are cleared, active Panoptix sessions for that disabled user are revoked when seen, and access-request approval does not re-enable or invite disabled local users.
@@ -447,8 +448,8 @@ These features are either incomplete in the frontend, need staged/production smo
 
 | Feature | Status |
 |---|---|
-| Real LiveKit Cloud video playback | LiveKit Cloud account provisioned; direct synthetic FFmpeg-to-LiveKit and backend-controlled synthetic gateway publish smoke passed. `@livekit/components-react` subscriber viewer implemented; production camera validation pending. |
-| Real camera streams | Edge agent supports opt-in `livekit-ffmpeg` publishing and synthetic RTSP smoke has passed. Real CCTV hardware validation is still pending. |
+| Real LiveKit Cloud video playback | LiveKit Cloud account provisioned; synthetic and production Tailscale RTSP pilot playback passed. `@livekit/components-react` subscriber viewer implemented. Continue stability smoke and rerun on new camera sites. |
+| Real camera streams | Tailscale RTSP Camera pilot passed through the DigitalOcean `dropletGateway`; edge agent supports opt-in `livekit-ffmpeg` publishing. Production-standard on-site gateway/VLAN rollout remains future hardening. |
 | Full admin user management | Role update, disable, MFA reset, and GitHub-backed invite flow are implemented. GitHub invite requires configured invite env before real emails are sent. |
 | Gateway credential rotation | `POST /api/v1/admin/gateways/{id}/rotate-credential` is **implemented** (generates new service token, revokes old hash, audit-logged) |
 | DPA/signage export | `POST /api/v1/admin/dpa/export` and `POST /api/v1/admin/sites/:id/signage-attest` are **implemented** (JSONL bundle with kind filter, audit-logged) |
@@ -464,7 +465,7 @@ These features are either incomplete in the frontend, need staged/production smo
 | Alerts | List/detail/acknowledge/resolve APIs exist. | ✅ Closed — AlertsPanel wired to real backend alert APIs. |
 | Actor investigation | Profile and activity APIs exist with alerts, login baseline, IP/device, and audit context. | ✅ Closed — ActorInvestigationPage implemented. |
 | Admin visitor visits | List/detail APIs exist and detail reads are audited. Detail includes `ip_details`, `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, `risk_context`, and login correlation fields. | ✅ Closed — VisitorInvestigationPage implemented. |
-| LiveKit playback | Viewer token endpoint exists and returns subscriber-only LiveKit tokens. | ✅ Code implemented — `@livekit/components-react` subscriber viewer. Production camera validation pending. |
+| LiveKit playback | Viewer token endpoint exists and returns subscriber-only LiveKit tokens. | ✅ Closed for Tailscale RTSP pilot — `@livekit/components-react` subscriber viewer passed production real-camera smoke. Rerun after new camera/gateway deploys. |
 | Audit filters | Backend supports actor, severity, category, outcome, resource, session, and date filters. | ✅ Closed — All 10 backend filter parameters exposed. |
 | Admin camera detail/update | Backend supports admin camera detail and `PATCH`. | Verify all fields and edge states are fully covered in UI smoke. |
 | Site listing | `POST /api/v1/admin/sites/{site_id}/signage-attest` exists. | `GET /api/v1/admin/sites` is not implemented; any site-list UI/client call must remain disabled/planned until a backend source exists. |

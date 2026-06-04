@@ -1,6 +1,6 @@
 # Frontend Coworker Handoff
 
-Last updated: 2026-06-01 (full production sidebar smoke passed)
+Last updated: 2026-06-02 (Tailscale RTSP camera pilot passed)
 
 This is the first document the frontend coworker should read before changing the React app on `fullstack-integration`. It summarizes what the system owner has verified, what backend APIs are ready, and what frontend work should happen next.
 
@@ -31,8 +31,8 @@ This is the first document the frontend coworker should read before changing the
 - Production backup status is now `ok`: encrypted R2 backup evidence exists, isolated restore-drill evidence was recorded against a temporary Neon branch, that temporary branch was deleted, and the production GitHub Actions backup/retention workflow has succeeded. Backup automation and retention are system-owner work, not frontend work.
 - Gateway Discovery V2 backend and edge-agent APIs are implemented and active on `main`, and production is migrated through `0013_visitor_access_requests`. Gateway Discovery UI is optional future frontend work only; do not start it unless Ivan explicitly reassigns it.
 - Production gateway host traffic uses gateway auth plus Cloudflare Access service-token headers. Raw gateway service tokens and Cloudflare Access client secrets belong only on the gateway host, never in frontend code.
-- Real LiveKit browser subscriber playback is implemented using `@livekit/components-react` and `livekit-client`; production validation with real cameras is pending.
-- Real CCTV hardware validation is still pending.
+- Real LiveKit browser subscriber playback is implemented using `@livekit/components-react` and `livekit-client`; production `Tailscale RTSP Camera` playback passed on 2026-06-02 through the DigitalOcean `dropletGateway`.
+- The real-camera pilot kept RTSP on Tailscale/private networking; the browser subscribed to LiveKit only, with no camera/mic prompt, no browser publishing, and no RTSP URL, gateway token, Cloudflare token, or LiveKit secret exposed in browser storage/logs/docs.
 
 ## What To Do Next
 
@@ -56,11 +56,11 @@ This is the first document the frontend coworker should read before changing the
    - System Health
    - Break Glass
    - Settings
-8. Validate production LiveKit camera playback with real cameras once hardware is connected.
+8. ~~Validate production LiveKit camera playback with a real camera pilot~~ - Done for the Tailscale RTSP Camera. Rerun targeted smoke only after new camera/gateway deployments.
 9. Verify disabled-account UX returns clear messaging on login, invite attempts, and access-request approval attempts.
 10. Remove any remaining phantom API calls (requests to endpoints that do not exist or are not yet implemented).
 11. Fix only API contract and wiring issues found during smoke. Do not redesign UI/UX or add roadmap-only pages unless explicitly assigned.
-12. Do not implement Gateway Discovery UI unless Ivan explicitly reassigns it. The backend/edge discovery path exists, but real camera LAN/VLAN validation remains system-owner work. Do not start V380/V380ProQ16S camera integration from the frontend side.
+12. Do not implement Gateway Discovery UI unless Ivan explicitly reassigns it. The backend/edge discovery path exists, but production-standard on-site camera LAN/VLAN hardening remains system-owner work for future sites. Do not start V380/V380ProQ16S camera integration from the frontend side.
 
 ## Hard Guardrails
 
@@ -101,7 +101,7 @@ Expected local-only behavior:
 
 - GitHub invites are live on staging. Inviting a user should succeed and create the local profile. If testing locally without GitHub env vars, `github-invites-not-configured` is still acceptable.
 - Gateway health can be stale if no edge agent is heartbeating. Production edge heartbeat uses gateway auth plus Cloudflare Access service-token headers and the edge agent's stable `Panoptix-Edge-Agent/<version>` user agent.
-- LiveKit playback can remain placeholder/pending until subscriber playback is implemented.
+- LiveKit playback is implemented; local playback may remain unavailable unless local LiveKit/gateway config is present.
 - Current implemented pages should not show broad Internal Server Error failures.
 
 ## Verification Before Handoff Back

@@ -15,7 +15,7 @@ Operate and troubleshoot the gateway-initiated outbound control channel used for
 5. Gateway ACKs success/failure.
 6. `cctv-api` audits dispatch, ACK, retry, and rejection.
 
-Current implementation note: the backend now supports persistent command queues, DB-backed ACK persistence, gateway control WebSocket dispatch, heartbeat fallback delivery, and bounded edge reconnect/backoff behavior. A backend-controlled synthetic RTSP publish smoke passed against LiveKit Cloud using `gateway.command.start_publish`. Real CCTV hardware validation and frontend subscriber playback remain separate production-readiness steps.
+Current implementation note: the backend now supports persistent command queues, DB-backed ACK persistence, gateway control WebSocket dispatch, heartbeat fallback delivery, and bounded edge reconnect/backoff behavior. A backend-controlled synthetic RTSP publish smoke passed against LiveKit Cloud using `gateway.command.start_publish`. Production `Tailscale RTSP Camera` playback also passed through the DigitalOcean `dropletGateway`; browser subscriber playback is implemented. Remaining readiness work is longer systemd soak and production-standard on-site gateway/VLAN hardening for future sites.
 
 ## Fallback behavior
 
