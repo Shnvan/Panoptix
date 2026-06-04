@@ -1,10 +1,42 @@
-import { Users, Shield, Eye, Search, XCircle, CheckCircle, KeyRound, UserPlus, Mail } from 'lucide-react';
+import { Users, Shield, Eye, Search, XCircle, CheckCircle, KeyRound, UserPlus, Mail, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useTheme } from '../../lib/theme';
 import { useAdminUsers } from '../../lib/hooks';
 import { api, ApiError } from '../../lib/api';
 import type { VisitorAccessRequest } from '../../lib/types';
 import { useCallback, useEffect, useState } from 'react';
+
+type AccessRequestDecision = 'approve' | 'reject';
+
+function accessRequestDecisionError(err: unknown, action: AccessRequestDecision): string {
+  if (err instanceof ApiError) {
+    if (err.detail === 'user-disabled') {
+      return 'This email belongs to a disabled Panoptix account. Re-enable the account explicitly before approval or invite actions.';
+    }
+    if (err.detail === 'github-invites-not-configured') {
+      return 'GitHub organization invites are not configured in this environment. The request was not approved or invited.';
+    }
+    if (err.detail === 'access-request-not-pending') {
+      return 'This access request was already decided. Refresh the pending list.';
+    }
+    if (err.detail === 'access-request-not-found') {
+      return 'This access request no longer exists. Refresh the pending list.';
+    }
+    if (err.detail === 'Request validation failed' || err.status === 422 || err.status === 400) {
+      return action === 'reject'
+        ? 'Enter a clear rejection reason before rejecting this request.'
+        : 'Check the approval note and try again.';
+    }
+    if (err.status >= 500 || err.status === 503) {
+      return 'The access-request service is temporarily unavailable. Try again later.';
+    }
+    return err.detail;
+  }
+  if (err instanceof TypeError) {
+    return 'The access-request service could not be reached. Check the connection and try again.';
+  }
+  return action === 'approve' ? 'Access request approval failed.' : 'Access request rejection failed.';
+}
 
 /**
  * Admin Users — per ux-product-spec.md:
@@ -36,9 +68,14 @@ export function UsersSection() {
   const [inviteLoading, setInviteLoading] = useState(false);
   const [accessRequests, setAccessRequests] = useState<VisitorAccessRequest[]>([]);
   const [accessRequestsLoading, setAccessRequestsLoading] = useState(false);
+  const [accessRequestsError, setAccessRequestsError] = useState<string | null>(null);
+  const [accessRequestsNextCursor, setAccessRequestsNextCursor] = useState<string | null>(null);
   const [accessRequestActionId, setAccessRequestActionId] = useState<string | null>(null);
+  const [accessRequestModal, setAccessRequestModal] = useState<{ action: AccessRequestDecision; request: VisitorAccessRequest } | null>(null);
+  const [accessDecisionNote, setAccessDecisionNote] = useState('');
+  const [accessDecisionError, setAccessDecisionError] = useState<string | null>(null);
 
-  const show = (text: string, type: 'success' | 'error') => { setMsg({ text, type }); setTimeout(() => setMsg(null), 4000); };
+  const show = (text: string, type: 'success' | 'error') => { setMsg({ text, type }); setTimeout(() => setMsg(null), 6000); };
   const userActionError = (err: unknown, fallback: string) => {
     if (err instanceof ApiError && err.detail === 'user-disabled') {
       return 'This Panoptix account is disabled. Re-enable it explicitly before changing roles or sending another invite.';
@@ -91,13 +128,16 @@ export function UsersSection() {
     setInviteLoading(false);
   };
 
-  const loadAccessRequests = useCallback(async () => {
+  const loadAccessRequests = useCallback(async (cursor?: string) => {
     setAccessRequestsLoading(true);
+    setAccessRequestsError(null);
     try {
-      const res = await api.listAdminAccessRequests(undefined, 50, 'pending');
-      setAccessRequests(res.items);
-    } catch {
-      setAccessRequests([]);
+      const res = await api.listAdminAccessRequests(cursor, 50, 'pending');
+      setAccessRequests((prev) => (cursor ? [...prev, ...res.items] : res.items));
+      setAccessRequestsNextCursor(res.next_cursor);
+    } catch (err) {
+      if (!cursor) setAccessRequests([]);
+      setAccessRequestsError(err instanceof ApiError ? err.detail : 'Access requests could not be loaded.');
     } finally {
       setAccessRequestsLoading(false);
     }
@@ -105,32 +145,45 @@ export function UsersSection() {
 
   useEffect(() => { void loadAccessRequests(); }, [loadAccessRequests]);
 
-  const handleApproveAccessRequest = async (request: VisitorAccessRequest) => {
-    if (!window.confirm(`Approve access request for ${request.email} and send a GitHub invite?`)) return;
-    const decisionNote = window.prompt('Decision note (optional)', 'Approved for Panoptix access') || undefined;
-    setAccessRequestActionId(request.request_id);
-    try {
-      await api.approveAccessRequest(request.request_id, decisionNote);
-      show(`Approved ${request.email} and sent invite workflow`, 'success');
-      await loadAccessRequests();
-      refetch();
-    } catch (err) {
-      show(userActionError(err, 'Access request approval failed'), 'error');
-    } finally {
-      setAccessRequestActionId(null);
-    }
+  const openAccessRequestDecision = (action: AccessRequestDecision, request: VisitorAccessRequest) => {
+    setAccessDecisionError(null);
+    setAccessDecisionNote(action === 'approve' ? 'Approved for Panoptix access' : 'Not approved for current rollout');
+    setAccessRequestModal({ action, request });
   };
 
-  const handleRejectAccessRequest = async (request: VisitorAccessRequest) => {
-    const decisionNote = window.prompt(`Reason for rejecting ${request.email}`, 'Not approved for current rollout');
-    if (decisionNote === null) return;
+  const closeAccessRequestDecision = () => {
+    if (accessRequestActionId) return;
+    setAccessRequestModal(null);
+    setAccessDecisionNote('');
+    setAccessDecisionError(null);
+  };
+
+  const submitAccessRequestDecision = async () => {
+    if (!accessRequestModal) return;
+    const { action, request } = accessRequestModal;
+    const note = accessDecisionNote.trim();
+    if (action === 'reject' && !note) {
+      setAccessDecisionError('Enter a rejection reason before rejecting this access request.');
+      return;
+    }
     setAccessRequestActionId(request.request_id);
+    setAccessDecisionError(null);
     try {
-      await api.rejectAccessRequest(request.request_id, decisionNote || undefined);
-      show(`Rejected access request for ${request.email}`, 'success');
+      if (action === 'approve') {
+        await api.approveAccessRequest(request.request_id, note || undefined);
+        show(`Approved ${request.email} and started the invite workflow`, 'success');
+        refetch();
+      } else {
+        await api.rejectAccessRequest(request.request_id, note);
+        show(`Rejected access request for ${request.email}`, 'success');
+      }
+      setAccessRequestModal(null);
+      setAccessDecisionNote('');
       await loadAccessRequests();
     } catch (err) {
-      show(err instanceof ApiError ? err.detail : 'Access request rejection failed', 'error');
+      const message = accessRequestDecisionError(err, action);
+      setAccessDecisionError(message);
+      show(message, 'error');
     } finally {
       setAccessRequestActionId(null);
     }
@@ -151,7 +204,11 @@ export function UsersSection() {
       </div>
 
       {msg && (
-        <div className={`p-3 rounded-lg text-sm flex items-center gap-2 ${msg.type === 'error' ? 'bg-red-500/10 border border-red-500/20 text-red-400' : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'}`}>
+        <div
+          role={msg.type === 'error' ? 'alert' : 'status'}
+          aria-live={msg.type === 'error' ? 'assertive' : 'polite'}
+          className={`p-3 rounded-lg text-sm flex items-center gap-2 ${msg.type === 'error' ? 'bg-red-500/10 border border-red-500/20 text-red-400' : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'}`}
+        >
           {msg.type === 'error' ? <XCircle className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}{msg.text}
         </div>
       )}
@@ -162,10 +219,20 @@ export function UsersSection() {
             <h3 className={`font-semibold ${d ? 'text-white' : 'text-neutral-900'}`}>Access Requests</h3>
             <p className={`text-sm ${d ? 'text-neutral-400' : 'text-neutral-500'}`}>Public applications from the entry page require admin approval before an invite is sent.</p>
           </div>
-          <button onClick={loadAccessRequests} className={`px-3 py-2 rounded-lg text-sm ${d ? 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}>
+          <button
+            onClick={() => loadAccessRequests()}
+            disabled={accessRequestsLoading}
+            className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm disabled:opacity-50 ${d ? 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
+          >
+            {accessRequestsLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             Refresh
           </button>
         </div>
+        {accessRequestsError && (
+          <div className="mb-3 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400" role="alert">
+            {accessRequestsError}
+          </div>
+        )}
         {accessRequestsLoading ? (
           <p className="text-sm text-neutral-400">Loading access requests...</p>
         ) : accessRequests.length === 0 ? (
@@ -187,14 +254,14 @@ export function UsersSection() {
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => handleApproveAccessRequest(request)}
+                      onClick={() => openAccessRequestDecision('approve', request)}
                       disabled={accessRequestActionId === request.request_id}
                       className="px-3 py-2 rounded-lg text-sm bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 disabled:opacity-50"
                     >
                       Approve
                     </button>
                     <button
-                      onClick={() => handleRejectAccessRequest(request)}
+                      onClick={() => openAccessRequestDecision('reject', request)}
                       disabled={accessRequestActionId === request.request_id}
                       className="px-3 py-2 rounded-lg text-sm bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 disabled:opacity-50"
                     >
@@ -204,6 +271,17 @@ export function UsersSection() {
                 </div>
               </div>
             ))}
+            {accessRequestsNextCursor && (
+              <div className="pt-1 text-center">
+                <button
+                  onClick={() => loadAccessRequests(accessRequestsNextCursor)}
+                  disabled={accessRequestsLoading}
+                  className={`px-3 py-2 rounded-lg text-sm disabled:opacity-50 ${d ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'}`}
+                >
+                  {accessRequestsLoading ? 'Loading...' : 'Load more access requests'}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -271,6 +349,86 @@ export function UsersSection() {
               </div>
             </motion.div>
           ))}
+        </div>
+      )}
+
+      {/* Access Request Decision Modal */}
+      {accessRequestModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:items-center sm:p-6 bg-black/50"
+          onClick={closeAccessRequestDecision}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="access-request-decision-title"
+            aria-describedby="access-request-decision-summary"
+            className={`relative z-10 my-4 max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto border rounded-lg p-6 ${d ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}
+            onClick={e => e.stopPropagation()}
+          >
+            <h3
+              id="access-request-decision-title"
+              className={`text-lg font-bold mb-2 ${accessRequestModal.action === 'approve' ? 'text-emerald-400' : 'text-red-400'}`}
+            >
+              {accessRequestModal.action === 'approve' ? 'Approve Access Request' : 'Reject Access Request'}
+            </h3>
+            <div id="access-request-decision-summary" className={`mb-4 text-sm ${d ? 'text-slate-300' : 'text-slate-600'}`}>
+              <p className="font-medium">{accessRequestModal.request.applicant_name}</p>
+              <p>{accessRequestModal.request.email}</p>
+              <p className="mt-2">
+                Requested role: <span className="font-semibold">{accessRequestModal.request.requested_role}</span>
+              </p>
+              <p className="mt-2">
+                {accessRequestModal.action === 'approve'
+                  ? 'Approval sends the existing GitHub organization invite workflow. It does not bypass disabled-account checks.'
+                  : 'Rejection stores the admin reason and removes the request from the pending queue.'}
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="access-request-decision-note" className={`text-sm font-medium ${d ? 'text-slate-300' : 'text-slate-700'}`}>
+                {accessRequestModal.action === 'approve' ? 'Decision note (optional)' : 'Rejection reason *'}
+              </label>
+              <textarea
+                id="access-request-decision-note"
+                value={accessDecisionNote}
+                onChange={(event) => setAccessDecisionNote(event.target.value)}
+                maxLength={2000}
+                rows={4}
+                aria-invalid={!!accessDecisionError}
+                aria-describedby="access-request-decision-error"
+                className={`w-full rounded-lg px-4 py-2.5 text-sm min-h-24 ${d ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'} border`}
+              />
+            </div>
+            {accessDecisionError && (
+              <p id="access-request-decision-error" role="alert" className="mt-3 text-sm text-red-400">
+                {accessDecisionError}
+              </p>
+            )}
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+              <button
+                onClick={closeAccessRequestDecision}
+                disabled={!!accessRequestActionId}
+                className={`w-full py-2 rounded-lg text-sm disabled:opacity-50 sm:flex-1 ${d ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitAccessRequestDecision}
+                disabled={!!accessRequestActionId}
+                className={`w-full py-2 rounded-lg text-sm font-medium disabled:opacity-50 sm:flex-1 ${
+                  accessRequestModal.action === 'approve'
+                    ? 'bg-emerald-500 hover:bg-emerald-400 text-white'
+                    : 'bg-red-500 hover:bg-red-400 text-white'
+                }`}
+              >
+                {accessRequestActionId
+                  ? 'Saving...'
+                  : accessRequestModal.action === 'approve'
+                    ? 'Approve and Invite'
+                    : 'Reject Request'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

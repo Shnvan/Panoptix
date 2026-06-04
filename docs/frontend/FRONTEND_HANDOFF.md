@@ -1,6 +1,6 @@
 # Frontend Coworker Handoff
 
-Last updated: 2026-06-02 (Tailscale RTSP camera pilot passed)
+Last updated: 2026-06-04 (visitor access frontend QA added after Tailscale RTSP camera pilot)
 
 This is the first document the frontend coworker should read before changing the React app on `fullstack-integration`. It summarizes what the system owner has verified, what backend APIs are ready, and what frontend work should happen next.
 
@@ -27,6 +27,7 @@ This is the first document the frontend coworker should read before changing the
 - `SUSPICIOUS_LOGIN_DETECTION_ENABLED=true` in production (login baselines track normal device/IP patterns).
 - The same-domain public visitor entry flow is operational at `https://panoptix.site/entry`. First-time root visits redirect to `/entry` only when `panoptix_visitor` is absent; visitors can manually return to `https://panoptix.site/entry?mode=request-access` after trying secure sign-in. Only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, `/api/v1/visitor/collect`, and the narrow public `POST /api/v1/visitor/access-requests` exception bypass Cloudflare Access. Production admin API smoke confirms visitor detail responses expose `ip_details`, `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, and `risk_context`.
 - Visitor access request workflow is implemented and deployed: `/entry` includes a secondary request-access form, `/entry?mode=request-access#request-access` returns visitors directly to it, and Users & Access includes an Access Requests review panel. Public requests are always ordinary user/viewer requests and create pending rows only; they do not create accounts, roles, sessions, camera ACLs, GitHub invites, Cloudflare authorization, or admin requests. Production smoke confirmed a manual public `requested_role: "admin"` payload is stored as `viewer`, admin approval sends/records a GitHub org invite as viewer, and smoke pending requests were cleaned up.
+- Frontend access-request QA now covers `/entry` validation/success/duplicate/rate-limit states, Users & Access approve/reject dialogs, disabled-user messaging, and critical axe checks for the review dialog through Playwright desktop/mobile tests. A static guardrail scan also blocks browser media capture/publishing APIs, token storage, frontend gateway-only calls, Gateway Discovery UI calls, and obvious secret strings.
 - Disabled local users are blocked by the backend with `403 user-disabled`, and invites/access-request approvals for existing disabled users return `409 user-disabled`. Production smoke confirmed disabled-user access-request approval does not re-enable the user and does not write invite metadata on the denied request. A GitHub or Cloudflare Access session does not re-enable a disabled Panoptix account.
 - Production backup status is now `ok`: encrypted R2 backup evidence exists, isolated restore-drill evidence was recorded against a temporary Neon branch, that temporary branch was deleted, and the production GitHub Actions backup/retention workflow has succeeded. Backup automation and retention are system-owner work, not frontend work.
 - Gateway Discovery V2 backend and edge-agent APIs are implemented and active on `main`, and production is migrated through `0013_visitor_access_requests`. Gateway Discovery UI is optional future frontend work only; do not start it unless Ivan explicitly reassigns it.
@@ -112,6 +113,8 @@ Run:
 cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\web
 npm run lint
 npm run build
+npm run qa:guardrails
+npm run test:e2e
 
 cd ..\api
 python -m ruff check src/ tests/
@@ -124,3 +127,5 @@ Security scan:
 cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix
 rg -n "getUserMedia|MediaRecorder|publishTrack|localStorage|sessionStorage|rtsp://|LIVEKIT_API_SECRET|service_token" apps/web/src apps/web
 ```
+
+Prefer `npm run qa:guardrails` over ad hoc search for final frontend handoff checks; it encodes the current approved allowlist for theme `localStorage` and one-time admin gateway token display.
