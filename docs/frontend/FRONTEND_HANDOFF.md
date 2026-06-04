@@ -1,6 +1,6 @@
 # Frontend Coworker Handoff
 
-Last updated: 2026-06-01 (visitor access request workflow implemented locally; frontend smoke is next after backend deploy)
+Last updated: 2026-06-04 (visitor access request frontend polish and Playwright QA implemented locally; production smoke waits on backend deploy)
 
 This is the first document the frontend coworker should read before changing the React app on `fullstack-integration`. It summarizes what the system owner has verified, what backend APIs are ready, and what frontend work should happen next.
 
@@ -26,6 +26,7 @@ This is the first document the frontend coworker should read before changing the
 - `SUSPICIOUS_LOGIN_DETECTION_ENABLED=true` in production (login baselines track normal device/IP patterns).
 - The same-domain public visitor entry flow is operational at `https://panoptix.site/entry`. First-time root visits redirect to `/entry` only when `panoptix_visitor` is absent. Only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect` bypass Cloudflare Access today. After the visitor access request deploy, add only the narrow public `POST /api/v1/visitor/access-requests` exception. Production admin API smoke confirms visitor detail responses expose `ip_details`, `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, and `risk_context`.
 - Visitor access request workflow is implemented locally: `/entry` includes a secondary request-access form, and Users & Access includes an Access Requests review panel. Public requests create pending rows only; they do not create accounts, roles, sessions, camera ACLs, GitHub invites, or Cloudflare authorization. Admin approval remains required and uses the existing GitHub organization invite flow.
+- Frontend access-request QA now covers `/entry` validation/success/duplicate/rate-limit states, Users & Access approve/reject dialogs, disabled-user messaging, and critical axe checks for the review dialog through Playwright desktop/mobile tests. A static guardrail scan also blocks browser media capture/publishing APIs, token storage, frontend gateway-only calls, Gateway Discovery UI calls, and obvious secret strings.
 - Disabled local users are blocked by the backend with `403 user-disabled`, and invites for existing disabled users return `409 user-disabled`. A GitHub or Cloudflare Access session does not re-enable a disabled Panoptix account.
 - Production backup status is now `ok`: encrypted R2 backup evidence exists, isolated restore-drill evidence was recorded against a temporary Neon branch, that temporary branch was deleted, and the production GitHub Actions backup/retention workflow has succeeded. Backup automation and retention are system-owner work, not frontend work.
 - Gateway Discovery V2 backend and edge-agent APIs are implemented and active on `main`, and production is migrated through `0012_gateway_discovery_runs`. Gateway Discovery UI is optional future frontend work only; do not start it unless Ivan explicitly reassigns it.
@@ -113,6 +114,8 @@ Run:
 cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\web
 npm run lint
 npm run build
+npm run qa:guardrails
+npm run test:e2e
 
 cd ..\api
 python -m ruff check src/ tests/
@@ -125,3 +128,5 @@ Security scan:
 cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix
 rg -n "getUserMedia|MediaRecorder|publishTrack|localStorage|sessionStorage|rtsp://|LIVEKIT_API_SECRET|service_token" apps/web/src apps/web
 ```
+
+Prefer `npm run qa:guardrails` over ad hoc search for final frontend handoff checks; it encodes the current approved allowlist for theme `localStorage` and one-time admin gateway token display.

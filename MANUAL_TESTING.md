@@ -3856,6 +3856,12 @@ Cloudflare Access must bypass only these exact public paths:
 /api/v1/visitor/collect
 ```
 
+After the visitor access request backend migration/deploy, add only this extra public exception:
+
+```text
+POST /api/v1/visitor/access-requests
+```
+
 Keep `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` protected. Never make broad `/api/v1/*` public.
 
 First-visit redirect smoke:
@@ -3896,6 +3902,20 @@ Expected behavior:
 - Stale notice versions return `409 visitor-notice-version-mismatch`; missing notice acknowledgement returns `400 visitor-notice-acknowledgement-required`.
 - Admin detail reads write `admin.visitor.visit.viewed`.
 - `POST /api/v1/admin/jobs/run-maintenance` returns `purged_visitor_visits` and removes visitor rows older than `VISITOR_RETENTION_DAYS`.
+
+Visitor access request frontend smoke:
+
+1. Confirm production has migration `0013_visitor_access_requests` and the narrow public `POST /api/v1/visitor/access-requests` Cloudflare exception before testing against `panoptix.site`.
+2. Open `/entry`, submit the request-access form empty, and confirm each required field is highlighted with readable validation messaging.
+3. Submit a valid access request and confirm the UI reports pending admin review. Confirm no account, role, session, camera ACL, GitHub invite, or Cloudflare authorization is created from the public request alone.
+4. Submit the same email again and confirm duplicate pending requests show a clear already-pending message.
+5. Exceed the dedicated access-request rate limit and confirm the UI shows a clear retry-later message.
+6. Temporarily point the frontend to an unavailable API or block the request in browser devtools and confirm the UI reports backend/network failure without losing typed form context.
+7. As an admin, open Users & Access and confirm pending requests are listed by default with applicant, email, reason, requested role, organization, and visitor-link context when present.
+8. Approve a request from the in-app dialog and confirm the success state appears, the request leaves the pending list, and GitHub invite failures such as `github-invites-not-configured` remain readable.
+9. Reject a request from the in-app dialog and confirm a rejection reason is required, success is visible, and the request leaves the pending list.
+10. Attempt approval for an existing disabled local user and confirm `user-disabled` explains that the account must be re-enabled explicitly.
+11. If the pending request API returns `next_cursor`, use Load more and confirm additional pending rows append without replacing the first page.
 
 ## Gateway Credential Rotation Testing
 

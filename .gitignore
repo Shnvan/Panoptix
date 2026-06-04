@@ -33,6 +33,8 @@ Thumbs.db
 coverage/
 .tmp/
 tmp/
+apps/web/playwright-report/
+apps/web/test-results/
 
 # Terraform local state/cache
 .terraform/

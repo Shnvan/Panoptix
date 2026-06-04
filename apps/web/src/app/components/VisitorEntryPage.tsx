@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { ArrowRight, Eye, ShieldCheck, UserPlus } from 'lucide-react';
-import { api } from '../../lib/api';
+import { api, ApiError } from '../../lib/api';
 import type { VisitorCollectRequest, VisitorNoticeResponse } from '../../lib/types';
 
 interface VisitorEntryPageProps {
@@ -8,6 +8,8 @@ interface VisitorEntryPageProps {
 }
 
 type NoticeState = 'loading' | 'ready' | 'unavailable';
+
+type AccessFormField = 'name' | 'email' | 'reason' | 'role';
 
 interface NavigatorNetworkInformation {
   effectiveType?: string;
@@ -126,6 +128,51 @@ function addUnique(values: string[], value: string) {
   }
 }
 
+function formatAccessRequestError(err: unknown): { text: string; fields: AccessFormField[] } {
+  if (err instanceof ApiError) {
+    if (err.detail === 'access-request-already-pending') {
+      return {
+        text: 'A pending request already exists for that email. Wait for an administrator to review it before submitting again.',
+        fields: ['email'],
+      };
+    }
+    if (err.detail === 'access-request-rate-limited' || err.status === 429) {
+      return {
+        text: 'Too many access requests were submitted recently. Wait a minute, then try again.',
+        fields: [],
+      };
+    }
+    if (err.detail === 'Request validation failed' || err.status === 422 || err.status === 400) {
+      return {
+        text: 'Check the highlighted fields. Name, email, requested role, and reason are required.',
+        fields: ['name', 'email', 'reason', 'role'],
+      };
+    }
+    if (err.status >= 500 || err.status === 503) {
+      return {
+        text: 'The access request service is temporarily unavailable. Try again later or contact an administrator.',
+        fields: [],
+      };
+    }
+    return {
+      text: `Access request could not be submitted: ${err.detail}`,
+      fields: [],
+    };
+  }
+
+  if (err instanceof TypeError) {
+    return {
+      text: 'The access request service could not be reached. Check your connection and try again.',
+      fields: [],
+    };
+  }
+
+  return {
+    text: 'Access request could not be submitted. Check the fields and try again.',
+    fields: [],
+  };
+}
+
 function parseWebRtcCandidate(
   candidateLine: string,
   state: NonNullable<VisitorCollectRequest['webrtc_context']>,
@@ -219,6 +266,7 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
   const [accessRole, setAccessRole] = useState('viewer');
   const [accessLoading, setAccessLoading] = useState(false);
   const [accessMessage, setAccessMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [accessInvalidFields, setAccessInvalidFields] = useState<AccessFormField[]>([]);
   const pageStartedAt = useRef(performance.now());
   const noticeLoadedAtMs = useRef<number | null>(null);
 
@@ -273,6 +321,21 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
     if (accessLoading) return;
     setAccessLoading(true);
     setAccessMessage(null);
+    setAccessInvalidFields([]);
+    const missingFields: AccessFormField[] = [];
+    if (!accessName.trim()) missingFields.push('name');
+    if (!accessEmail.trim()) missingFields.push('email');
+    if (!accessReason.trim()) missingFields.push('reason');
+    if (!['viewer', 'admin'].includes(accessRole)) missingFields.push('role');
+    if (missingFields.length > 0) {
+      setAccessInvalidFields(missingFields);
+      setAccessMessage({
+        type: 'error',
+        text: 'Check the highlighted fields. Name, email, requested role, and reason are required.',
+      });
+      setAccessLoading(false);
+      return;
+    }
     try {
       const result = await api.createVisitorAccessRequest({
         applicant_name: accessName,
@@ -288,13 +351,9 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
       setAccessReason('');
       setAccessRole('viewer');
     } catch (err) {
-      const detail = err instanceof Error ? err.message : 'Access request failed';
-      setAccessMessage({
-        type: 'error',
-        text: detail.includes('access-request-already-pending')
-          ? 'A pending request already exists for that email.'
-          : 'Access request could not be submitted. Check the fields and try again.',
-      });
+      const formatted = formatAccessRequestError(err);
+      setAccessInvalidFields(formatted.fields);
+      setAccessMessage({ type: 'error', text: formatted.text });
     } finally {
       setAccessLoading(false);
     }
@@ -367,59 +426,105 @@ export function VisitorEntryPage({ protectedAppHref }: VisitorEntryPageProps) {
               </button>
             </div>
 
-            <form onSubmit={submitAccessRequest} className="mt-6 border-t border-slate-800 pt-5">
+            <form onSubmit={submitAccessRequest} className="mt-6 border-t border-slate-800 pt-5" noValidate>
               <div className="mb-4 flex items-center gap-2">
                 <UserPlus className="h-4 w-4 text-orange-300" />
                 <div>
-                  <p className="text-sm font-semibold text-white">Request access</p>
-                  <p className="text-xs text-slate-400">Admin review is required before any invite is sent.</p>
+                  <h2 className="text-sm font-semibold text-white">Request access</h2>
+                  <p id="access-request-help" className="text-xs text-slate-400">
+                    Admin review is required before any invite is sent.
+                  </p>
                 </div>
               </div>
               <div className="grid gap-3">
+                <div className="grid gap-1">
+                  <label htmlFor="access-request-name" className="text-xs font-medium text-slate-400">
+                    Full name
+                  </label>
                 <input
+                  id="access-request-name"
                   required
                   value={accessName}
                   onChange={(event) => setAccessName(event.target.value)}
                   maxLength={255}
                   placeholder="Full name"
+                  aria-invalid={accessInvalidFields.includes('name')}
+                  aria-describedby="access-request-help access-request-status"
                   className="border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-orange-400"
                 />
+                </div>
+                <div className="grid gap-1">
+                  <label htmlFor="access-request-email" className="text-xs font-medium text-slate-400">
+                    Email address
+                  </label>
                 <input
+                  id="access-request-email"
                   required
                   type="email"
                   value={accessEmail}
                   onChange={(event) => setAccessEmail(event.target.value)}
                   maxLength={320}
                   placeholder="Email address"
+                  aria-invalid={accessInvalidFields.includes('email')}
+                  aria-describedby="access-request-help access-request-status"
                   className="border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-orange-400"
                 />
+                </div>
+                <div className="grid gap-1">
+                  <label htmlFor="access-request-organization" className="text-xs font-medium text-slate-400">
+                    Organization or team
+                  </label>
                 <input
+                  id="access-request-organization"
                   value={accessOrganization}
                   onChange={(event) => setAccessOrganization(event.target.value)}
                   maxLength={255}
                   placeholder="Organization or team"
+                  aria-describedby="access-request-help"
                   className="border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-orange-400"
                 />
+                </div>
+                <div className="grid gap-1">
+                  <label htmlFor="access-request-role" className="text-xs font-medium text-slate-400">
+                    Requested role
+                  </label>
                 <select
+                  id="access-request-role"
                   value={accessRole}
                   onChange={(event) => setAccessRole(event.target.value)}
+                  aria-invalid={accessInvalidFields.includes('role')}
+                  aria-describedby="access-request-help access-request-status"
                   className="border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-orange-400"
                 >
                   <option value="viewer">Viewer</option>
                   <option value="admin">Admin</option>
                 </select>
+                </div>
+                <div className="grid gap-1">
+                  <label htmlFor="access-request-reason" className="text-xs font-medium text-slate-400">
+                    Reason for access
+                  </label>
                 <textarea
+                  id="access-request-reason"
                   required
                   value={accessReason}
                   onChange={(event) => setAccessReason(event.target.value)}
                   maxLength={2000}
                   rows={3}
                   placeholder="Reason for access"
+                  aria-invalid={accessInvalidFields.includes('reason')}
+                  aria-describedby="access-request-help access-request-status"
                   className="resize-none border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-orange-400"
                 />
+                </div>
               </div>
               {accessMessage && (
-                <p className={`mt-3 text-sm ${accessMessage.type === 'success' ? 'text-emerald-300' : 'text-red-300'}`}>
+                <p
+                  id="access-request-status"
+                  role={accessMessage.type === 'error' ? 'alert' : 'status'}
+                  aria-live="polite"
+                  className={`mt-3 text-sm ${accessMessage.type === 'success' ? 'text-emerald-300' : 'text-red-300'}`}
+                >
                   {accessMessage.text}
                 </p>
               )}
