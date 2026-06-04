@@ -1,4 +1,4 @@
-import { FileText, Download, Search, CheckCircle, ShieldCheck, ClipboardList, ScrollText, XCircle, MapPin, FileStack, AlertTriangle } from 'lucide-react';
+import { FileText, Download, Search, CheckCircle, ShieldCheck, ClipboardList, ScrollText, XCircle, MapPin, FileStack, AlertTriangle, Copy } from 'lucide-react';
 import { useTheme } from '../../lib/theme';
 import { useAdminAudit, useDsrRequests } from '../../lib/hooks';
 import { api, ApiError } from '../../lib/api';
@@ -64,6 +64,40 @@ export function AuditLogTable() {
   const showMsg = (text: string, type: 'success' | 'error') => {
     setMsg({ text, type });
     setTimeout(() => setMsg(null), 5000);
+  };
+
+  const copyValue = async (label: string, value: string | null | undefined) => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      showMsg(`${label} copied to clipboard`, 'success');
+    } catch {
+      showMsg(`Failed to copy ${label.toLowerCase()}`, 'error');
+    }
+  };
+
+  const CopyableValue = ({ label, value }: { label: string; value: string | null | undefined }) => {
+    if (!value) {
+      return <span className={d ? 'text-[#666666]' : 'text-neutral-500'}>-</span>;
+    }
+    return (
+      <div className="flex items-start gap-2 max-w-[360px]">
+        <code className="text-xs whitespace-normal break-all leading-relaxed">{value}</code>
+        <button
+          type="button"
+          onClick={() => { void copyValue(label, value); }}
+          aria-label={`Copy ${label}`}
+          title={`Copy ${label}`}
+          className={`mt-0.5 p-1 rounded border transition-colors ${
+            d
+              ? 'border-[#333333] text-[#F07C1E] hover:bg-[#1A1A1A]'
+              : 'border-neutral-200 text-orange-600 hover:bg-orange-50'
+          }`}
+        >
+          <Copy className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    );
   };
 
   const riskColor = (act: string) => {
@@ -144,7 +178,7 @@ export function AuditLogTable() {
 
       {/* Status messages */}
       {msg && (
-        <div className={`p-3 text-sm flex items-center gap-2 rounded-none border ${
+        <div role={msg.type === 'error' ? 'alert' : 'status'} className={`p-3 text-sm flex items-center gap-2 rounded-none border ${
           msg.type === 'error' ? 'bg-[#F28F6C]/10 border-[#F28F6C]/30 text-[#F28F6C]' : 'bg-[#7BC67B]/10 border-[#7BC67B]/30 text-[#7BC67B]'
         }`}>
           {msg.type === 'error' ? <XCircle className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
@@ -413,14 +447,15 @@ export function AuditLogTable() {
                   <tr key={log.id} className={`transition-colors ${d ? 'hover:bg-[#1A1A1A]' : 'hover:bg-neutral-50'}`}>
                     <td className={`px-6 py-4 text-sm font-mono ${d ? 'text-[#F0EAD6]' : 'text-neutral-600'}`}>{log.ts ? new Date(log.ts).toLocaleString('en-US', { hour12: false }) : '—'}</td>
                     <td className={`px-6 py-4 text-sm font-mono ${d ? 'text-[#F0EAD6]' : 'text-neutral-900'}`}>
-                      {log.actor_type === 'user' ? (
-                        <span className="text-[#F07C1E]">{log.actor_id?.slice(0, 12) || '—'} (User)</span>
-                      ) : (
-                        <span>{log.actor_id?.slice(0, 12) || '—'} ({log.actor_type})</span>
-                      )}
+                      <div className="space-y-1">
+                        <CopyableValue label="actor ID" value={log.actor_id} />
+                        <span className={`inline-block text-xs ${d ? 'text-[#666666]' : 'text-neutral-500'}`}>({log.actor_type})</span>
+                      </div>
                     </td>
                     <td className={`px-6 py-4 text-sm ${d ? 'text-[#F0EAD6]' : 'text-neutral-600'}`}>{log.action}</td>
-                    <td className={`px-6 py-4 text-sm font-mono ${d ? 'text-[#F0EAD6]' : 'text-neutral-600'}`}>{log.resource || '—'}</td>
+                    <td className={`px-6 py-4 text-sm font-mono ${d ? 'text-[#F0EAD6]' : 'text-neutral-600'}`}>
+                      <CopyableValue label="resource ID" value={log.resource} />
+                    </td>
                     <td className={`px-6 py-4 text-sm font-mono ${d ? 'text-[#666666]' : 'text-neutral-500'}`}>{log.ip || '—'}</td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-mono border ${riskColor(log.action)}`}>

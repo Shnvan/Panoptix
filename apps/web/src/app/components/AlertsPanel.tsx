@@ -10,7 +10,7 @@
  *   - Alert records and statuses only — display only.
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   AlertTriangle, XCircle, Info, Clock, AlertCircle,
   CheckCircle2, ShieldAlert, ChevronDown, ChevronUp,
@@ -111,9 +111,10 @@ interface AlertRowProps {
   onAcknowledge: () => Promise<void>;
   onResolve: () => Promise<void>;
   dark: boolean;
+  compact: boolean;
 }
 
-function AlertRow({ alert, expanded, onToggle, onAcknowledge, onResolve, dark }: AlertRowProps) {
+function AlertRow({ alert, expanded, onToggle, onAcknowledge, onResolve, dark, compact }: AlertRowProps) {
   const [actioning, setActioning] = useState<string | null>(null);
   const cfg = SEVERITY_CONFIG[alert.severity] ?? SEVERITY_CONFIG.informational;
   const Icon = cfg.icon;
@@ -137,13 +138,13 @@ function AlertRow({ alert, expanded, onToggle, onAcknowledge, onResolve, dark }:
       {/* Header row */}
       <button
         id={`alert-row-${alert.alert_id}`}
-        className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-white/5 transition-colors"
+        className={`w-full text-left px-4 flex items-start gap-3 hover:bg-white/5 transition-colors ${compact ? 'py-2' : 'py-3'}`}
         onClick={onToggle}
         aria-expanded={expanded}
       >
         {/* Severity icon */}
-        <div className={`mt-0.5 w-8 h-8 rounded flex items-center justify-center flex-shrink-0 ${cfg.bg}`}>
-          <Icon className={`w-4 h-4 ${cfg.text}`} />
+        <div className={`mt-0.5 rounded flex items-center justify-center flex-shrink-0 ${cfg.bg} ${compact ? 'w-7 h-7' : 'w-8 h-8'}`}>
+          <Icon className={`${compact ? 'w-3.5 h-3.5' : 'w-4 h-4'} ${cfg.text}`} />
         </div>
 
         {/* Content */}
@@ -162,7 +163,7 @@ function AlertRow({ alert, expanded, onToggle, onAcknowledge, onResolve, dark }:
           <h4 className={`font-semibold text-sm leading-snug ${dark ? 'text-white' : 'text-neutral-900'}`}>
             {alert.title}
           </h4>
-          <p className={`text-xs mt-0.5 ${dark ? 'text-neutral-400' : 'text-neutral-500'}`}>
+          <p className={`text-xs mt-0.5 ${compact ? 'line-clamp-1' : ''} ${dark ? 'text-neutral-400' : 'text-neutral-500'}`}>
             {alert.message}
           </p>
         </div>
@@ -301,12 +302,22 @@ export function AlertsPanel() {
   const [severityFilter, setSeverityFilter] = useState<string | undefined>(undefined);
   const [categoryFilter, setCategoryFilter] = useState<string | undefined>(undefined);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [density, setDensity] = useState<'comfortable' | 'compact'>('compact');
+  const [hideVisitorContinue, setHideVisitorContinue] = useState(true);
 
   const { alerts, loading, error, hasMore, loadMore, refetch, acknowledge, resolve } =
     useAdminAlerts(statusFilter, severityFilter, categoryFilter);
 
   const openCount = alerts.filter((a) => a.status === 'open').length;
   const criticalCount = alerts.filter((a) => a.severity === 'critical' && a.status !== 'resolved').length;
+  const visibleAlerts = useMemo(() => {
+    if (!hideVisitorContinue) return alerts;
+    return alerts.filter((alert) => {
+      const haystack = `${alert.title} ${alert.message} ${alert.source}`.toLowerCase();
+      return !haystack.includes('visitor continued to secure sign-in');
+    });
+  }, [alerts, hideVisitorContinue]);
+  const hiddenNoiseCount = alerts.length - visibleAlerts.length;
 
   return (
     <div className="space-y-4">
@@ -321,7 +332,7 @@ export function AlertsPanel() {
               Active Alerts
             </h3>
             <p className={`text-sm ${dark ? 'text-neutral-400' : 'text-neutral-500'}`}>
-              {loading ? 'Loading…' : `${alerts.length} alert${alerts.length !== 1 ? 's' : ''}${openCount > 0 ? ` · ${openCount} open` : ''}${criticalCount > 0 ? ` · ${criticalCount} critical` : ''}`}
+              {loading ? 'Loading...' : `${visibleAlerts.length} shown${hiddenNoiseCount > 0 ? `, ${hiddenNoiseCount} hidden` : ''}${openCount > 0 ? `, ${openCount} open` : ''}${criticalCount > 0 ? `, ${criticalCount} critical` : ''}`}
             </p>
           </div>
         </div>
@@ -361,8 +372,30 @@ export function AlertsPanel() {
 
       {/* Severity/category filters */}
       <div className="flex flex-wrap items-center gap-2">
+        <div className={`inline-flex rounded-lg border p-1 ${dark ? 'border-neutral-700 bg-neutral-900' : 'border-neutral-200 bg-neutral-100'}`}>
+          {(['compact', 'comfortable'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setDensity(mode)}
+              className={`px-3 py-1.5 text-xs rounded-md capitalize ${density === mode ? 'bg-orange-500 text-white' : dark ? 'text-neutral-400 hover:bg-neutral-800' : 'text-neutral-600 hover:bg-white'}`}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
+        <label className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${dark ? 'border-neutral-700 bg-neutral-900 text-neutral-300' : 'border-neutral-200 bg-white text-neutral-700'}`}>
+          <input
+            type="checkbox"
+            checked={hideVisitorContinue}
+            onChange={(event) => setHideVisitorContinue(event.target.checked)}
+            className="h-3.5 w-3.5"
+          />
+          Hide visitor sign-in noise
+        </label>
         <select
           id="alert-severity-filter"
+          aria-label="Alert severity filter"
           value={severityFilter ?? ''}
           onChange={(e) => { setSeverityFilter(e.target.value || undefined); setExpandedId(null); }}
           className={`text-xs px-3 py-2 rounded-lg border outline-none transition-colors ${
@@ -377,6 +410,7 @@ export function AlertsPanel() {
         </select>
         <select
           id="alert-category-filter"
+          aria-label="Alert category filter"
           value={categoryFilter ?? ''}
           onChange={(e) => { setCategoryFilter(e.target.value || undefined); setExpandedId(null); }}
           className={`text-xs px-3 py-2 rounded-lg border outline-none transition-colors ${
@@ -420,24 +454,26 @@ export function AlertsPanel() {
       )}
 
       {/* Empty state */}
-      {!loading && !error && alerts.length === 0 && (
+      {!loading && !error && visibleAlerts.length === 0 && (
         <div className={`text-center py-12 border rounded-lg ${dark ? 'bg-neutral-900/50 border-neutral-700/50' : 'bg-neutral-50 border-neutral-200'}`}>
           <CheckCircle2 className={`w-12 h-12 mx-auto mb-3 ${dark ? 'text-emerald-500' : 'text-emerald-400'}`} />
           <h4 className={`font-medium mb-1 ${dark ? 'text-white' : 'text-neutral-900'}`}>
-            {statusFilter ? `No ${statusFilter} alerts` : 'No alerts'}
+            {alerts.length > 0 ? 'Only hidden noise alerts match' : statusFilter ? `No ${statusFilter} alerts` : 'No alerts'}
           </h4>
           <p className={`text-sm ${dark ? 'text-neutral-400' : 'text-neutral-500'}`}>
-            {statusFilter === 'open'
-              ? 'All clear — no open alerts at this time.'
-              : 'No alerts match the current filter.'}
+            {alerts.length > 0
+              ? 'Turn off the visitor noise toggle to inspect those records.'
+              : statusFilter === 'open'
+                ? 'All clear - no open alerts at this time.'
+                : 'No alerts match the current filter.'}
           </p>
         </div>
       )}
 
       {/* Alert list */}
-      {alerts.length > 0 && (
+      {visibleAlerts.length > 0 && (
         <div className="space-y-2">
-          {alerts.map((alert) => (
+          {visibleAlerts.map((alert) => (
             <AlertRow
               key={alert.alert_id}
               alert={alert}
@@ -446,6 +482,7 @@ export function AlertsPanel() {
               onAcknowledge={async () => { await acknowledge(alert.alert_id); }}
               onResolve={async () => { await resolve(alert.alert_id); }}
               dark={dark}
+              compact={density === 'compact'}
             />
           ))}
         </div>
@@ -465,7 +502,7 @@ export function AlertsPanel() {
             }`}
           >
             {loading ? (
-              <span className="flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading…</span>
+              <span className="flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading...</span>
             ) : 'Load more'}
           </button>
         </div>

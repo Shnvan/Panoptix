@@ -3,6 +3,9 @@ import AxeBuilder from '@axe-core/playwright';
 
 const jsonHeaders = { 'content-type': 'application/json' };
 
+test.describe.configure({ mode: 'serial' });
+test.setTimeout(60000);
+
 async function fulfillJson(route: Route, body: unknown, status = 200) {
   await route.fulfill({
     status,
@@ -25,7 +28,17 @@ async function mockEntryNotice(page: Page) {
   });
 }
 
-async function mockAdminShell(page: Page, pendingRequests: Array<Record<string, unknown>>) {
+async function mockAdminShell(
+  page: Page,
+  pendingRequests: Array<Record<string, unknown>>,
+  options: {
+    users?: Array<Record<string, unknown>>;
+    moreUsers?: Array<Record<string, unknown>>;
+    usersNextCursor?: string | null;
+    morePendingRequests?: Array<Record<string, unknown>>;
+    accessRequestsNextCursor?: string | null;
+  } = {},
+) {
   await page.route('**/api/v1/me', async (route) => {
     await fulfillJson(route, {
       kind: 'user',
@@ -62,23 +75,33 @@ async function mockAdminShell(page: Page, pendingRequests: Array<Record<string, 
     await fulfillJson(route, { status: 'ok' });
   });
   await page.route('**/api/v1/admin/users**', async (route) => {
-    await fulfillJson(route, { items: [], next_cursor: null });
+    const url = new URL(route.request().url());
+    if (url.searchParams.get('cursor') === options.usersNextCursor) {
+      await fulfillJson(route, { items: options.moreUsers || [], next_cursor: null });
+      return;
+    }
+    await fulfillJson(route, { items: options.users || [], next_cursor: options.usersNextCursor || null });
   });
   await page.route('**/api/v1/admin/access-requests**', async (route) => {
     if (route.request().method() !== 'GET') {
       await route.fallback();
       return;
     }
-    await fulfillJson(route, { items: pendingRequests, next_cursor: null });
+    const url = new URL(route.request().url());
+    if (url.searchParams.get('cursor') === options.accessRequestsNextCursor) {
+      await fulfillJson(route, { items: options.morePendingRequests || [], next_cursor: null });
+      return;
+    }
+    await fulfillJson(route, { items: pendingRequests, next_cursor: options.accessRequestsNextCursor || null });
   });
 }
 
-function pendingRequest() {
+function pendingRequest(index = 1) {
   return {
-    request_id: '11111111-1111-4111-8111-111111111111',
-    applicant_name: 'Mara Santos',
-    email: 'mara@example.test',
-    organization: 'Security Team',
+    request_id: `11111111-1111-4111-8111-${String(index).padStart(12, '0')}`,
+    applicant_name: index === 1 ? 'Mara Santos' : `Applicant ${index}`,
+    email: index === 1 ? 'mara@example.test' : `applicant-${index}@example.test`,
+    organization: index === 1 ? 'Security Team' : `Team ${index}`,
     reason: 'Needs access for monitoring rotation.',
     requested_role: 'viewer',
     status: 'pending',
@@ -91,6 +114,17 @@ function pendingRequest() {
     github_invitation_id: null,
     github_org: null,
     github_invite_status: null,
+  };
+}
+
+function adminUser(index: number) {
+  return {
+    user_id: `22222222-2222-4222-8222-${String(index).padStart(12, '0')}`,
+    email: `operator-${index}@example.test`,
+    roles: ['viewer'],
+    role_default: 'viewer',
+    disabled_at: null,
+    created_at: '2026-06-01T00:00:00Z',
   };
 }
 
@@ -178,7 +212,8 @@ test('admin access request approval uses accessible dialog and refreshes pending
 
   await page.getByRole('button', { name: 'Approve and Invite' }).click();
   await expect(page.getByRole('status')).toContainText('Approved mara@example.test');
-  await expect(page.getByText('No pending access requests')).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Access Requests (0)' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('main')).toContainText('No pending access requests');
 });
 
 test('admin access request rejection requires a reason and handles disabled-user approval', async ({ page }) => {
@@ -207,7 +242,8 @@ test('admin access request rejection requires a reason and handles disabled-user
   await page.getByLabel('Rejection reason *').fill('Not approved for this rollout.');
   await page.getByRole('button', { name: 'Reject Request' }).click();
   await expect(page.getByRole('status')).toContainText('Rejected access request');
-  await expect(page.getByText('No pending access requests')).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Access Requests (0)' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('main')).toContainText('No pending access requests');
 
   requests.push(pendingRequest());
   await expect(page.getByRole('button', { name: 'Refresh' })).toBeEnabled();
@@ -215,4 +251,31 @@ test('admin access request rejection requires a reason and handles disabled-user
   await page.getByRole('button', { name: 'Approve' }).click();
   await page.getByRole('button', { name: 'Approve and Invite' }).click();
   await expect(page.getByRole('dialog', { name: 'Approve Access Request' }).getByRole('alert')).toContainText('disabled Panoptix account');
+});
+
+test('admin users and access tabs prevent request flood and paginate lists', async ({ page }) => {
+  const requests = Array.from({ length: 8 }, (_, index) => pendingRequest(index + 1));
+  await mockAdminShell(page, requests, {
+    users: [adminUser(1)],
+    moreUsers: [adminUser(2)],
+    usersNextCursor: 'users-page-2',
+    morePendingRequests: [pendingRequest(9)],
+    accessRequestsNextCursor: 'requests-page-2',
+  });
+
+  await gotoApp(page, '/');
+  await page.getByRole('button', { name: 'Users & Access' }).click();
+
+  await expect(page.getByRole('tab', { name: /Access Requests \(8\+\)/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByText('applicant-8@example.test')).toBeVisible();
+
+  await page.getByRole('tab', { name: 'Users' }).click();
+  await expect(page.getByText('operator-1@example.test')).toBeVisible();
+  await expect(page.getByText('applicant-8@example.test')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Load more users' }).click();
+  await expect(page.getByText('operator-2@example.test')).toBeVisible();
+
+  await page.getByRole('tab', { name: /Access Requests/ }).click();
+  await page.getByRole('button', { name: 'Load more access requests' }).click();
+  await expect(page.getByText('applicant-9@example.test')).toBeVisible();
 });
