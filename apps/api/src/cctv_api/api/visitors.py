@@ -6,7 +6,7 @@ from ipaddress import ip_address
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
@@ -156,7 +156,6 @@ class VisitorAccessRequestResponse(BaseModel):
 
 
 class VisitorAccessRequestCreateResponse(BaseModel):
-    request_id: uuid.UUID
     status: str
     next_step: str
 
@@ -226,7 +225,10 @@ def collect_visitor_visit(
     )
 
 
-@router.post("/visitor/access-requests", status_code=201)
+PUBLIC_ACCESS_REQUEST_NEXT_STEP = "If this request can be reviewed, an administrator will process it."
+
+
+@router.post("/visitor/access-requests", status_code=status.HTTP_202_ACCEPTED)
 def create_visitor_access_request(
     body: VisitorAccessRequestCreate,
     request: Request,
@@ -248,12 +250,7 @@ def create_visitor_access_request(
         .where(VisitorAccessRequest.status == VisitorAccessRequestStatus.pending)
     ).scalar_one_or_none()
     if existing is not None:
-        raise ProblemDetail(
-            status=409,
-            title="Conflict",
-            detail="access-request-already-pending",
-            type_uri="https://panoptix.local/problems/conflict",
-        )
+        return _public_access_request_received_response()
 
     access_request = VisitorAccessRequest(
         id=uuid.uuid4(),
@@ -271,12 +268,7 @@ def create_visitor_access_request(
     db.flush()
     _record_public_access_request_audit_safely(db, settings=settings, request=request, row=access_request)
     db.commit()
-    db.refresh(access_request)
-    return VisitorAccessRequestCreateResponse(
-        request_id=access_request.id,
-        status=access_request.status.value,
-        next_step="An administrator must review this request before any account invite is sent.",
-    )
+    return _public_access_request_received_response()
 
 
 @router.get("/admin/visitor-visits")
@@ -911,6 +903,13 @@ def _create_collect_alert_safely(
         db.commit()
     except Exception:
         db.rollback()
+
+
+def _public_access_request_received_response() -> VisitorAccessRequestCreateResponse:
+    return VisitorAccessRequestCreateResponse(
+        status="received",
+        next_step=PUBLIC_ACCESS_REQUEST_NEXT_STEP,
+    )
 
 
 def _access_request_response(row: VisitorAccessRequest) -> VisitorAccessRequestResponse:

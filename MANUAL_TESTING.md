@@ -3914,8 +3914,8 @@ Visitor access request frontend smoke:
 
 1. Confirm production has migration `0013_visitor_access_requests` and the narrow public `POST /api/v1/visitor/access-requests` Cloudflare exception before testing against `panoptix.site`.
 2. Open `/entry?mode=request-access#request-access`, submit the request-access form empty, and confirm each required field is highlighted with readable validation messaging.
-3. Submit a valid access request and confirm the UI reports pending admin review. Confirm no account, role, session, camera ACL, GitHub invite, Cloudflare authorization, or admin request is created from the public request alone.
-4. Submit the same email again and confirm duplicate pending requests show a clear already-pending message.
+3. Submit a valid access request and confirm the UI reports the generic received message. Confirm no account, role, session, camera ACL, GitHub invite, Cloudflare authorization, or admin request is created from the public request alone.
+4. Submit the same email again and confirm the public response is the same generic received message and no second pending row is created.
 5. Exceed the dedicated access-request rate limit and confirm the UI shows a clear retry-later message.
 6. Temporarily point the frontend to an unavailable API or block the request in browser devtools and confirm the UI reports backend/network failure without losing typed form context.
 7. As an admin, open Users & Access and confirm pending requests are listed by default with applicant, email, reason, requested role, organization, and visitor-link context when present.
@@ -3931,6 +3931,17 @@ Public visitor access-request rate-limit smoke:
 3. Submit a second valid request from the same client IP with a different email address so duplicate-pending validation does not mask rate limiting.
 4. Confirm the second request returns `429 access-request-rate-limited` with a `Retry-After` header.
 5. Reset the limiter or wait for the configured window before continuing other public access-request smoke tests.
+
+Cloudflare public access-request WAF smoke:
+
+1. Confirm the zone has one narrow Cloudflare rate limiting rule named `panoptix-public-access-request-submit`.
+2. Confirm the rule matches only `/api/v1/visitor/access-requests`; if the Cloudflare plan supports method matching, confirm it also requires `POST`.
+3. Confirm the rule counts by IP, triggers above 3 requests per 10 seconds, and applies a 10-second block or challenge mitigation.
+4. Submit one valid request through `/entry?mode=request-access#request-access` and confirm the UI reports the generic received message.
+5. Rapidly submit 4 or more `POST /api/v1/visitor/access-requests` requests from the same client IP within 10 seconds and confirm Cloudflare blocks or challenges before the request reaches Railway where possible.
+6. Confirm the backend still enforces its own `RATE_LIMIT_ACCESS_REQUEST_MAX=5` per `RATE_LIMIT_ACCESS_REQUEST_WINDOW=60` control when Cloudflare does not block first.
+7. Confirm `/entry`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect` remain usable and are not caught by the access-request rule.
+8. Confirm `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` remain Cloudflare Access-protected.
 
 ## Gateway Credential Rotation Testing
 

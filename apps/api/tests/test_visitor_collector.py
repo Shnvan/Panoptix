@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
 import cctv_api.api.visitors as visitors
@@ -482,8 +482,12 @@ def test_public_access_request_creates_pending_request_and_links_visitor_cookie(
         },
     )
 
-    assert response.status_code == 201
-    assert response.json()["status"] == "pending"
+    assert response.status_code == 202
+    assert response.json() == {
+        "status": "received",
+        "next_step": "If this request can be reviewed, an administrator will process it.",
+    }
+    assert "request_id" not in response.json()
     row = test_db_session.execute(select(VisitorAccessRequest)).scalar_one()
     visit = test_db_session.execute(select(VisitorVisit)).scalar_one()
     assert row.email == "ivan@example.test"
@@ -512,8 +516,8 @@ def test_public_access_request_forces_admin_request_to_viewer(
         },
     )
 
-    assert response.status_code == 201
-    assert response.json()["status"] == "pending"
+    assert response.status_code == 202
+    assert response.json()["status"] == "received"
     row = test_db_session.execute(select(VisitorAccessRequest)).scalar_one()
     assert row.requested_role == "viewer"
 
@@ -533,7 +537,8 @@ def test_public_access_request_without_role_defaults_to_viewer(
         },
     )
 
-    assert response.status_code == 201
+    assert response.status_code == 202
+    assert response.json()["status"] == "received"
     row = test_db_session.execute(select(VisitorAccessRequest)).scalar_one()
     assert row.requested_role == "viewer"
 
@@ -588,9 +593,14 @@ def test_public_access_request_rejects_invalid_duplicate_and_rate_limited_reques
     assert invalid_email.json()["detail"] == "email-invalid"
     assert invalid_role.status_code == 400
     assert invalid_role.json()["detail"] == "requested-role-invalid"
-    assert first.status_code == 201
-    assert duplicate.status_code == 409
-    assert duplicate.json()["detail"] == "access-request-already-pending"
+    assert first.status_code == 202
+    assert duplicate.status_code == 202
+    assert first.json() == duplicate.json()
+    assert duplicate.json() == {
+        "status": "received",
+        "next_step": "If this request can be reviewed, an administrator will process it.",
+    }
+    assert test_db_session.execute(select(func.count()).select_from(VisitorAccessRequest)).scalar_one() == 1
 
     get_rate_limiter().reset()
     limited_client = _client(
@@ -606,7 +616,7 @@ def test_public_access_request_rejects_invalid_duplicate_and_rate_limited_reques
             "reason": "Need access.",
             "requested_role": "viewer",
         },
-    ).status_code == 201
+    ).status_code == 202
     limited = limited_client.post(
         "/api/v1/visitor/access-requests",
         json={
