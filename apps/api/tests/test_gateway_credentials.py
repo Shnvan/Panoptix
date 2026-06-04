@@ -44,6 +44,8 @@ def _client(test_db_session: DbSession) -> TestClient:
         return test_db_session
 
     app.dependency_overrides[db_session] = _override_db
+    app.state.gateway_control_command_provider = lambda gateway_id: []
+    app.state.gateway_control_ack_sink = lambda gateway_id, ack: None
     return TestClient(app)
 
 

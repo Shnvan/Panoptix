@@ -20,6 +20,7 @@ def send_alert_email(
     recipient: str,
     subject: str,
     body: str,
+    html_body: str | None = None,
 ) -> None:
     if not settings.ALERT_EMAIL_SMTP_HOST.strip():
         raise AlertEmailConfigError("alert-email-smtp-host-missing")
@@ -33,6 +34,8 @@ def send_alert_email(
     message["To"] = recipient
     message["Subject"] = subject
     message.set_content(body)
+    if html_body is not None:
+        message.add_alternative(html_body, subtype="html")
 
     try:
         with smtplib.SMTP(

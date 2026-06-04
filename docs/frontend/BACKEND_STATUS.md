@@ -2,21 +2,23 @@
 
 This document lists every implemented backend API endpoint, what the frontend can build against today, what is not ready yet, and local dev setup instructions.
 
-Last updated: 2026-06-01 (visitor access request APIs added locally; production deploy/smoke pending)
+Last updated: 2026-06-02 (Tailscale RTSP camera pilot passed)
 
 Read first: [Frontend Coworker Handoff](FRONTEND_HANDOFF.md).
 
 ## Current Backend State For Frontend
 
 - Local full-stack smoke is working through Vite and FastAPI when `apps/api/.env` is configured locally. That file is ignored and must never be committed.
-- Expanded visitor context uses Alembic migration `0011_visitor_expanded_signals`; production is currently at Alembic head `0012_gateway_discovery_runs`. The visitor access request workflow adds pending migration `0013_visitor_access_requests`; local dev databases should run `alembic upgrade head`.
+- Expanded visitor context uses Alembic migration `0011_visitor_expanded_signals`; production is currently at Alembic head `0013_visitor_access_requests`. Local dev databases should run `alembic upgrade head`.
 - Admin users, cameras, gateways, DSR requests, backup status, break-glass, health, and alert APIs are backend-available.
 - `POST /api/v1/admin/users/invite` is implemented, but `github-invites-not-configured` is expected unless GitHub invite settings are intentionally enabled.
 - Alert records and backend SMTP email notifications are implemented. Production sends high/critical alert emails through Resend to active admin users with `ALERT_EMAIL_RECIPIENT_MODE=admins`, including `/entry` Continue events and selected intrusion/abuse audit events.
-- Real LiveKit browser playback code is implemented using `@livekit/components-react` subscriber-only viewer. Production validation with real cameras is pending.
-- Real CCTV hardware validation is still pending. Staging browser smoke passed 2026-05-21. Production deployed at `panoptix.site` 2026-05-22.
-- The public visitor collector pilot is operational on same-domain `/entry`. First-time root visits redirect to `/entry` only when `panoptix_visitor` is absent; production admin API smoke confirmed expanded visitor detail sections are present. The admin visitor dashboard is implemented. The new visitor access request form is implemented locally and waits on migration `0013_visitor_access_requests` plus a narrow public `POST /api/v1/visitor/access-requests` Cloudflare exception before production use.
-- Disabled users are enforced by the backend even if Cloudflare Access still authenticates the identity: protected API calls return `403 user-disabled`, app session cookies are cleared, and active Panoptix sessions for that disabled user are revoked when seen.
+- Real LiveKit browser playback code is implemented using `@livekit/components-react` subscriber-only viewer, and production `Tailscale RTSP Camera` playback passed on 2026-06-02 through the DigitalOcean `dropletGateway`.
+- The Tailscale RTSP pilot is the current validated real-camera path. Production-standard on-site gateway/VLAN hardening and additional camera/site onboarding remain future system-owner work. Staging browser smoke passed 2026-05-21. Production deployed at `panoptix.site` 2026-05-22.
+- Real-camera browser security smoke showed no camera/mic prompt, no browser publishing, and no RTSP URL, gateway token, Cloudflare token, or LiveKit secret in browser storage/logs/docs.
+- Full production sidebar smoke passed 2026-06-01: all 10 sidebar pages loaded through Cloudflare Access at `panoptix.site`, no unexpected `404`/`500`/`502` appeared, transient recovered `401` bootstrap calls were observed, console output was browser-extension/content-script noise only, and `localStorage`/`sessionStorage` contained no sensitive token material.
+- The public visitor collector pilot is operational on same-domain `/entry`. First-time root visits redirect to `/entry` only when `panoptix_visitor` is absent; production admin API smoke confirmed expanded visitor detail sections are present. The admin visitor dashboard is implemented. The visitor access request form and `/entry?mode=request-access` return link are present in the deployed production frontend bundle. 2026-06-01 production smoke confirmed the narrow public `POST /api/v1/visitor/access-requests` Cloudflare exception works: public create returned `201 pending`, duplicate submit returned `409 access-request-already-pending`, Users & Access reject cleared smoke requests, a manual public `requested_role: "admin"` payload was stored as `viewer`, approval sent/recorded a GitHub org invite as viewer, and disabled-user approval returned `409 user-disabled`.
+- Disabled users are enforced by the backend even if Cloudflare Access still authenticates the identity: protected API calls return `403 user-disabled`, app session cookies are cleared, active Panoptix sessions for that disabled user are revoked when seen, and access-request approval does not re-enable or invite disabled local users.
 - Backup status is backend evidence only, not direct browser/R2 object inspection. Production currently reports `ok` because encrypted R2 backup evidence exists, isolated restore-drill evidence has been recorded, and the GitHub Actions production backup/retention workflow has succeeded.
 - Gateway Discovery V2 backend and edge-agent APIs exist and are active on `main`, but Gateway Discovery UI is optional future frontend work only. Do not start it unless Ivan explicitly reassigns it.
 
@@ -165,9 +167,9 @@ These are the endpoints the frontend consumes directly.
 
 ### Public visitor entry
 
-The Cloudflare Access-protected app root cannot run pre-auth frontend JavaScript. The first frontend entry view runs on narrowly public `https://panoptix.site/entry`, shows the backend notice before its explicit Continue action, and redirects to `https://panoptix.site/` after the collection attempt. Production Cloudflare redirects first-time root requests to `/entry` only when `panoptix_visitor` is absent; the protected root itself does not collect browser signals.
+The Cloudflare Access-protected app root cannot run pre-auth frontend JavaScript. The first frontend entry view runs on narrowly public `https://panoptix.site/entry`, shows the backend notice before its explicit Continue action, and redirects to `https://panoptix.site/` after the collection attempt. Production Cloudflare redirects first-time root requests to `/entry` only when `panoptix_visitor` is absent; the protected root itself does not collect browser signals. Visitors who continue to sign-in and later realize they need an account can return directly to `https://panoptix.site/entry?mode=request-access`.
 
-Cloudflare must make only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, `/api/v1/visitor/collect`, and after deploy `POST /api/v1/visitor/access-requests` public; broad `/api/v1/*` must remain private. `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` remain protected.
+Cloudflare must make only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, `/api/v1/visitor/collect`, and `POST /api/v1/visitor/access-requests` public; broad `/api/v1/*` must remain private. `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` remain protected.
 
 | Method | Path | Auth | Use |
 |---|---|---|---|
@@ -177,7 +179,7 @@ Cloudflare must make only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/n
 
 The collect request now carries `notice_version`, `notice_acknowledged`, `page_path`, screen width/height, timezone/language, referrer, viewport size, device pixel ratio, touch support, color scheme, cookie support, browser privacy flags, browser language list, network hints, entry timing, and a normalized WebRTC candidate summary. The backend adds request IP, Cloudflare Ray/country headers when present, user-agent, Ipregistry subset when configured, and an HttpOnly visitor cookie for later login correlation. Do not render raw Ipregistry payloads or raw WebRTC SDP/candidate strings.
 
-The access request body collects only minimal applicant data: `applicant_name`, `email`, `organization`, `reason`, and `requested_role` (`viewer` or `admin`). Valid submissions create pending rows only; they do not create accounts, roles, sessions, camera ACLs, GitHub invites, or Cloudflare authorization. Invalid email, missing name/reason, unsupported role, duplicate pending request, and rate-limited request return readable problem details. The form should show clear pending-review copy and must not imply automatic approval.
+The access request body collects only minimal applicant data: `applicant_name`, `email`, `organization`, and `reason`. Public submissions are always stored as ordinary user/viewer requests; stale or manual `requested_role` values are not allowed to create admin requests. Valid submissions create pending rows only; they do not create accounts, roles, sessions, camera ACLs, GitHub invites, or Cloudflare authorization. Invalid email, missing name/reason, unsupported role values other than legacy `viewer`/`admin`, duplicate pending request, and rate-limited request return readable problem details. The form should show clear pending-review copy and must not imply automatic approval.
 
 Admin visitor list/detail responses are backend-ready with `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, and `risk_context`. The admin visitor investigation UI is implemented.
 
@@ -446,13 +448,13 @@ These features are either incomplete in the frontend, need staged/production smo
 
 | Feature | Status |
 |---|---|
-| Real LiveKit Cloud video playback | LiveKit Cloud account provisioned; direct synthetic FFmpeg-to-LiveKit and backend-controlled synthetic gateway publish smoke passed. `@livekit/components-react` subscriber viewer implemented; production camera validation pending. |
-| Real camera streams | Edge agent supports opt-in `livekit-ffmpeg` publishing and synthetic RTSP smoke has passed. Real CCTV hardware validation is still pending. |
+| Real LiveKit Cloud video playback | LiveKit Cloud account provisioned; synthetic and production Tailscale RTSP pilot playback passed. `@livekit/components-react` subscriber viewer implemented. Continue stability smoke and rerun on new camera sites. |
+| Real camera streams | Tailscale RTSP Camera pilot passed through the DigitalOcean `dropletGateway`; edge agent supports opt-in `livekit-ffmpeg` publishing. Production-standard on-site gateway/VLAN rollout remains future hardening. |
 | Full admin user management | Role update, disable, MFA reset, and GitHub-backed invite flow are implemented. GitHub invite requires configured invite env before real emails are sent. |
 | Gateway credential rotation | `POST /api/v1/admin/gateways/{id}/rotate-credential` is **implemented** (generates new service token, revokes old hash, audit-logged) |
 | DPA/signage export | `POST /api/v1/admin/dpa/export` and `POST /api/v1/admin/sites/:id/signage-attest` are **implemented** (JSONL bundle with kind filter, audit-logged) |
 | LiveKit fallback mode | `POST /api/v1/admin/livekit/fallback` is **implemented** (DB flag flip between `cloud`/`fallback`, audit-logged) |
-| Production Cloudflare Access | Production live at `panoptix.site` (2026-05-22). Staging smoke passed 2026-05-21. Production browser smoke needed. |
+| Production Cloudflare Access | Production live at `panoptix.site` (2026-05-22). Staging smoke passed 2026-05-21. Full production sidebar smoke passed 2026-06-01. |
 | Production scheduler | Maintenance scheduler is implemented (`ENABLE_MAINTENANCE_SCHEDULER`) but disabled by default. Manual admin endpoint `POST /api/v1/admin/jobs/run-maintenance` is available |
 | Backup status | `/api/v1/admin/backups/status` reads database evidence from `backup_runs` only. It does not directly list R2 objects or expose object keys. Production R2 access was checked separately on 2026-05-25; one encrypted backup artifact exists, latest successful backup row `78901812-df12-4a32-b91f-9975772fdca2` is recorded, dry-run decrypt/`pg_restore --list` validation passed, and isolated restore-drill evidence row `564e2bfd-b449-4c9f-b46d-a0366856a7e0` has `restore_schema_ok=true`. Status returned `ok`; the temporary Neon restore branch was deleted after validation. |
 
@@ -463,7 +465,7 @@ These features are either incomplete in the frontend, need staged/production smo
 | Alerts | List/detail/acknowledge/resolve APIs exist. | ✅ Closed — AlertsPanel wired to real backend alert APIs. |
 | Actor investigation | Profile and activity APIs exist with alerts, login baseline, IP/device, and audit context. | ✅ Closed — ActorInvestigationPage implemented. |
 | Admin visitor visits | List/detail APIs exist and detail reads are audited. Detail includes `ip_details`, `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, `risk_context`, and login correlation fields. | ✅ Closed — VisitorInvestigationPage implemented. |
-| LiveKit playback | Viewer token endpoint exists and returns subscriber-only LiveKit tokens. | ✅ Code implemented — `@livekit/components-react` subscriber viewer. Production camera validation pending. |
+| LiveKit playback | Viewer token endpoint exists and returns subscriber-only LiveKit tokens. | ✅ Closed for Tailscale RTSP pilot — `@livekit/components-react` subscriber viewer passed production real-camera smoke. Rerun after new camera/gateway deploys. |
 | Audit filters | Backend supports actor, severity, category, outcome, resource, session, and date filters. | ✅ Closed — All 10 backend filter parameters exposed. |
 | Admin camera detail/update | Backend supports admin camera detail and `PATCH`. | Verify all fields and edge states are fully covered in UI smoke. |
 | Site listing | `POST /api/v1/admin/sites/{site_id}/signage-attest` exists. | `GET /api/v1/admin/sites` is not implemented; any site-list UI/client call must remain disabled/planned until a backend source exists. |

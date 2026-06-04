@@ -28,8 +28,8 @@ export function LoginPage({ onLogin, authError }: LoginPageProps) {
   return (
     <div className={`h-full w-full flex items-center justify-center overflow-hidden ${
       theme === 'dark'
-        ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950'
-        : 'bg-gradient-to-br from-slate-50 via-orange-50/30 to-amber-50/20'
+        ? 'bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-950'
+        : 'bg-gradient-to-br from-neutral-50 via-orange-50/30 to-amber-50/20'
     }`}>
       {/* Animated Background Grid */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
@@ -78,10 +78,10 @@ export function LoginPage({ onLogin, authError }: LoginPageProps) {
             transition={{ type: 'spring', stiffness: 200, damping: 15 }}
             className="inline-block w-20 h-20 rounded-2xl mb-6 shadow-2xl shadow-orange-500/50"
           />
-          <h1 className={`text-3xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+          <h1 className={`text-3xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>
             Panoptix
           </h1>
-          <p className={theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}>
+          <p className={theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}>
             Secure CCTV Monitoring System
           </p>
         </div>
@@ -93,14 +93,14 @@ export function LoginPage({ onLogin, authError }: LoginPageProps) {
           transition={{ delay: 0.1 }}
           className={`backdrop-blur-xl border rounded-2xl p-8 shadow-2xl ${
             theme === 'dark'
-              ? 'bg-gradient-to-br from-slate-900/90 to-slate-800/90 border-slate-700/50'
-              : 'bg-white/80 border-slate-200/80'
+              ? 'bg-gradient-to-br from-neutral-900/90 to-neutral-800/90 border-neutral-700/50'
+              : 'bg-white/80 border-neutral-200/80'
           }`}
         >
           <div className="space-y-6">
             {/* Info */}
             <div className="text-center">
-              <p className={`text-sm ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
+              <p className={`text-sm ${theme === 'dark' ? 'text-neutral-300' : 'text-neutral-600'}`}>
                 Sign in through Cloudflare Access to access the CCTV dashboard.
               </p>
             </div>
@@ -122,7 +122,7 @@ export function LoginPage({ onLogin, authError }: LoginPageProps) {
             </button>
 
             {/* Requirements Info */}
-            <div className={`space-y-3 text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
+            <div className={`space-y-3 text-sm ${theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}`}>
               <div className="flex items-center gap-3">
                 <div className="w-1.5 h-1.5 rounded-full bg-orange-500 flex-shrink-0" />
                 <span>Identity provider and MFA policy enforced by Cloudflare Access</span>
@@ -144,7 +144,7 @@ export function LoginPage({ onLogin, authError }: LoginPageProps) {
               <Shield className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
               <div className="text-sm">
                 <p className="text-emerald-400 font-medium mb-1">Secure Authentication</p>
-                <p className={theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}>
+                <p className={theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}>
                   Protected by Cloudflare Access. Password-only application login is not available.
                 </p>
               </div>
@@ -153,7 +153,7 @@ export function LoginPage({ onLogin, authError }: LoginPageProps) {
         </motion.div>
 
         {/* Footer */}
-        <p className={`text-center text-sm mt-6 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>
+        <p className={`text-center text-sm mt-6 ${theme === 'dark' ? 'text-neutral-500' : 'text-neutral-400'}`}>
           Authorized personnel only. All access is logged and monitored.
         </p>
       </motion.div>

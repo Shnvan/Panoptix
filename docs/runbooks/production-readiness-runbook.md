@@ -1,26 +1,94 @@
 # Production Readiness Runbook
 
-This runbook is the top-level operator checklist for deciding whether Panoptix is ready to move from a verified full-stack foundation toward production deployment.
+This runbook is the top-level operator checklist for ongoing production readiness checks and for moving from the one-month Tailscale/DigitalOcean pilot toward production-standard site rollout.
 
 It does not deploy code, create infrastructure, run migrations, or store secrets. Use the linked runbooks for detailed procedures.
 
 ## Current Readiness Position
 
-Production is not approved yet.
+Production is live for the protected pilot path at `panoptix.site`. Use this runbook for ongoing checks and for future site hardening.
 
 Verified:
 
 - Backend API foundation is implemented and tested.
-- Database migration `0007_gateway_command_tables` exists for `gateway_command_queue` and `camera_publish_states`.
+- Database migrations are applied through `0013_visitor_access_requests`; gateway command/publish-state and visitor access request tables are present.
 - Direct synthetic RTSP to LiveKit Cloud smoke passed.
 - Backend-controlled gateway command publish smoke passed with `gateway.command.start_publish`.
+- Full authenticated production sidebar smoke passed.
+- `Tailscale RTSP Camera` streamed through the DigitalOcean `dropletGateway`; frontend subscriber playback is implemented and browser-tested.
 - Gateway publish tokens are backend-to-gateway only and must not be exposed to browsers.
 
-Still blocking production:
+Still required for broader production hardening:
 
-- Frontend LiveKit subscriber playback is pending.
-- Real CCTV hardware validation is pending.
-- Production Railway, Neon, Cloudflare, R2, and monitoring readiness must be reviewed before cutover.
+- Production-standard on-site gateway/VLAN rollout for future camera sites.
+- Break-glass hardware key procurement/test and monitoring posture.
+
+Hardware-dependent on-site gateway/VLAN work is paused until a real site gateway, camera hardware, and approved camera network are available.
+
+## DigitalOcean Gateway Soak Evidence
+
+Latest evidence status: passed on 2026-06-02 after production redeploy to commit `cee14ad`. Accepted evidence showed `panoptix-edge-agent.service` active with `NRestarts=0`, supervisor PID `46735`, no idle `ffmpeg`, one expected playback `ffmpeg` child PID `50457` under supervisor `46735`, and `ffmpeg` exit after playback close. Browser smoke stayed subscriber-only with no camera/mic permission prompt; `localStorage` contained only `panoptix-theme=dark`, `sessionStorage` was empty, and no RTSP URL, gateway token, Cloudflare secret, LiveKit secret, or auth token was exposed in browser storage. Keep RTSP URLs redacted in any future written evidence.
+
+Run this section from an authorized operator workstation. Do not paste `.env` files, full credential-bearing commands, RTSP URLs, gateway service tokens, Cloudflare Access service-token secrets, LiveKit tokens, or LiveKit API secrets into docs, screenshots, tickets, or chat.
+
+Gateway baseline:
+
+```bash
+date -u
+hostname
+systemctl is-active panoptix-edge-agent.service
+systemctl show panoptix-edge-agent.service \
+  -p ActiveState \
+  -p SubState \
+  -p NRestarts \
+  -p ExecMainPID \
+  -p ExecMainStartTimestamp
+pgrep -af "panoptix_edge_agent|panoptix-edge-agent|python.*--supervise"
+pgrep -af ffmpeg || true
+```
+
+Failure scan:
+
+```bash
+journalctl -u panoptix-edge-agent.service --since "24 hours ago" --no-pager \
+  | grep -Ei "error|failed|failure|exception|stale|restart|auth|401|403|websocket|livekit|ffmpeg|token" \
+  | tail -n 200
+journalctl -u panoptix-edge-agent.service -n 100 --no-pager
+```
+
+Production playback smoke:
+
+1. Open `panoptix.site` and start the real `Tailscale RTSP Camera` stream.
+2. Confirm playback starts through LiveKit with no browser camera/microphone permission prompt.
+3. Confirm browser code remains subscriber-only and storage does not contain RTSP URLs, gateway tokens, Cloudflare service-token secrets, LiveKit secrets, or auth tokens.
+4. While playback is active, run `pgrep -af ffmpeg || true`; `ffmpeg` should be present only for the active stream.
+5. Close playback, wait 30-60 seconds, then run:
+
+```bash
+pgrep -af ffmpeg || true
+journalctl -u panoptix-edge-agent.service --since "10 minutes ago" --no-pager \
+  | grep -Ei "error|failed|failure|exception|stale|auth|401|403|livekit|ffmpeg|token" \
+  | tail -n 100
+```
+
+Pass criteria: service active, exactly one supervisor process, no restart loop, no repeated stale-session/auth/LiveKit/WebSocket/publish failures, `ffmpeg` absent when idle and present only while streaming, and production playback works without browser publishing or secret exposure. If any criterion fails, record the failure as the next active task instead of marking the soak complete.
+
+## Current Pilot Monitoring
+
+The current no-hardware operating path is the DigitalOcean `dropletGateway` plus Tailscale RTSP pilot camera.
+
+- Production app health remains covered by the existing production health workflow.
+- Gateway control-plane health should be checked with admin deep health and recent gateway heartbeat status after deploys or incidents.
+- DigitalOcean host health should show `panoptix-edge-agent.service` active, exactly one edge-agent supervisor process, and zero idle `ffmpeg`.
+- Treat stale gateway heartbeat, repeated gateway WebSocket reconnect failures, repeated stale-session/auth/LiveKit/publish failures, or any idle `ffmpeg` process as actionable.
+- Keep RTSP URLs, gateway tokens, Cloudflare service-token secrets, LiveKit secrets, and auth tokens out of docs, screenshots, logs pasted into chat, and browser storage.
+
+Latest software operations evidence, 2026-06-02:
+
+- API-visible scheduled `Production Health Check` run `26816176702` completed with `success` at `2026-06-02T11:16:44Z`; the workflow checks `/health` and `/api/v1/admin/health/deep`.
+- Scheduled `Production Backup` run `26783867468` completed with `success` at `2026-06-01T21:45:05Z`; the workflow runs encrypted R2 backup and retention.
+- No open GitHub failure issues named `Production health check failed` or `Production backup automation failed` were found.
+- Read-only gateway host check at `2026-06-02T13:19:04Z` showed service active, `NRestarts=0`, one supervisor process, zero idle `ffmpeg`, and no matching failure log lines since service start.
 
 ## Required Services
 
@@ -69,7 +137,7 @@ Follow this order before any production cutover:
 9. Confirm LiveKit Cloud connectivity and webhook configuration.
 10. Confirm R2 backup status and restore-drill plan.
 11. Run synthetic media verification.
-12. Run browser smoke tests once frontend subscriber playback exists.
+12. Run browser smoke tests after frontend/gateway deploys; real-camera Tailscale RTSP pilot evidence is passed for the current path.
 13. Record approval, remaining risks, and rollback owner.
 
 ## Migration Check
@@ -83,7 +151,7 @@ python -m alembic current
 Expected current revision:
 
 ```text
-0007_gateway_command_tables
+0013_visitor_access_requests
 ```
 
 Confirm the command and publish-state tables exist:
@@ -91,9 +159,10 @@ Confirm the command and publish-state tables exist:
 ```text
 gateway_command_queue exists
 camera_publish_states exists
+visitor_access_requests exists
 ```
 
-If the database is behind this revision, do not run gateway command publish verification until migrations are applied.
+If the database is behind this revision, do not run visitor access request or gateway command verification until migrations are applied.
 
 ## Health Checks
 
@@ -174,17 +243,17 @@ Use these first-response paths:
 
 ## Final Approval Checklist
 
-Production remains blocked until every item below is true:
+Broader production hardening remains incomplete until every item below is true:
 
 - [ ] `fullstack-integration` or later release candidate has passing backend and frontend checks.
 - [ ] No tracked secrets, env files, Terraform state, local AI files, or private key/cert files.
 - [ ] Gitleaks or equivalent secret scan passes.
 - [ ] Cloudflare Access policies are reviewed and default-deny.
 - [ ] Production environment variables are set in secret stores only.
-- [ ] Database migration is at `0007_gateway_command_tables` or newer.
+- [ ] Database migration is at `0013_visitor_access_requests` or newer.
 - [ ] `/health` and deep health checks pass.
-- [ ] Gateway heartbeat and backend-controlled command publish smoke pass.
-- [ ] Frontend LiveKit subscriber playback is implemented and browser-tested.
-- [ ] Real CCTV hardware test passes.
+- [x] Gateway heartbeat and backend-controlled command publish smoke pass.
+- [x] Frontend LiveKit subscriber playback is implemented and browser-tested.
+- [x] Real CCTV hardware test passes for the Tailscale RTSP pilot; production-standard on-site gateway/VLAN rollout is planned for future sites.
 - [ ] Backup and restore-drill plan is reviewed.
 - [ ] Rollback owner and incident communication owner are named.

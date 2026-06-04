@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any, AsyncContextManager, Protocol
 from urllib.parse import urlsplit, urlunsplit
 
+from panoptix_edge_agent.command_execution import LoopBoundCommandExecutor, loop_bound_executor
 from panoptix_edge_agent.commands import (
     CommandVerificationError,
     GatewayCommand,
@@ -121,12 +122,13 @@ class GatewayControlClient:
         config: AgentConfig,
         connector: WebSocketConnector | None = None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
-        executor: CommandExecutor | None = None,
+        executor: CommandExecutor | LoopBoundCommandExecutor | None = None,
     ) -> None:
         self.config = config
         self.connector = WebSocketsConnector() if connector is None else connector
         self.sleep = sleep
-        self.executor = executor if executor is not None else CommandExecutor(StubMediaController())
+        raw_executor = executor if executor is not None else CommandExecutor(StubMediaController())
+        self.executor = loop_bound_executor(raw_executor)
 
     @property
     def websocket_url(self) -> str:
@@ -195,6 +197,7 @@ class GatewayControlClient:
         hello_received = False
         accepted_commands = 0
         rejected_commands = 0
+        received_messages = 0
 
         try:
             async with self.connector.connect(
@@ -202,8 +205,24 @@ class GatewayControlClient:
                 self._headers(),
                 self.config.request_timeout_seconds,
             ) as websocket:
-                for _ in range(max_messages):
-                    result = await self.handle_message(await websocket.recv())
+                while accepted_commands + rejected_commands < max_messages:
+                    timeout_seconds = (
+                        self.config.request_timeout_seconds
+                        if received_messages == 0
+                        else min(self.config.request_timeout_seconds, 1.0)
+                    )
+                    try:
+                        raw_message = await asyncio.wait_for(
+                            websocket.recv(),
+                            timeout=timeout_seconds,
+                        )
+                    except (asyncio.TimeoutError, IndexError):
+                        if received_messages > 0:
+                            break
+                        raise
+
+                    received_messages += 1
+                    result = await self.handle_message(raw_message)
                     if result.kind == "hello" and result.accepted:
                         hello_received = True
                     elif result.kind == "command" and result.accepted:
@@ -273,6 +292,27 @@ class GatewayControlClient:
         headers = {"Accept": "application/json"}
         if self.config.dev_identity_enabled:
             headers["x-panoptix-dev-gateway-id"] = self.config.gateway_id
+            return headers
+
+        service_token = self.config.gateway_service_token.strip()
+        if not service_token:
+            raise ControlClientError(
+                "PANOPTIX_GATEWAY_SERVICE_TOKEN is required when dev gateway identity is disabled",
+                retryable=False,
+            )
+        headers["x-panoptix-gateway-id"] = self.config.gateway_id
+        headers["Authorization"] = f"Bearer {service_token}"
+
+        cf_access_client_id = self.config.cf_access_client_id.strip()
+        cf_access_client_secret = self.config.cf_access_client_secret.strip()
+        if bool(cf_access_client_id) != bool(cf_access_client_secret):
+            raise ControlClientError(
+                "PANOPTIX_CF_ACCESS_CLIENT_ID and PANOPTIX_CF_ACCESS_CLIENT_SECRET must be configured together",
+                retryable=False,
+            )
+        if cf_access_client_id and cf_access_client_secret:
+            headers["CF-Access-Client-Id"] = cf_access_client_id
+            headers["CF-Access-Client-Secret"] = cf_access_client_secret
         return headers
 
 

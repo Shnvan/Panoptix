@@ -29,7 +29,7 @@ export function App() {
   const { user, loading: userLoading, error: userError, refetch: refetchMe } = useMe();
   const { notice, accept: acceptNotice } = usePrivacyNotice();
   const { cameras, loading: camerasLoading } = useCameras();
-  const { events, cameraStatuses } = useCameraEvents();
+  const { cameraStatuses } = useCameraEvents();
   const systemStatus = useSystemHealth();
   const { dashboard } = useAdminDashboard();
 
@@ -51,10 +51,10 @@ export function App() {
   // ── Loading state ──
   if (userLoading) {
     return (
-      <div className={`h-full flex items-center justify-center ${theme === 'dark' ? 'bg-slate-950' : 'bg-slate-50'}`}>
+      <div className={`h-full flex items-center justify-center ${theme === 'dark' ? 'bg-black' : 'bg-white'}`}>
         <div className="text-center">
           <img src="/logo.png" alt="Panoptix" className="w-16 h-16 mx-auto rounded-lg mb-4 shadow-xl shadow-orange-500/30 animate-pulse" />
-          <p className={theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}>Initializing secure connection...</p>
+          <p className={theme === 'dark' ? 'text-neutral-400' : 'text-neutral-500'}>Initializing secure connection...</p>
         </div>
       </div>
     );
@@ -102,13 +102,13 @@ export function App() {
     <>
       {/* Layout selector */}
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <h2 className={`text-xl font-bold ${d ? 'text-white' : 'text-slate-900'}`}>Live Camera Feeds</h2>
+        <h2 className={`text-xl font-bold ${d ? 'text-white' : 'text-neutral-900'}`}>Live Camera Feeds</h2>
         <div className="flex items-center gap-1">
           {layoutButtons.map(({ layout, label, icon: Icon }) => (
             <button key={layout} onClick={() => setCameraLayout(layout)} title={`${label} grid`}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors ${cameraLayout === layout
                 ? 'bg-orange-500/20 text-orange-500 border border-orange-500/30'
-                : d ? 'bg-slate-800/50 text-slate-400 hover:text-white' : 'bg-slate-100 text-slate-500 hover:text-slate-900'
+                : d ? 'bg-neutral-800/50 text-neutral-400 hover:text-white' : 'bg-neutral-100 text-neutral-500 hover:text-neutral-900'
               }`}>
               <Icon className="w-4 h-4" /> {label}
             </button>
@@ -119,14 +119,14 @@ export function App() {
       {camerasLoading ? (
         <div className={`grid ${gridClass} gap-4`}>
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className={`aspect-video rounded-lg ${d ? 'bg-slate-800/50 animate-pulse' : 'bg-slate-200 animate-pulse'}`} />
+            <div key={i} className={`aspect-video rounded-lg ${d ? 'bg-neutral-800/50 animate-pulse' : 'bg-neutral-200 animate-pulse'}`} />
           ))}
         </div>
       ) : cameras.length === 0 ? (
-        <div className={`text-center py-16 border rounded-lg ${d ? 'bg-slate-900/50 border-slate-700/50' : 'bg-slate-50 border-slate-200'}`}>
-          <Video className={`w-16 h-16 mx-auto mb-4 ${d ? 'text-slate-600' : 'text-slate-300'}`} />
-          <h3 className={`text-lg font-semibold mb-2 ${d ? 'text-white' : 'text-slate-900'}`}>No Assigned Cameras</h3>
-          <p className={d ? 'text-slate-400' : 'text-slate-500'}>You do not have access to any cameras. Contact your administrator to get camera access.</p>
+        <div className={`text-center py-16 border rounded-lg ${d ? 'bg-neutral-900/50 border-neutral-700/50' : 'bg-neutral-50 border-neutral-200'}`}>
+          <Video className={`w-16 h-16 mx-auto mb-4 ${d ? 'text-neutral-600' : 'text-neutral-300'}`} />
+          <h3 className={`text-lg font-semibold mb-2 ${d ? 'text-white' : 'text-neutral-900'}`}>No Assigned Cameras</h3>
+          <p className={d ? 'text-neutral-400' : 'text-neutral-500'}>You do not have access to any cameras. Contact your administrator to get camera access.</p>
         </div>
       ) : (
         <div className={`grid ${gridClass} gap-4`}>
@@ -182,8 +182,8 @@ export function App() {
         return (
           <div className="space-y-6">
             <div>
-              <h2 className={`text-2xl font-bold mb-1 ${d ? 'text-white' : 'text-slate-900'}`}>Alerts & Notifications</h2>
-              <p className={d ? 'text-slate-400' : 'text-slate-500'}>Security events, system warnings, and operational alerts</p>
+              <h2 className={`text-2xl font-bold mb-1 ${d ? 'text-white' : 'text-neutral-900'}`}>Alerts & Notifications</h2>
+              <p className={d ? 'text-neutral-400' : 'text-neutral-500'}>Security events, system warnings, and operational alerts</p>
             </div>
             <AlertsPanel />
           </div>
@@ -193,8 +193,8 @@ export function App() {
         return (
           <div className="space-y-6">
             <div>
-              <h2 className={`text-2xl font-bold mb-1 ${d ? 'text-white' : 'text-slate-900'}`}>Visitor Investigation</h2>
-              <p className={d ? 'text-slate-400' : 'text-slate-500'}>Public entry visit records and browser/network/risk context</p>
+              <h2 className={`text-2xl font-bold mb-1 ${d ? 'text-white' : 'text-neutral-900'}`}>Visitor Investigation</h2>
+              <p className={d ? 'text-neutral-400' : 'text-neutral-500'}>Public entry visit records and browser/network/risk context</p>
             </div>
             <VisitorInvestigationPage />
           </div>
@@ -204,8 +204,8 @@ export function App() {
         return (
           <div className="space-y-6">
             <div>
-              <h2 className={`text-2xl font-bold mb-1 ${d ? 'text-white' : 'text-slate-900'}`}>Actor Investigation</h2>
-              <p className={d ? 'text-slate-400' : 'text-slate-500'}>Profile and activity timeline for users, gateways, and system actors</p>
+              <h2 className={`text-2xl font-bold mb-1 ${d ? 'text-white' : 'text-neutral-900'}`}>Actor Investigation</h2>
+              <p className={d ? 'text-neutral-400' : 'text-neutral-500'}>Profile and activity timeline for users, gateways, and system actors</p>
             </div>
             <ActorInvestigationPage />
           </div>
@@ -226,10 +226,10 @@ export function App() {
   };
 
   return (
-    <div className={`h-full flex ${d ? 'bg-slate-950' : 'bg-slate-50'}`}>
+    <div className={`h-full flex ${d ? 'bg-black' : 'bg-neutral-50'}`}>
       <Sidebar activeSection={activeSection} onSectionChange={setActiveSection} isAdmin={isAdmin} systemStatus={systemStatus} />
       <div className="flex-1 flex flex-col min-w-0">
-        <Header user={user} alertCount={events.length} />
+        <Header user={user} />
         <main className="flex-1 overflow-auto p-6">{renderContent()}</main>
       </div>
       {selectedCamera && <CameraDetailModal camera={selectedCamera} onClose={() => setSelectedCamera(null)} />}

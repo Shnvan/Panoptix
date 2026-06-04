@@ -57,7 +57,11 @@ _VIEWER_HEADERS = {
 }
 
 
-def _client(test_db_session: DbSession) -> TestClient:
+def _client(
+    test_db_session: DbSession,
+    *,
+    enable_maintenance_scheduler: bool = False,
+) -> TestClient:
     app = create_app(
         settings=Settings(
             APP_ENV="development",
@@ -68,6 +72,7 @@ def _client(test_db_session: DbSession) -> TestClient:
             GATEWAY_COMMAND_SIGNING_KEY=COMMAND_SIGNING_KEY,
             AUDIT_HMAC_KEY_VERSION=1,
             AUDIT_HMAC_KEY=AUDIT_HMAC_KEY,
+            ENABLE_MAINTENANCE_SCHEDULER=enable_maintenance_scheduler,
         )
     )
 
@@ -453,7 +458,7 @@ def test_livekit_participant_left_zero_count_schedules_stop_publish(test_db_sess
     camera = _seed_camera(test_db_session)
     gateway = _seed_gateway(test_db_session)
     _assign_gateway_camera(test_db_session, gateway_id=gateway.id, camera_id=camera.id)
-    client = _client(test_db_session)
+    client = _client(test_db_session, enable_maintenance_scheduler=True)
     start_body = _raw_body(_webhook_payload(event="participant_joined", room=camera.livekit_room_name))
     start_response = _post_webhook(client, start_body, authorization=_auth_header(start_body))
     assert start_response.status_code == 200
@@ -481,13 +486,49 @@ def test_livekit_participant_left_zero_count_schedules_stop_publish(test_db_sess
     ]
 
 
-def test_livekit_participant_joined_during_grace_cancels_pending_stop(
+def test_livekit_participant_left_zero_count_enqueues_immediate_stop_when_scheduler_disabled(
     test_db_session: DbSession,
 ) -> None:
     camera = _seed_camera(test_db_session)
     gateway = _seed_gateway(test_db_session)
     _assign_gateway_camera(test_db_session, gateway_id=gateway.id, camera_id=camera.id)
     client = _client(test_db_session)
+    start_body = _raw_body(_webhook_payload(event="participant_joined", room=camera.livekit_room_name))
+    start_response = _post_webhook(client, start_body, authorization=_auth_header(start_body))
+    assert start_response.status_code == 200
+    raw_body = _raw_body(
+        _webhook_payload(event="participant_left", room=camera.livekit_room_name, participant_count=0)
+    )
+
+    response = _post_webhook(client, raw_body, authorization=_auth_header(raw_body))
+
+    assert response.status_code == 200
+    rows = _command_rows(test_db_session)
+    assert [row.kind for row in rows] == [
+        "gateway.command.start_publish",
+        "gateway.command.stop_publish",
+    ]
+    assert rows[1].payload == {"camera_id": str(camera.id), "room": camera.livekit_room_name}
+    state = test_db_session.get(CameraPublishState, camera.id)
+    assert state is not None
+    assert state.status == CameraPublishStatus.idle
+    assert state.last_viewer_count == 0
+    assert state.stop_due_at is None
+    assert _audit_actions(test_db_session) == [
+        "livekit.publish.start_enqueued",
+        "livekit.webhook.received",
+        "livekit.publish.stop_enqueued",
+        "livekit.webhook.received",
+    ]
+
+
+def test_livekit_participant_joined_during_grace_cancels_pending_stop(
+    test_db_session: DbSession,
+) -> None:
+    camera = _seed_camera(test_db_session)
+    gateway = _seed_gateway(test_db_session)
+    _assign_gateway_camera(test_db_session, gateway_id=gateway.id, camera_id=camera.id)
+    client = _client(test_db_session, enable_maintenance_scheduler=True)
     start_body = _raw_body(_webhook_payload(event="participant_joined", room=camera.livekit_room_name))
     left_body = _raw_body(
         _webhook_payload(event="participant_left", room=camera.livekit_room_name, participant_count=0)
@@ -556,7 +597,7 @@ def test_due_publish_stop_processor_enqueues_stop_after_grace(test_db_session: D
     camera = _seed_camera(test_db_session)
     gateway = _seed_gateway(test_db_session)
     _assign_gateway_camera(test_db_session, gateway_id=gateway.id, camera_id=camera.id)
-    client = _client(test_db_session)
+    client = _client(test_db_session, enable_maintenance_scheduler=True)
     now = datetime.now(timezone.utc).replace(microsecond=0)
     start_body = _raw_body(
         _webhook_payload(event="participant_joined", room=camera.livekit_room_name, created_at=now)
@@ -600,7 +641,7 @@ def test_due_publish_stop_processor_skips_before_grace_due(test_db_session: DbSe
     camera = _seed_camera(test_db_session)
     gateway = _seed_gateway(test_db_session)
     _assign_gateway_camera(test_db_session, gateway_id=gateway.id, camera_id=camera.id)
-    client = _client(test_db_session)
+    client = _client(test_db_session, enable_maintenance_scheduler=True)
     start_body = _raw_body(_webhook_payload(event="participant_joined", room=camera.livekit_room_name))
     left_body = _raw_body(
         _webhook_payload(event="participant_left", room=camera.livekit_room_name, participant_count=0)

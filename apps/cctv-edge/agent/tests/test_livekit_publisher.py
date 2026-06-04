@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from datetime import datetime, timezone
 
 from panoptix_edge_agent.commands import GatewayCommand
@@ -28,6 +29,7 @@ class FakeLiveKitPublisherClient:
         self.stop_result = LiveKitPublisherResult(ok=True) if stop_result is None else stop_result
         self.start_calls: list[LiveKitPublishRequest] = []
         self.stop_calls: list[dict[str, str]] = []
+        self.healthy = True
 
     async def start_publish(self, request: LiveKitPublishRequest) -> LiveKitPublisherResult:
         self.start_calls.append(request)
@@ -36,6 +38,9 @@ class FakeLiveKitPublisherClient:
     async def stop_publish(self, *, camera_id: str, room: str) -> LiveKitPublisherResult:
         self.stop_calls.append({"camera_id": camera_id, "room": room})
         return self.stop_result
+
+    def is_publishing_healthy(self, *, camera_id: str, room: str) -> bool:
+        return self.healthy
 
 
 class FakePublication:
@@ -102,6 +107,28 @@ class FakeVideoSource:
         self.closed = True
 
 
+class AsyncFailingVideoSource(FakeVideoSource):
+    def __init__(
+        self,
+        width: int,
+        height: int,
+        *,
+        fail_on_capture: int,
+        is_screencast: bool = False,
+    ) -> None:
+        super().__init__(width, height, is_screencast=is_screencast)
+        self.fail_on_capture = fail_on_capture
+
+    async def _raise_capture_error(self) -> None:
+        raise RuntimeError("Event loop is closed")
+
+    def capture_frame(self, frame: object, *, timestamp_us: int = 0) -> object:
+        self.capture_calls.append({"frame": frame, "timestamp_us": timestamp_us})
+        if len(self.capture_calls) == self.fail_on_capture:
+            return self._raise_capture_error()
+        return None
+
+
 class FakeLocalVideoTrackFactory:
     def __init__(self) -> None:
         self.create_calls: list[dict[str, object]] = []
@@ -113,8 +140,13 @@ class FakeLocalVideoTrackFactory:
 
 
 class FakeRtcModule:
-    def __init__(self, room: FakeSdkRoom) -> None:
+    def __init__(
+        self,
+        room: FakeSdkRoom,
+        video_source_factory: Callable[..., FakeVideoSource] | None = None,
+    ) -> None:
         self.room = room
+        self.video_source_factory = video_source_factory
         self.room_options_calls: list[dict[str, bool]] = []
         self.video_sources: list[FakeVideoSource] = []
         self.video_frame_calls: list[dict[str, object]] = []
@@ -138,7 +170,10 @@ class FakeRtcModule:
         *,
         is_screencast: bool = False,
     ) -> FakeVideoSource:
-        source = FakeVideoSource(width, height, is_screencast=is_screencast)
+        if self.video_source_factory is None:
+            source = FakeVideoSource(width, height, is_screencast=is_screencast)
+        else:
+            source = self.video_source_factory(width, height, is_screencast=is_screencast)
         self.video_sources.append(source)
         return source
 
@@ -164,6 +199,7 @@ class FakeMediaSession:
         self.stop_error = stop_error
         self.start_calls = 0
         self.stop_calls = 0
+        self.healthy = True
 
     async def start(self) -> None:
         self.start_calls += 1
@@ -174,6 +210,9 @@ class FakeMediaSession:
         self.stop_calls += 1
         if self.stop_error is not None:
             raise self.stop_error
+
+    def is_healthy(self) -> bool:
+        return self.healthy
 
 
 class FakeVideoFrameSource:
@@ -230,6 +269,21 @@ class RecordingMediaSessionFactory:
     ) -> FakeMediaSession:
         self.calls.append({"request": request, "room": room})
         return self.session
+
+
+class QueuedMediaSessionFactory:
+    def __init__(self, sessions: list[FakeMediaSession]) -> None:
+        self.sessions = sessions
+        self.calls: list[dict[str, object]] = []
+
+    def __call__(
+        self,
+        *,
+        request: LiveKitPublishRequest,
+        room: FakeSdkRoom,
+    ) -> FakeMediaSession:
+        self.calls.append({"request": request, "room": room})
+        return self.sessions[len(self.calls) - 1]
 
 
 def _publish_request(**overrides: str) -> LiveKitPublishRequest:
@@ -337,6 +391,35 @@ def test_livekit_media_controller_start_is_idempotent_for_same_camera_and_room()
     assert first.ok is True
     assert second.ok is True
     assert len(publisher.start_calls) == 1
+
+
+def test_livekit_media_controller_restarts_unhealthy_active_session() -> None:
+    publisher = FakeLiveKitPublisherClient()
+    controller = LiveKitMediaController(publisher=publisher)
+
+    first = asyncio.run(
+        controller.start_publish(
+            camera_id="camera-1",
+            room="camera_ab12cd34",
+            livekit_url="wss://livekit.example.test",
+            token="gateway-token",
+        )
+    )
+    publisher.healthy = False
+    second = asyncio.run(
+        controller.start_publish(
+            camera_id="camera-1",
+            room="camera_ab12cd34",
+            livekit_url="wss://livekit.example.test",
+            token="gateway-token-2",
+        )
+    )
+
+    assert first.ok is True
+    assert second.ok is True
+    assert len(publisher.start_calls) == 2
+    assert publisher.stop_calls == [{"camera_id": "camera-1", "room": "camera_ab12cd34"}]
+    assert controller.active_sessions["camera-1"].token == "gateway-token-2"
 
 
 def test_livekit_media_controller_start_rejects_room_mismatch_for_active_camera() -> None:
@@ -570,6 +653,31 @@ def test_livekit_sdk_publisher_start_connects_room_and_starts_media_session() ->
     assert "camera-1" in client.active_sessions
 
 
+def test_livekit_sdk_publisher_restarts_unhealthy_active_session() -> None:
+    room = FakeSdkRoom()
+    first_session = FakeMediaSession()
+    second_session = FakeMediaSession()
+    session_factory = QueuedMediaSessionFactory([first_session, second_session])
+    client = LiveKitSdkPublisherClient(
+        rtc_module=FakeRtcModule(room),
+        media_session_factory=session_factory,
+    )
+
+    first = asyncio.run(client.start_publish(_publish_request(token="gateway-token-secret")))
+    first_session.healthy = False
+    second = asyncio.run(client.start_publish(_publish_request(token="gateway-token-secret-2")))
+
+    assert first.ok is True
+    assert second.ok is True
+    assert first_session.stop_calls == 1
+    assert second_session.start_calls == 1
+    assert room.disconnect_calls == 1
+    assert len(room.connect_calls) == 2
+    assert len(session_factory.calls) == 2
+    assert client.active_sessions["camera-1"].media_session is second_session
+    assert client.active_sessions["camera-1"].request.token == "gateway-token-secret-2"
+
+
 def test_livekit_sdk_publisher_stop_disconnects_room_and_stops_media_session() -> None:
     room = FakeSdkRoom()
     session_factory = RecordingMediaSessionFactory()
@@ -754,6 +862,7 @@ def test_video_track_media_session_frame_pump_failure_is_contained() -> None:
         await session.start()
         await asyncio.sleep(0)
         await asyncio.sleep(0)
+        assert session.is_healthy() is False
         await session.stop()
 
     asyncio.run(run_session())
@@ -761,6 +870,72 @@ def test_video_track_media_session_frame_pump_failure_is_contained() -> None:
     assert session.frame_pump_error == "livekit-frame-pump-failed"
     assert "gateway-token-secret" not in repr(session.frame_pump_error)
     assert room.local_participant.unpublish_calls == ["track-sid-1"]
+    assert room.disconnect_calls == 1
+    assert rtc_module.video_sources[0].closed is True
+    assert frame_source.closed is True
+
+
+def test_video_track_media_session_capture_failure_disconnects_room() -> None:
+    room = FakeSdkRoom()
+    rtc_module = FakeRtcModule(
+        room,
+        video_source_factory=lambda width, height, is_screencast=False: AsyncFailingVideoSource(
+            width,
+            height,
+            fail_on_capture=2,
+            is_screencast=is_screencast,
+        ),
+    )
+    frame_source = FakeVideoFrameSource(
+        [_video_frame(timestamp_us=100), _video_frame(timestamp_us=200)]
+    )
+    session = LiveKitVideoTrackMediaSession(
+        request=_publish_request(),
+        room=room,
+        rtc_module=rtc_module,
+        frame_source=frame_source,
+    )
+
+    async def run_session() -> None:
+        await session.start()
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        assert session.is_healthy() is False
+        await session.stop()
+
+    asyncio.run(run_session())
+
+    assert session.frame_pump_error == "livekit-frame-pump-failed"
+    assert room.local_participant.unpublish_calls == ["track-sid-1"]
+    assert room.disconnect_calls == 1
+    assert rtc_module.video_sources[0].closed is True
+    assert frame_source.closed is True
+
+
+def test_video_track_media_session_source_end_disconnects_room() -> None:
+    room = FakeSdkRoom()
+    rtc_module = FakeRtcModule(room)
+    frame_source = FakeVideoFrameSource([_video_frame()])
+    session = LiveKitVideoTrackMediaSession(
+        request=_publish_request(),
+        room=room,
+        rtc_module=rtc_module,
+        frame_source=frame_source,
+    )
+
+    async def run_session() -> None:
+        await session.start()
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        assert session.is_healthy() is False
+        await session.stop()
+
+    asyncio.run(run_session())
+
+    assert session.frame_pump_error == "livekit-frame-source-ended"
+    assert room.local_participant.unpublish_calls == ["track-sid-1"]
+    assert room.disconnect_calls == 1
+    assert rtc_module.video_sources[0].closed is True
     assert frame_source.closed is True
 
 

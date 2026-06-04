@@ -47,6 +47,25 @@ class CloudflareAccessVerifier:
 
         gateway_id = request.headers.get("x-panoptix-gateway-id")
         token = self._bearer_token(request)
+        return self._verify_gateway_credentials(gateway_id, token, db)
+
+    def verify_gateway_websocket(self, websocket: WebSocket, db: DbSession) -> Principal:
+        gateway_id = websocket.headers.get("x-panoptix-dev-gateway-id")
+        if gateway_id is not None:
+            self._assert_dev_auth_allowed()
+            return Principal(
+                kind=PrincipalKind.GATEWAY,
+                subject=f"gateway:{gateway_id}",
+                gateway_id=gateway_id,
+                roles=frozenset({"gateway"}),
+                is_dev=True,
+            )
+
+        gateway_id = websocket.headers.get("x-panoptix-gateway-id")
+        token = self._bearer_token(websocket)
+        return self._verify_gateway_credentials(gateway_id, token, db)
+
+    def _verify_gateway_credentials(self, gateway_id: str | None, token: str | None, db: DbSession) -> Principal:
         if not gateway_id or token is None:
             raise AccessVerificationError("gateway-identity-required")
 
@@ -72,20 +91,6 @@ class CloudflareAccessVerifier:
             roles=frozenset({"gateway"}),
             is_dev=False,
         )
-
-    def verify_gateway_websocket(self, websocket: WebSocket) -> Principal:
-        gateway_id = websocket.headers.get("x-panoptix-dev-gateway-id")
-        if gateway_id is not None:
-            self._assert_dev_auth_allowed()
-            return Principal(
-                kind=PrincipalKind.GATEWAY,
-                subject=f"gateway:{gateway_id}",
-                gateway_id=gateway_id,
-                roles=frozenset({"gateway"}),
-                is_dev=True,
-            )
-
-        raise AccessVerificationError("gateway-identity-required")
 
     def _dev_user_principal(self, request: Request) -> Principal | None:
         if request.headers.get("x-panoptix-dev-auth") != "1":
@@ -186,7 +191,7 @@ class CloudflareAccessVerifier:
         return {item.strip() for item in value.split(",") if item.strip()}
 
     @staticmethod
-    def _bearer_token(request: Request) -> str | None:
+    def _bearer_token(request: Request | WebSocket) -> str | None:
         authorization = request.headers.get("authorization")
         if authorization is None:
             return None

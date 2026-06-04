@@ -1977,7 +1977,7 @@ Existing control and runner tests were updated for async execution and full comm
 
 ### What was implemented
 
-The backend now tracks camera publish lifecycle state and no longer immediately enqueues `stop_publish` when the last viewer leaves. Instead, it schedules a stop grace window and only emits a stop command when the due-stop processor runs after `stop_due_at`.
+The backend now tracks camera publish lifecycle state. When the maintenance scheduler is enabled, it schedules a stop grace window and only emits a stop command when the due-stop processor runs after `stop_due_at`. When the scheduler is disabled, zero-viewer leave events enqueue stop immediately so the gateway does not keep publishing forever.
 
 ### How it works
 
@@ -1985,13 +1985,15 @@ The backend now tracks camera publish lifecycle state and no longer immediately 
 2. If a stop is pending, the backend cancels it and audits `livekit.publish.stop_cancelled`.
 3. If the camera is already starting or publishing, no duplicate start command is enqueued.
 4. If the camera is idle, the backend marks state `starting`, mints a gateway-publish token, records a stream grant, and enqueues `gateway.command.start_publish`.
-5. `participant_left` with `participant_count == 0` marks state `stop_pending` and sets `stop_due_at = event_at + 10 seconds`.
+5. If `ENABLE_MAINTENANCE_SCHEDULER=true`, `participant_left` with `participant_count == 0` marks state `stop_pending` and sets `stop_due_at = event_at + 10 seconds`.
 6. `enqueue_due_publish_stops()` finds due `stop_pending` states, enqueues `gateway.command.stop_publish`, and resets state to `idle`.
-7. `room_finished` still immediately enqueues `stop_publish` and resets state to `idle`.
+7. If `ENABLE_MAINTENANCE_SCHEDULER=false`, the same zero-viewer leave event immediately enqueues `gateway.command.stop_publish` and resets state to `idle`.
+8. `room_finished` still immediately enqueues `stop_publish` and resets state to `idle`.
 
 ### Key design decisions
 
-- The grace timer is deterministic and testable; production scheduler/cron wiring remains a separate milestone.
+- The grace timer is deterministic and testable when the scheduler is enabled.
+- Scheduler-disabled deployments fail closed with immediate stop delivery to avoid stale gateway publishers.
 - The SQLAlchemy model is added for app/test behavior; Alembic migration remains DB-owner coordination unless explicitly requested.
 - Stop scheduling writes `livekit.publish.stop_scheduled`.
 - Stop cancellation writes `livekit.publish.stop_cancelled`.
@@ -3782,6 +3784,34 @@ Implementation files:
 
 Verification:
 - `python -m pytest tests/test_alerts.py -v` (29 passed)
+
+---
+
+## Branded HTML Alert Emails and Access-Request Rate Limits
+
+Alert emails now include an optional `text/html` alternative alongside the existing plain-text body. `send_alert_email()` keeps backward-compatible plain-text-only behavior when `html_body` is omitted, while alert notifications pass a branded inline-style HTML renderer that escapes displayed alert fields and excludes alert metadata.
+
+Public visitor access requests now use dedicated rate-limit settings instead of sharing the visitor telemetry collector budget:
+
+```text
+RATE_LIMIT_ACCESS_REQUEST_MAX=5
+RATE_LIMIT_ACCESS_REQUEST_WINDOW=60
+```
+
+The existing public access-request limiter still checks both client IP and normalized email. This allows production operators to tune human form submissions separately from `/api/v1/visitor/collect` telemetry without changing schema or frontend code.
+
+Implementation files:
+- `apps/api/src/cctv_api/integrations/email_alerts.py`
+- `apps/api/src/cctv_api/security/alerts.py`
+- `apps/api/src/cctv_api/core/config.py`
+- `apps/api/src/cctv_api/api/visitors.py`
+- `apps/api/tests/test_alerts.py`
+- `apps/api/tests/test_visitor_collector.py`
+
+Verification:
+- `python -m pytest tests/test_alerts.py tests/test_visitor_collector.py -q`
+- `python -m ruff check src/cctv_api/integrations/email_alerts.py src/cctv_api/security/alerts.py src/cctv_api/core/config.py src/cctv_api/api/visitors.py tests/test_alerts.py tests/test_visitor_collector.py`
+- `python -m mypy src/cctv_api/integrations/email_alerts.py src/cctv_api/security/alerts.py src/cctv_api/core/config.py src/cctv_api/api/visitors.py --ignore-missing-imports`
 
 ---
 

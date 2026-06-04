@@ -38,7 +38,9 @@ Latest full-stack integration commits:
 
 ## Current Objective
 
-Maintain the combined backend/frontend integration branch as the production-candidate review branch. Production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Successful `/entry` Continue collection now creates a high-severity backend alert/email to active admins, and selected intrusion/abuse audit events promote into alert records through the existing Resend pipeline. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The encrypted R2 backup path, isolated restore drill, scheduled GitHub Actions backup workflow, and retention job are implemented, and the production backup workflow has succeeded. Gateway Discovery V2 backend/edge-agent work is implemented and active on `main`, and production Neon is migrated to `0012_gateway_discovery_runs`. Production edge heartbeats now require gateway auth plus Cloudflare Access service-token headers, and the edge agent sends a stable `Panoptix-Edge-Agent/<version>` user agent for Cloudflare-protected traffic. The remaining product gates are real CCTV hardware validation. Five major frontend features — alerts page real API wiring, actor investigation UI, admin visitor investigation UI, real LiveKit subscriber playback (via `@livekit/components-react`), and full audit filter UI — are now implemented.
+Current correction: production is migrated through `0013_visitor_access_requests`, and public visitor access requests are admin-reviewed, user/viewer-only, and directly reachable at `/entry?mode=request-access` for visitors who already clicked Continue to secure sign-in.
+
+Maintain the combined backend/frontend integration branch as the production-candidate review branch. Production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Successful `/entry` Continue collection now creates a high-severity backend alert/email to active admins, and selected intrusion/abuse audit events promote into alert records through the existing Resend pipeline. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The encrypted R2 backup path, isolated restore drill, scheduled GitHub Actions backup workflow, and retention job are implemented, and the production backup workflow has succeeded. Gateway Discovery V2 backend/edge-agent work is implemented and active on `main`, and production Neon is migrated to `0013_visitor_access_requests`. Production edge heartbeats now require gateway auth plus Cloudflare Access service-token headers, and the edge agent sends a stable `Panoptix-Edge-Agent/<version>` user agent for Cloudflare-protected traffic. The `Tailscale RTSP Camera` production hardware pilot passed on 2026-06-02 through the DigitalOcean `dropletGateway`, and the gateway idle -> playback -> idle soak also passed after production redeploy to `cee14ad`. Remaining hardening is production-standard on-site gateway/VLAN rollout and break-glass hardware. Five major frontend features — alerts page real API wiring, actor investigation UI, admin visitor investigation UI, real LiveKit subscriber playback (via `@livekit/components-react`), and full audit filter UI — are now implemented.
 
 The system is Panoptix, a secure live-view CCTV web monitoring system with three planes:
 
@@ -48,7 +50,11 @@ The system is Panoptix, a secure live-view CCTV web monitoring system with three
 
 Permanent product constraint: browsers are viewers only. No browser, phone, or laptop camera publishing.
 
-Visitor access request workflow note: this change adds public `/entry` access requests backed by `visitor_access_requests`, with no automatic account creation and admin review/approval/rejection in Users & Access through the existing GitHub org invite path. Before production use, deploy migration `0013_visitor_access_requests` and add only the narrow public `POST /api/v1/visitor/access-requests` Cloudflare exception.
+Visitor access request workflow note: public `/entry` access requests are live in production behind `visitor_access_requests`, with no automatic account creation and admin review/approval/rejection in Users & Access through the existing GitHub org invite path. Production smoke on 2026-06-01 confirmed `main` through `a97f608`, migration `0013_visitor_access_requests` is applied, the deployed `/entry` frontend bundle (`index-rnUVZVC1.js`) contains the request-access UI/API call and `/entry?mode=request-access#request-access` return link, and the narrow Cloudflare public `POST /api/v1/visitor/access-requests` exception is active. Public create returned `201 pending`, duplicate submit returned `409 access-request-already-pending`, admin reject cleared the first pending smoke request, and a manual public payload attempting `requested_role: "admin"` was stored as `requested_role: "viewer"` in production. Final access-request smoke confirmed approval sends/records a GitHub org invite as viewer, disabled-user approval returns `409 user-disabled`, the disabled local user remains disabled, no invite metadata is written on the denied request, and smoke pending requests were cleaned up. Full 10-sidebar-page authenticated production browser smoke also passed: all sidebar pages loaded, no unexpected `404`/`500`/`502` appeared, transient `401` bootstrap calls recovered, console output was browser-extension/content-script noise only, and `localStorage`/`sessionStorage` contained no sensitive token material.
+
+Real camera pilot note: On 2026-06-02, `Tailscale RTSP Camera` streamed successfully in production Panoptix through the DigitalOcean `dropletGateway`. The droplet runs `panoptix-edge-agent.service` as the always-on one-month pilot gateway; systemd validation showed the service active, one edge-agent supervisor, `ffmpeg` only while an active stream tunnel is open, and no repeated post-restart stale-session errors. RTSP remains on Tailscale/private networking; the browser receives short-lived viewer tokens and subscribes to LiveKit only. No browser camera/mic prompt or browser media publishing was observed, and no RTSP URL, gateway token, Cloudflare token, or LiveKit secret should be stored in browser storage, docs, screenshots, or chat.
+
+DigitalOcean soak note: the 2026-06-02 idle -> playback -> idle evidence pass succeeded after production redeploy to commit `cee14ad`. SSH with the local `panoptix_do` key reached the Tailscale-routed DigitalOcean gateway as `root`; no env files, tokens, RTSP URLs, or service secrets were read. Idle evidence showed `panoptix-edge-agent.service` active, `NRestarts=0`, `ExecMainPID=46735`, start time `2026-06-02 06:48:43 UTC`, exactly one edge-agent supervisor process, and no idle `ffmpeg`. During production playback, one `ffmpeg` child (`PID 50457`, parent `46735`) appeared under the supervisor and the RTSP URL remained redacted in written evidence. After closing playback and waiting briefly, only supervisor `46735` remained and `ffmpeg` had exited. Browser smoke stayed subscriber-only with no camera/mic permission prompt; `localStorage` contained only `panoptix-theme=dark`, `sessionStorage` was empty, and no RTSP URL, gateway token, Cloudflare secret, LiveKit secret, or auth token was exposed in browser storage.
 
 V380ProQ16S queue note: validate whether the V380 Pro camera exposes local RTSP/ONVIF or only vendor-cloud/P2P access. If local RTSP/ONVIF is unavailable, plan for an always-on gateway on the camera LAN or a deliberate vendor-cloud integration decision. Do not store vendor-cloud credentials, credentialed RTSP URLs, or service tokens in docs, screenshots, frontend code, or browser storage.
 
@@ -125,8 +131,9 @@ Current implemented code is in `apps/cctv-edge/agent/`:
 
 Remaining edge/camera gaps:
 
-- real CCTV hardware validation is still pending
-- production service deployment is still pending
+- Tailscale RTSP Camera pilot passed through the DigitalOcean `dropletGateway`
+- `panoptix-edge-agent.service` is the active systemd owner for the one-month pilot gateway
+- production-standard on-site gateway/VLAN rollout remains future hardening
 - mediamtx runtime generation remains future hardening
 
 ### Media Plane
@@ -153,9 +160,10 @@ Current state:
 - local same-origin smoke has passed through the Vite proxy for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health
 - local camera modal viewer-token smoke passed with `admin-smoke@example.test` assigned to an existing synthetic camera; the modal called `/api/v1/cameras/{camera_id}/view-token`, connected as a LiveKit subscriber, made no browser media capture calls, and persisted no token material beyond the theme preference
 - production viewer-token smoke passed on 2026-05-31 after PR #20 deployed: `ivanliao41` was granted access to existing smoke cameras, `/api/v1/cameras/{camera_id}/view-token` returned `200` with `camera_id`, `room`, `livekit_url`, `token`, and `expires_at`, the UI showed `Token ready`, no `500` occurred, and no camera/mic prompt or browser publishing behavior was observed; do not publish token screenshots
-- full 10-sidebar-page production browser smoke at `panoptix.site` is still pending; the current deployed production modal still shows token-only copy (`LiveKit player not wired yet`) even though subscriber playback exists in the integration branch
+- PR #21 deployed the subscriber-playback frontend bundle to production on 2026-05-31; public asset checks show `index-DudfvjqN.js` is live and the old `LiveKit player not wired yet` copy is absent from the deployed bundle
+- full 10-sidebar-page authenticated production browser smoke at `panoptix.site` passed on 2026-06-01; all sidebar pages loaded with no unexpected `404`/`500`/`502`, only transient recovered `401` bootstrap calls, browser-extension console noise, and no sensitive token material in `localStorage`/`sessionStorage`
 - local API configuration uses `apps/api/.env`, which is ignored by Git; do not commit database URLs, audit keys, LiveKit keys, GitHub tokens, R2 secrets, or gateway service tokens
-- production backend migration state is at Alembic head `0012_gateway_discovery_runs`
+- production backend migration state is at Alembic head `0013_visitor_access_requests`
 - `github-invites-not-configured` is expected locally while `GITHUB_INVITES_ENABLED=false`
 - one-time gateway service tokens must never be screenshotted or committed; the exposed local test gateway named `what` was disabled during smoke cleanup
 
@@ -176,7 +184,7 @@ Latest full-stack integration commits:
 
 ## Current Objective
 
-Maintain the combined backend/frontend integration branch as the production-candidate review branch. Production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Successful `/entry` Continue collection now creates a high-severity backend alert/email to active admins, and selected intrusion/abuse audit events promote into alert records through the existing Resend pipeline. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The encrypted R2 backup path, isolated restore drill, scheduled GitHub Actions backup workflow, and retention job are implemented, and the production backup workflow has succeeded. Gateway Discovery V2 backend/edge-agent work is implemented and active on `main`, and production Neon is migrated to `0012_gateway_discovery_runs`. Production edge heartbeats now require gateway auth plus Cloudflare Access service-token headers, and the edge agent sends a stable `Panoptix-Edge-Agent/<version>` user agent for Cloudflare-protected traffic. The remaining product gates are real CCTV hardware validation. Five major frontend features — alerts page real API wiring, actor investigation UI, admin visitor investigation UI, real LiveKit subscriber playback (via `@livekit/components-react`), and full audit filter UI — are now implemented.
+Maintain the combined backend/frontend integration branch as the production-candidate review branch. Production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Successful `/entry` Continue collection now creates a high-severity backend alert/email to active admins, and selected intrusion/abuse audit events promote into alert records through the existing Resend pipeline. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The encrypted R2 backup path, isolated restore drill, scheduled GitHub Actions backup workflow, and retention job are implemented, and the production backup workflow has succeeded. Gateway Discovery V2 backend/edge-agent work is implemented and active on `main`, and production Neon is migrated to `0013_visitor_access_requests`. Production edge heartbeats now require gateway auth plus Cloudflare Access service-token headers, and the edge agent sends a stable `Panoptix-Edge-Agent/<version>` user agent for Cloudflare-protected traffic. The `Tailscale RTSP Camera` production hardware pilot passed on 2026-06-02 through the DigitalOcean `dropletGateway`, and the gateway idle -> playback -> idle soak also passed after production redeploy to `cee14ad`; remaining hardening is production-standard on-site gateway/VLAN rollout. Five major frontend features — alerts page real API wiring, actor investigation UI, admin visitor investigation UI, real LiveKit subscriber playback (via `@livekit/components-react`), and full audit filter UI — are now implemented.
 
 The system is Panoptix, a secure live-view CCTV web monitoring system with three planes:
 
@@ -259,8 +267,9 @@ Current implemented code is in `apps/cctv-edge/agent/`:
 
 Remaining edge/camera gaps:
 
-- real CCTV hardware validation is still pending
-- production service deployment is still pending
+- Tailscale RTSP Camera pilot passed through the DigitalOcean `dropletGateway`
+- `panoptix-edge-agent.service` is the active systemd owner for the one-month pilot gateway
+- production-standard on-site gateway/VLAN rollout remains future hardening
 - mediamtx runtime generation remains future hardening
 - gateway local network discovery is planned core pilot scope only; no scanner/API/UI exists yet, and any future implementation must run only on the on-site gateway against approved camera VLAN/subnet ranges
 
@@ -288,9 +297,10 @@ Current state:
 - local same-origin smoke has passed through the Vite proxy for dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health
 - local camera modal viewer-token smoke passed with `admin-smoke@example.test` assigned to an existing synthetic camera; the modal called `/api/v1/cameras/{camera_id}/view-token`, connected as a LiveKit subscriber, made no browser media capture calls, and persisted no token material beyond the theme preference
 - production viewer-token smoke passed on 2026-05-31 after PR #20 deployed: `ivanliao41` was granted access to existing smoke cameras, `/api/v1/cameras/{camera_id}/view-token` returned `200` with `camera_id`, `room`, `livekit_url`, `token`, and `expires_at`, the UI showed `Token ready`, no `500` occurred, and no camera/mic prompt or browser publishing behavior was observed; do not publish token screenshots
-- full 10-sidebar-page production browser smoke at `panoptix.site` is still pending; the current deployed production modal still shows token-only copy (`LiveKit player not wired yet`) even though subscriber playback exists in the integration branch
+- PR #21 deployed the subscriber-playback frontend bundle to production on 2026-05-31; public asset checks show `index-DudfvjqN.js` is live and the old `LiveKit player not wired yet` copy is absent from the deployed bundle
+- full 10-sidebar-page authenticated production browser smoke at `panoptix.site` passed on 2026-06-01; all sidebar pages loaded with no unexpected `404`/`500`/`502`, only transient recovered `401` bootstrap calls, browser-extension console noise, and no sensitive token material in `localStorage`/`sessionStorage`
 - local API configuration uses `apps/api/.env`, which is ignored by Git; do not commit database URLs, audit keys, LiveKit keys, GitHub tokens, R2 secrets, or gateway service tokens
-- production backend migration state is at Alembic head `0012_gateway_discovery_runs`
+- production backend migration state is at Alembic head `0013_visitor_access_requests`
 - `github-invites-not-configured` is expected locally while `GITHUB_INVITES_ENABLED=false`
 - one-time gateway service tokens must never be screenshotted or committed; the exposed local test gateway named `what` was disabled during smoke cleanup
 - camera modal requests a short-lived viewer token and real LiveKit subscriber playback is implemented using `@livekit/components-react`
@@ -330,9 +340,9 @@ Completed in this milestone:
 
 - **Same-domain entry**: `https://panoptix.site/entry` is operational on the existing frontend service.
 - **First-visit redirect**: Cloudflare redirects `https://panoptix.site/` to `/entry` only when the signed `panoptix_visitor` cookie is absent. Returning visitors go directly to the protected app/Access flow.
-- **Public bypass scope**: Only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect` bypass Cloudflare Access.
+- **Public bypass scope**: Only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, `/api/v1/visitor/collect`, and `POST /api/v1/visitor/access-requests` bypass Cloudflare Access.
 - **Protected scope**: `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` remain protected. Never make broad `/api/v1/*` public.
-- **Backend collector**: Visitor notice/collect APIs, `0010_visitor_visits`, `0011_visitor_expanded_signals`, signed visitor cookie correlation, admin visitor visit list/detail APIs, and maintenance retention cleanup are implemented. Production is now migrated through `0012_gateway_discovery_runs`.
+- **Backend collector**: Visitor notice/collect APIs, `0010_visitor_visits`, `0011_visitor_expanded_signals`, signed visitor cookie correlation, admin visitor visit list/detail APIs, user/viewer-only access request APIs, and maintenance retention cleanup are implemented. Production is now migrated through `0013_visitor_access_requests`.
 - **Expanded signal boundary**: `/entry` collection starts only after explicit Continue and stores approved browser/network/WebRTC summary signals. Raw WebRTC SDP/candidate strings, raw Ipregistry payloads, reverse geocoding, coordinates, canvas/audio/WebGL/font fingerprints, and broad fingerprint dumps remain out of scope.
 - **Frontend handoff**: Admin visitor investigation UI is still coworker-owned frontend work; backend responses now expose `ip_details`, `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, `risk_context`, and login correlation fields for that future UI.
 - **Production smoke**: Admin visitor list/detail API smoke passed on 2026-05-24 with expanded sections present.
@@ -1973,24 +1983,24 @@ compileall: passed
 Recommended next task:
 
 ```text
-Real Gateway Host And Camera LAN Validation
+Current DigitalOcean Pilot Monitoring
 ```
 
-The production backup workflow has passed and the Gateway Discovery V2 backend/edge-agent path is implemented and active on `main`. Next, package/deploy the visitor access request workflow, then install/configure the edge agent on the real gateway host, keep the raw gateway service token and Cloudflare Access client secret only on that host, validate heartbeat through `panoptix.site`, and run discovery only after the isolated private camera LAN/VLAN exists. Track V380 Pro / V380ProQ16S internet-camera feasibility separately; do not store vendor-cloud credentials, RTSP URLs with credentials, or service tokens in docs, screenshots, frontend code, or browser storage.
+The production backup workflow, visitor access request workflow, full production sidebar browser smoke, Gateway Discovery V2 backend/edge-agent path, Tailscale RTSP real-camera pilot, and DigitalOcean gateway stability soak have passed or are implemented on `main`. Because production-standard on-site gateway/VLAN rollout is paused until hardware/site access exists, the current no-hardware task is DigitalOcean pilot monitoring: keep production health checks active, watch admin deep health/gateway heartbeat recency, and treat stale gateway heartbeat, repeated gateway WebSocket reconnect failures, or idle `ffmpeg` on the DigitalOcean host as actionable. 2026-06-02 software operations review found the latest API-visible scheduled `Production Health Check` run `26816176702` successful, latest scheduled `Production Backup` run `26783867468` successful, no open workflow-created health/backup failure issues, and the gateway idle-clean at `2026-06-02T13:19:04Z`. Track V380 Pro / V380ProQ16S internet-camera feasibility separately; do not store vendor-cloud credentials, RTSP URLs with credentials, or service tokens in docs, screenshots, frontend code, or browser storage.
 
 **Note**: Production is already live at `panoptix.site`; the old staging-gate/procurement wording below is historical context only. Do not restore into production Neon. Keep private `age` identities outside Railway and outside the repo. Do not put gateway service tokens, Cloudflare Access service-token secrets, LiveKit API secrets, ingest tokens, RTSP URLs, R2 keys, DB URLs, or backend-only credentials in frontend code, docs, screenshots, or repository files.
 
 ## Not Implemented Yet
 
-- real camera onboarding (credential file exists, needs real hardware + LiveKit Cloud)
+- additional camera/site onboarding beyond the Tailscale RTSP pilot
 - Gateway Discovery UI is optional future frontend work only; backend/edge discovery exists, but no frontend discovery UI is required unless Ivan explicitly reassigns it
-- production Docker/systemd gateway supervision (runbook templates exist)
+- production-standard on-site gateway/VLAN rollout for future camera sites
 - Google Workspace IdP setup (GitHub OAuth currently deployed)
 - WARP device posture production activation (checklist done in `cloudflare-production-setup.md`)
 
-**Now completed (previously listed here):** real LiveKit browser subscriber playback (via `@livekit/components-react`), Alerts page wiring to real backend alert APIs, actor investigation UI, admin visitor investigation UI, and full audit filter UI.
+**Now completed (previously listed here):** real LiveKit browser subscriber playback (via `@livekit/components-react`), Alerts page wiring to real backend alert APIs, actor investigation UI, admin visitor investigation UI, full audit filter UI, Tailscale RTSP real-camera pilot playback, and DigitalOcean gateway systemd supervision.
 
-The proven backup/restore path, scheduled backup automation, retention code, Gateway Discovery V2, and production migration `0012_gateway_discovery_runs` are complete. Hardware validation and production gateway service installation remain.
+The proven backup/restore path, scheduled backup automation, retention code, Gateway Discovery V2, production migration `0013_visitor_access_requests`, Tailscale RTSP pilot hardware validation, and DigitalOcean `panoptix-edge-agent.service` installation are complete. Longer-term on-site/VLAN hardening remains.
 
 ## 7-Day Staging Gate
 
@@ -2001,14 +2011,15 @@ The production deploy workflow is at `.github/workflows/deploy-production.yml`.
 
 ## External Accounts Status
 
-Current production note: `panoptix.site` is live behind Cloudflare Access with GitHub OAuth. Railway production backend/frontend services are deployed, Neon production is migrated through `0012_gateway_discovery_runs`, Cloudflare R2 holds encrypted backup evidence with public access disabled, and the GitHub Actions production backup/retention workflow has succeeded. Gateway host traffic through Cloudflare Access uses a Cloudflare Access service token plus the Panoptix gateway service token; raw values must stay only on the gateway host.
+Current production note: `panoptix.site` is live behind Cloudflare Access with GitHub OAuth. Railway production backend/frontend services are deployed, Neon production is migrated through `0013_visitor_access_requests`, Cloudflare R2 holds encrypted backup evidence with public access disabled, and the GitHub Actions production backup/retention workflow has succeeded. Gateway host traffic through Cloudflare Access uses a Cloudflare Access service token plus the Panoptix gateway service token; raw values must stay only on the gateway host.
 
 ### Active
 - **Cloudflare** - `panoptix.site` domain active, Zero Trust org `panoptix-netad`, GitHub OAuth IdP, Access application for `panoptix.site`, and Cloudflare Access service token for gateway host traffic
 - **Railway** - `panoptix-control` production backend service and frontend service behind `panoptix.site`
-- **Neon** - production database migrated through `0012_gateway_discovery_runs`
+- **Neon** - production database migrated through `0013_visitor_access_requests`
 - **Cloudflare R2** - `panoptix-backups` bucket holds encrypted production backup evidence; public access disabled
 - **GitHub Actions** - production backup workflow and retention job have succeeded
+- **DigitalOcean** - temporary one-month `dropletGateway` runs `panoptix-edge-agent.service` for the Tailscale RTSP camera pilot
 
 ### Not Yet Required
 - Google Workspace
@@ -2380,7 +2391,7 @@ Important local checks currently include:
 ## Suggested Prompt For The New IDE/LLM
 
 ```text
-Read HANDOFF.md and follow its instructions. Then read PROGRESS.md, IMPLEMENTATION_GUIDE.md, MANUAL_TESTING.md, README.md, CLAUDE.md, docs/runbooks/backup-restore.md, docs/frontend/FRONTEND_HANDOFF.md, docs/implementation/api-reference.md, and the source files related to the next milestone. Confirm the current state and development rules before making changes. Current production facts: panoptix.site is live, /entry works, expanded visitor detail APIs work, encrypted R2 backup evidence exists, isolated restore-drill evidence row 564e2bfd-b449-4c9f-b46d-a0366856a7e0 passed, backup status is ok, the temporary Neon restore branch was deleted, production backup workflow/retention has succeeded, Gateway Discovery V2 backend/edge work exists and is active on main, production is migrated through 0012_gateway_discovery_runs, and edge-agent production heartbeat uses gateway auth plus Cloudflare Access service-token headers with a stable Panoptix-Edge-Agent user agent. The next recommended system-owner milestone is real gateway host and camera LAN/VLAN validation. Do not take coworker-owned frontend tasks unless explicitly reassigned; Gateway Discovery UI is optional future frontend work only unless Ivan reassigns it.
+Read HANDOFF.md and follow its instructions. Then read PROGRESS.md, IMPLEMENTATION_GUIDE.md, MANUAL_TESTING.md, README.md, CLAUDE.md, docs/runbooks/backup-restore.md, docs/frontend/FRONTEND_HANDOFF.md, docs/implementation/api-reference.md, and the source files related to the next milestone. Confirm the current state and development rules before making changes. Current production facts: panoptix.site is live, /entry works, expanded visitor detail APIs work, encrypted R2 backup evidence exists, isolated restore-drill evidence row 564e2bfd-b449-4c9f-b46d-a0366856a7e0 passed, backup status is ok, the temporary Neon restore branch was deleted, production backup workflow/retention has succeeded, latest API-visible scheduled production health and backup workflow runs are successful, no open health/backup failure issues exist, Gateway Discovery V2 backend/edge work exists and is active on main, production is migrated through 0013_visitor_access_requests, edge-agent production heartbeat uses gateway auth plus Cloudflare Access service-token headers with a stable Panoptix-Edge-Agent user agent, the Tailscale RTSP Camera pilot streamed successfully through the DigitalOcean `dropletGateway`, and the DigitalOcean gateway idle -> playback -> idle soak passed after production redeploy to `cee14ad`. Production-standard on-site gateway/VLAN planning is paused until hardware/site access exists; the next no-hardware system-owner milestone is current DigitalOcean pilot monitoring. Do not take coworker-owned frontend tasks unless explicitly reassigned; Gateway Discovery UI is optional future frontend work only unless Ivan reassigns it.
 ```
 
 ## Final Notes

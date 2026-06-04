@@ -17,6 +17,7 @@ from cctv_api.gateway.models import GatewayCommandAck, GatewayCommandEnvelope
 from cctv_api.main import create_app
 from cctv_api.models.enums import CameraEventKind, CameraSourceType, EventSource, GatewayStatus
 from cctv_api.models.tables import AuditLog, Camera, CameraAcl, CameraEvent, EdgeGateway, GatewayCameraAssignment, User
+from cctv_api.security.service_tokens import generate_service_token, hash_service_token
 
 
 SIGNING_KEY = "test-command-signing-key-with-enough-entropy"
@@ -30,6 +31,8 @@ def _dev_gateway_client(*, signing_key: str = "replace-me") -> TestClient:
             GATEWAY_COMMAND_SIGNING_KEY=signing_key,
         )
     )
+    app.state.gateway_control_command_provider = lambda gateway_id: []
+    app.state.gateway_control_ack_sink = lambda gateway_id, ack: None
     return TestClient(app)
 
 
@@ -48,11 +51,20 @@ def _dev_gateway_client_with_db(test_db_session: DbSession, *, signing_key: str 
         return test_db_session
 
     app.dependency_overrides[db_session] = _override_db
+    app.state.gateway_control_command_provider = lambda gateway_id: []
+    app.state.gateway_control_ack_sink = lambda gateway_id, ack: None
     return TestClient(app)
 
 
 def _gateway_headers(gateway_id: str = "gateway-1") -> dict[str, str]:
     return {"x-panoptix-dev-gateway-id": gateway_id}
+
+
+def _gateway_token_headers(gateway_id: uuid.UUID | str, token: str) -> dict[str, str]:
+    return {
+        "x-panoptix-gateway-id": str(gateway_id),
+        "authorization": f"Bearer {token}",
+    }
 
 
 def _viewer_headers() -> dict[str, str]:
@@ -64,8 +76,20 @@ def _viewer_headers() -> dict[str, str]:
     }
 
 
-def _seed_gateway(db: DbSession, *, status: GatewayStatus = GatewayStatus.enabled) -> EdgeGateway:
-    gateway = EdgeGateway(id=uuid.uuid4(), name="Test Gateway", status=status)
+def _seed_gateway(
+    db: DbSession,
+    *,
+    status: GatewayStatus = GatewayStatus.enabled,
+    disabled_at: datetime | None = None,
+    service_token_hash: str | None = None,
+) -> EdgeGateway:
+    gateway = EdgeGateway(
+        id=uuid.uuid4(),
+        name="Test Gateway",
+        status=status,
+        disabled_at=disabled_at,
+        service_token_hash=service_token_hash,
+    )
     db.add(gateway)
     db.commit()
     db.refresh(gateway)
@@ -585,6 +609,72 @@ def test_gateway_control_ws_accepts_valid_gateway_and_sends_hello() -> None:
     ) as ws:
         hello = ws.receive_json()
         assert hello == {"type": "connected", "gateway_id": "gateway-1"}
+
+
+def test_gateway_control_ws_accepts_valid_service_token_gateway(test_db_session: DbSession) -> None:
+    token = generate_service_token()
+    gateway = _seed_gateway(test_db_session, service_token_hash=hash_service_token(token))
+    client = _dev_gateway_client_with_db(test_db_session)
+
+    with client.websocket_connect(
+        "/api/v1/gateway-control/ws",
+        headers=_gateway_token_headers(gateway.id, token),
+    ) as ws:
+        assert ws.receive_json() == {"type": "connected", "gateway_id": str(gateway.id)}
+
+
+def test_gateway_control_ws_rejects_missing_service_token(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(
+        test_db_session,
+        service_token_hash=hash_service_token(generate_service_token()),
+    )
+    client = _dev_gateway_client_with_db(test_db_session)
+
+    with pytest.raises(WebSocketDisconnect) as exc_info:
+        with client.websocket_connect(
+            "/api/v1/gateway-control/ws",
+            headers={"x-panoptix-gateway-id": str(gateway.id)},
+        ):
+            pass
+
+    assert exc_info.value.code == 1008
+
+
+def test_gateway_control_ws_rejects_wrong_service_token(test_db_session: DbSession) -> None:
+    gateway = _seed_gateway(
+        test_db_session,
+        service_token_hash=hash_service_token(generate_service_token()),
+    )
+    client = _dev_gateway_client_with_db(test_db_session)
+
+    with pytest.raises(WebSocketDisconnect) as exc_info:
+        with client.websocket_connect(
+            "/api/v1/gateway-control/ws",
+            headers=_gateway_token_headers(gateway.id, generate_service_token()),
+        ):
+            pass
+
+    assert exc_info.value.code == 1008
+
+
+def test_gateway_control_ws_rejects_disabled_gateway(test_db_session: DbSession) -> None:
+    token = generate_service_token()
+    gateway = _seed_gateway(
+        test_db_session,
+        status=GatewayStatus.disabled,
+        disabled_at=datetime.now(timezone.utc),
+        service_token_hash=hash_service_token(token),
+    )
+    client = _dev_gateway_client_with_db(test_db_session)
+
+    with pytest.raises(WebSocketDisconnect) as exc_info:
+        with client.websocket_connect(
+            "/api/v1/gateway-control/ws",
+            headers=_gateway_token_headers(gateway.id, token),
+        ):
+            pass
+
+    assert exc_info.value.code == 1008
 
 
 def test_gateway_control_ws_sends_signed_command_from_app_state_provider() -> None:

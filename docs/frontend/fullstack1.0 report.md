@@ -180,7 +180,7 @@ This report documents the results of a comprehensive audit of the Panoptix front
 
 ## 📋 Remaining Work
 
-1. ~~**LiveKit Player Integration**~~ — ✅ Done. CameraDetailModal now renders a real LiveKit subscriber-only viewer using `@livekit/components-react@^2.9.21` and `livekit-client@^2.19.1`. Production validation with real cameras is pending.
+1. ~~**LiveKit Player Integration**~~ — ✅ Done. CameraDetailModal now renders a real LiveKit subscriber-only viewer using `@livekit/components-react@^2.9.21` and `livekit-client@^2.19.1`. Production Tailscale RTSP Camera playback pilot passed on 2026-06-02 through DigitalOcean `dropletGateway`; rerun for new camera/gateway deployments.
 2. **Sites Listing Backend** — Confirm `GET /admin/sites` is available for bystander signage attestation. Frontend call is currently commented out.
 3. **Smoke Test** — Run all POST/PATCH/DELETE actions against a live backend to verify CSRF headers and response shapes.
 4. **Camera Event Streaming** — The AlertsPanel can consume `CameraEvent[]` but no WebSocket/SSE connection is wired yet for real-time events.

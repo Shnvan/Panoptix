@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -10,11 +10,11 @@ from sqlalchemy.orm import Session as DbSession
 
 from cctv_api.core.config import Settings
 from cctv_api.db import db_session
-from cctv_api.integrations.email_alerts import AlertEmailSendError
+from cctv_api.integrations.email_alerts import AlertEmailSendError, send_alert_email
 from cctv_api.main import create_app
 from cctv_api.models.enums import ActorType, AlertCategory, AlertNotificationStatus, AlertSeverity, AlertStatus, GatewayStatus
 from cctv_api.models.tables import Alert, AlertNotification, AuditLog, BackupRun, EdgeGateway, Role, User, UserRole
-from cctv_api.security.alerts import create_alert, detect_alert_from_audit_event
+from cctv_api.security.alerts import _email_body, _email_html_body, create_alert, detect_alert_from_audit_event
 from cctv_api.security.audit import record_audit_event
 
 
@@ -571,3 +571,204 @@ def test_email_secret_not_exposed_in_alert_response_or_audit(test_db_session: Db
     joined += str(test_db_session.execute(select(AlertNotification)).scalar_one().error)
     joined += str([row.payload for row in test_db_session.execute(select(AuditLog)).scalars().all()])
     assert secret not in joined
+
+    # Neither email renderer may leak secrets — metadata_json is not rendered by body functions
+    text_render = _email_body(alert)
+    html_render = _email_html_body(alert)
+    assert secret not in text_render
+    assert secret not in html_render
+
+
+# ---------------------------------------------------------------------------
+# _make_alert: in-memory Alert factory for renderer unit tests (no DB needed)
+# ---------------------------------------------------------------------------
+
+
+def _make_alert(**overrides: object) -> Alert:
+    fields: dict[str, object] = {
+        "id": uuid.uuid4(),
+        "severity": AlertSeverity.high,
+        "category": AlertCategory.security,
+        "title": "Test alert title",
+        "message": "Test alert message.",
+        "status": AlertStatus.open,
+        "source": "test",
+        "resource": "camera:test-uuid",
+        "created_at": datetime(2026, 6, 4, 0, 0, 0, tzinfo=timezone.utc),
+    }
+    fields.update(overrides)
+    return Alert(**fields)
+
+
+# ---------------------------------------------------------------------------
+# MIME structure tests — verify multipart/alternative is built correctly
+# ---------------------------------------------------------------------------
+
+
+def test_email_sender_produces_multipart_alternative() -> None:
+    """send_alert_email with html_body must build a multipart/alternative message."""
+    from email.message import EmailMessage as _EM
+
+    settings = Settings(
+        APP_ENV="development",
+        ALLOW_DEV_AUTH=True,
+        AUDIT_HMAC_KEY_VERSION=1,
+        AUDIT_HMAC_KEY=_AUDIT_KEY,
+        ALERT_EMAIL_SMTP_HOST="smtp.example.test",
+        ALERT_EMAIL_FROM="alerts@example.test",
+        ALERT_EMAIL_USE_TLS=False,
+        ALERT_EMAIL_SMTP_USERNAME="",
+    )
+    captured: list[_EM] = []
+
+    class _FakeSMTP:
+        def __init__(self, *_a: object, **_k: object) -> None:
+            pass
+
+        def __enter__(self) -> "_FakeSMTP":
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            pass
+
+        def starttls(self, *_a: object, **_k: object) -> None:
+            pass
+
+        def login(self, *_a: object, **_k: object) -> None:
+            pass
+
+        def send_message(self, msg: _EM) -> None:
+            captured.append(msg)
+
+    with patch("smtplib.SMTP", _FakeSMTP):
+        send_alert_email(
+            settings,
+            recipient="test@example.test",
+            subject="[Panoptix HIGH] Test alert",
+            body="Plain text fallback",
+            html_body="<html><body><p>HTML body</p></body></html>",
+        )
+
+    assert len(captured) == 1
+    content_types = {part.get_content_type() for part in captured[0].walk()}
+    assert "text/plain" in content_types
+    assert "text/html" in content_types
+
+
+def test_email_sender_plain_only_without_html_body() -> None:
+    """send_alert_email without html_body must produce only text/plain (backward-compat)."""
+    from email.message import EmailMessage as _EM
+
+    settings = Settings(
+        APP_ENV="development",
+        ALLOW_DEV_AUTH=True,
+        AUDIT_HMAC_KEY_VERSION=1,
+        AUDIT_HMAC_KEY=_AUDIT_KEY,
+        ALERT_EMAIL_SMTP_HOST="smtp.example.test",
+        ALERT_EMAIL_FROM="alerts@example.test",
+        ALERT_EMAIL_USE_TLS=False,
+        ALERT_EMAIL_SMTP_USERNAME="",
+    )
+    captured: list[_EM] = []
+
+    class _FakeSMTP:
+        def __init__(self, *_a: object, **_k: object) -> None:
+            pass
+
+        def __enter__(self) -> "_FakeSMTP":
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            pass
+
+        def starttls(self, *_a: object, **_k: object) -> None:
+            pass
+
+        def login(self, *_a: object, **_k: object) -> None:
+            pass
+
+        def send_message(self, msg: _EM) -> None:
+            captured.append(msg)
+
+    with patch("smtplib.SMTP", _FakeSMTP):
+        send_alert_email(
+            settings,
+            recipient="test@example.test",
+            subject="[Panoptix HIGH] Test alert",
+            body="Plain text only",
+        )
+
+    assert len(captured) == 1
+    content_types = {part.get_content_type() for part in captured[0].walk()}
+    assert "text/plain" in content_types
+    assert "text/html" not in content_types
+
+
+# ---------------------------------------------------------------------------
+# HTML renderer unit tests — no DB, no SMTP
+# ---------------------------------------------------------------------------
+
+
+def test_html_body_contains_required_sections() -> None:
+    """_email_html_body must include all required structural sections."""
+    alert = _make_alert()
+    body = _email_html_body(alert)
+
+    assert "Panoptix" in body
+    assert "Security Alert System" in body
+    assert "Test alert title" in body
+    assert "HIGH" in body
+    assert "security" in body
+    assert "open" in body
+    assert "Test alert message." in body
+    assert "camera:test-uuid" in body
+    assert "No secrets" in body
+
+
+def test_html_body_escapes_special_characters() -> None:
+    """_email_html_body must html-escape all user-controlled fields."""
+    alert = _make_alert(
+        title='<script>alert("xss")</script>',
+        message="Mismatch: count=1 &amp; status=ok",
+        resource="<resource-tag>",
+    )
+    body = _email_html_body(alert)
+
+    assert "<script>" not in body
+    assert "&lt;script&gt;" in body
+    assert "&lt;resource-tag&gt;" in body
+
+
+def test_html_body_renders_created_at_in_utc() -> None:
+    """_email_html_body must normalize aware non-UTC timestamps before labeling UTC."""
+    alert = _make_alert(
+        created_at=datetime(
+            2026,
+            6,
+            4,
+            8,
+            30,
+            0,
+            tzinfo=timezone(timedelta(hours=8)),
+        )
+    )
+    body = _email_html_body(alert)
+
+    assert "2026-06-04 00:30 UTC" in body
+    assert "2026-06-04 08:30 UTC" not in body
+
+
+def test_no_secret_in_text_or_html_body_renderers() -> None:
+    """Metadata_json is not rendered by body functions; no metadata secret can leak."""
+    secret = "renderer-secret-must-not-appear-in-body"
+    # Renderers expose only title/message/severity/category/status/resource, not metadata_json
+    alert = _make_alert(metadata_json={"password": secret, "token": secret})
+
+    text = _email_body(alert)
+    html_out = _email_html_body(alert)
+
+    assert secret not in text
+    assert secret not in html_out
+    # Both renderers must always include the no-secrets disclaimer
+    assert "No secrets" in text
+    assert "No secrets" in html_out

@@ -4,7 +4,7 @@ This folder contains docs owned by or primarily used by the frontend coworker.
 
 > **READ FIRST FOR CURRENT WORK**: Start with [Frontend Coworker Handoff](FRONTEND_HANDOFF.md). It contains the current backend state, read order, next frontend tasks, local run flow, and hard security guardrails.
 
-> **CURRENT FRONTEND SMOKE TARGET**: The active handoff task is the Visitor Access Request workflow: `/entry` request-access form plus Users & Access review/approve/reject panel. Production use waits for backend migration `0013_visitor_access_requests` and the narrow public `POST /api/v1/visitor/access-requests` Cloudflare exception.
+> **CURRENT FRONTEND SMOKE TARGET**: Visitor access request workflow and full sidebar smoke have passed. The Tailscale RTSP real-camera pilot also passed; current frontend work is verified production polish only unless Ivan reassigns a UI task.
 
 > **DESIGN RULES**: Before visual changes or UI redesign work, read [Panoptix Design System](PANOPTIX_DESIGN_SYSTEM.md). It defines the color philosophy, token values, and migration mapping that new and updated UI work should follow.
 

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -8,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from panoptix_edge_agent.client import AgentClientError, CameraStatusReport, GatewayApiClient
+from panoptix_edge_agent.command_execution import LoopBoundCommandExecutor, loop_bound_executor
 from panoptix_edge_agent.commands import (
     CommandVerificationError,
     GatewayCommand,
@@ -34,12 +34,13 @@ class HeartbeatRunner:
         config: AgentConfig,
         client: GatewayApiClient | None = None,
         sleep: Callable[[float], None] = time.sleep,
-        executor: CommandExecutor | None = None,
+        executor: CommandExecutor | LoopBoundCommandExecutor | None = None,
     ) -> None:
         self.config = config
         self.client = GatewayApiClient(config) if client is None else client
         self.sleep = sleep
-        self.executor = executor if executor is not None else CommandExecutor(StubMediaController())
+        raw_executor = executor if executor is not None else CommandExecutor(StubMediaController())
+        self.executor = loop_bound_executor(raw_executor)
 
     def run_once(self) -> HeartbeatResult:
         cameras = tuple(
@@ -92,7 +93,7 @@ class HeartbeatRunner:
                 rejected_commands += 1
                 errors.append(str(exc))
                 continue
-            exec_result = asyncio.run(self.executor.execute(command))
+            exec_result = self.executor.execute_blocking(command)
             if not exec_result.accepted:
                 rejected_commands += 1
                 errors.append(exec_result.error or "command-execution-failed")

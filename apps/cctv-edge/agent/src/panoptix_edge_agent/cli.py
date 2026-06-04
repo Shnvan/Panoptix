@@ -23,7 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--control-once",
         action="store_true",
-        help="connect to gateway control WebSocket, read one message, and exit",
+        help="connect to gateway control WebSocket, read hello plus one command if queued, and exit",
     )
     parser.add_argument(
         "--control-loop-once",
@@ -69,6 +69,7 @@ def main(argv: list[str] | None = None) -> int:
         check_credential_file_permissions,
         load_camera_credentials,
     )
+    from panoptix_edge_agent.command_execution import loop_bound_executor
     from panoptix_edge_agent.executor import CommandExecutor
     from panoptix_edge_agent.media_factory import build_media_controller
 
@@ -88,7 +89,9 @@ def main(argv: list[str] | None = None) -> int:
             f"(falling back to stub)",
             file=sys.stderr,
         )
-    executor = CommandExecutor(factory_result.controller, credential_store=credential_store)
+    executor = loop_bound_executor(
+        CommandExecutor(factory_result.controller, credential_store=credential_store)
+    )
 
     if args.supervise:
         return _run_supervisor(config, executor)

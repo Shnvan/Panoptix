@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import importlib
 import asyncio
-from collections.abc import AsyncIterator
+import inspect
+import logging
+from collections.abc import AsyncIterator, Awaitable
 from dataclasses import dataclass
 from typing import Literal, Protocol, cast
 from urllib.parse import urlsplit
 
 from panoptix_edge_agent.media import PublishResult, StopResult
+
+logger = logging.getLogger(__name__)
 
 
 class LiveKitPublisherError(ValueError):
@@ -101,7 +105,7 @@ class LiveKitLocalParticipant(Protocol):
 
 
 class LiveKitVideoSource(Protocol):
-    def capture_frame(self, frame: object, *, timestamp_us: int = 0) -> None:
+    def capture_frame(self, frame: object, *, timestamp_us: int = 0) -> object | Awaitable[object]:
         raise NotImplementedError
 
     async def aclose(self) -> None:
@@ -190,6 +194,9 @@ class NoopLiveKitMediaSession:
     async def stop(self) -> None:
         return None
 
+    def is_healthy(self) -> bool:
+        return True
+
 
 class LiveKitVideoTrackMediaSession:
     def __init__(
@@ -211,10 +218,18 @@ class LiveKitVideoTrackMediaSession:
         self.publication: object | None = None
         self.frame_task: asyncio.Task[None] | None = None
         self.frame_pump_error: str | None = None
+        self.room_disconnected = False
         self._stopped = False
 
     async def start(self) -> None:
         first_frame = await self._read_first_frame()
+        logger.info(
+            "livekit first frame read camera_id=%s room=%s width=%s height=%s",
+            self.request.camera_id,
+            self.request.room,
+            first_frame.width,
+            first_frame.height,
+        )
         self.video_source = self.rtc_module.VideoSource(first_frame.width, first_frame.height)
         self.track = self.rtc_module.LocalVideoTrack.create_video_track(
             self.track_name,
@@ -226,7 +241,12 @@ class LiveKitVideoTrackMediaSession:
                 self.track,
                 options,
             )
-            self._capture_frame(first_frame)
+            logger.info(
+                "livekit track published camera_id=%s room=%s",
+                self.request.camera_id,
+                self.request.room,
+            )
+            await self._capture_frame(first_frame)
             self.frame_task = asyncio.create_task(self._pump_frames())
         except Exception:
             await self._cleanup_after_start_failure()
@@ -235,7 +255,8 @@ class LiveKitVideoTrackMediaSession:
     async def stop(self) -> None:
         errors: list[BaseException] = []
         self._stopped = True
-        if self.frame_task is not None:
+        current_task = asyncio.current_task()
+        if self.frame_task is not None and self.frame_task is not current_task:
             self.frame_task.cancel()
             try:
                 await self.frame_task
@@ -244,6 +265,8 @@ class LiveKitVideoTrackMediaSession:
             except Exception as exc:
                 errors.append(exc)
             self.frame_task = None
+        elif self.frame_task is current_task:
+            self.frame_task = None
 
         track_sid = _publication_sid(self.publication)
         if track_sid is not None:
@@ -251,9 +274,11 @@ class LiveKitVideoTrackMediaSession:
                 await self.room.local_participant.unpublish_track(track_sid)
             except Exception as exc:
                 errors.append(exc)
+            self.publication = None
 
         try:
             await _safe_aclose(self.video_source)
+            self.video_source = None
         except Exception as exc:
             errors.append(exc)
         try:
@@ -279,13 +304,35 @@ class LiveKitVideoTrackMediaSession:
             async for frame in self.frame_source:
                 if self._stopped:
                     return
-                self._capture_frame(frame)
+                await self._capture_frame(frame)
+            if not self._stopped:
+                self.frame_pump_error = "livekit-frame-source-ended"
+                logger.warning(
+                    "livekit frame source ended camera_id=%s room=%s",
+                    self.request.camera_id,
+                    self.request.room,
+                )
+                await self._cleanup_after_frame_pump_failure(disconnect_room=True)
         except asyncio.CancelledError:
             raise
-        except Exception:
+        except Exception as exc:
             self.frame_pump_error = "livekit-frame-pump-failed"
+            logger.warning(
+                "livekit frame pump failed camera_id=%s room=%s error_type=%s",
+                self.request.camera_id,
+                self.request.room,
+                type(exc).__name__,
+            )
+            await self._cleanup_after_frame_pump_failure(disconnect_room=True)
 
-    def _capture_frame(self, frame: LiveKitVideoFrame) -> None:
+    def is_healthy(self) -> bool:
+        if self._stopped or self.frame_pump_error is not None:
+            return False
+        if self.frame_task is None:
+            return self.publication is not None
+        return not self.frame_task.done()
+
+    async def _capture_frame(self, frame: LiveKitVideoFrame) -> None:
         if self.video_source is None:
             raise LiveKitPublisherError("video source is not initialized")
         frame.validate()
@@ -295,11 +342,37 @@ class LiveKitVideoTrackMediaSession:
             type=_video_buffer_type_rgba(self.rtc_module),
             data=frame.data,
         )
-        self.video_source.capture_frame(sdk_frame, timestamp_us=frame.timestamp_us)
+        result = self.video_source.capture_frame(sdk_frame, timestamp_us=frame.timestamp_us)
+        if inspect.isawaitable(result):
+            await result
 
     async def _cleanup_after_start_failure(self) -> None:
+        await self._cleanup_after_frame_pump_failure(disconnect_room=False)
+
+    async def _cleanup_after_frame_pump_failure(self, *, disconnect_room: bool) -> None:
+        self._stopped = True
+        track_sid = _publication_sid(self.publication)
+        if track_sid is not None:
+            try:
+                await self.room.local_participant.unpublish_track(track_sid)
+            except Exception:
+                logger.warning(
+                    "livekit track unpublish failed during cleanup camera_id=%s room=%s",
+                    self.request.camera_id,
+                    self.request.room,
+                )
+            self.publication = None
         await _safe_aclose(self.video_source)
+        self.video_source = None
         await _safe_aclose(self.frame_source)
+        if disconnect_room:
+            await self._safe_disconnect_room()
+
+    async def _safe_disconnect_room(self) -> None:
+        if self.room_disconnected:
+            return
+        await _safe_disconnect_room(self.room)
+        self.room_disconnected = True
 
 
 @dataclass
@@ -329,11 +402,26 @@ class LiveKitSdkPublisherClient:
         self.active_sessions: dict[str, LiveKitSdkActiveSession] = {}
 
     async def start_publish(self, request: LiveKitPublishRequest) -> LiveKitPublisherResult:
+        logger.info(
+            "livekit start publish received camera_id=%s room=%s",
+            request.camera_id,
+            request.room,
+        )
         active = self.active_sessions.get(request.camera_id)
         if active is not None:
             if active.request.room != request.room:
                 return LiveKitPublisherResult(ok=False, error="livekit-publish-room-mismatch")
-            return LiveKitPublisherResult(ok=True)
+            if _media_session_is_healthy(active.media_session):
+                return LiveKitPublisherResult(ok=True)
+            logger.warning(
+                "livekit active session unhealthy; restarting camera_id=%s room=%s",
+                request.camera_id,
+                request.room,
+            )
+            await _safe_stop_media_session(active.media_session)
+            if not _media_session_disconnected_room(active.media_session):
+                await _safe_disconnect_room(active.room)
+            self.active_sessions.pop(request.camera_id, None)
 
         try:
             rtc_module = self._resolve_rtc_module()
@@ -362,6 +450,14 @@ class LiveKitSdkPublisherClient:
         )
         return LiveKitPublisherResult(ok=True)
 
+    def is_publishing_healthy(self, *, camera_id: str, room: str) -> bool:
+        active = self.active_sessions.get(camera_id)
+        return (
+            active is not None
+            and active.request.room == room
+            and _media_session_is_healthy(active.media_session)
+        )
+
     async def stop_publish(self, *, camera_id: str, room: str) -> LiveKitPublisherResult:
         active = self.active_sessions.get(camera_id)
         if active is None:
@@ -371,7 +467,8 @@ class LiveKitSdkPublisherClient:
 
         try:
             await active.media_session.stop()
-            await active.room.disconnect()
+            if not _media_session_disconnected_room(active.media_session):
+                await active.room.disconnect()
         except Exception:
             return LiveKitPublisherResult(ok=False, error="livekit-sdk-stop-failed")
 
@@ -444,7 +541,15 @@ class LiveKitMediaController:
         if active is not None:
             if active.room != room:
                 return PublishResult(ok=False, error="livekit-publish-room-mismatch")
-            return PublishResult(ok=True)
+            if self.is_publishing_healthy(camera_id=camera_id, room=room):
+                return PublishResult(ok=True)
+            logger.warning(
+                "livekit media controller clearing unhealthy session camera_id=%s room=%s",
+                camera_id,
+                room,
+            )
+            await self.publisher.stop_publish(camera_id=camera_id, room=room)
+            self.active_sessions.pop(camera_id, None)
 
         result = await self.publisher.start_publish(request)
         if not result.ok:
@@ -475,6 +580,16 @@ class LiveKitMediaController:
             return StopResult(ok=False, error=result.error or "livekit-publish-stop-failed")
         self.active_sessions.pop(camera_id, None)
         return StopResult(ok=True)
+
+    def is_publishing_healthy(self, *, camera_id: str, room: str) -> bool:
+        active = self.active_sessions.get(camera_id)
+        if active is None or active.room != room:
+            return False
+        health_check = getattr(self.publisher, "is_publishing_healthy", None)
+        if health_check is None:
+            return True
+        result = health_check(camera_id=camera_id, room=room)
+        return bool(result)
 
 
 def _validate_non_empty(raw: str, name: str) -> None:
@@ -540,6 +655,17 @@ async def _safe_aclose(target: object | None) -> None:
         result = close()
         if result is not None:
             await result
+
+
+def _media_session_is_healthy(media_session: LiveKitMediaSession) -> bool:
+    health_check = getattr(media_session, "is_healthy", None)
+    if health_check is None:
+        return True
+    return bool(health_check())
+
+
+def _media_session_disconnected_room(media_session: LiveKitMediaSession) -> bool:
+    return bool(getattr(media_session, "room_disconnected", False))
 
 
 def _track_source_camera(rtc_module: LiveKitRtcModule) -> object:

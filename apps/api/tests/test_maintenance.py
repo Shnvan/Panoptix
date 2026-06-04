@@ -274,7 +274,10 @@ def test_scheduler_is_disabled_by_default() -> None:
 
 
 def test_scheduler_does_not_start_with_placeholder_database_url() -> None:
-    settings = _scheduler_settings(ENABLE_MAINTENANCE_SCHEDULER=True)
+    settings = _scheduler_settings(
+        ENABLE_MAINTENANCE_SCHEDULER=True,
+        DATABASE_URL="postgresql://replace-me:replace-me@localhost/replace-me",
+    )
     assert should_start_maintenance_scheduler(settings) is False
 
 

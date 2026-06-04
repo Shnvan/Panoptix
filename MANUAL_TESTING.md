@@ -1152,7 +1152,7 @@ Expected command item:
 }
 ```
 
-`participant_left` with `participant_count: 0` schedules a stop after the 10-second grace window instead of immediately queueing `gateway.command.stop_publish`:
+When `ENABLE_MAINTENANCE_SCHEDULER=true`, `participant_left` with `participant_count: 0` schedules a stop after the 10-second grace window instead of immediately queueing `gateway.command.stop_publish`:
 
 ```json
 {
@@ -1176,7 +1176,9 @@ If another `participant_joined` arrives before `stop_due_at`, the pending stop i
 - Publish state returns to `publishing`.
 - Audit contains `livekit.publish.stop_cancelled`.
 
-When a deterministic scheduler/cron calls `enqueue_due_publish_stops()` after `stop_due_at`, the backend enqueues `gateway.command.stop_publish` and resets the publish state to `idle`. Production scheduler wiring is still a separate milestone.
+When a deterministic scheduler/cron calls `enqueue_due_publish_stops()` after `stop_due_at`, the backend enqueues `gateway.command.stop_publish` and resets the publish state to `idle`.
+
+When `ENABLE_MAINTENANCE_SCHEDULER=false`, the same zero-viewer `participant_left` fails closed by immediately enqueueing `gateway.command.stop_publish` and resetting publish state to `idle`. This prevents a camera publisher/FFmpeg process from waiting forever for a disabled due-stop scheduler.
 
 `room_finished` still queues `gateway.command.stop_publish` immediately and resets publish state to `idle`.
 
@@ -1540,7 +1542,7 @@ $env:ENABLE_MAINTENANCE_SCHEDULER = "true"
 $env:MAINTENANCE_INTERVAL_SECONDS = "30"
 ```
 
-The scheduler only starts when `DATABASE_URL` is not a placeholder. Scheduled runs write `system.maintenance.run` audit events.
+The scheduler only starts when `DATABASE_URL` is not a placeholder. Scheduled runs write `system.maintenance.run` audit events. If the scheduler is disabled, zero-viewer LiveKit leave events enqueue stop commands immediately instead of using the grace-window queue.
 
 ### Backend
 
@@ -3854,6 +3856,7 @@ Cloudflare Access must bypass only these exact public paths:
 /logo.png
 /api/v1/visitor/notice
 /api/v1/visitor/collect
+/api/v1/visitor/access-requests
 ```
 
 After the visitor access request backend migration/deploy, add only this extra public exception:
@@ -3881,6 +3884,10 @@ VISITOR_COLLECTOR_ENABLED=true
 VISITOR_COOKIE_SIGNING_KEY=<new-random-backend-secret>
 VISITOR_COOKIE_DOMAIN=panoptix.site
 VISITOR_RETENTION_DAYS=30
+RATE_LIMIT_VISITOR_COLLECT_MAX=20
+RATE_LIMIT_VISITOR_COLLECT_WINDOW=60
+RATE_LIMIT_ACCESS_REQUEST_MAX=5
+RATE_LIMIT_ACCESS_REQUEST_WINDOW=60
 TRUST_CF_CONNECTING_IP=true
 ```
 
@@ -3906,8 +3913,8 @@ Expected behavior:
 Visitor access request frontend smoke:
 
 1. Confirm production has migration `0013_visitor_access_requests` and the narrow public `POST /api/v1/visitor/access-requests` Cloudflare exception before testing against `panoptix.site`.
-2. Open `/entry`, submit the request-access form empty, and confirm each required field is highlighted with readable validation messaging.
-3. Submit a valid access request and confirm the UI reports pending admin review. Confirm no account, role, session, camera ACL, GitHub invite, or Cloudflare authorization is created from the public request alone.
+2. Open `/entry?mode=request-access#request-access`, submit the request-access form empty, and confirm each required field is highlighted with readable validation messaging.
+3. Submit a valid access request and confirm the UI reports pending admin review. Confirm no account, role, session, camera ACL, GitHub invite, Cloudflare authorization, or admin request is created from the public request alone.
 4. Submit the same email again and confirm duplicate pending requests show a clear already-pending message.
 5. Exceed the dedicated access-request rate limit and confirm the UI shows a clear retry-later message.
 6. Temporarily point the frontend to an unavailable API or block the request in browser devtools and confirm the UI reports backend/network failure without losing typed form context.
@@ -3916,6 +3923,14 @@ Visitor access request frontend smoke:
 9. Reject a request from the in-app dialog and confirm a rejection reason is required, success is visible, and the request leaves the pending list.
 10. Attempt approval for an existing disabled local user and confirm `user-disabled` explains that the account must be re-enabled explicitly.
 11. If the pending request API returns `next_cursor`, use Load more and confirm additional pending rows append without replacing the first page.
+
+Public visitor access-request rate-limit smoke:
+
+1. In local development, set `RATE_LIMIT_ACCESS_REQUEST_MAX=1` and `RATE_LIMIT_ACCESS_REQUEST_WINDOW=60`.
+2. Submit one valid `POST /api/v1/visitor/access-requests` request from the same client IP.
+3. Submit a second valid request from the same client IP with a different email address so duplicate-pending validation does not mask rate limiting.
+4. Confirm the second request returns `429 access-request-rate-limited` with a `Retry-After` header.
+5. Reset the limiter or wait for the configured window before continuing other public access-request smoke tests.
 
 ## Gateway Credential Rotation Testing
 
@@ -4440,7 +4455,10 @@ Production email delivery is active through Resend SMTP with `ALERT_EMAIL_RECIPI
 
 Expected email content:
 - **Subject**: `[Panoptix <SEVERITY>] <Alert Title>`
-- **Body**: Lists alert severity, category, status, resource, message, and timestamp without secrets, database URLs, tokens, or raw provider responses.
+- **Plain-text body**: Lists alert severity, category, status, resource, message, and timestamp without secrets, database URLs, tokens, or raw provider responses.
+- **HTML body**: Sent as the `text/html` alternative part in the same `multipart/alternative` email, using inline styles only and the same no-secrets boundary as the plain-text body.
+
+For local SMTP capture tools such as Mailpit or MailHog, trigger a high/critical alert with `ALERT_EMAIL_ENABLED=true` and confirm the captured message has both `text/plain` and `text/html` MIME parts. If `html_body` is not supplied by a caller, `send_alert_email` remains plain-text only.
 
 Expected high/critical email-triggering alert sources now include:
 - `/entry` Continue collection: `Visitor continued to secure sign-in`

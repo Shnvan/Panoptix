@@ -1,7 +1,9 @@
 import { createServer } from 'node:http';
 import { createReadStream, existsSync, statSync } from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
 import { Readable } from 'node:stream';
+import tls from 'node:tls';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -108,6 +110,69 @@ async function proxyRequest(req, res, url) {
   Readable.fromWeb(upstream.body).pipe(res);
 }
 
+function writeUpgradeError(socket, statusCode, message) {
+  if (socket.destroyed) return;
+  socket.write(
+    `HTTP/1.1 ${statusCode} ${message}\r\n` +
+      'Connection: close\r\n' +
+      'Content-Type: application/json; charset=utf-8\r\n' +
+      '\r\n' +
+      JSON.stringify({ detail: message.toLowerCase().replaceAll(' ', '-') }),
+  );
+  socket.destroy();
+}
+
+function proxyUpgrade(req, socket, head) {
+  if (!apiOrigin) {
+    writeUpgradeError(socket, 503, 'API Origin Not Configured');
+    return;
+  }
+
+  const requestUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+  if (!isProxyPath(requestUrl.pathname)) {
+    writeUpgradeError(socket, 404, 'Not Found');
+    return;
+  }
+
+  const target = new URL(`${requestUrl.pathname}${requestUrl.search}`, apiOrigin);
+  const isSecure = target.protocol === 'https:';
+  const portNumber = Number(target.port || (isSecure ? 443 : 80));
+  const connect = isSecure ? tls.connect : net.connect;
+  const upstream = connect(
+    {
+      host: target.hostname,
+      port: portNumber,
+      servername: isSecure ? target.hostname : undefined,
+    },
+    () => {
+      const headers = [];
+      headers.push(`${req.method || 'GET'} ${target.pathname}${target.search} HTTP/${req.httpVersion}`);
+      headers.push(`Host: ${target.host}`);
+      for (const [name, value] of Object.entries(req.headers)) {
+        const lower = name.toLowerCase();
+        if (lower === 'host' || lower === 'content-length') continue;
+        if (value === undefined) continue;
+        headers.push(`${name}: ${Array.isArray(value) ? value.join(', ') : value}`);
+      }
+      headers.push(`x-forwarded-host: ${req.headers.host || ''}`);
+      headers.push(`x-forwarded-proto: ${req.headers['x-forwarded-proto'] || 'https'}`);
+      upstream.write(`${headers.join('\r\n')}\r\n\r\n`);
+      if (head.length > 0) upstream.write(head);
+      upstream.pipe(socket);
+      socket.pipe(upstream);
+    },
+  );
+
+  upstream.on('error', (error) => {
+    console.error('panoptix-web-upgrade-proxy-error', error);
+    writeUpgradeError(socket, 502, 'WebSocket Proxy Error');
+  });
+
+  socket.on('error', () => {
+    upstream.destroy();
+  });
+}
+
 function resolveStaticPath(urlPath) {
   let decodedPath;
   try {
@@ -166,6 +231,8 @@ const server = createServer(async (req, res) => {
     res.end(JSON.stringify({ detail: 'frontend-proxy-error' }));
   }
 });
+
+server.on('upgrade', proxyUpgrade);
 
 server.listen(port, '0.0.0.0', () => {
   console.log(`Panoptix web server listening on port ${port}`);

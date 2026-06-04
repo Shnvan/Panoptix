@@ -41,7 +41,7 @@ def _seed_user(db: DbSession, email: str = "suspect@example.test") -> User:
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime(2026, 5, 21, 10, 0, 0, tzinfo=timezone.utc)
 
 
 # ── 1. First login: no alert, baseline created ──

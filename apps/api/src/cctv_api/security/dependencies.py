@@ -242,10 +242,11 @@ def require_gateway_identity(
 def verify_gateway_identity_ws(
     websocket: WebSocket,
     settings: Settings = Depends(get_settings),
+    db: DbSession = Depends(db_session),
 ) -> Principal | None:
     verifier = CloudflareAccessVerifier(settings)
     try:
-        return verifier.verify_gateway_websocket(websocket)
+        return verifier.verify_gateway_websocket(websocket, db)
     except AccessVerificationError:
         return None
 

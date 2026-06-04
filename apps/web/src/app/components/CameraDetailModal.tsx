@@ -69,24 +69,24 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         className={`border max-w-6xl w-full overflow-hidden shadow-xl rounded-none ${
-          d ? 'bg-[#111111] border-[#222222]' : 'bg-[#FFFFFF] border-slate-200'
+          d ? 'bg-[#111111] border-[#222222]' : 'bg-[#FFFFFF] border-neutral-200'
         }`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className={`flex items-center justify-between p-6 border-b ${
-          d ? 'border-[#222222]' : 'border-slate-200'
+          d ? 'border-[#222222]' : 'border-neutral-200'
         }`}>
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-[rgba(240,124,30,0.08)] rounded-none flex items-center justify-center">
               <Camera className="w-6 h-6 text-[#F07C1E]" />
             </div>
             <div>
-              <h2 className={`text-xl font-bold ${d ? 'text-[#F0EAD6]' : 'text-slate-900'}`}>
+              <h2 className={`text-xl font-bold ${d ? 'text-[#F0EAD6]' : 'text-neutral-900'}`}>
                 {camera.display_name}
               </h2>
               <div className={`flex items-center gap-2 text-sm mt-1 ${
-                d ? 'text-[#666666]' : 'text-slate-500'
+                d ? 'text-[#666666]' : 'text-neutral-500'
               }`}>
                 <MapPin className="w-3 h-3 text-[#F07C1E]" />
                 <span>Room: {camera.livekit_room_name}</span>
@@ -96,7 +96,7 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
           <button
             onClick={onClose}
             className={`w-10 h-10 rounded-none flex items-center justify-center transition-colors border ${
-              d ? 'bg-[#1A1A1A] border-[#222222] hover:bg-[#222222] text-[#666666] hover:text-[#F0EAD6]' : 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-500 hover:text-slate-900'
+              d ? 'bg-[#1A1A1A] border-[#222222] hover:bg-[#222222] text-[#666666] hover:text-[#F0EAD6]' : 'bg-neutral-50 border-neutral-200 hover:bg-neutral-100 text-neutral-500 hover:text-neutral-900'
             }`}
             aria-label="Close modal"
           >
@@ -163,7 +163,7 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
               <button className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 border rounded-none transition-colors ${
                 d
                   ? 'bg-[#1A1A1A] hover:bg-[#222222] border-[#222222] text-[#F0EAD6]'
-                  : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                  : 'bg-neutral-50 hover:bg-neutral-100 border-neutral-200 text-neutral-700'
               }`}>
                 <Flag className="w-4 h-4 text-[#FF3333]" />
                 <span className="text-sm font-medium">Flag Security Incident</span>
@@ -180,9 +180,9 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
           {/* Metadata Panel */}
           <div className="space-y-4">
             <div className={`border rounded-none p-4 space-y-3 ${
-              d ? 'bg-[#1A1A1A] border-[#222222]' : 'bg-slate-50 border-slate-200'
+              d ? 'bg-[#1A1A1A] border-[#222222]' : 'bg-neutral-50 border-neutral-200'
             }`}>
-              <h3 className={`font-semibold flex items-center gap-2 ${d ? 'text-[#F0EAD6]' : 'text-slate-900'}`}>
+              <h3 className={`font-semibold flex items-center gap-2 ${d ? 'text-[#F0EAD6]' : 'text-neutral-900'}`}>
                 <Signal className="w-4 h-4 text-[#7BC67B]" /> Stream Context
               </h3>
               <div className="space-y-2">
@@ -193,8 +193,8 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
                   ['Watermark', 'Active (Analyst ID)'],
                 ].map(([label, val]) => (
                   <div key={label} className="flex justify-between text-sm">
-                    <span className={d ? 'text-[#666666]' : 'text-slate-500'}>{label}</span>
-                    <span className={`font-mono ${d ? 'text-[#F0EAD6]' : 'text-slate-700'}`}>{val}</span>
+                    <span className={d ? 'text-[#666666]' : 'text-neutral-500'}>{label}</span>
+                    <span className={`font-mono ${d ? 'text-[#F0EAD6]' : 'text-neutral-700'}`}>{val}</span>
                   </div>
                 ))}
               </div>
@@ -207,16 +207,16 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
             </div>
 
             <div className={`border rounded-none p-4 space-y-3 ${
-              d ? 'bg-[#1A1A1A] border-[#222222]' : 'bg-slate-50 border-slate-200'
+              d ? 'bg-[#1A1A1A] border-[#222222]' : 'bg-neutral-50 border-neutral-200'
             }`}>
-              <h3 className={`font-semibold flex items-center gap-2 ${d ? 'text-[#F0EAD6]' : 'text-slate-900'}`}>
+              <h3 className={`font-semibold flex items-center gap-2 ${d ? 'text-[#F0EAD6]' : 'text-neutral-900'}`}>
                 <Eye className="w-4 h-4 text-[#F07C1E]" /> Authorized Roles
               </h3>
               <div className="space-y-2 text-sm">
                 {['Security Operations Center (SOC)', 'Compliance Officer', 'System Administrator'].map((team) => (
                   <div key={team} className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-[#7BC67B]" />
-                    <span className={d ? 'text-[#F0EAD6]' : 'text-slate-600'}>{team}</span>
+                    <span className={d ? 'text-[#F0EAD6]' : 'text-neutral-600'}>{team}</span>
                   </div>
                 ))}
               </div>
