@@ -28,6 +28,7 @@ Required controls:
 - CAA and CT-log monitoring are enabled before pilot.
 - Separate Access policies exist for normal users, admins, break-glass, monitors, and gateways.
 - The public visitor collector exception must stay narrow: only `/entry`, `/assets/*`, `/logo.png`, `/api/v1/visitor/notice`, `/api/v1/visitor/collect`, and `/api/v1/visitor/access-requests` are public; the app root and all other API routes remain Access-protected. Never make broad `/api/v1/*` public. The entry view continues into secure sign-in after its collection attempt, including fail-soft collector errors.
+- On Cloudflare Free, reserve the single WAF rate limiting rule for `POST /api/v1/visitor/access-requests`: rule name `panoptix-public-access-request-submit`, IP counting, threshold above 3 requests per 10 seconds, 10-second mitigation. This edge rule is burst protection; FastAPI rate limiting remains authoritative.
 - A Cloudflare Redirect Rule sends first-time root requests to `/entry` only when the signed visitor cookie is absent: `http.host eq "panoptix.site" and http.request.uri.path eq "/" and not http.cookie contains "panoptix_visitor="`. Use `302`, not `301`, because this decision depends on cookies.
 
 ## Railway services

@@ -132,6 +132,29 @@ The gateway control WebSocket path is currently expected to align with:
 /api/v1/gateway-control/ws
 ```
 
+## Public Access-Request WAF Rate Limit
+
+Reserve the single Cloudflare Free-tier rate limiting rule for the public access-request submit endpoint. This edge rule is burst protection before Railway; the FastAPI access-request limiter remains the precise backend control.
+
+Create one WAF rate limiting rule:
+
+| Setting | Value |
+|---------|-------|
+| Rule name | `panoptix-public-access-request-submit` |
+| Match expression | `http.request.uri.path eq "/api/v1/visitor/access-requests"` |
+| Optional method condition | Add `http.request.method eq "POST"` only if the current Cloudflare plan/dashboard allows method matching |
+| Counting characteristic | IP |
+| Threshold | 3 requests per 10 seconds |
+| Action | Block, or Managed Challenge if available and preferred |
+| Mitigation timeout | 10 seconds |
+
+Rules:
+
+- Do not apply this rule to `/entry`, `/api/v1/visitor/notice`, or `/api/v1/visitor/collect`.
+- Do not broaden it to `/api/v1/*`.
+- Keep `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` Cloudflare Access-protected.
+- Treat Free-tier limits as a constraint: one rate limiting rule, IP-based counting, 10-second counting period, and 10-second mitigation. If the zone is upgraded later, reassess rather than silently widening the rule.
+
 ## Production Safety Checklist
 
 Before enabling production traffic:
@@ -146,6 +169,7 @@ Before enabling production traffic:
 - [ ] Gateway policy does not weaken gateway service-token verification.
 - [ ] Direct origin bypass is blocked or restricted to documented break-glass operations.
 - [ ] Same-domain routing sends UI, API, health, and WebSocket paths to the correct services.
+- [ ] The Cloudflare Free-tier WAF rate limiting rule `panoptix-public-access-request-submit` is configured for only `POST /api/v1/visitor/access-requests`, or a tracked exception documents why it is not active.
 - [ ] Rollback procedure is reviewed before cutover.
 
 ## Manual Validation Steps
@@ -173,6 +197,7 @@ Expected review results:
 - Cloudflare Access tests cover valid browser JWTs and invalid issuer/audience/expired token cases.
 - Gateway route tests confirm browser JWTs are not accepted as gateway credentials.
 - Development auth remains limited to local development settings.
+- The public access-request WAF rule is narrow, contains no secrets, and does not make broad `/api/v1/*` traffic public.
 
 ## Rollback
 

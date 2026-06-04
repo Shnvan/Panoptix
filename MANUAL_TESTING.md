@@ -3932,6 +3932,17 @@ Public visitor access-request rate-limit smoke:
 4. Confirm the second request returns `429 access-request-rate-limited` with a `Retry-After` header.
 5. Reset the limiter or wait for the configured window before continuing other public access-request smoke tests.
 
+Cloudflare public access-request WAF smoke:
+
+1. Confirm the zone has one narrow Cloudflare rate limiting rule named `panoptix-public-access-request-submit`.
+2. Confirm the rule matches only `/api/v1/visitor/access-requests`; if the Cloudflare plan supports method matching, confirm it also requires `POST`.
+3. Confirm the rule counts by IP, triggers above 3 requests per 10 seconds, and applies a 10-second block or challenge mitigation.
+4. Submit one valid request through `/entry?mode=request-access#request-access` and confirm the UI reports the generic received message.
+5. Rapidly submit 4 or more `POST /api/v1/visitor/access-requests` requests from the same client IP within 10 seconds and confirm Cloudflare blocks or challenges before the request reaches Railway where possible.
+6. Confirm the backend still enforces its own `RATE_LIMIT_ACCESS_REQUEST_MAX=5` per `RATE_LIMIT_ACCESS_REQUEST_WINDOW=60` control when Cloudflare does not block first.
+7. Confirm `/entry`, `/api/v1/visitor/notice`, and `/api/v1/visitor/collect` remain usable and are not caught by the access-request rule.
+8. Confirm `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` remain Cloudflare Access-protected.
+
 ## Gateway Credential Rotation Testing
 
 ### Automated tests
