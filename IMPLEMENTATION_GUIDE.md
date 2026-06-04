@@ -3787,6 +3787,34 @@ Verification:
 
 ---
 
+## Branded HTML Alert Emails and Access-Request Rate Limits
+
+Alert emails now include an optional `text/html` alternative alongside the existing plain-text body. `send_alert_email()` keeps backward-compatible plain-text-only behavior when `html_body` is omitted, while alert notifications pass a branded inline-style HTML renderer that escapes displayed alert fields and excludes alert metadata.
+
+Public visitor access requests now use dedicated rate-limit settings instead of sharing the visitor telemetry collector budget:
+
+```text
+RATE_LIMIT_ACCESS_REQUEST_MAX=5
+RATE_LIMIT_ACCESS_REQUEST_WINDOW=60
+```
+
+The existing public access-request limiter still checks both client IP and normalized email. This allows production operators to tune human form submissions separately from `/api/v1/visitor/collect` telemetry without changing schema or frontend code.
+
+Implementation files:
+- `apps/api/src/cctv_api/integrations/email_alerts.py`
+- `apps/api/src/cctv_api/security/alerts.py`
+- `apps/api/src/cctv_api/core/config.py`
+- `apps/api/src/cctv_api/api/visitors.py`
+- `apps/api/tests/test_alerts.py`
+- `apps/api/tests/test_visitor_collector.py`
+
+Verification:
+- `python -m pytest tests/test_alerts.py tests/test_visitor_collector.py -q`
+- `python -m ruff check src/cctv_api/integrations/email_alerts.py src/cctv_api/security/alerts.py src/cctv_api/core/config.py src/cctv_api/api/visitors.py tests/test_alerts.py tests/test_visitor_collector.py`
+- `python -m mypy src/cctv_api/integrations/email_alerts.py src/cctv_api/security/alerts.py src/cctv_api/core/config.py src/cctv_api/api/visitors.py --ignore-missing-imports`
+
+---
+
 ## What Is Not Implemented Yet
 
 The following are intentionally not done yet:

@@ -550,8 +550,8 @@ def _check_access_request_rate_limit(*, ip: str | None, email: str, settings: Se
         result = limiter.check(
             key,
             RateLimitConfig(
-                max_requests=settings.RATE_LIMIT_VISITOR_COLLECT_MAX,
-                window_seconds=settings.RATE_LIMIT_VISITOR_COLLECT_WINDOW,
+                max_requests=settings.RATE_LIMIT_ACCESS_REQUEST_MAX,
+                window_seconds=settings.RATE_LIMIT_ACCESS_REQUEST_WINDOW,
             ),
         )
         if not result.allowed:

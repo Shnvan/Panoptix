@@ -135,6 +135,8 @@ class Settings(BaseSettings):
     RATE_LIMIT_ADMIN_MUTATION_WINDOW: int = Field(default=60, ge=10)
     RATE_LIMIT_VISITOR_COLLECT_MAX: int = Field(default=20, ge=1)
     RATE_LIMIT_VISITOR_COLLECT_WINDOW: int = Field(default=60, ge=10)
+    RATE_LIMIT_ACCESS_REQUEST_MAX: int = Field(default=5, ge=1)
+    RATE_LIMIT_ACCESS_REQUEST_WINDOW: int = Field(default=60, ge=10)
 
     @property
     def cf_access_browser_audiences(self) -> list[str]:

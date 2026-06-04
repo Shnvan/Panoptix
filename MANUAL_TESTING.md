@@ -3856,6 +3856,7 @@ Cloudflare Access must bypass only these exact public paths:
 /logo.png
 /api/v1/visitor/notice
 /api/v1/visitor/collect
+/api/v1/visitor/access-requests
 ```
 
 Keep `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` protected. Never make broad `/api/v1/*` public.
@@ -3877,6 +3878,10 @@ VISITOR_COLLECTOR_ENABLED=true
 VISITOR_COOKIE_SIGNING_KEY=<new-random-backend-secret>
 VISITOR_COOKIE_DOMAIN=panoptix.site
 VISITOR_RETENTION_DAYS=30
+RATE_LIMIT_VISITOR_COLLECT_MAX=20
+RATE_LIMIT_VISITOR_COLLECT_WINDOW=60
+RATE_LIMIT_ACCESS_REQUEST_MAX=5
+RATE_LIMIT_ACCESS_REQUEST_WINDOW=60
 TRUST_CF_CONNECTING_IP=true
 ```
 
@@ -3898,6 +3903,14 @@ Expected behavior:
 - Stale notice versions return `409 visitor-notice-version-mismatch`; missing notice acknowledgement returns `400 visitor-notice-acknowledgement-required`.
 - Admin detail reads write `admin.visitor.visit.viewed`.
 - `POST /api/v1/admin/jobs/run-maintenance` returns `purged_visitor_visits` and removes visitor rows older than `VISITOR_RETENTION_DAYS`.
+
+Public visitor access-request rate-limit smoke:
+
+1. In local development, set `RATE_LIMIT_ACCESS_REQUEST_MAX=1` and `RATE_LIMIT_ACCESS_REQUEST_WINDOW=60`.
+2. Submit one valid `POST /api/v1/visitor/access-requests` request from the same client IP.
+3. Submit a second valid request from the same client IP with a different email address so duplicate-pending validation does not mask rate limiting.
+4. Confirm the second request returns `429 access-request-rate-limited` with a `Retry-After` header.
+5. Reset the limiter or wait for the configured window before continuing other public access-request smoke tests.
 
 ## Gateway Credential Rotation Testing
 
@@ -4422,7 +4435,10 @@ Production email delivery is active through Resend SMTP with `ALERT_EMAIL_RECIPI
 
 Expected email content:
 - **Subject**: `[Panoptix <SEVERITY>] <Alert Title>`
-- **Body**: Lists alert severity, category, status, resource, message, and timestamp without secrets, database URLs, tokens, or raw provider responses.
+- **Plain-text body**: Lists alert severity, category, status, resource, message, and timestamp without secrets, database URLs, tokens, or raw provider responses.
+- **HTML body**: Sent as the `text/html` alternative part in the same `multipart/alternative` email, using inline styles only and the same no-secrets boundary as the plain-text body.
+
+For local SMTP capture tools such as Mailpit or MailHog, trigger a high/critical alert with `ALERT_EMAIL_ENABLED=true` and confirm the captured message has both `text/plain` and `text/html` MIME parts. If `html_body` is not supplied by a caller, `send_alert_email` remains plain-text only.
 
 Expected high/critical email-triggering alert sources now include:
 - `/entry` Continue collection: `Visitor continued to secure sign-in`

@@ -544,8 +544,8 @@ def test_public_access_request_rejects_invalid_duplicate_and_rate_limited_reques
     get_rate_limiter().reset()
     client = _client(
         test_db_session,
-        RATE_LIMIT_VISITOR_COLLECT_MAX=10,
-        RATE_LIMIT_VISITOR_COLLECT_WINDOW=60,
+        RATE_LIMIT_ACCESS_REQUEST_MAX=10,
+        RATE_LIMIT_ACCESS_REQUEST_WINDOW=60,
     )
     invalid_email = client.post(
         "/api/v1/visitor/access-requests",
@@ -595,8 +595,8 @@ def test_public_access_request_rejects_invalid_duplicate_and_rate_limited_reques
     get_rate_limiter().reset()
     limited_client = _client(
         test_db_session,
-        RATE_LIMIT_VISITOR_COLLECT_MAX=1,
-        RATE_LIMIT_VISITOR_COLLECT_WINDOW=60,
+        RATE_LIMIT_ACCESS_REQUEST_MAX=1,
+        RATE_LIMIT_ACCESS_REQUEST_WINDOW=60,
     )
     assert limited_client.post(
         "/api/v1/visitor/access-requests",

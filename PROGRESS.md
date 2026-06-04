@@ -782,6 +782,24 @@ Keep Alerts real API UI, admin visitor investigation UI, actor investigation UI,
 
 ## Completed Milestones
 
+### Branded HTML Alert Emails ✅
+- [x] `send_alert_email` in `email_alerts.py` accepts keyword-only `html_body: str | None = None`
+- [x] `EmailMessage.add_alternative(html_body, subtype="html")` produces `multipart/alternative`; plain-text remains the MIME fallback
+- [x] `_email_html_body(alert)` renderer in `alerts.py` uses inline styles only, no external resources
+- [x] Dark palette: `#000000` background, `#0a0a0a`/`#171717` card surfaces, `#262626` borders, `#fafafa` text, `#f97316` orange accent
+- [x] Severity bar: critical `#dc2626`, high `#f97316`, medium `#d97706`, low/informational `#737373`
+- [x] All user-controlled strings passed through `html.escape()`
+- [x] Static no-secrets footer in both plain-text and HTML bodies
+- [x] `_send_email_notifications_if_needed` call site passes `html_body=_email_html_body(alert)`
+- [x] 5 new tests: MIME structure, backward-compat plain-only, HTML sections, XSS escaping, secret non-leakage
+- [x] All 24 `test_alerts.py` tests pass; ruff and mypy clean
+
+### Access-Request Rate Limit Deduplification ✅
+- [x] `_check_access_request_rate_limit` was borrowing `RATE_LIMIT_VISITOR_COLLECT_MAX/WINDOW`; both endpoints shared a single budget
+- [x] Added `RATE_LIMIT_ACCESS_REQUEST_MAX` (default 5/60 s) and `RATE_LIMIT_ACCESS_REQUEST_WINDOW` to `Settings` in `config.py`
+- [x] Updated `_check_access_request_rate_limit` in `visitors.py` to use the new dedicated keys
+- [x] Updated `test_public_access_request_rejects_invalid_duplicate_and_rate_limited_requests` in `test_visitor_collector.py` to use new key names
+
 ### Admin Health Probes ✅
 - [x] `GET /api/v1/admin/health/deep` now returns real LiveKit connectivity and gateway heartbeat-age status
 - [x] LiveKit probe calls `ListRooms` Twirp endpoint with 5s timeout; returns `connected`, `not_configured`, or `error`
