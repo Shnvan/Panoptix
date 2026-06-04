@@ -177,7 +177,6 @@ export interface VisitorAccessRequestCreate {
 }
 
 export interface VisitorAccessRequestCreateResponse {
-  request_id: string;
   status: string;
   next_step: string;
 }

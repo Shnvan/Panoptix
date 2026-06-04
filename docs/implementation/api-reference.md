@@ -45,13 +45,13 @@ Public Access exceptions are limited to `/entry`, `/assets/*`, `/logo.png`, `/ap
 |---|---|---|---|
 | `GET` | `/api/v1/visitor/notice` | public when collector enabled | current visitor security notice version/text |
 | `POST` | `/api/v1/visitor/collect` | public when collector enabled | records approved entry signals after notice acknowledgement and sets signed visitor correlation cookie |
-| `POST` | `/api/v1/visitor/access-requests` | public when collector enabled | creates a pending access request for admin review; never creates an account or invite directly |
+| `POST` | `/api/v1/visitor/access-requests` | public when collector enabled | receives an access request for admin review with a generic non-enumerating response; never creates an account or invite directly |
 
 `POST /api/v1/visitor/collect` accepts the notice version, `notice_acknowledged = true`, entry `page_path`, screen width/height, browser timezone/language, referrer, viewport size, device pixel ratio, touch support, color scheme, cookie support, browser privacy flags, browser language list, network hints, entry timing, and a normalized WebRTC candidate summary. The backend records the trusted request IP, Cloudflare Ray/country headers when present, request user-agent, timestamp, and a stored normalized Ipregistry subset when available. Raw WebRTC SDP/candidate strings, raw Ipregistry payloads, canvas/audio/WebGL/font fingerprints, coordinates, and reverse-geocoded addresses are not stored.
 
 Admin visitor list/detail responses expose the collected data as readable sections: `browser_context`, `network_context`, `webrtc_details`, `timing`, `server_context`, and `risk_context`. `risk_context` includes timezone/IP mismatch, language/country mismatch, WebRTC public-IP/request-IP mismatch, entry-IP/login-IP change, and repeat visitor count. The admin visitor investigation UI remains frontend handoff work.
 
-Visitor access requests collect only minimal applicant identity: name, email, optional organization, reason, and requested role. Admin review routes live under `/api/v1/admin/access-requests`; approval uses the existing GitHub organization invite flow and still respects disabled-user denial. Public requests do not grant roles, camera ACLs, Cloudflare access, or application sessions.
+Visitor access requests collect only minimal applicant identity: name, email, optional organization, reason, and requested role. The public create route returns the same generic `202 received` response for newly accepted and already-pending duplicate requests, and does not expose a request ID. Admin review routes live under `/api/v1/admin/access-requests`; approval uses the existing GitHub organization invite flow and still respects disabled-user denial. Public requests do not grant roles, camera ACLs, Cloudflare access, or application sessions.
 
 ## Admin Routes
 

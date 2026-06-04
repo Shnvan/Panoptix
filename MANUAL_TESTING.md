@@ -3914,8 +3914,8 @@ Visitor access request frontend smoke:
 
 1. Confirm production has migration `0013_visitor_access_requests` and the narrow public `POST /api/v1/visitor/access-requests` Cloudflare exception before testing against `panoptix.site`.
 2. Open `/entry?mode=request-access#request-access`, submit the request-access form empty, and confirm each required field is highlighted with readable validation messaging.
-3. Submit a valid access request and confirm the UI reports pending admin review. Confirm no account, role, session, camera ACL, GitHub invite, Cloudflare authorization, or admin request is created from the public request alone.
-4. Submit the same email again and confirm duplicate pending requests show a clear already-pending message.
+3. Submit a valid access request and confirm the UI reports the generic received message. Confirm no account, role, session, camera ACL, GitHub invite, Cloudflare authorization, or admin request is created from the public request alone.
+4. Submit the same email again and confirm the public response is the same generic received message and no second pending row is created.
 5. Exceed the dedicated access-request rate limit and confirm the UI shows a clear retry-later message.
 6. Temporarily point the frontend to an unavailable API or block the request in browser devtools and confirm the UI reports backend/network failure without losing typed form context.
 7. As an admin, open Users & Access and confirm pending requests are listed by default with applicant, email, reason, requested role, organization, and visitor-link context when present.

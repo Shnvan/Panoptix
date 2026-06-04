@@ -106,10 +106,9 @@ test('public entry access request validates fields and shows success', async ({ 
       requested_role: 'viewer',
     });
     await fulfillJson(route, {
-      request_id: '11111111-1111-4111-8111-111111111111',
-      status: 'pending',
-      next_step: 'Your request is pending admin review.',
-    }, 201);
+      status: 'received',
+      next_step: 'If this request can be reviewed, an administrator will process it.',
+    }, 202);
   });
 
   await gotoApp(page, '/entry');
@@ -122,19 +121,26 @@ test('public entry access request validates fields and shows success', async ({ 
   await page.getByLabel('Reason for access').fill('Need SOC viewer access.');
   await page.getByRole('button', { name: 'Submit access request' }).click();
 
-  await expect(page.getByRole('status')).toContainText('pending admin review');
+  await expect(page.getByRole('status')).toContainText('If this request can be reviewed');
 });
 
-test('public entry access request shows duplicate and rate-limit errors', async ({ page }) => {
+test('public entry access request shows generic duplicate success and rate-limit error', async ({ page }) => {
   await mockEntryNotice(page);
   let response: 'duplicate' | 'rate-limit' = 'duplicate';
   await page.route('**/api/v1/visitor/access-requests', async (route) => {
+    if (response === 'duplicate') {
+      await fulfillJson(route, {
+        status: 'received',
+        next_step: 'If this request can be reviewed, an administrator will process it.',
+      }, 202);
+      return;
+    }
     await fulfillJson(route, {
       type: 'https://panoptix.local/problems/error',
       title: 'Error',
-      status: response === 'duplicate' ? 409 : 429,
-      detail: response === 'duplicate' ? 'access-request-already-pending' : 'access-request-rate-limited',
-    }, response === 'duplicate' ? 409 : 429);
+      status: 429,
+      detail: 'access-request-rate-limited',
+    }, 429);
   });
 
   await gotoApp(page, '/entry');
@@ -142,9 +148,12 @@ test('public entry access request shows duplicate and rate-limit errors', async 
   await page.getByLabel('Email address').fill('mara@example.test');
   await page.getByLabel('Reason for access').fill('Need SOC viewer access.');
   await page.getByRole('button', { name: 'Submit access request' }).click();
-  await expect(page.getByRole('alert')).toContainText('pending request already exists');
+  await expect(page.getByRole('status')).toContainText('If this request can be reviewed');
 
   response = 'rate-limit';
+  await page.getByLabel('Full name').fill('Mara Santos');
+  await page.getByLabel('Email address').fill('mara@example.test');
+  await page.getByLabel('Reason for access').fill('Need SOC viewer access.');
   await page.getByRole('button', { name: 'Submit access request' }).click();
   await expect(page.getByRole('alert')).toContainText('Too many access requests');
 });

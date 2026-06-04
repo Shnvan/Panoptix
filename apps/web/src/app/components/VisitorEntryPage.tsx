@@ -130,12 +130,6 @@ function addUnique(values: string[], value: string) {
 
 function formatAccessRequestError(err: unknown): { text: string; fields: AccessFormField[] } {
   if (err instanceof ApiError) {
-    if (err.detail === 'access-request-already-pending') {
-      return {
-        text: 'A pending request already exists for that email. Wait for an administrator to review it before submitting again.',
-        fields: ['email'],
-      };
-    }
     if (err.detail === 'access-request-rate-limited' || err.status === 429) {
       return {
         text: 'Too many access requests were submitted recently. Wait a minute, then try again.',
