@@ -1,4 +1,4 @@
-import { Users, Shield, Eye, Search, XCircle, CheckCircle, KeyRound, UserPlus, Mail, Loader2 } from 'lucide-react';
+import { Users, Shield, Eye, Search, XCircle, CheckCircle, KeyRound, UserPlus, Mail, Loader2, Inbox } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useTheme } from '../../lib/theme';
 import { useAdminUsers } from '../../lib/hooks';
@@ -39,7 +39,7 @@ function accessRequestDecisionError(err: unknown, action: AccessRequestDecision)
 }
 
 /**
- * Admin Users — per ux-product-spec.md:
+ * Admin Users - per ux-product-spec.md:
  * - User list with role and disabled status
  * - Role/permission editing with confirmation
  * - MFA reset flow (wired to POST /admin/users/:id/mfa/reset)
@@ -51,8 +51,11 @@ function accessRequestDecisionError(err: unknown, action: AccessRequestDecision)
 export function UsersSection() {
   const { theme } = useTheme();
   const d = theme === 'dark';
-  const { users, loading, refetch } = useAdminUsers();
+  const { users, loading, refetch, loadMore: loadMoreUsers, hasMore: hasMoreUsers } = useAdminUsers();
   const [msg, setMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [activeTab, setActiveTab] = useState<'requests' | 'users'>('users');
+  const [accessRequestsLoaded, setAccessRequestsLoaded] = useState(false);
+  const [defaultTabSelected, setDefaultTabSelected] = useState(false);
   const [roleModal, setRoleModal] = useState<{ userId: string; email: string } | null>(null);
   const [roleName, setRoleName] = useState('viewer');
   const [roleAction, setRoleAction] = useState<'grant' | 'revoke'>('grant');
@@ -139,11 +142,18 @@ export function UsersSection() {
       if (!cursor) setAccessRequests([]);
       setAccessRequestsError(err instanceof ApiError ? err.detail : 'Access requests could not be loaded.');
     } finally {
+      if (!cursor) setAccessRequestsLoaded(true);
       setAccessRequestsLoading(false);
     }
   }, []);
 
   useEffect(() => { void loadAccessRequests(); }, [loadAccessRequests]);
+
+  useEffect(() => {
+    if (!accessRequestsLoaded || defaultTabSelected) return;
+    setActiveTab(accessRequests.length > 0 ? 'requests' : 'users');
+    setDefaultTabSelected(true);
+  }, [accessRequests.length, accessRequestsLoaded, defaultTabSelected]);
 
   const openAccessRequestDecision = (action: AccessRequestDecision, request: VisitorAccessRequest) => {
     setAccessDecisionError(null);
@@ -180,6 +190,7 @@ export function UsersSection() {
       setAccessRequestModal(null);
       setAccessDecisionNote('');
       await loadAccessRequests();
+      setActiveTab('requests');
     } catch (err) {
       const message = accessRequestDecisionError(err, action);
       setAccessDecisionError(message);
@@ -190,6 +201,7 @@ export function UsersSection() {
   };
 
   const filtered = users.filter((u) => !searchQuery || u.email.toLowerCase().includes(searchQuery.toLowerCase()));
+  const requestCountLabel = accessRequestsNextCursor ? `${accessRequests.length}+` : String(accessRequests.length);
 
   return (
     <div className="space-y-6">
@@ -213,96 +225,132 @@ export function UsersSection() {
         </div>
       )}
 
-      <div className={`border rounded-lg p-5 ${d ? 'bg-neutral-900/70 border-neutral-700/50' : 'bg-white border-neutral-200'}`}>
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <div>
-            <h3 className={`font-semibold ${d ? 'text-white' : 'text-neutral-900'}`}>Access Requests</h3>
-            <p className={`text-sm ${d ? 'text-neutral-400' : 'text-neutral-500'}`}>Public applications from the entry page require admin approval before an invite is sent.</p>
+      <div className={`flex w-full max-w-md rounded-lg border p-1 ${d ? 'border-neutral-700/50 bg-neutral-900/70' : 'border-neutral-200 bg-neutral-100'}`} role="tablist" aria-label="Users and access views">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'requests'}
+          onClick={() => setActiveTab('requests')}
+          className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'requests' ? 'bg-orange-500 text-white shadow-sm' : d ? 'text-neutral-300 hover:bg-neutral-800' : 'text-neutral-600 hover:bg-white'}`}
+        >
+          Access Requests ({requestCountLabel})
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'users'}
+          onClick={() => setActiveTab('users')}
+          className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'users' ? 'bg-orange-500 text-white shadow-sm' : d ? 'text-neutral-300 hover:bg-neutral-800' : 'text-neutral-600 hover:bg-white'}`}
+        >
+          Users
+        </button>
+      </div>
+
+      {activeTab === 'requests' && (
+        <div className={`border rounded-lg p-5 ${d ? 'bg-neutral-900/70 border-neutral-700/50' : 'bg-white border-neutral-200'}`} role="tabpanel">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div>
+              <h3 className={`font-semibold ${d ? 'text-white' : 'text-neutral-900'}`}>Access Requests</h3>
+              <p className={`text-sm ${d ? 'text-neutral-400' : 'text-neutral-500'}`}>Review public applications before an invite is sent.</p>
+            </div>
+            <button
+              onClick={() => loadAccessRequests()}
+              disabled={accessRequestsLoading}
+              className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm disabled:opacity-50 ${d ? 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
+            >
+              {accessRequestsLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              Refresh
+            </button>
           </div>
-          <button
-            onClick={() => loadAccessRequests()}
-            disabled={accessRequestsLoading}
-            className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm disabled:opacity-50 ${d ? 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
-          >
-            {accessRequestsLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Refresh
-          </button>
-        </div>
-        {accessRequestsError && (
-          <div className="mb-3 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400" role="alert">
-            {accessRequestsError}
-          </div>
-        )}
-        {accessRequestsLoading ? (
-          <p className="text-sm text-neutral-400">Loading access requests...</p>
-        ) : accessRequests.length === 0 ? (
-          <p className="text-sm text-neutral-400">No pending access requests</p>
-        ) : (
-          <div className="space-y-3">
-            {accessRequests.map((request) => (
-              <div key={request.request_id} className={`rounded-lg border p-4 ${d ? 'border-neutral-700/50 bg-neutral-950/40' : 'border-neutral-200 bg-neutral-50'}`}>
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className={`font-semibold ${d ? 'text-white' : 'text-neutral-900'}`}>{request.applicant_name}</p>
-                    <p className={`text-sm ${d ? 'text-neutral-400' : 'text-neutral-500'}`}>{request.email}</p>
-                    <p className={`mt-1 text-sm ${d ? 'text-neutral-300' : 'text-neutral-600'}`}>{request.reason}</p>
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                      <span className={`px-2 py-1 rounded ${d ? 'bg-orange-500/15 text-orange-300' : 'bg-orange-50 text-orange-700'}`}>Role: {request.requested_role}</span>
-                      {request.organization && <span className={`px-2 py-1 rounded ${d ? 'bg-neutral-800 text-neutral-300' : 'bg-white text-neutral-600'}`}>{request.organization}</span>}
-                      {request.visitor_visit_id && <span className={`px-2 py-1 rounded ${d ? 'bg-cyan-500/15 text-cyan-300' : 'bg-cyan-50 text-cyan-700'}`}>Visitor linked</span>}
+          {accessRequestsError && (
+            <div className="mb-3 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400" role="alert">
+              {accessRequestsError}
+            </div>
+          )}
+          {accessRequestsLoading && accessRequests.length === 0 ? (
+            <p className="text-sm text-neutral-400">Loading access requests...</p>
+          ) : accessRequests.length === 0 ? (
+            <div className={`rounded-lg border p-8 text-center ${d ? 'border-neutral-700/50 bg-neutral-950/40' : 'border-neutral-200 bg-neutral-50'}`}>
+              <Inbox className={`mx-auto mb-3 h-10 w-10 ${d ? 'text-neutral-600' : 'text-neutral-300'}`} />
+              <p className="text-sm text-neutral-400">No pending access requests</p>
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-lg border border-neutral-700/40">
+              <div className={`hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.8fr)_auto] gap-4 border-b px-4 py-2 text-xs font-semibold uppercase tracking-wide md:grid ${d ? 'border-neutral-700/50 bg-neutral-950/60 text-neutral-400' : 'border-neutral-200 bg-neutral-50 text-neutral-500'}`}>
+                <span>Applicant</span>
+                <span>Organization</span>
+                <span>Submitted</span>
+                <span className="text-right">Decision</span>
+              </div>
+              <div className={d ? 'divide-y divide-neutral-800' : 'divide-y divide-neutral-200'}>
+                {accessRequests.map((request) => (
+                  <div key={request.request_id} className={`grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.8fr)_auto] md:items-center ${d ? 'bg-neutral-950/30' : 'bg-white'}`}>
+                    <div className="min-w-0">
+                      <p className={`truncate font-semibold ${d ? 'text-white' : 'text-neutral-900'}`}>{request.applicant_name}</p>
+                      <p className={`truncate text-sm ${d ? 'text-neutral-400' : 'text-neutral-500'}`}>{request.email}</p>
+                      <p className={`mt-1 line-clamp-2 text-sm ${d ? 'text-neutral-300' : 'text-neutral-600'}`}>{request.reason}</p>
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                        <span className={`px-2 py-1 rounded ${d ? 'bg-orange-500/15 text-orange-300' : 'bg-orange-50 text-orange-700'}`}>Role: {request.requested_role}</span>
+                        {request.visitor_visit_id && <span className={`px-2 py-1 rounded ${d ? 'bg-cyan-500/15 text-cyan-300' : 'bg-cyan-50 text-cyan-700'}`}>Visitor linked</span>}
+                      </div>
+                    </div>
+                    <div className={`text-sm ${d ? 'text-neutral-300' : 'text-neutral-600'}`}>{request.organization || '-'}</div>
+                    <div className={`text-sm ${d ? 'text-neutral-400' : 'text-neutral-500'}`}>{request.created_at ? new Date(request.created_at).toLocaleString() : '-'}</div>
+                    <div className="flex gap-2 md:justify-end">
+                      <button
+                        onClick={() => openAccessRequestDecision('approve', request)}
+                        disabled={accessRequestActionId === request.request_id}
+                        className="px-3 py-2 rounded-lg text-sm bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 disabled:opacity-50"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => openAccessRequestDecision('reject', request)}
+                        disabled={accessRequestActionId === request.request_id}
+                        className="px-3 py-2 rounded-lg text-sm bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 disabled:opacity-50"
+                      >
+                        Reject
+                      </button>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => openAccessRequestDecision('approve', request)}
-                      disabled={accessRequestActionId === request.request_id}
-                      className="px-3 py-2 rounded-lg text-sm bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 disabled:opacity-50"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => openAccessRequestDecision('reject', request)}
-                      disabled={accessRequestActionId === request.request_id}
-                      className="px-3 py-2 rounded-lg text-sm bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 disabled:opacity-50"
-                    >
-                      Reject
-                    </button>
-                  </div>
-                </div>
+                ))}
               </div>
-            ))}
-            {accessRequestsNextCursor && (
-              <div className="pt-1 text-center">
-                <button
-                  onClick={() => loadAccessRequests(accessRequestsNextCursor)}
-                  disabled={accessRequestsLoading}
-                  className={`px-3 py-2 rounded-lg text-sm disabled:opacity-50 ${d ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'}`}
-                >
-                  {accessRequestsLoading ? 'Loading...' : 'Load more access requests'}
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-        <input type="text" placeholder="Search users by email..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-          className={`w-full rounded-lg pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 ${d ? 'bg-neutral-800/50 border border-neutral-700/50 text-white placeholder-neutral-400' : 'bg-neutral-50 border border-neutral-200 text-neutral-900 placeholder-neutral-400'}`} />
-      </div>
-
-      {loading ? (
-        <div className="text-center py-12 text-neutral-400">Loading users...</div>
-      ) : filtered.length === 0 ? (
-        <div className={`text-center py-12 border rounded-lg ${d ? 'bg-neutral-900/50 border-neutral-700/50' : 'bg-neutral-50 border-neutral-200'}`}>
-          <Users className={`w-12 h-12 mx-auto mb-3 ${d ? 'text-neutral-600' : 'text-neutral-300'}`} />
-          <p className={d ? 'text-neutral-400' : 'text-neutral-500'}>No users found</p>
+            </div>
+          )}
+          {accessRequestsNextCursor && (
+            <div className="pt-4 text-center">
+              <button
+                onClick={() => loadAccessRequests(accessRequestsNextCursor)}
+                disabled={accessRequestsLoading}
+                className={`px-3 py-2 rounded-lg text-sm disabled:opacity-50 ${d ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'}`}
+              >
+                {accessRequestsLoading ? 'Loading...' : 'Load more access requests'}
+              </button>
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filtered.map((user, i) => (
+      )}
+
+      {activeTab === 'users' && (
+        <div className="space-y-4" role="tabpanel">
+          {/* Search */}
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+            <input type="text" aria-label="Search users by email" placeholder="Search users by email..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+              className={`w-full rounded-lg pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 ${d ? 'bg-neutral-800/50 border border-neutral-700/50 text-white placeholder-neutral-400' : 'bg-neutral-50 border border-neutral-200 text-neutral-900 placeholder-neutral-400'}`} />
+          </div>
+
+          {loading ? (
+            <div className="text-center py-12 text-neutral-400">Loading users...</div>
+          ) : filtered.length === 0 ? (
+            <div className={`text-center py-12 border rounded-lg ${d ? 'bg-neutral-900/50 border-neutral-700/50' : 'bg-neutral-50 border-neutral-200'}`}>
+              <Users className={`w-12 h-12 mx-auto mb-3 ${d ? 'text-neutral-600' : 'text-neutral-300'}`} />
+              <p className={d ? 'text-neutral-400' : 'text-neutral-500'}>No users found</p>
+            </div>
+          ) : (
+            <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filtered.map((user, i) => (
             <motion.div key={user.user_id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
               className={`backdrop-blur-xl border rounded-lg p-5 transition-all hover:shadow-lg ${d ? 'bg-gradient-to-br from-neutral-900/90 to-neutral-800/90 border-neutral-700/50' : 'bg-white border-neutral-200'}`}>
               <div className="flex items-start justify-between mb-3">
@@ -331,7 +379,7 @@ export function UsersSection() {
                 </div>
                 <div>
                   <div className={`flex items-center gap-1 text-xs mb-1 ${d ? 'text-neutral-400' : 'text-neutral-500'}`}><Eye className="w-3 h-3" /> Created</div>
-                  <p className={`text-sm ${d ? 'text-white' : 'text-neutral-900'}`}>{user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}</p>
+                  <p className={`text-sm ${d ? 'text-white' : 'text-neutral-900'}`}>{user.created_at ? new Date(user.created_at).toLocaleDateString() : '-'}</p>
                 </div>
               </div>
 
@@ -348,7 +396,22 @@ export function UsersSection() {
                 )}
               </div>
             </motion.div>
-          ))}
+              ))}
+            </div>
+            {hasMoreUsers && (
+              <div className="pt-2 text-center">
+                <button
+                  onClick={loadMoreUsers}
+                  disabled={loading}
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm disabled:opacity-50 ${d ? 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
+                >
+                  {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  Load more users
+                </button>
+              </div>
+            )}
+            </>
+          )}
         </div>
       )}
 
@@ -447,7 +510,7 @@ export function UsersSection() {
                 <option value="admin">admin</option>
                 <option value="viewer">viewer</option>
               </select>
-              <p className="text-xs text-amber-400">⚠ This action is audited. Role changes take effect immediately.</p>
+              <p className="text-xs text-amber-400">Warning: this action is audited. Role changes take effect immediately.</p>
               <div className="flex gap-2">
                 <button onClick={() => setRoleModal(null)} className={`flex-1 py-2 rounded-lg text-sm ${d ? 'bg-neutral-800 text-neutral-300' : 'bg-neutral-100 text-neutral-600'}`}>Cancel</button>
                 <button onClick={handleRoleUpdate} className="flex-1 py-2 bg-orange-500 hover:bg-orange-400 text-white rounded-lg text-sm font-medium">Confirm</button>
@@ -463,7 +526,7 @@ export function UsersSection() {
           <div className={`border rounded-lg p-6 max-w-md w-full ${d ? 'bg-neutral-900 border-neutral-700' : 'bg-white border-neutral-200'}`} onClick={e => e.stopPropagation()}>
             <h3 className={`text-lg font-bold mb-2 ${d ? 'text-white' : 'text-neutral-900'}`}>Reset MFA: {mfaModal.email}</h3>
             <p className={`text-sm mb-4 ${d ? 'text-neutral-300' : 'text-neutral-600'}`}>
-              ⚠ This will reset the MFA configuration for this user. They will need to re-enroll MFA on their next login. This action is <strong>admin-mediated only</strong> and is audited.
+              Warning: this will reset the MFA configuration for this user. They will need to re-enroll MFA on their next login. This action is <strong>admin-mediated only</strong> and is audited.
             </p>
             <div className="flex gap-2">
               <button onClick={() => setMfaModal(null)} className={`flex-1 py-2 rounded-lg text-sm ${d ? 'bg-neutral-800 text-neutral-300' : 'bg-neutral-100 text-neutral-600'}`}>Cancel</button>
@@ -498,7 +561,7 @@ export function UsersSection() {
                 <input type="text" value={inviteReason} onChange={e => setInviteReason(e.target.value)} placeholder="New team member"
                   className={`w-full rounded-lg px-4 py-2.5 text-sm ${d ? 'bg-neutral-800 border-neutral-700 text-white' : 'bg-neutral-50 border-neutral-200 text-neutral-900'} border`} />
               </div>
-              <p className="text-xs text-amber-400">⚠ This will create a user record and send a GitHub org invitation. Audited.</p>
+              <p className="text-xs text-amber-400">Warning: this will create a user record and send a GitHub org invitation. Audited.</p>
               <div className="flex gap-2">
                 <button onClick={() => setInviteModal(false)} className={`flex-1 py-2 rounded-lg text-sm ${d ? 'bg-neutral-800 text-neutral-300' : 'bg-neutral-100 text-neutral-600'}`}>Cancel</button>
                 <button onClick={handleInvite} disabled={inviteLoading || !inviteEmail} className="flex-1 py-2 bg-orange-500 hover:bg-orange-400 text-white rounded-lg text-sm font-medium disabled:opacity-50">
@@ -516,7 +579,7 @@ export function UsersSection() {
           <div className={`border rounded-lg p-6 max-w-md w-full ${d ? 'bg-neutral-900 border-neutral-700' : 'bg-white border-neutral-200'}`} onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-bold mb-2 text-red-400">Disable User</h3>
             <p className={`text-sm mb-4 ${d ? 'text-neutral-300' : 'text-neutral-600'}`}>
-              ⚠ This will immediately revoke <strong>all active sessions</strong> and remove <strong>LiveKit participants</strong> for {disableModal.email} (within 10 seconds). This action is audited.
+              Warning: this will immediately revoke <strong>all active sessions</strong> and remove <strong>LiveKit participants</strong> for {disableModal.email} within 10 seconds. This action is audited.
             </p>
             <textarea placeholder="Reason for disabling..." value={disableReason} onChange={e => setDisableReason(e.target.value)}
               className={`w-full rounded-lg px-4 py-2.5 text-sm mb-4 min-h-20 ${d ? 'bg-neutral-800 border-neutral-700 text-white' : 'bg-neutral-50 border-neutral-200 text-neutral-900'} border`} />
