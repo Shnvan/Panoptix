@@ -9,11 +9,11 @@
  *  - Display structured sections only as documented in the data contract.
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Users, Globe, Monitor, Wifi, Radio, Clock, Shield,
   AlertTriangle, ChevronRight, X, Loader2, RefreshCw,
-  CheckCircle2, XCircle, Info, Link2, MapPin,
+  CheckCircle2, XCircle, Info, Link2, MapPin, Search,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from '../../lib/theme';
@@ -335,6 +335,9 @@ export function VisitorInvestigationPage() {
   const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loginFilter, setLoginFilter] = useState<'all' | 'linked' | 'anonymous'>('all');
+  const [timeFilter, setTimeFilter] = useState<'all' | '1h' | '24h' | '7d'>('all');
 
   const load = useCallback(async (cursor?: string) => {
     setLoading(true);
@@ -352,6 +355,38 @@ export function VisitorInvestigationPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const filteredVisits = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const now = Date.now();
+    const cutoffMs = timeFilter === '1h'
+      ? now - 60 * 60 * 1000
+      : timeFilter === '24h'
+        ? now - 24 * 60 * 60 * 1000
+        : timeFilter === '7d'
+          ? now - 7 * 24 * 60 * 60 * 1000
+          : null;
+
+    return visits.filter((visit) => {
+      if (loginFilter === 'linked' && !visit.login.logged_in) return false;
+      if (loginFilter === 'anonymous' && visit.login.logged_in) return false;
+      if (cutoffMs !== null) {
+        const collectedMs = visit.collected_at ? new Date(visit.collected_at).getTime() : Number.NaN;
+        if (!Number.isFinite(collectedMs) || collectedMs < cutoffMs) return false;
+      }
+      if (!q) return true;
+      const haystack = [
+        visit.visit_id,
+        visit.page_path,
+        visit.notice_version,
+        visit.user_agent,
+        visit.login.user_id,
+        visit.login.session_id,
+        visit.login.ip,
+      ].filter(Boolean).join(' ').toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [loginFilter, searchQuery, timeFilter, visits]);
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -363,7 +398,7 @@ export function VisitorInvestigationPage() {
           <div>
             <h3 className={`font-semibold ${dark ? 'text-white' : 'text-neutral-900'}`}>Visitor Investigation</h3>
             <p className={`text-sm ${dark ? 'text-neutral-400' : 'text-neutral-500'}`}>
-              {loading ? 'Loading…' : `${visits.length} visit record${visits.length !== 1 ? 's' : ''}`}
+              {loading ? 'Loading...' : `${filteredVisits.length} shown of ${visits.length} visit record${visits.length !== 1 ? 's' : ''}`}
             </p>
           </div>
         </div>
@@ -394,6 +429,51 @@ export function VisitorInvestigationPage() {
         </div>
       )}
 
+      {/* Loaded-row filters */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="relative">
+          <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${dark ? 'text-neutral-500' : 'text-neutral-400'}`} />
+          <input
+            id="visitor-visit-search"
+            aria-label="Search visitor visits"
+            type="search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search visit ID, page, user, IP..."
+            className={`w-full pl-10 pr-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 ${
+              dark ? 'bg-neutral-900 border-neutral-700 text-white placeholder-neutral-500' : 'bg-white border-neutral-200 text-neutral-900 placeholder-neutral-400'
+            }`}
+          />
+        </div>
+        <select
+          id="visitor-login-filter"
+          aria-label="Visitor login filter"
+          value={loginFilter}
+          onChange={(event) => setLoginFilter(event.target.value as typeof loginFilter)}
+          className={`px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 ${
+            dark ? 'bg-neutral-900 border-neutral-700 text-white' : 'bg-white border-neutral-200 text-neutral-900'
+          }`}
+        >
+          <option value="all">All visitors</option>
+          <option value="linked">Login linked</option>
+          <option value="anonymous">Anonymous only</option>
+        </select>
+        <select
+          id="visitor-time-filter"
+          aria-label="Visitor time filter"
+          value={timeFilter}
+          onChange={(event) => setTimeFilter(event.target.value as typeof timeFilter)}
+          className={`px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 ${
+            dark ? 'bg-neutral-900 border-neutral-700 text-white' : 'bg-white border-neutral-200 text-neutral-900'
+          }`}
+        >
+          <option value="all">All loaded times</option>
+          <option value="1h">Last hour</option>
+          <option value="24h">Last 24 hours</option>
+          <option value="7d">Last 7 days</option>
+        </select>
+      </div>
+
       {/* Table */}
       <div className={`border rounded-lg overflow-hidden ${dark ? 'border-neutral-700/50' : 'border-neutral-200'}`}>
         {/* Table header */}
@@ -401,7 +481,7 @@ export function VisitorInvestigationPage() {
           dark ? 'border-neutral-700/50 bg-neutral-900/60 text-neutral-500' : 'border-neutral-100 bg-neutral-50 text-neutral-400'
         }`}>
           <span className="w-8 flex-shrink-0" />
-          <span className="flex-1">Visit ID · Page · Time</span>
+          <span className="flex-1">Visit ID - Page - Time</span>
           <span className="w-4 flex-shrink-0" />
         </div>
 
@@ -421,15 +501,15 @@ export function VisitorInvestigationPage() {
         )}
 
         {/* Empty state */}
-        {!loading && !error && visits.length === 0 && (
+        {!loading && !error && filteredVisits.length === 0 && (
           <div className={`text-center py-12 ${dark ? 'text-neutral-500' : 'text-neutral-400'}`}>
             <Users className="w-10 h-10 mx-auto mb-2 opacity-30" />
-            <p className="text-sm">No visitor visits recorded yet.</p>
+            <p className="text-sm">{visits.length > 0 ? 'No loaded visits match the current filters.' : 'No visitor visits recorded yet.'}</p>
           </div>
         )}
 
         {/* Rows */}
-        {visits.map((v) => (
+        {filteredVisits.map((v) => (
           <VisitRow key={v.visit_id} visit={v} dark={dark} onClick={() => setSelectedId(v.visit_id)} />
         ))}
 
@@ -444,7 +524,7 @@ export function VisitorInvestigationPage() {
                 dark ? 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
               }`}
             >
-              {loading ? <span className="flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" />Loading…</span> : 'Load more'}
+              {loading ? <span className="flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" />Loading...</span> : 'Load more visits'}
             </button>
           </div>
         )}

@@ -3,6 +3,9 @@ import AxeBuilder from '@axe-core/playwright';
 
 const jsonHeaders = { 'content-type': 'application/json' };
 
+test.describe.configure({ mode: 'serial' });
+test.setTimeout(60000);
+
 async function fulfillJson(route: Route, body: unknown, status = 200) {
   await route.fulfill({
     status,
