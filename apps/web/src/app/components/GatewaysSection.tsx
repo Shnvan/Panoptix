@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useTheme } from '../../lib/theme';
 import { api, ApiError } from '../../lib/api';
 import { useAdminGateways } from '../../lib/hooks';
+import { LoadErrorPanel } from './LoadErrorPanel';
 
 type CredentialPanel = {
   gatewayId: string;
@@ -15,7 +16,7 @@ type CredentialPanel = {
 export function GatewaysSection() {
   const { theme } = useTheme();
   const d = theme === 'dark';
-  const { gateways, loading: gwLoading, refetch: refetchGateways, loadMore, hasMore } = useAdminGateways();
+  const { gateways, loading: gwLoading, error: gatewaysError, refetch: refetchGateways, loadMore, hasMore } = useAdminGateways();
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState('');
   const [fingerprint, setFingerprint] = useState('');
@@ -264,12 +265,18 @@ export function GatewaysSection() {
       </div>
 
       {/* Gateway cards - real data from GET /admin/gateways */}
-      {gwLoading ? (
+      {gwLoading && gateways.length === 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {[1, 2, 3].map(i => (
             <div key={i} className={`rounded-lg p-5 h-64 ${d ? 'bg-neutral-800/50 animate-pulse' : 'bg-neutral-200 animate-pulse'}`} />
           ))}
         </div>
+      ) : gatewaysError && gateways.length === 0 ? (
+        <LoadErrorPanel
+          title="Unable to load gateways"
+          message={gatewaysError}
+          onRetry={refetchGateways}
+        />
       ) : gateways.length === 0 ? (
         <div className={`text-center py-16 border rounded-lg ${d ? 'bg-neutral-900/50 border-neutral-700/50' : 'bg-neutral-50 border-neutral-200'}`}>
           <Server className={`w-16 h-16 mx-auto mb-4 ${d ? 'text-neutral-600' : 'text-neutral-300'}`} />

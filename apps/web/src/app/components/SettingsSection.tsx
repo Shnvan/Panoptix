@@ -4,6 +4,7 @@ import { useActiveSessions } from '../../lib/hooks';
 import { api, ApiError } from '../../lib/api';
 import { useState } from 'react';
 import type { MeResponse } from '../../lib/types';
+import { LoadErrorPanel } from './LoadErrorPanel';
 
 interface SettingsSectionProps {
   user: MeResponse | null;
@@ -19,7 +20,7 @@ interface SettingsSectionProps {
 export function SettingsSection({ user }: SettingsSectionProps) {
   const { theme } = useTheme();
   const d = theme === 'dark';
-  const { sessions, refetch: refetchSessions } = useActiveSessions();
+  const { sessions, loading: sessionsLoading, error: sessionsError, refetch: refetchSessions } = useActiveSessions();
   const [revokedId, setRevokedId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -85,6 +86,14 @@ export function SettingsSection({ user }: SettingsSectionProps) {
         </div>
       </div>
 
+      {sessionsError && (
+        <LoadErrorPanel
+          title="Unable to load session activity"
+          message={sessionsError}
+          onRetry={refetchSessions}
+        />
+      )}
+
       {/* Active Sessions */}
       <div className={`backdrop-blur-xl border rounded-lg p-6 ${d ? 'bg-gradient-to-br from-neutral-900/90 to-neutral-800/90 border-neutral-700/50' : 'bg-white border-neutral-200'}`}>
         <div className="flex items-center gap-3 mb-6">
@@ -92,7 +101,9 @@ export function SettingsSection({ user }: SettingsSectionProps) {
           <h3 className={`font-semibold ${d ? 'text-white' : 'text-neutral-900'}`}>Active Sessions</h3>
         </div>
         <div className="space-y-3">
-          {sessions.length === 0 ? (
+          {sessionsLoading && sessions.length === 0 ? (
+            <p className={`text-sm ${d ? 'text-neutral-400' : 'text-neutral-500'}`}>Loading active sessions...</p>
+          ) : sessions.length === 0 && !sessionsError ? (
             <p className={`text-sm ${d ? 'text-neutral-400' : 'text-neutral-500'}`}>No active sessions found</p>
           ) : sessions.map(session => (
             <div key={session.id} className={`flex items-center justify-between p-4 rounded-lg ${d ? 'bg-neutral-800/50' : 'bg-neutral-50'}`}>
@@ -123,7 +134,9 @@ export function SettingsSection({ user }: SettingsSectionProps) {
           </div>
         </div>
         <div className="space-y-2">
-          {sessions.length === 0 ? (
+          {sessionsLoading && sessions.length === 0 ? (
+            <p className={`text-sm ${d ? 'text-neutral-400' : 'text-neutral-500'}`}>Loading login history...</p>
+          ) : sessions.length === 0 && !sessionsError ? (
             <p className={`text-sm ${d ? 'text-neutral-400' : 'text-neutral-500'}`}>No login history available</p>
           ) : sessions.map(session => (
             <div key={`hist-${session.id}`} className={`flex items-center gap-4 p-3 rounded-lg ${d ? 'bg-neutral-800/50' : 'bg-neutral-50'}`}>

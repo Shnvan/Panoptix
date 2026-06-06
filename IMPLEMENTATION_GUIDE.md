@@ -48,7 +48,7 @@ docs/implementation/team-raci-checklist.md
 
 The rule is:
 
-- Frontend implementation is owned by the frontend coworker and is now merged into `fullstack-integration` for combined testing.
+- Frontend implementation is explicitly reassigned for the current reliability/UI cleanup. Gateway Discovery UI remains out of scope unless separately reassigned.
 - Database implementation is owned by the database coworker.
 - Backend, security, gateway, DevOps, LiveKit integration, audit logic, and coordination are owned by the system owner.
 
@@ -102,7 +102,7 @@ The structure mirrors the architecture of the real system. It separates frontend
 
 ### What was implemented
 
-The coworker frontend branch `integratedCompleteFrontend` was merged into `fullstack-integration`.
+The original coworker frontend branch `integratedCompleteFrontend` was merged during the earlier integration phase; current work is based on `origin/main`.
 
 The current frontend includes:
 
@@ -2940,7 +2940,7 @@ edge agent compileall: passed
 From:
 
 ```powershell
-cd c:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+cd C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 ```
 
 Run:
@@ -2955,7 +2955,7 @@ python -m compileall src alembic scripts
 From:
 
 ```powershell
-cd c:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+cd C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 ```
 
 Run:
@@ -3931,3 +3931,26 @@ If the backend cannot prove who the caller is, it rejects the request.
 ```
 
 That fail-closed rule is the foundation for the rest of the system.
+
+---
+
+## Frontend Reliability And Compression Mitigation (2026-06-06)
+
+PR #27 merged the page-by-page frontend cleanup for gateways, cameras, access requests, alerts, visitor visits, and audit records. The follow-up reliability milestone addresses two production lessons:
+
+1. A failed list request must not be presented as an empty database result. Camera, gateway, user, audit, DSR, and session hooks expose request errors while preserving their existing data, loading, pagination, and refetch interfaces. Pages render explicit retry controls when the first request fails.
+2. A viewer token proves authorization only. It does not prove that LiveKit connected or that a gateway publisher delivered video. The camera modal now distinguishes token request, LiveKit connection, publisher wait, playing, timeout/offline, and connection error. Retry always requests a fresh short-lived token.
+
+The modal must not claim custom HMAC tunnel encryption or hardcode authorized roles. Browser media is transported by LiveKit/WebRTC, the viewer token is subscribe-only, and backend camera ACL checks remain authoritative.
+
+Production also has a temporary Cloudflare Compression Rule:
+
+```text
+starts_with(http.request.uri.path, "/api/v1/")
+```
+
+with `Disable Compression`. It mitigates browser `ERR_CONTENT_DECODING_FAILED 200 (OK)` failures seen on valid JSON responses. This rule is not an Access bypass and is separate from the narrow access-request WAF rate limit. Remove it only after the permanent compression source is identified and compressed browser/curl checks pass.
+
+Revoking a Panoptix session does not revoke the independent Cloudflare Access session and does not delete cameras or gateways. A later authenticated request can create a new backend session.
+
+The current hardware result is incomplete: the operator laptop could not reach Tailscale address `100.76.147.59` or TCP port `8554`. MediaMTX should be checked locally on the gateway at `127.0.0.1:8554`, and the camera should be tested directly from that host across the camera LAN/VLAN before changing application code.

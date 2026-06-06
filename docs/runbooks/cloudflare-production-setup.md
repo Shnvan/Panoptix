@@ -155,6 +155,27 @@ Rules:
 - Keep `/`, `/api/v1/me`, `/api/v1/admin/*`, `/api/v1/cameras/*`, and `/api/v1/sessions/*` Cloudflare Access-protected.
 - Treat Free-tier limits as a constraint: one rate limiting rule, IP-based counting, 10-second counting period, and 10-second mitigation. If the zone is upgraded later, reassess rather than silently widening the rule.
 
+## Temporary API Compression Mitigation
+
+On 2026-06-06, Chrome reported `ERR_CONTENT_DECODING_FAILED 200 (OK)` for multiple JSON endpoints while direct PowerShell requests returned valid JSON. Keep this Cloudflare Compression Rule active until the malformed origin or edge compression source is identified:
+
+```text
+starts_with(http.request.uri.path, "/api/v1/")
+```
+
+Set the action to `Disable Compression`.
+
+This broad path match is acceptable only because it controls response compression. It does not make `/api/v1/*` public, does not bypass Cloudflare Access, and is not a WAF rule. The separate `panoptix-public-access-request-submit` rate-limit rule must remain narrow.
+
+Verify after changes:
+
+```powershell
+curl.exe -sS -D - https://panoptix.site/api/v1/visitor/notice
+curl.exe --compressed -sS -D - https://panoptix.site/api/v1/visitor/notice
+```
+
+In a browser console, `fetch("/api/v1/visitor/notice").then(r => r.json()).then(console.log)` must resolve without `ERR_CONTENT_DECODING_FAILED`. Remove this mitigation only after the permanent compression fix passes browser and `curl.exe --compressed` checks across public and authenticated API responses.
+
 ## Production Safety Checklist
 
 Before enabling production traffic:
@@ -170,6 +191,7 @@ Before enabling production traffic:
 - [ ] Direct origin bypass is blocked or restricted to documented break-glass operations.
 - [ ] Same-domain routing sends UI, API, health, and WebSocket paths to the correct services.
 - [ ] The Cloudflare Free-tier WAF rate limiting rule `panoptix-public-access-request-submit` is configured for only `POST /api/v1/visitor/access-requests`, or a tracked exception documents why it is not active.
+- [ ] The temporary `/api/v1/*` compression-disable rule is tracked separately from Access and WAF policy, and browser compressed-response checks pass.
 - [ ] Rollback procedure is reviewed before cutover.
 
 ## Manual Validation Steps
@@ -177,15 +199,14 @@ Before enabling production traffic:
 Docs-only local review:
 
 ```powershell
-Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\cloudflare-production-setup.md
-Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\cf-access-rollback.md
-Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\.env.example
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\docs\runbooks\cloudflare-production-setup.md
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\docs\runbooks\cf-access-rollback.md
 ```
 
 Backend test references:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_config.py tests/test_cloudflare_access.py -v
 ```
@@ -193,7 +214,6 @@ python -m pytest tests/test_config.py tests/test_cloudflare_access.py -v
 Expected review results:
 
 - Cloudflare runbook contains no real account IDs, audience IDs, JWTs, or secrets.
-- `.env.example` contains placeholders only.
 - Cloudflare Access tests cover valid browser JWTs and invalid issuer/audience/expired token cases.
 - Gateway route tests confirm browser JWTs are not accepted as gateway credentials.
 - Development auth remains limited to local development settings.

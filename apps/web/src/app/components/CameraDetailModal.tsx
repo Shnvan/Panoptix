@@ -1,58 +1,138 @@
-import { X, Camera, MapPin, Eye, Signal, RefreshCw, Flag } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Camera, Eye, Flag, MapPin, RefreshCw, Signal, X } from 'lucide-react';
+import { LiveKitRoom, useTracks, VideoTrack } from '@livekit/components-react';
+import { Track } from 'livekit-client';
 import { motion } from 'motion/react';
 import { useTheme } from '../../lib/theme';
 import { api, ApiError } from '../../lib/api';
-import { useState } from 'react';
-import { LiveKitRoom, useTracks, VideoTrack } from '@livekit/components-react';
-import { Track } from 'livekit-client';
 import type { ViewerTokenResponse } from '../../lib/types';
+import {
+  nextPlaybackAttempt,
+  playbackStateForRoomEvent,
+  playbackStateForTrack,
+  type PlaybackState,
+} from './cameraPlayback';
 
 interface CameraDetailModalProps {
-  camera: { camera_id: string; display_name: string; livekit_room_name: string; source_type?: string | null };
+  camera: {
+    camera_id: string;
+    display_name: string;
+    livekit_room_name: string;
+    source_type?: string | null;
+  };
   onClose: () => void;
 }
 
-function VideoPlayer() {
+const PUBLISHER_TRACK_TIMEOUT_MS = 12_000;
+
+function VideoPlayer({ onTrackState }: { onTrackState: (available: boolean) => void }) {
   const tracks = useTracks([Track.Source.Camera]);
+
+  useEffect(() => {
+    onTrackState(tracks.length > 0);
+  }, [onTrackState, tracks.length]);
 
   if (tracks.length === 0) {
     return (
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#0A0A0A]">
-        <RefreshCw className="w-8 h-8 text-[#F07C1E] animate-spin" />
-        <span className="text-xs font-mono uppercase tracking-wider text-[#666666]">
-          Establishing secure stream tunnel...
+        <RefreshCw className="h-8 w-8 animate-spin text-[#F07C1E]" />
+        <span className="text-xs font-mono uppercase text-[#666666]">
+          Waiting for camera publisher...
         </span>
       </div>
     );
   }
 
-  return (
-    <VideoTrack
-      trackRef={tracks[0]}
-      className="w-full h-full object-contain"
-    />
-  );
+  return <VideoTrack trackRef={tracks[0]} className="h-full w-full object-contain" />;
 }
 
 export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
   const { theme } = useTheme();
   const d = theme === 'dark';
-  const [tokenStatus, setTokenStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
-  const [tokenError, setTokenError] = useState<string | null>(null);
+  const [playbackState, setPlaybackState] = useState<PlaybackState>('idle');
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [tokenData, setTokenData] = useState<ViewerTokenResponse | null>(null);
+  const [connectionAttempt, setConnectionAttempt] = useState(0);
+  const activeAttemptRef = useRef(0);
 
   const requestViewToken = async () => {
-    setTokenStatus('loading');
-    setTokenError(null);
+    const attempt = nextPlaybackAttempt(activeAttemptRef.current);
+    activeAttemptRef.current = attempt;
     setTokenData(null);
+    setPlaybackState('requesting_token');
+    setPlaybackError(null);
     try {
       const data = await api.getCameraViewToken(camera.camera_id);
+      if (activeAttemptRef.current !== attempt) return;
       setTokenData(data);
-      setTokenStatus('ready');
+      setConnectionAttempt(attempt);
+      setPlaybackState('connecting');
     } catch (err) {
-      setTokenStatus('error');
-      setTokenError(err instanceof ApiError ? err.detail : 'Failed to get stream token');
+      if (activeAttemptRef.current !== attempt) return;
+      setTokenData(null);
+      setPlaybackState('error');
+      setPlaybackError(err instanceof ApiError ? err.detail : 'Failed to get stream token');
     }
+  };
+
+  const handleTrackState = useCallback((available: boolean) => {
+    if (available) {
+      setPlaybackError(null);
+    }
+    setPlaybackState((current) => playbackStateForTrack(current, available));
+  }, []);
+
+  useEffect(() => {
+    if (playbackState !== 'waiting_for_publisher') return;
+    const timeout = window.setTimeout(() => {
+      const nextState = playbackStateForRoomEvent(
+        activeAttemptRef.current,
+        connectionAttempt,
+        'publisher_timeout',
+      );
+      if (!nextState) return;
+      setPlaybackState(nextState);
+      setPlaybackError(
+        'No camera publisher joined the LiveKit room before the timeout. Check the gateway, camera assignment, and edge-agent publisher.',
+      );
+    }, PUBLISHER_TRACK_TIMEOUT_MS);
+    return () => window.clearTimeout(timeout);
+  }, [connectionAttempt, playbackState]);
+
+  const stateLabel: Record<PlaybackState, string> = {
+    idle: 'NOT CONNECTED',
+    requesting_token: 'REQUESTING ACCESS',
+    connecting: 'CONNECTING',
+    waiting_for_publisher: 'WAITING FOR CAMERA',
+    playing: 'LIVE',
+    offline: 'CAMERA OFFLINE',
+    error: 'CONNECTION ERROR',
+  };
+  const panelMessage: Record<PlaybackState, string> = {
+    idle: 'Stream not started',
+    requesting_token: 'Requesting short-lived viewer access...',
+    connecting: 'Connecting to LiveKit...',
+    waiting_for_publisher: 'Connected. Waiting for the gateway camera publisher...',
+    playing: 'Live camera track received',
+    offline: 'Camera publisher unavailable',
+    error: 'Unable to establish stream',
+  };
+  const isPending =
+    playbackState === 'requesting_token'
+    || playbackState === 'connecting'
+    || playbackState === 'waiting_for_publisher';
+  const stateTone = playbackState === 'playing' ? 'success' : isPending ? 'pending' : 'error';
+
+  const handleConnectionFailure = (attempt: number, message: string) => {
+    const nextState = playbackStateForRoomEvent(
+      activeAttemptRef.current,
+      attempt,
+      'connection_error',
+    );
+    if (!nextState) return;
+    setPlaybackState(nextState);
+    setPlaybackError(message);
+    setTokenData(null);
   };
 
   return (
@@ -68,157 +148,173 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
-        className={`border max-w-6xl w-full overflow-hidden shadow-xl rounded-none ${
-          d ? 'bg-[#111111] border-[#222222]' : 'bg-[#FFFFFF] border-neutral-200'
+        className={`w-full max-w-6xl overflow-hidden border shadow-xl ${
+          d ? 'border-[#222222] bg-[#111111]' : 'border-neutral-200 bg-white'
         }`}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
       >
-        {/* Header */}
-        <div className={`flex items-center justify-between p-6 border-b ${
-          d ? 'border-[#222222]' : 'border-neutral-200'
-        }`}>
+        <div className={`flex items-center justify-between border-b p-6 ${d ? 'border-[#222222]' : 'border-neutral-200'}`}>
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-[rgba(240,124,30,0.08)] rounded-none flex items-center justify-center">
-              <Camera className="w-6 h-6 text-[#F07C1E]" />
+            <div className="flex h-12 w-12 items-center justify-center bg-[rgba(240,124,30,0.08)]">
+              <Camera className="h-6 w-6 text-[#F07C1E]" />
             </div>
             <div>
               <h2 className={`text-xl font-bold ${d ? 'text-[#F0EAD6]' : 'text-neutral-900'}`}>
                 {camera.display_name}
               </h2>
-              <div className={`flex items-center gap-2 text-sm mt-1 ${
-                d ? 'text-[#666666]' : 'text-neutral-500'
-              }`}>
-                <MapPin className="w-3 h-3 text-[#F07C1E]" />
+              <div className={`mt-1 flex items-center gap-2 text-sm ${d ? 'text-[#666666]' : 'text-neutral-500'}`}>
+                <MapPin className="h-3 w-3 text-[#F07C1E]" />
                 <span>Room: {camera.livekit_room_name}</span>
               </div>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className={`w-10 h-10 rounded-none flex items-center justify-center transition-colors border ${
-              d ? 'bg-[#1A1A1A] border-[#222222] hover:bg-[#222222] text-[#666666] hover:text-[#F0EAD6]' : 'bg-neutral-50 border-neutral-200 hover:bg-neutral-100 text-neutral-500 hover:text-neutral-900'
+            className={`flex h-10 w-10 items-center justify-center border transition-colors ${
+              d
+                ? 'border-[#222222] bg-[#1A1A1A] text-[#666666] hover:bg-[#222222] hover:text-[#F0EAD6]'
+                : 'border-neutral-200 bg-neutral-50 text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900'
             }`}
             aria-label="Close modal"
           >
-            <X className="w-5 h-5" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6">
-          {/* Video Panel */}
-          <div className="lg:col-span-2 space-y-4">
-            <div className="aspect-video bg-[#0A0A0A] border border-[#222222] overflow-hidden relative rounded-none">
-              {tokenStatus !== 'ready' ? (
-                <div className="absolute inset-0 bg-[#0A0A0A]">
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-                    <Camera className="w-16 h-16 text-[#1A1A1A]" />
-                    <span className="text-xs font-mono uppercase tracking-wider text-[#666666]">
-                      {tokenStatus === 'loading' ? 'Requesting secure tunnel...' : 'Feed offline · Tunnel closed'}
-                    </span>
-                  </div>
+        <div className="grid grid-cols-1 gap-6 p-6 lg:grid-cols-3">
+          <div className="space-y-4 lg:col-span-2">
+            <div className="relative aspect-video overflow-hidden border border-[#222222] bg-[#0A0A0A]">
+              {!tokenData ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#0A0A0A]">
+                  <Camera className="h-16 w-16 text-[#1A1A1A]" />
+                  <span className="text-xs font-mono uppercase text-[#666666]" aria-live="polite">
+                    {panelMessage[playbackState]}
+                  </span>
                 </div>
               ) : (
-                tokenData && (
-                  <LiveKitRoom
-                    serverUrl={tokenData.livekit_url}
-                    token={tokenData.token}
-                    connect={true}
-                    audio={false}
-                    video={false}
-                    className="w-full h-full"
-                  >
-                    <VideoPlayer />
-                  </LiveKitRoom>
-                )
+                <LiveKitRoom
+                  key={connectionAttempt}
+                  serverUrl={tokenData.livekit_url}
+                  token={tokenData.token}
+                  connect={true}
+                  connectOptions={{ websocketTimeout: 10_000 }}
+                  audio={false}
+                  video={false}
+                  className="h-full w-full"
+                  onConnected={() => {
+                    const nextState = playbackStateForRoomEvent(
+                      activeAttemptRef.current,
+                      connectionAttempt,
+                      'connected',
+                    );
+                    if (nextState) setPlaybackState(nextState);
+                  }}
+                  onDisconnected={() => handleConnectionFailure(
+                    connectionAttempt,
+                    'The LiveKit connection closed. Request a fresh viewer token and try again.',
+                  )}
+                  onError={(error) => handleConnectionFailure(
+                    connectionAttempt,
+                    error.message || 'LiveKit connection failed',
+                  )}
+                >
+                  <VideoPlayer onTrackState={handleTrackState} />
+                </LiveKitRoom>
               )}
 
-              {/* Status Badge */}
-              <div className={`absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 border rounded-none text-xs font-mono font-bold ${
-                tokenStatus === 'ready'
-                  ? 'bg-[#7BC67B]/10 border-[#7BC67B]/30 text-[#7BC67B]'
-                  : 'bg-[#FF3333]/10 border-[#FF3333]/30 text-[#FF3333]'
-              }`}>
-                <div className={`w-2 h-2 rounded-full ${tokenStatus === 'ready' ? 'bg-[#7BC67B]' : 'bg-[#FF3333]'}`} />
-                <span>{tokenStatus === 'ready' ? 'LIVE TUNNEL ACTIVE' : 'TUNNEL CLOSED'}</span>
+              <div
+                className={`absolute left-4 top-4 flex items-center gap-2 border px-3 py-1.5 text-xs font-mono font-bold ${
+                  stateTone === 'success'
+                    ? 'border-[#7BC67B]/30 bg-[#7BC67B]/10 text-[#7BC67B]'
+                    : stateTone === 'pending'
+                      ? 'border-[#F07C1E]/30 bg-[#F07C1E]/10 text-[#F07C1E]'
+                      : 'border-[#FF3333]/30 bg-[#FF3333]/10 text-[#FF3333]'
+                }`}
+                aria-live="polite"
+              >
+                <div className={`h-2 w-2 rounded-full ${
+                  stateTone === 'success' ? 'bg-[#7BC67B]' : stateTone === 'pending' ? 'bg-[#F07C1E]' : 'bg-[#FF3333]'
+                }`} />
+                <span>{stateLabel[playbackState]}</span>
               </div>
 
-              <div className="absolute bottom-4 left-4 bg-black/70 px-3 py-1.5 font-mono text-xs text-white">
+              <div className="absolute bottom-4 left-4 bg-black/70 px-3 py-1.5 text-xs font-mono text-white">
                 {new Date().toLocaleString('en-US', { hour12: false })}
               </div>
             </div>
 
-            {/* Controls */}
             <div className="flex gap-3">
               <button
-                onClick={requestViewToken}
-                disabled={tokenStatus === 'loading'}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-[#F07C1E] hover:bg-[#C45E0A] text-[#0A0A0A] rounded-none text-sm font-medium transition-colors disabled:opacity-50"
+                type="button"
+                onClick={() => { void requestViewToken(); }}
+                disabled={playbackState === 'requesting_token'}
+                className="flex flex-1 items-center justify-center gap-2 bg-[#F07C1E] px-4 py-3 text-sm font-medium text-[#0A0A0A] transition-colors hover:bg-[#C45E0A] disabled:opacity-50"
               >
-                <RefreshCw className={`w-4 h-4 ${tokenStatus === 'loading' ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-4 w-4 ${playbackState === 'requesting_token' ? 'animate-spin' : ''}`} />
                 <span>
-                  {tokenStatus === 'loading' ? 'Requesting...' : tokenStatus === 'ready' ? 'Tunnel Reset' : 'Establish Stream Tunnel'}
+                  {playbackState === 'requesting_token' ? 'Requesting...' : tokenData ? 'Restart Stream' : 'Establish Stream'}
                 </span>
               </button>
-              <button className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 border rounded-none transition-colors ${
-                d
-                  ? 'bg-[#1A1A1A] hover:bg-[#222222] border-[#222222] text-[#F0EAD6]'
-                  : 'bg-neutral-50 hover:bg-neutral-100 border-neutral-200 text-neutral-700'
-              }`}>
-                <Flag className="w-4 h-4 text-[#FF3333]" />
+              <button
+                type="button"
+                className={`flex flex-1 items-center justify-center gap-2 border px-4 py-3 transition-colors ${
+                  d
+                    ? 'border-[#222222] bg-[#1A1A1A] text-[#F0EAD6] hover:bg-[#222222]'
+                    : 'border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100'
+                }`}
+              >
+                <Flag className="h-4 w-4 text-[#FF3333]" />
                 <span className="text-sm font-medium">Flag Security Incident</span>
               </button>
             </div>
 
-            {tokenError && (
-              <div className="p-3 rounded-none bg-[#FF3333]/10 border border-[#FF3333]/30 text-[#FF3333] text-sm font-mono">
-                Error: {tokenError}
+            {playbackError && (
+              <div role="alert" className="border border-[#FF3333]/30 bg-[#FF3333]/10 p-3 text-sm font-mono text-[#FF3333]">
+                Error: {playbackError}
               </div>
             )}
           </div>
 
-          {/* Metadata Panel */}
           <div className="space-y-4">
-            <div className={`border rounded-none p-4 space-y-3 ${
-              d ? 'bg-[#1A1A1A] border-[#222222]' : 'bg-neutral-50 border-neutral-200'
-            }`}>
-              <h3 className={`font-semibold flex items-center gap-2 ${d ? 'text-[#F0EAD6]' : 'text-neutral-900'}`}>
-                <Signal className="w-4 h-4 text-[#7BC67B]" /> Stream Context
+            <div className={`space-y-3 border p-4 ${d ? 'border-[#222222] bg-[#1A1A1A]' : 'border-neutral-200 bg-neutral-50'}`}>
+              <h3 className={`flex items-center gap-2 font-semibold ${d ? 'text-[#F0EAD6]' : 'text-neutral-900'}`}>
+                <Signal className="h-4 w-4 text-[#7BC67B]" /> Stream Context
               </h3>
               <div className="space-y-2">
                 {[
-                  ['Tunnel State', tokenStatus === 'ready' ? 'Connected' : 'Closed'],
+                  ['Playback State', stateLabel[playbackState]],
                   ['Ingest Type', camera.source_type || 'RTSP Source'],
                   ['LiveKit Room', camera.livekit_room_name],
-                  ['Watermark', 'Active (Analyst ID)'],
-                ].map(([label, val]) => (
-                  <div key={label} className="flex justify-between text-sm">
+                  ['Viewer Token', tokenData ? 'Issued (short-lived)' : 'Not active'],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex justify-between gap-4 text-sm">
                     <span className={d ? 'text-[#666666]' : 'text-neutral-500'}>{label}</span>
-                    <span className={`font-mono ${d ? 'text-[#F0EAD6]' : 'text-neutral-700'}`}>{val}</span>
+                    <span className={`break-all text-right font-mono ${d ? 'text-[#F0EAD6]' : 'text-neutral-700'}`}>{value}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className={`border rounded-none p-4 text-xs font-mono ${
-              d ? 'bg-[rgba(240,124,30,0.08)] border-[#222222] text-[#F07C1E]' : 'bg-amber-50 border-amber-200 text-amber-800'
+            <div className={`border p-4 text-xs font-mono ${
+              d ? 'border-[#222222] bg-[rgba(240,124,30,0.08)] text-[#F07C1E]' : 'border-amber-200 bg-amber-50 text-amber-800'
             }`}>
-              Tunnel encryption active (HMAC-SHA256). LiveKit subscriber tunnel prevents local client media publishing (PH DPA compliance mandate).
+              Browser playback is subscriber-only. LiveKit/WebRTC protects media in transit; RTSP credentials and publisher access remain on the gateway.
             </div>
 
-            <div className={`border rounded-none p-4 space-y-3 ${
-              d ? 'bg-[#1A1A1A] border-[#222222]' : 'bg-neutral-50 border-neutral-200'
-            }`}>
-              <h3 className={`font-semibold flex items-center gap-2 ${d ? 'text-[#F0EAD6]' : 'text-neutral-900'}`}>
-                <Eye className="w-4 h-4 text-[#F07C1E]" /> Authorized Roles
+            <div className={`space-y-3 border p-4 ${d ? 'border-[#222222] bg-[#1A1A1A]' : 'border-neutral-200 bg-neutral-50'}`}>
+              <h3 className={`flex items-center gap-2 font-semibold ${d ? 'text-[#F0EAD6]' : 'text-neutral-900'}`}>
+                <Eye className="h-4 w-4 text-[#F07C1E]" /> Access Control
               </h3>
               <div className="space-y-2 text-sm">
-                {['Security Operations Center (SOC)', 'Compliance Officer', 'System Administrator'].map((team) => (
-                  <div key={team} className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-[#7BC67B]" />
-                    <span className={d ? 'text-[#F0EAD6]' : 'text-neutral-600'}>{team}</span>
-                  </div>
-                ))}
+                <div className="flex items-start gap-2">
+                  <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#7BC67B]" />
+                  <span className={d ? 'text-[#F0EAD6]' : 'text-neutral-600'}>Backend camera ACL checked before token issuance</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#7BC67B]" />
+                  <span className={d ? 'text-[#F0EAD6]' : 'text-neutral-600'}>Viewer token grants subscribe-only room access</span>
+                </div>
               </div>
             </div>
           </div>

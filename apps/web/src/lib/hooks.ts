@@ -18,6 +18,12 @@ import type {
   AdminAlert,
 } from './types';
 
+function requestError(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) return err.detail;
+  if (err instanceof Error) return err.message;
+  return fallback;
+}
+
 // ── useMe ──
 
 export function useMe() {
@@ -53,16 +59,18 @@ export function useMe() {
 export function useCameras() {
   const [cameras, setCameras] = useState<CameraSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
 
   const fetchCameras = useCallback(async (cursor?: string) => {
     setLoading(true);
+    setError(null);
     try {
       const data = await api.listCameras(cursor);
       setCameras((prev) => (cursor ? [...prev, ...data.items] : data.items));
       setNextCursor(data.next_cursor);
-    } catch {
-      // Silently handle — cameras will show empty
+    } catch (err) {
+      setError(requestError(err, 'Failed to load assigned cameras'));
     } finally {
       setLoading(false);
     }
@@ -72,7 +80,7 @@ export function useCameras() {
 
   const loadMore = () => { if (nextCursor) fetchCameras(nextCursor); };
 
-  return { cameras, loading, loadMore, hasMore: !!nextCursor, refetch: () => fetchCameras() };
+  return { cameras, loading, error, loadMore, hasMore: !!nextCursor, refetch: () => fetchCameras() };
 }
 
 // ── useCameraEvents (SSE) ──
@@ -118,16 +126,18 @@ export function useCameraEvents() {
 export function useAdminUsers() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
 
   const fetchUsers = useCallback(async (cursor?: string, email?: string) => {
     setLoading(true);
+    setError(null);
     try {
       const data = await api.listAdminUsers(cursor, 50, email);
       setUsers((prev) => (cursor ? [...prev, ...data.items] : data.items));
       setNextCursor(data.next_cursor);
-    } catch {
-      // Access denied or error
+    } catch (err) {
+      setError(requestError(err, 'Failed to load users'));
     } finally {
       setLoading(false);
     }
@@ -138,6 +148,7 @@ export function useAdminUsers() {
   return {
     users,
     loading,
+    error,
     loadMore: () => { if (nextCursor) fetchUsers(nextCursor); },
     hasMore: !!nextCursor,
     refetch: () => fetchUsers(),
@@ -162,6 +173,7 @@ export interface AuditFilters {
 export function useAdminAudit(filters: AuditFilters = {}) {
   const [logs, setLogs] = useState<AuditLogItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
 
   const {
@@ -179,6 +191,7 @@ export function useAdminAudit(filters: AuditFilters = {}) {
 
   const fetchLogs = useCallback(async (cursor?: number) => {
     setLoading(true);
+    setError(null);
     try {
       const data = await api.listAudit({
         cursor,
@@ -196,8 +209,8 @@ export function useAdminAudit(filters: AuditFilters = {}) {
       });
       setLogs((prev) => (cursor ? [...prev, ...data.items] : data.items));
       setNextCursor(data.next_cursor);
-    } catch {
-      // Access denied or error
+    } catch (err) {
+      setError(requestError(err, 'Failed to load audit events'));
     } finally {
       setLoading(false);
     }
@@ -222,6 +235,7 @@ export function useAdminAudit(filters: AuditFilters = {}) {
   return {
     logs,
     loading,
+    error,
     loadMore: () => {
       if (nextCursor) fetchLogs(Number(nextCursor));
     },
@@ -235,14 +249,16 @@ export function useAdminAudit(filters: AuditFilters = {}) {
 export function useActiveSessions() {
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchSessions = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await api.getActiveSessions();
       setSessions(data.items);
-    } catch {
-      // Error
+    } catch (err) {
+      setError(requestError(err, 'Failed to load active sessions'));
     } finally {
       setLoading(false);
     }
@@ -250,7 +266,7 @@ export function useActiveSessions() {
 
   useEffect(() => { fetchSessions(); }, [fetchSessions]);
 
-  return { sessions, loading, refetch: fetchSessions };
+  return { sessions, loading, error, refetch: fetchSessions };
 }
 
 // ── usePrivacyNotice ──
@@ -348,16 +364,18 @@ export function useAdminDashboard() {
 export function useAdminGateways() {
   const [gateways, setGateways] = useState<AdminGateway[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
 
   const fetchGateways = useCallback(async (cursor?: string) => {
     setLoading(true);
+    setError(null);
     try {
       const data = await api.listAdminGateways(cursor);
       setGateways((prev) => (cursor ? [...prev, ...data.items] : data.items));
       setNextCursor(data.next_cursor);
-    } catch {
-      // Access denied or error
+    } catch (err) {
+      setError(requestError(err, 'Failed to load gateways'));
     } finally {
       setLoading(false);
     }
@@ -368,6 +386,7 @@ export function useAdminGateways() {
   return {
     gateways,
     loading,
+    error,
     loadMore: () => { if (nextCursor) fetchGateways(nextCursor); },
     hasMore: !!nextCursor,
     refetch: () => fetchGateways(),
@@ -379,16 +398,18 @@ export function useAdminGateways() {
 export function useAdminCameras() {
   const [cameras, setCameras] = useState<AdminCamera[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
 
   const fetchCameras = useCallback(async (cursor?: string) => {
     setLoading(true);
+    setError(null);
     try {
       const data = await api.listAdminCameras(cursor);
       setCameras((prev) => (cursor ? [...prev, ...data.items] : data.items));
       setNextCursor(data.next_cursor);
-    } catch {
-      // Access denied or error
+    } catch (err) {
+      setError(requestError(err, 'Failed to load cameras'));
     } finally {
       setLoading(false);
     }
@@ -399,6 +420,7 @@ export function useAdminCameras() {
   return {
     cameras,
     loading,
+    error,
     loadMore: () => { if (nextCursor) fetchCameras(nextCursor); },
     hasMore: !!nextCursor,
     refetch: () => fetchCameras(),
@@ -408,16 +430,18 @@ export function useAdminCameras() {
 export function useDsrRequests() {
   const [requests, setRequests] = useState<DsrRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
 
   const fetchRequests = useCallback(async (cursor?: string) => {
     setLoading(true);
+    setError(null);
     try {
       const data = await api.listDsrRequests(cursor);
       setRequests((prev) => (cursor ? [...prev, ...data.items] : data.items));
       setNextCursor(data.next_cursor);
-    } catch {
-      // Access denied or error
+    } catch (err) {
+      setError(requestError(err, 'Failed to load DSR requests'));
     } finally {
       setLoading(false);
     }
@@ -428,6 +452,7 @@ export function useDsrRequests() {
   return {
     requests,
     loading,
+    error,
     loadMore: () => { if (nextCursor) fetchRequests(nextCursor); },
     hasMore: !!nextCursor,
     refetch: () => fetchRequests(),

@@ -18,6 +18,7 @@ import { HealthSection } from './components/HealthSection';
 import { BreakGlassSection } from './components/BreakGlassSection';
 import { VisitorInvestigationPage } from './components/VisitorInvestigationPage';
 import { ActorInvestigationPage } from './components/ActorInvestigationPage';
+import { LoadErrorPanel } from './components/LoadErrorPanel';
 import { useMe, useCameras, useCameraEvents, useSystemHealth, usePrivacyNotice, useAdminDashboard } from '../lib/hooks';
 import { useTheme } from '../lib/theme';
 import type { CameraSummary, CameraTileStatus } from '../lib/types';
@@ -28,7 +29,7 @@ export function App() {
   const { theme } = useTheme();
   const { user, loading: userLoading, error: userError, refetch: refetchMe } = useMe();
   const { notice, accept: acceptNotice } = usePrivacyNotice();
-  const { cameras, loading: camerasLoading } = useCameras();
+  const { cameras, loading: camerasLoading, error: camerasError, refetch: refetchCameras } = useCameras();
   const { cameraStatuses } = useCameraEvents();
   const systemStatus = useSystemHealth();
   const { dashboard } = useAdminDashboard();
@@ -116,12 +117,18 @@ export function App() {
         </div>
       </div>
 
-      {camerasLoading ? (
+      {camerasLoading && cameras.length === 0 ? (
         <div className={`grid ${gridClass} gap-4`}>
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className={`aspect-video rounded-lg ${d ? 'bg-neutral-800/50 animate-pulse' : 'bg-neutral-200 animate-pulse'}`} />
           ))}
         </div>
+      ) : camerasError && cameras.length === 0 ? (
+        <LoadErrorPanel
+          title="Unable to load assigned cameras"
+          message={camerasError}
+          onRetry={refetchCameras}
+        />
       ) : cameras.length === 0 ? (
         <div className={`text-center py-16 border rounded-lg ${d ? 'bg-neutral-900/50 border-neutral-700/50' : 'bg-neutral-50 border-neutral-200'}`}>
           <Video className={`w-16 h-16 mx-auto mb-4 ${d ? 'text-neutral-600' : 'text-neutral-300'}`} />

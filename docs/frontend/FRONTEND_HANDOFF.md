@@ -1,8 +1,8 @@
 # Frontend Coworker Handoff
 
-Last updated: 2026-06-04 (visitor access frontend QA added after Tailscale RTSP camera pilot)
+Last updated: 2026-06-06 (PR #27 cleanup merged; API failure and camera playback reliability hardening added)
 
-This is the first document the frontend coworker should read before changing the React app on `fullstack-integration`. It summarizes what the system owner has verified, what backend APIs are ready, and what frontend work should happen next.
+This is the first document to read before changing the React app. The canonical checkout is `C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access`; branch `codex/visitor-access-requests` is synchronized with `origin/main` at `713098a`.
 
 ## Read Order
 
@@ -15,7 +15,11 @@ This is the first document the frontend coworker should read before changing the
 
 ## Current State
 
-- Branch: `fullstack-integration`
+- Branch: `codex/visitor-access-requests`, based on current `origin/main`
+- PR #27 is merged. Gateway, camera, access-request, alert, visitor, and audit UI cleanup is on `main`.
+- A June 6 production compression incident caused valid `200` API responses to fail in browsers with `ERR_CONTENT_DECODING_FAILED`. Cloudflare temporarily disables compression for `/api/v1/*`. This compression rule is not an Access bypass and is separate from the public access-request WAF rule.
+- List hooks expose request errors. A failed gateway, camera, user, audit, DSR, or session request must render a retryable failure state, not a genuine-empty message.
+- Camera playback labels are based on LiveKit connection and video-track subscription: requesting token, connecting, waiting for publisher, playing, offline/timeout, or connection error. Token issuance alone is not an active tunnel.
 - Local backend uses ignored `apps/api/.env`; do not commit or copy real values.
 - Local dev databases should run `alembic upgrade head`. Production is migrated through `0013_visitor_access_requests`.
 - Local full-stack smoke through Vite and FastAPI has passed for the main same-origin admin surfaces already tested: dashboard/bootstrap, live-camera camera list, users, camera management, gateways, audit logs/verify, DSR list, break-glass status, backup status, deep health, sessions, and health.
@@ -42,10 +46,10 @@ This is the first document the frontend coworker should read before changing the
 3. ~~Build the actor investigation UI~~ — ✅ Done. ActorInvestigationPage shows profile + activity timeline.
 4. ~~Finish real LiveKit subscriber playback~~ — ✅ Done. CameraDetailModal uses `@livekit/components-react` subscriber-only viewer.
 5. ~~Add full audit filter controls~~ — ✅ Done. AuditLogTable has all 10 backend-supported filter parameters.
-6. Finish only verified production polish found after smoke:
-   - `/entry` request-access validation, rate-limit, and readable error states
-   - Users & Access pending request list and action states
-   - Approve/reject/disabled-user backend paths have passed production smoke; only fix visible UI issues if found
+6. Deploy and smoke the frontend reliability changes:
+   - API failures show error panels with retry controls
+   - successful empty responses keep their genuine empty states
+   - camera token failure, connection failure, no-publisher timeout, successful track arrival, and retry are distinct
 7. Full production sidebar smoke is complete; rerun only after deploys or targeted fixes:
    - Dashboard
    - Live Cameras
@@ -60,7 +64,7 @@ This is the first document the frontend coworker should read before changing the
 8. ~~Validate production LiveKit camera playback with a real camera pilot~~ - Done for the Tailscale RTSP Camera. Rerun targeted smoke only after new camera/gateway deployments.
 9. Verify disabled-account UX returns clear messaging on login, invite attempts, and access-request approval attempts.
 10. Remove any remaining phantom API calls (requests to endpoints that do not exist or are not yet implemented).
-11. Fix only API contract and wiring issues found during smoke. Do not redesign UI/UX or add roadmap-only pages unless explicitly assigned.
+11. Frontend cleanup is reassigned for this milestone. Keep changes operational and page-focused; do not add roadmap-only pages.
 12. Do not implement Gateway Discovery UI unless Ivan explicitly reassigns it. The backend/edge discovery path exists, but production-standard on-site camera LAN/VLAN hardening remains system-owner work for future sites. Do not start V380/V380ProQ16S camera integration from the frontend side.
 
 ## Hard Guardrails
@@ -79,7 +83,7 @@ This is the first document the frontend coworker should read before changing the
 Terminal 1:
 
 ```powershell
-cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+cd C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m alembic upgrade head
 python -m uvicorn cctv_api.main:app --host 127.0.0.1 --port 8000
@@ -88,7 +92,7 @@ python -m uvicorn cctv_api.main:app --host 127.0.0.1 --port 8000
 Terminal 2:
 
 ```powershell
-cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\web
+cd C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\web
 npm run dev
 ```
 
@@ -110,7 +114,7 @@ Expected local-only behavior:
 Run:
 
 ```powershell
-cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\web
+cd C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\web
 npm run lint
 npm run build
 npm run qa:guardrails
@@ -124,7 +128,7 @@ python -m mypy src/cctv_api/ --ignore-missing-imports
 Security scan:
 
 ```powershell
-cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix
+cd C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access
 rg -n "getUserMedia|MediaRecorder|publishTrack|localStorage|sessionStorage|rtsp://|LIVEKIT_API_SECRET|service_token" apps/web/src apps/web
 ```
 

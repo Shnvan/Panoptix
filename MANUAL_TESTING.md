@@ -4,7 +4,7 @@ This guide helps you manually exercise the Panoptix backend API, the merged Reac
 
 ## Current Client-Visible Test Coverage
 
-The `fullstack-integration` branch now includes a merged frontend V1. Manual testing should cover both API-first checks through FastAPI/PowerShell and browser checks through the React/Vite app.
+The canonical checkout is `C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access`. Branch `codex/visitor-access-requests` is synchronized with current `origin/main`; manual testing covers API-first checks through FastAPI/PowerShell and browser checks through the React/Vite app.
 
 Use this quick order before drilling into the detailed examples below:
 
@@ -42,7 +42,7 @@ Expected local-only limitations:
 Start the backend:
 
 ```powershell
-cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+cd C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m alembic current
 python -m alembic upgrade head
@@ -52,7 +52,7 @@ python -m uvicorn cctv_api.main:app --host 127.0.0.1 --port 8000
 Start the frontend in a second terminal:
 
 ```powershell
-cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\web
+cd C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\web
 $env:VITE_DEV_AUTH = "true"
 $env:VITE_DEV_EMAIL = "admin@example.test"
 $env:VITE_DEV_ROLES = "admin"
@@ -149,7 +149,7 @@ Open `http://localhost:3000` and verify:
 - Your repository root is:
 
 ```powershell
-C:\Users\Ivan\Downloads\panoptix-main\Panoptix
+C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access
 ```
 
 - API examples assume the backend runs at:
@@ -177,7 +177,7 @@ $env:AUDIT_HMAC_KEY = "local-dev-audit-hmac-key-change-me"
 From the API app directory:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 $env:APP_ENV = "development"
 $env:ALLOW_DEV_AUTH = "true"
@@ -564,7 +564,7 @@ Invoke-RestMethod -Method POST -Uri "$BaseUrl/api/v1/gateways/$GatewayId/heartbe
 Production edge-agent smoke through Cloudflare Access:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PANOPTIX_API_BASE_URL = "https://panoptix.site"
 $env:PANOPTIX_GATEWAY_ID = "<gateway-id>"
 $env:PANOPTIX_GATEWAY_SERVICE_TOKEN = "<gateway-service-token>"
@@ -699,7 +699,7 @@ This is a real WebSocket endpoint. Valid gateway identities are accepted and rec
 Manual Python check from `apps/api`:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $WsCheck = @'
 import asyncio
 import json
@@ -731,7 +731,7 @@ When `DATABASE_URL` is configured and migrations are current, this endpoint disp
 Edge-agent one-shot gateway control check from `apps/cctv-edge/agent`:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 $env:PANOPTIX_API_BASE_URL = "http://127.0.0.1:8000"
 $env:PANOPTIX_GATEWAY_ID = "11111111-1111-1111-1111-111111111111"
@@ -749,7 +749,7 @@ gateway control accepted
 Edge-agent bounded gateway control reconnect check from `apps/cctv-edge/agent`:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 $env:PANOPTIX_API_BASE_URL = "http://127.0.0.1:8000"
 $env:PANOPTIX_GATEWAY_ID = "11111111-1111-1111-1111-111111111111"
@@ -788,11 +788,11 @@ Current behavior:
 Use the automated tests to exercise the dispatch and ACK loop locally:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_gateway.py -v
 
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_control.py -v
 ```
@@ -827,7 +827,7 @@ Discovery is manually invoked from the edge agent and must only scan approved pr
 Edge-agent one-shot discovery from `apps/cctv-edge/agent`:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 $env:PANOPTIX_API_BASE_URL = "http://127.0.0.1:8000"
 $env:PANOPTIX_GATEWAY_ID = "11111111-1111-1111-1111-111111111111"
@@ -870,11 +870,11 @@ Expected response fields include `approved_ranges`, `ports`, `scanned_host_count
 Focused tests:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_gateway_discovery.py -v
 
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_discovery.py tests/test_config.py tests/test_client.py -v
 ```
@@ -895,7 +895,7 @@ This smoke verifies the full backend-to-edge command path without real CCTV hard
 Schema prerequisite:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:MIGRATION_DATABASE_URL = $env:DATABASE_URL
 python -m alembic upgrade head
 python -m alembic current
@@ -910,14 +910,14 @@ Expected migration head:
 Start synthetic RTSP source:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access
 mediamtx apps\cctv-edge\mediamtx\mediamtx.local.yml
 ```
 
 In another terminal:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access
 ffmpeg -re -f lavfi -i "testsrc=size=640x480:rate=15" -c:v libx264 -pix_fmt yuv420p -preset veryfast -tune zerolatency -f rtsp rtsp://127.0.0.1:8554/synthetic-camera-1
 ```
 
@@ -930,7 +930,7 @@ Never commit LiveKit API keys, generated JWTs, gateway service tokens, or screen
 From the edge agent directory:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 $env:PANOPTIX_API_BASE_URL = "http://127.0.0.1:8000"
 $env:PANOPTIX_GATEWAY_ID = "11111111-1111-1111-1111-111111111111"
@@ -1205,7 +1205,7 @@ Notes:
 ### Run LiveKit webhook tests
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_livekit_webhooks.py -v
 ```
@@ -1310,7 +1310,7 @@ The configured key version is stored in audit_log.hmac_key_version and audit_hma
 Backend audit HMAC chain tests:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_audit.py -v
 ```
@@ -1397,7 +1397,7 @@ Notes:
 Backend audit listing tests:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_audit.py -v -k "list"
 ```
@@ -1463,7 +1463,7 @@ Notes:
 Backend audit export tests:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_audit.py -v -k "export"
 ```
@@ -1475,7 +1475,7 @@ This is local-only and does not require LiveKit, Cloudflare, Google Workspace, o
 Backend signing helper tests:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_gateway_command_signing.py -v
 ```
@@ -1483,7 +1483,7 @@ python -m pytest tests/test_gateway_command_signing.py -v
 Edge-agent verifier tests:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_commands.py -v
 ```
@@ -1508,7 +1508,7 @@ Notes:
 If `DATABASE_URL` points to a real local PostgreSQL database:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python scripts/db_validate.py
 ```
@@ -1547,7 +1547,7 @@ The scheduler only starts when `DATABASE_URL` is not a placeholder. Scheduled ru
 ### Backend
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/ -v
 python -m mypy src/cctv_api/ --ignore-missing-imports
@@ -1558,7 +1558,7 @@ python -m compileall src alembic scripts
 ### Edge agent
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 python -m pytest tests/ -v
 python -m mypy src/panoptix_edge_agent --ignore-missing-imports
@@ -1579,7 +1579,7 @@ curl.exe -s -X POST "$BaseUrl/api/v1/gateways/$GatewayId/heartbeat" -H "Content-
 Then run the edge agent one-shot heartbeat:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 $env:PANOPTIX_API_BASE_URL = "http://127.0.0.1:8000"
 $env:PANOPTIX_GATEWAY_ID = "11111111-1111-1111-1111-111111111111"
@@ -1594,7 +1594,7 @@ If those pass, the public health path, dev user auth path, gateway auth path, an
 The edge agent has a bounded gateway control reconnect supervisor for local smoke testing.
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 $env:PANOPTIX_API_BASE_URL = "http://127.0.0.1:8000"
 $env:PANOPTIX_GATEWAY_ID = "11111111-1111-1111-1111-111111111111"
@@ -1620,7 +1620,7 @@ The synthetic RTSP source is a dev/test scaffold. Automated tests only validate 
 Run the focused tests:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_synthetic_rtsp.py tests/test_config.py -v
 ```
@@ -1642,7 +1642,7 @@ Security expectations:
 Local mediamtx config check:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_mediamtx_config.py -v
 ```
@@ -1663,7 +1663,7 @@ Expected behavior:
 Local mediamtx process-management check:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_mediamtx_process.py -v
 ```
@@ -1679,7 +1679,7 @@ Expected behavior:
 Local LiveKit publisher foundation check:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_livekit_publisher.py -v
 ```
@@ -1700,7 +1700,7 @@ Expected behavior:
 Local FFmpeg RTSP frame-source check:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_ffmpeg_rtsp_frame_source.py -v
 ```
@@ -1716,7 +1716,7 @@ Expected behavior:
 Synthetic FFmpeg-to-LiveKit local smoke wiring check:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_ffmpeg_livekit_smoke.py -v
 ```
@@ -1732,7 +1732,7 @@ Expected behavior:
 Optional LiveKit SDK package install check:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 python -m pip install -e ".[livekit]"
 ```
 
@@ -1741,7 +1741,7 @@ This install is not required for automated tests. Fake SDK objects and fake FFmp
 Synthetic end-to-end publish dry-run check:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_publish_dry_run.py -v
 ```
@@ -1762,7 +1762,7 @@ The heartbeat fallback path is local-only and test-scaffolded. It does not requi
 Backend heartbeat fallback tests:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_gateway.py -v
 ```
@@ -1770,7 +1770,7 @@ python -m pytest tests/test_gateway.py -v
 Edge-agent heartbeat pending-command verifier tests:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_runner.py -v
 ```
@@ -1791,7 +1791,7 @@ The edge command executor dispatches verified `gateway.command.start_publish` an
 ### Run executor tests
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_executor.py -v
 ```
@@ -1810,7 +1810,7 @@ Expected behavior:
 ### Run updated control and runner tests
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_control.py tests/test_runner.py -v
 ```
@@ -1830,7 +1830,7 @@ The gateway command queue module adds persistent command storage with DB-backed 
 ### Run command queue tests
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_gateway_command_queue.py -v
 ```
@@ -1905,7 +1905,7 @@ Expected response (201 Created):
 ### Run endpoint tests
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_gateway_command_queue.py -k "endpoint" -v
 ```
@@ -1919,7 +1919,7 @@ The `expire_stale_commands(db)` function marks pending commands that have passed
 ### Run cleanup tests
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_gateway_command_queue.py -k "expire_stale" -v
 ```
@@ -2024,7 +2024,7 @@ Expected response (200):
 ### Run listing tests
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_gateway_command_queue.py -k "list_commands" -v
 ```
@@ -2093,7 +2093,7 @@ Expected response (200):
 ### Run cancellation tests
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_gateway_command_queue.py -k "cancel_command" -v
 ```
@@ -2152,7 +2152,7 @@ Expected response (200):
 ### Run cleanup endpoint tests
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_gateway_command_queue.py -k "expire_cleanup" -v
 ```
@@ -2191,7 +2191,7 @@ Notes:
 ### Run maintenance tests
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_maintenance.py -v
 ```
@@ -2260,7 +2260,7 @@ Notes:
 ### Run admin user management tests
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_admin_user_management.py -v
 ```
@@ -2337,7 +2337,7 @@ Expected:
 ### Run credential tests
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_gateway_credentials.py -v
 ```
@@ -2389,7 +2389,7 @@ $env:AUDIT_HMAC_KEY = "local-dev-audit-hmac-key-change-me"
 ### Run audit tests
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_gateway_command_queue.py -k "audit" -v
 ```
@@ -2416,7 +2416,7 @@ Expected:
 Run audit export tests:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_audit.py -k "audit_export" -v
 ```
@@ -2476,7 +2476,7 @@ When all enabled gateways have `last_seen_at` older than `GATEWAY_STALE_THRESHOL
 ### Run deep health tests
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_health.py -v
 ```
@@ -2526,7 +2526,7 @@ Expected response (when user has ACL grants):
 ### Run camera list tests
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_cameras.py -v
 ```
@@ -2574,7 +2574,7 @@ Invoke-RestMethod -Uri http://127.0.0.1:8000/api/v1/gateways/<gateway-uuid>/came
 ### Run gateway status tests
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_gateway.py -k "gateway_camera_status" -v
 ```
@@ -2654,7 +2654,7 @@ Expected response (200):
 ### Run admin gateway tests
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_admin_gateways.py -v
 ```
@@ -2736,7 +2736,7 @@ Expected response (200):
 ### Run admin camera tests
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_cameras.py -v
 ```
@@ -2787,7 +2787,7 @@ Invoke-WebRequest -Uri "http://127.0.0.1:8000/api/v1/cameras/events?since=2026-0
 ### Run camera event tests
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_cameras.py -v
 ```
@@ -2846,7 +2846,7 @@ ffmpeg -re -f lavfi -i "testsrc=size=640x480:rate=15" -c:v libx264 -pix_fmt yuv4
 Terminal 3 — run the smoke test:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 $env:PANOPTIX_SMOKE_LIVEKIT_URL = "ws://127.0.0.1:7880"
 $env:PANOPTIX_SMOKE_LIVEKIT_API_KEY = "devkey"
@@ -2906,7 +2906,7 @@ Use this checklist when testing against a real LiveKit Cloud project. This is a 
 Preflight:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 python -m pip install -e ".[livekit]"
 ffmpeg -version
@@ -2935,7 +2935,7 @@ $env:PANOPTIX_SMOKE_RTSP_URL = "rtsp://127.0.0.1:8554/synthetic-camera-1"
 Start local media prerequisites:
 
 ```powershell
-mediamtx C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\mediamtx\mediamtx.local.yml
+mediamtx C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\mediamtx\mediamtx.local.yml
 ```
 
 In another terminal:
@@ -2947,7 +2947,7 @@ ffmpeg -re -f lavfi -i "testsrc=size=640x480:rate=15" -c:v libx264 -pix_fmt yuv4
 Run the LiveKit Cloud smoke:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 python -m panoptix_edge_agent.cli --smoke-ffmpeg-livekit
 ```
@@ -3004,7 +3004,7 @@ Default mode is `stub` -- commands are accepted but no real media is published.
 The edge agent can run the heartbeat and outbound gateway-control loops under a single supervisor entrypoint:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 $env:PANOPTIX_API_BASE_URL = "http://127.0.0.1:8000"
 $env:PANOPTIX_GATEWAY_ID = "11111111-1111-1111-1111-111111111111"
@@ -3016,7 +3016,7 @@ By default, supervisor mode does not start real media infrastructure and keeps m
 ```powershell
 $env:PANOPTIX_SUPERVISE_MEDIAMTX = "true"
 $env:PANOPTIX_MEDIAMTX_BINARY = "mediamtx"
-$env:PANOPTIX_MEDIAMTX_CONFIG_PATH = "C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\mediamtx\mediamtx.local.yml"
+$env:PANOPTIX_MEDIAMTX_CONFIG_PATH = "C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\mediamtx\mediamtx.local.yml"
 ```
 
 Security expectations:
@@ -3035,9 +3035,9 @@ The docs-only Cloudflare production setup checklist is available at `docs/runboo
 To review the Cloudflare prep locally:
 
 ```powershell
-Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\cloudflare-production-setup.md
-Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\cf-access-rollback.md
-Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\.env.example
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\docs\runbooks\cloudflare-production-setup.md
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\docs\runbooks\cf-access-rollback.md
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\.env.example
 ```
 
 Verification checks:
@@ -3053,7 +3053,7 @@ Verification checks:
 Optional backend test reference:
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_config.py tests/test_cloudflare_access.py -v
 ```
@@ -3077,9 +3077,9 @@ The docs-only staging deployment prep is available at:
 To review locally:
 
 ```powershell
-Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\railway-neon-staging-prep.md
-Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\templates\railway-api.env.example
-Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\templates\neon-staging-checklist.md
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\docs\runbooks\railway-neon-staging-prep.md
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\docs\runbooks\templates\railway-api.env.example
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\docs\runbooks\templates\neon-staging-checklist.md
 ```
 
 Verification checks:
@@ -3107,11 +3107,11 @@ Reviewed service templates are available in `docs/runbooks/templates/`:
 To review the templates locally:
 
 ```powershell
-Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\templates\cctv-gateway.service.example
-Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\templates\gateway.env.example
-Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\templates\Dockerfile.edge-agent.example
-Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\templates\docker-compose.edge-agent.example.yml
-Get-Content C:\Users\Ivan\Downloads\panoptix-main\Panoptix\docs\runbooks\templates\nssm-install.example.ps1
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\docs\runbooks\templates\cctv-gateway.service.example
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\docs\runbooks\templates\gateway.env.example
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\docs\runbooks\templates\Dockerfile.edge-agent.example
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\docs\runbooks\templates\docker-compose.edge-agent.example.yml
+Get-Content C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\docs\runbooks\templates\nssm-install.example.ps1
 ```
 
 Verification checks:
@@ -3130,7 +3130,7 @@ These templates are not installed or enabled by any automated process. They are 
 ### Run smoke config validation tests
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\cctv-edge\agent
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\cctv-edge\agent
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_smoke_config.py tests/test_smoke_ffmpeg_livekit.py -v
 ```
@@ -3209,7 +3209,7 @@ Expected response includes `acl_count`, `room_uuid`, `gateway_id`, `site_id`.
 ### Run admin listing tests
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_admin_gateways.py tests/test_cameras.py -v
 ```
@@ -3261,7 +3261,7 @@ Expected response:
 ### Run admin dashboard tests
 
 ```powershell
-Set-Location C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+Set-Location C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 $env:PYTHONPATH = "src"
 python -m pytest tests/test_admin_dashboard.py -v
 ```
@@ -4113,7 +4113,7 @@ Recurring backup automation is implemented as `.github/workflows/production-back
 Set `BACKUP_AGE_RECIPIENT` on the Railway backend service before running this. The matching private `age` identity must stay outside Railway production.
 
 ```powershell
-cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+cd C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 railway run --service panoptix-control --environment production --no-local -- python -m cctv_api.jobs.backup_r2
 ```
 
@@ -4146,14 +4146,14 @@ Expected:
 Dry-run retention:
 
 ```powershell
-cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+cd C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 railway run --service panoptix-control --environment production --no-local -- python -m cctv_api.jobs.backup_retention_r2 --dry-run
 ```
 
 Apply retention:
 
 ```powershell
-cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+cd C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 railway run --service panoptix-control --environment production --no-local -- python -m cctv_api.jobs.backup_retention_r2
 ```
 
@@ -4170,7 +4170,7 @@ This command downloads the latest encrypted `.dump.age` object to a temporary di
 
 ```powershell
 $env:PATH = "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\FiloSottile.age_Microsoft.Winget.Source_8wekyb3d8bbwe\age;$env:PATH"
-cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+cd C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 railway run --service panoptix-control --environment production --no-local -- python -m cctv_api.jobs.restore_drill_r2 --age-identity-file "C:\Users\Ivan\Documents\Panoptix-Backup-Keys\panoptix-prod-age-20260524-165042.txt"
 ```
 
@@ -4187,7 +4187,7 @@ Use this only after creating a disposable local PostgreSQL database or temporary
 
 ```powershell
 $env:PATH = "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\FiloSottile.age_Microsoft.Winget.Source_8wekyb3d8bbwe\age;$env:PATH"
-cd C:\Users\Ivan\Downloads\panoptix-main\Panoptix\apps\api
+cd C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access\apps\api
 railway run --service panoptix-control --environment production --no-local -- python -m cctv_api.jobs.restore_drill_r2 --age-identity-file "C:\Users\Ivan\Documents\Panoptix-Backup-Keys\panoptix-prod-age-20260524-165042.txt" --target-database-url "<isolated-postgres-url>"
 ```
 
@@ -4478,3 +4478,82 @@ Expected high/critical email-triggering alert sources now include:
 - gateway heartbeat/control signing failures and unauthenticated gateway control attempts
 - LiveKit config fail-closed events for gateway ingest or viewer token minting
 - alert email delivery failure records, created without recursively emailing if SMTP is already failing
+
+---
+
+## Production API Content-Decoding And Frontend Failure States
+
+Cloudflare temporarily disables compression for requests matching:
+
+```text
+starts_with(http.request.uri.path, "/api/v1/")
+```
+
+This is a Compression Rule only. It must not be implemented as a Cloudflare Access bypass or as a broad WAF exception.
+
+### Verify API decoding
+
+```powershell
+curl.exe -sS -D - https://panoptix.site/api/v1/visitor/notice
+curl.exe --compressed -sS -D - https://panoptix.site/api/v1/visitor/notice
+```
+
+In the browser console:
+
+```javascript
+fetch("/api/v1/visitor/notice", { cache: "no-store" })
+  .then(async (response) => [response.status, await response.json()])
+  .then(console.log)
+  .catch(console.error);
+```
+
+Expected:
+
+- both curl requests return readable JSON
+- browser fetch resolves without `ERR_CONTENT_DECODING_FAILED`
+- gateway, camera, and session API requests also decode normally
+- the narrow access-request WAF rule still applies only to `POST /api/v1/visitor/access-requests`
+
+### Verify failure versus empty states
+
+Using Playwright route mocks or a controlled unavailable backend:
+
+- return `503` for the first gateway request and confirm an error panel with Retry appears
+- retry with a successful response and confirm gateway rows appear
+- repeat for active sessions
+- return a successful empty `items: []` response and confirm the genuine empty message appears
+- confirm an API failure never displays `No Gateways Registered`, `No Cameras Registered`, or `No active sessions found`
+
+### Verify camera playback state
+
+Test these cases separately:
+
+- viewer-token request fails: modal shows connection error and retry
+- LiveKit connection fails: modal shows connection error
+- LiveKit connects but no video track arrives before the bounded timeout: modal shows offline/timeout
+- a camera video track arrives: modal shows playing/live
+- retry requests a fresh token before reconnecting
+
+Token issuance alone must never display an active tunnel or playing state.
+
+## Session Revocation Behavior
+
+Revoke a Panoptix session from the admin UI, then refresh through an identity that still has valid Cloudflare Access authorization.
+
+Expected:
+
+- the revoked backend session is no longer active
+- Cloudflare Access authentication may remain valid
+- the next authenticated Panoptix request may establish a new backend session
+- camera and gateway database records are unchanged
+
+## Gateway Host And Camera LAN/VLAN Validation
+
+The 2026-06-06 operator-laptop test could not ping `100.76.147.59` and could not connect to TCP `8554`. Do not expose MediaMTX publicly to make this laptop test pass. On the real gateway host, run:
+
+```powershell
+Test-NetConnection 127.0.0.1 -Port 8554
+Test-NetConnection <CAMERA_LAN_IP> -Port 554
+```
+
+Then validate the credentialed RTSP URL locally with `ffprobe` or VLC without recording credentials in docs, screenshots, or shell history. Confirm the edge-agent service is active and that a publisher starts only while a viewer requests playback.

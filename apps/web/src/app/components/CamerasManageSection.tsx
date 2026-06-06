@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { useMemo, useState } from 'react';
 import { useTheme } from '../../lib/theme';
 import { useAdminCameras } from '../../lib/hooks';
+import { LoadErrorPanel } from './LoadErrorPanel';
 import { api, ApiError } from '../../lib/api';
 import type { CameraSourceType } from '../../lib/types';
 
@@ -25,7 +26,7 @@ type CreatedCameraPanel = {
  */
 export function CamerasManageSection() {
   const { theme } = useTheme();
-  const { cameras, loading, refetch, loadMore, hasMore } = useAdminCameras();
+  const { cameras, loading, error, refetch, loadMore, hasMore } = useAdminCameras();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [actionMsg, setActionMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [createdCamera, setCreatedCamera] = useState<CreatedCameraPanel | null>(null);
@@ -288,8 +289,10 @@ export function CamerasManageSection() {
       </div>
 
       {/* Camera List */}
-      {loading ? (
+      {loading && cameras.length === 0 ? (
         <div className="text-center py-12 text-neutral-400">Loading cameras...</div>
+      ) : error && cameras.length === 0 ? (
+        <LoadErrorPanel title="Unable to load cameras" message={error} onRetry={refetch} />
       ) : cameras.length === 0 ? (
         <div className={`text-center py-16 border rounded-lg ${d ? 'bg-neutral-900/50 border-neutral-700/50' : 'bg-neutral-50 border-neutral-200'}`}>
           <Camera className={`w-16 h-16 mx-auto mb-4 ${d ? 'text-neutral-600' : 'text-neutral-300'}`} />
