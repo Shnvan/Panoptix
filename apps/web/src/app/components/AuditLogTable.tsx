@@ -50,7 +50,7 @@ export function AuditLogTable() {
     ts_to: tsTo ? new Date(tsTo).toISOString() : undefined,
   };
 
-  const { logs, loading, loadMore, hasMore } = useAdminAudit(filters);
+  const { logs, loading, error: auditError, loadMore, hasMore, refetch: refetchAudit } = useAdminAudit(filters);
 
   // Compliance state
   const sites: Site[] = [];
@@ -59,7 +59,12 @@ export function AuditLogTable() {
   const [msg, setMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   // DSR state
-  const { requests: dsrRequests, loading: dsrLoading } = useDsrRequests();
+  const {
+    requests: dsrRequests,
+    loading: dsrLoading,
+    error: dsrError,
+    refetch: refetchDsrRequests,
+  } = useDsrRequests();
 
   const showMsg = (text: string, type: 'success' | 'error') => {
     setMsg({ text, type });
@@ -441,6 +446,15 @@ export function AuditLogTable() {
               <tbody className={`divide-y ${d ? 'divide-[#222222]' : 'divide-neutral-100'}`}>
                 {loading && filtered.length === 0 ? (
                   <tr><td colSpan={6} className="px-6 py-12 text-center text-[#666666]">Loading audit logs...</td></tr>
+                ) : auditError && logs.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center">
+                      <p className="text-sm text-red-400">Unable to load audit events: {auditError}</p>
+                      <button type="button" onClick={refetchAudit} className="mt-3 px-4 py-2 text-sm text-[#F07C1E] border border-[#F07C1E]/40">
+                        Retry
+                      </button>
+                    </td>
+                  </tr>
                 ) : filtered.length === 0 ? (
                   <tr><td colSpan={6} className="px-6 py-12 text-center text-[#666666]">No audit events found</td></tr>
                 ) : filtered.map(log => (
@@ -580,8 +594,17 @@ export function AuditLogTable() {
                 </tr>
               </thead>
               <tbody className={`divide-y ${d ? 'divide-[#222222]' : 'divide-neutral-100'}`}>
-                {dsrLoading ? (
+                {dsrLoading && dsrRequests.length === 0 ? (
                   <tr><td colSpan={7} className="px-6 py-12 text-center text-[#666666]">Loading DSR requests...</td></tr>
+                ) : dsrError && dsrRequests.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-12 text-center">
+                      <p className="text-sm text-red-400">Unable to load DSR requests: {dsrError}</p>
+                      <button type="button" onClick={refetchDsrRequests} className="mt-3 px-4 py-2 text-sm text-[#F07C1E] border border-[#F07C1E]/40">
+                        Retry
+                      </button>
+                    </td>
+                  </tr>
                 ) : dsrRequests.length === 0 ? (
                   <tr><td colSpan={7} className="px-6 py-12 text-center text-[#666666]">No DSR requests found</td></tr>
                 ) : dsrRequests.map(dsr => (

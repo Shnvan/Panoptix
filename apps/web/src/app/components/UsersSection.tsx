@@ -5,6 +5,7 @@ import { useAdminUsers } from '../../lib/hooks';
 import { api, ApiError } from '../../lib/api';
 import type { VisitorAccessRequest } from '../../lib/types';
 import { useCallback, useEffect, useState } from 'react';
+import { LoadErrorPanel } from './LoadErrorPanel';
 
 type AccessRequestDecision = 'approve' | 'reject';
 
@@ -51,7 +52,7 @@ function accessRequestDecisionError(err: unknown, action: AccessRequestDecision)
 export function UsersSection() {
   const { theme } = useTheme();
   const d = theme === 'dark';
-  const { users, loading, refetch, loadMore: loadMoreUsers, hasMore: hasMoreUsers } = useAdminUsers();
+  const { users, loading, error: usersError, refetch, loadMore: loadMoreUsers, hasMore: hasMoreUsers } = useAdminUsers();
   const [msg, setMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [activeTab, setActiveTab] = useState<'requests' | 'users'>('users');
   const [accessRequestsLoaded, setAccessRequestsLoaded] = useState(false);
@@ -262,14 +263,16 @@ export function UsersSection() {
               Refresh
             </button>
           </div>
-          {accessRequestsError && (
-            <div className="mb-3 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400" role="alert">
-              {accessRequestsError}
-            </div>
+          {accessRequestsError && accessRequests.length === 0 && (
+            <LoadErrorPanel
+              title="Unable to load access requests"
+              message={accessRequestsError}
+              onRetry={() => { void loadAccessRequests(); }}
+            />
           )}
           {accessRequestsLoading && accessRequests.length === 0 ? (
             <p className="text-sm text-neutral-400">Loading access requests...</p>
-          ) : accessRequests.length === 0 ? (
+          ) : accessRequests.length === 0 && !accessRequestsError ? (
             <div className={`rounded-lg border p-8 text-center ${d ? 'border-neutral-700/50 bg-neutral-950/40' : 'border-neutral-200 bg-neutral-50'}`}>
               <Inbox className={`mx-auto mb-3 h-10 w-10 ${d ? 'text-neutral-600' : 'text-neutral-300'}`} />
               <p className="text-sm text-neutral-400">No pending access requests</p>
@@ -340,8 +343,10 @@ export function UsersSection() {
               className={`w-full rounded-lg pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 ${d ? 'bg-neutral-800/50 border border-neutral-700/50 text-white placeholder-neutral-400' : 'bg-neutral-50 border border-neutral-200 text-neutral-900 placeholder-neutral-400'}`} />
           </div>
 
-          {loading ? (
+          {loading && users.length === 0 ? (
             <div className="text-center py-12 text-neutral-400">Loading users...</div>
+          ) : usersError && users.length === 0 ? (
+            <LoadErrorPanel title="Unable to load users" message={usersError} onRetry={refetch} />
           ) : filtered.length === 0 ? (
             <div className={`text-center py-12 border rounded-lg ${d ? 'bg-neutral-900/50 border-neutral-700/50' : 'bg-neutral-50 border-neutral-200'}`}>
               <Users className={`w-12 h-12 mx-auto mb-3 ${d ? 'text-neutral-600' : 'text-neutral-300'}`} />

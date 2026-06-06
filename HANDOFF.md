@@ -23,22 +23,30 @@ After that, inspect the source files related to the active task. Do not assume t
 
 ## Repository
 
-- Path: `C:\Users\Ivan\Downloads\panoptix-main\Panoptix`
-- Current branch: `fullstack-integration`
+- Canonical path: `C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access`
+- Current branch: `codex/visitor-access-requests`, synchronized with `origin/main` at `713098a` on 2026-06-06
 - Remote: `https://github.com/Shnvan/Panoptix`
 - Current development mode: combined backend/frontend integration and production-readiness hardening
 
 Latest full-stack integration commits:
 
-- `84a2d09 Add stable edge agent user agent`
-- `7c2c0f2 Add Cloudflare Access headers to edge agent`
-- `1689547 Merge pull request #14 from Shnvan/fullstack-integration`
-- `9de148e Add production gateway auth to edge agent`
-- `e956bb3 Merge pull request #13 from Shnvan/fullstack-integration`
+- `713098a Merge pull request #27 from Shnvan/visitor-access-requests`
+- `fc08436 Polish alert visitor and audit admin lists`
+- `afb16ff Polish admin access, gateway, and camera UI`
+- `4b4a681 Merge pull request #26 from Shnvan/codex/visitor-access-requests`
+- `4633fe6 Document access request WAF rate limit`
 
 ## Current Objective
 
 Current correction: production is migrated through `0013_visitor_access_requests`, and public visitor access requests are admin-reviewed, user/viewer-only, and directly reachable at `/entry?mode=request-access` for visitors who already clicked Continue to secure sign-in.
+
+June 6 frontend and production correction: PR #27 is merged through `713098a`. It includes gateway/camera identifier and pagination improvements, a bounded Users & Access request view, compact alert handling, visitor filters, audit identifier copy controls, and Playwright coverage. Current frontend reliability work shows API failures as retryable errors instead of false empty gateway, camera, user, audit, or session lists.
+
+June 6 Cloudflare incident: browsers received `ERR_CONTENT_DECODING_FAILED 200 (OK)` for multiple `/api/v1/*` JSON responses even though direct PowerShell requests returned valid `200` JSON. Production temporarily disables Cloudflare compression for `starts_with(http.request.uri.path, "/api/v1/")`. This is a compression rule only. It is not a Cloudflare Access bypass and is separate from the narrow `POST /api/v1/visitor/access-requests` WAF rate-limit rule.
+
+Session revocation correction: revoking a Panoptix backend session does not remove an independent Cloudflare Access login and does not delete gateways or cameras. A later authenticated request can establish a new Panoptix session. Empty gateway/session screens observed during the compression incident were failed API responses incorrectly presented as empty data.
+
+Hardware validation correction: from the operator laptop, Tailscale address `100.76.147.59` did not answer ping and TCP port `8554` was unreachable on 2026-06-06. MediaMTX is expected to remain loopback-only on the gateway host, so the next hardware milestone is validation on the real gateway host: verify `127.0.0.1:8554`, direct camera LAN/VLAN reachability, credentials/path, edge-agent status, and publisher lifecycle.
 
 Maintain the combined backend/frontend integration branch as the production-candidate review branch. Production is live at `panoptix.site` behind Cloudflare Access, with a working same-domain `/entry` visitor notice flow and expanded admin visitor detail API smoke verified. Successful `/entry` Continue collection now creates a high-severity backend alert/email to active admins, and selected intrusion/abuse audit events promote into alert records through the existing Resend pipeline. Local same-origin smoke through Vite passes for the main admin/viewer surfaces with a local FastAPI backend using ignored `apps/api/.env` configuration and dev auth. The encrypted R2 backup path, isolated restore drill, scheduled GitHub Actions backup workflow, and retention job are implemented, and the production backup workflow has succeeded. Gateway Discovery V2 backend/edge-agent work is implemented and active on `main`, and production Neon is migrated to `0013_visitor_access_requests`. Production edge heartbeats now require gateway auth plus Cloudflare Access service-token headers, and the edge agent sends a stable `Panoptix-Edge-Agent/<version>` user agent for Cloudflare-protected traffic. The `Tailscale RTSP Camera` production hardware pilot passed on 2026-06-02 through the DigitalOcean `dropletGateway`, and the gateway idle -> playback -> idle soak also passed after production redeploy to `cee14ad`. Remaining hardening is production-standard on-site gateway/VLAN rollout and break-glass hardware. Five major frontend features — alerts page real API wiring, actor investigation UI, admin visitor investigation UI, real LiveKit subscriber playback (via `@livekit/components-react`), and full audit filter UI — are now implemented.
 
@@ -169,18 +177,18 @@ Current state:
 
 ## Repository
 
-- Path: `C:\Users\Ivan\Downloads\panoptix-main\Panoptix`
-- Current branch: `fullstack-integration`
+- Canonical path: `C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access`
+- Current branch: `codex/visitor-access-requests`, synchronized with `origin/main` at `713098a` on 2026-06-06
 - Remote: `https://github.com/Shnvan/Panoptix`
 - Current development mode: combined backend/frontend integration and production-readiness hardening
 
 Latest full-stack integration commits:
 
-- `f2bda6a fix: harden restore drill smoke check`
-- `545a9d4 feat: add encrypted R2 restore drill`
-- `bbbde73 fix: configure R2 backup region`
-- `cf516e1 feat: add operator R2 backup runner`
-- `f5023e4 docs: fix progress summary table`
+- `713098a Merge pull request #27 from Shnvan/visitor-access-requests`
+- `fc08436 Polish alert visitor and audit admin lists`
+- `afb16ff Polish admin access, gateway, and camera UI`
+- `4b4a681 Merge pull request #26 from Shnvan/codex/visitor-access-requests`
+- `4633fe6 Document access request WAF rate limit`
 
 ## Current Objective
 
