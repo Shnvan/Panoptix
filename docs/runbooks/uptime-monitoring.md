@@ -12,7 +12,7 @@ Two endpoints are checked on each run:
 | Endpoint | Pass Condition |
 | --- | --- |
 | `GET https://panoptix.site/health` | HTTP 200 with body `{"status":"ok"}` |
-| `GET https://panoptix.site/api/v1/admin/health/deep` | HTTP 200 with `status=ok`, `db=connected`, `livekit=connected`, `gateway=connected`, and `assistant=disabled` |
+| `GET https://panoptix.site/api/v1/admin/health/deep` | HTTP 200 with `status=ok`, `db=connected`, `livekit=connected`, `gateway=connected`, and `assistant=enabled` |
 
 The workflow authenticates through Cloudflare Access with a dedicated production monitor service token. Store only the raw values in GitHub repository secrets:
 

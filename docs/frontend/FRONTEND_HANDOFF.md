@@ -38,7 +38,7 @@ This is the first document to read before changing the React app. The canonical 
 - Production gateway host traffic uses gateway auth plus Cloudflare Access service-token headers. Raw gateway service tokens and Cloudflare Access client secrets belong only on the gateway host, never in frontend code.
 - Real LiveKit browser subscriber playback is implemented using `@livekit/components-react` and `livekit-client`; production `Tailscale RTSP Camera` playback passed on 2026-06-02 through the DigitalOcean `dropletGateway`.
 - The real-camera pilot kept RTSP on Tailscale/private networking; the browser subscribed to LiveKit only, with no camera/mic prompt, no browser publishing, and no RTSP URL, gateway token, Cloudflare token, or LiveKit secret exposed in browser storage/logs/docs.
-- The admin operations assistant is implemented and disabled by default. It is rendered only for admins after the backend status check, requires an AI/data disclosure, keeps conversation state in memory only, and calls only Panoptix `/api/v1/admin/assistant/*` endpoints.
+- The admin operations assistant is disabled by default in code and currently enabled in production after provider privacy approval. It is rendered only for admins after the backend status check, requires an AI/data disclosure, keeps conversation state in memory only, and calls only Panoptix `/api/v1/admin/assistant/*` endpoints.
 
 ## What To Do Next
 

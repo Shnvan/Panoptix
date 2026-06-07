@@ -451,14 +451,15 @@ Gateway ACK:
 All assistant endpoints require an authenticated user with the `admin` role. The feature is disabled by default.
 
 Production deep health also reports only the non-secret feature state as
-`"assistant": "disabled"` or `"assistant": "enabled"`. Production monitoring
-requires `disabled` until the provider privacy review is approved.
+`"assistant": "disabled"` or `"assistant": "enabled"`. After provider privacy
+approval and production enablement, production monitoring requires `enabled`
+so an accidental feature rollback fails closed.
 
 `GET /api/v1/admin/assistant/status`
 
 ```json
 {
-  "enabled": false,
+  "enabled": true,
   "provider": "openai-compatible",
   "model": "llama-3.3-70b-versatile",
   "max_history_messages": 20,

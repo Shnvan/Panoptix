@@ -23,7 +23,7 @@ def validate_health_payload(kind: HealthKind, payload: object) -> tuple[bool, st
         "db": "connected",
         "livekit": "connected",
         "gateway": "connected",
-        "assistant": "disabled",
+        "assistant": "enabled",
     }
     observed = {field: _safe_status(payload.get(field)) for field in expected}
     failures = [
@@ -33,7 +33,7 @@ def validate_health_payload(kind: HealthKind, payload: object) -> tuple[bool, st
     ]
     if failures:
         return False, ", ".join(failures)
-    return True, "status=ok, db=connected, livekit=connected, gateway=connected"
+    return True, "status=ok, db=connected, livekit=connected, gateway=connected, assistant=enabled"
 
 
 def validate_health_file(kind: HealthKind, path: Path) -> tuple[bool, str]:

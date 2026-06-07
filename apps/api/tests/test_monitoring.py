@@ -20,7 +20,7 @@ def test_deep_health_accepts_only_production_healthy_dependencies() -> None:
         "db": "connected",
         "livekit": "connected",
         "gateway": "connected",
-        "assistant": "disabled",
+        "assistant": "enabled",
     }
     assert validate_health_payload("deep", healthy)[0] is True
 
@@ -31,7 +31,7 @@ def test_deep_health_rejects_degraded_status() -> None:
         "db": "connected",
         "livekit": "connected",
         "gateway": "connected",
-        "assistant": "disabled",
+        "assistant": "enabled",
     }
     assert validate_health_payload("deep", payload) == (False, "status=degraded")
 
@@ -42,7 +42,7 @@ def test_deep_health_rejects_stale_gateway() -> None:
         "db": "connected",
         "livekit": "connected",
         "gateway": "stale",
-        "assistant": "disabled",
+        "assistant": "enabled",
     }
     assert validate_health_payload("deep", payload) == (
         False,
@@ -56,7 +56,7 @@ def test_deep_health_rejects_not_configured_livekit_and_no_gateways() -> None:
         "db": "connected",
         "livekit": "not_configured",
         "gateway": "no_gateways",
-        "assistant": "disabled",
+        "assistant": "enabled",
     }
     assert validate_health_payload("deep", payload) == (
         False,
@@ -82,7 +82,7 @@ def test_health_file_reads_valid_json(tmp_path: Path) -> None:
                 "db": "connected",
                 "livekit": "connected",
                 "gateway": "connected",
-                "assistant": "disabled",
+                "assistant": "enabled",
             }
         ),
         encoding="utf-8",
@@ -90,15 +90,15 @@ def test_health_file_reads_valid_json(tmp_path: Path) -> None:
     assert validate_health_file("deep", path)[0] is True
 
 
-def test_deep_health_rejects_enabled_assistant_in_production() -> None:
+def test_deep_health_rejects_disabled_assistant_in_production() -> None:
     payload = {
         "status": "ok",
         "db": "connected",
         "livekit": "connected",
         "gateway": "connected",
-        "assistant": "enabled",
+        "assistant": "disabled",
     }
     assert validate_health_payload("deep", payload) == (
         False,
-        "assistant=enabled",
+        "assistant=disabled",
     )

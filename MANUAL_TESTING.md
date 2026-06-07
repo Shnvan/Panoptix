@@ -4569,7 +4569,7 @@ Then validate the credentialed RTSP URL locally with `ffprobe` or VLC without re
 
 ## Admin Operations Assistant
 
-Keep the feature disabled unless an approved backend-only provider key is available. With `AI_ASSISTANT_ENABLED=false`, an admin status request returns `enabled: false` and the frontend widget is absent.
+Keep the feature disabled unless an approved backend-only provider key is available. Production is enabled after provider privacy approval; the provider key remains only in Railway backend variables. With `AI_ASSISTANT_ENABLED=false`, an admin status request returns `enabled: false` and the frontend widget is absent.
 
 For an approved local test, configure the `AI_ASSISTANT_*` variables in the ignored API environment file, start FastAPI and Vite, and sign in as an admin.
 
