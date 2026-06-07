@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "qa:guardrails": "node scripts/frontend-guardrail-scan.mjs",
+    "test:proxy": "node --test server-tests/server-proxy.test.mjs",
     "test:e2e": "playwright test",
     "preview": "vite preview",
     "start": "node server.mjs"

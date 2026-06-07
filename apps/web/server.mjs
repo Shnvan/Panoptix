@@ -50,6 +50,9 @@ function copyRequestHeaders(req) {
     if (hopByHopHeaders.has(lower) || lower === 'host' || lower === 'content-length') continue;
     if (value !== undefined) headers[name] = Array.isArray(value) ? value.join(', ') : value;
   }
+  // Node fetch transparently decodes compressed upstream bodies. Request an
+  // identity response so the headers and streamed body cannot diverge.
+  headers['accept-encoding'] = 'identity';
   headers['x-forwarded-host'] = req.headers.host || '';
   headers['x-forwarded-proto'] = req.headers['x-forwarded-proto'] || 'https';
   return headers;
@@ -86,7 +89,12 @@ async function proxyRequest(req, res, url) {
   const responseHeaders = {};
   upstream.headers.forEach((value, name) => {
     const lower = name.toLowerCase();
-    if (hopByHopHeaders.has(lower) || lower === 'set-cookie') return;
+    if (
+      hopByHopHeaders.has(lower) ||
+      lower === 'set-cookie' ||
+      lower === 'content-encoding' ||
+      lower === 'content-length'
+    ) return;
     responseHeaders[name] = value;
   });
 

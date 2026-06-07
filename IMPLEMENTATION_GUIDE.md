@@ -3949,7 +3949,9 @@ Production also has a temporary Cloudflare Compression Rule:
 starts_with(http.request.uri.path, "/api/v1/")
 ```
 
-with `Disable Compression`. It mitigates browser `ERR_CONTENT_DECODING_FAILED 200 (OK)` failures seen on valid JSON responses. This rule is not an Access bypass and is separate from the narrow access-request WAF rate limit. Remove it only after the permanent compression source is identified and compressed browser/curl checks pass.
+with `Disable Compression`. It mitigates browser `ERR_CONTENT_DECODING_FAILED 200 (OK)` failures seen on valid JSON responses. The source was the production Node proxy using `fetch()` to read an upstream response: Node transparently decoded compressed bodies while retaining upstream representation headers. The proxy now requests `Accept-Encoding: identity` and does not forward upstream `Content-Encoding` or `Content-Length`, allowing Node to frame the streamed response correctly. `npm run test:proxy` covers plain JSON, forced gzip/Brotli, cookies, redirects, and header preservation.
+
+This rule is not an Access bypass and is separate from the narrow access-request WAF rate limit. Keep it active until the fixed proxy is deployed. Disable it without deleting it, run compressed curl and authenticated browser checks, and re-enable it immediately if any decoding failure returns.
 
 Revoking a Panoptix session does not revoke the independent Cloudflare Access session and does not delete cameras or gateways. A later authenticated request can create a new backend session.
 

@@ -24,7 +24,7 @@ After that, inspect the source files related to the active task. Do not assume t
 ## Repository
 
 - Canonical path: `C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access`
-- Current branch: `codex/assistant-release-evidence`, based on `origin/main` at `4155f91` on 2026-06-07
+- Current branch: `fix/frontend-proxy-compression`, based on `origin/main` at `8c2a80c` on 2026-06-07
 - Remote: `https://github.com/Shnvan/Panoptix`
 - Current development mode: combined backend/frontend integration and production-readiness hardening
 
@@ -38,13 +38,15 @@ Latest full-stack integration commits:
 
 ## Current Objective
 
-Current milestone: ship the disabled-by-default admin operations assistant through review, then harden production monitoring so deep-health `degraded`, stale gateway, missing LiveKit, malformed JSON, and Cloudflare redirects fail closed. The assistant must remain disabled in production until the model provider privacy review is approved.
+Current milestone: deploy and verify the frontend proxy compression fix, then retire the temporary Cloudflare `/api/v1/*` compression-disable rule only after compressed curl and authenticated browser checks pass. The assistant remains disabled in production until the model provider privacy review is approved.
 
 June 7 release evidence: PR #31 merged as `4155f91`. Production health hardening passed a normal run, created exactly one sanitized issue across two controlled failure runs, then passed recovery run `27084083277`; issue #32 was closed with evidence links. Latest scheduled production health run `27079702256` and backup run `27072130783` succeeded with no open failure issues. The DigitalOcean gateway check showed the service active, zero restarts, one supervisor, zero idle `ffmpeg`, and zero matching failure lines in the prior 24 hours.
 
 June 6 frontend and production correction: PR #27 is merged through `713098a`. It includes gateway/camera identifier and pagination improvements, a bounded Users & Access request view, compact alert handling, visitor filters, audit identifier copy controls, and Playwright coverage. Current frontend reliability work shows API failures as retryable errors instead of false empty gateway, camera, user, audit, or session lists.
 
 June 6 Cloudflare incident: browsers received `ERR_CONTENT_DECODING_FAILED 200 (OK)` for multiple `/api/v1/*` JSON responses even though direct PowerShell requests returned valid `200` JSON. Production temporarily disables Cloudflare compression for `starts_with(http.request.uri.path, "/api/v1/")`. This is a compression rule only. It is not a Cloudflare Access bypass and is separate from the narrow `POST /api/v1/visitor/access-requests` WAF rate-limit rule.
+
+June 7 compression fix candidate: the production Node frontend proxy now requests `Accept-Encoding: identity` from the API origin and strips upstream `Content-Encoding` and `Content-Length` before streaming the response. This prevents Node `fetch()` from forwarding representation headers that no longer match its transparently decoded body. Process-level tests cover plain JSON, forced gzip, forced Brotli, redirects, cookies, and ordinary header preservation. Keep the Cloudflare mitigation enabled until this branch is merged, deployed, and verified in production.
 
 Session revocation correction: revoking a Panoptix backend session does not remove an independent Cloudflare Access login and does not delete gateways or cameras. A later authenticated request can establish a new Panoptix session. Empty gateway/session screens observed during the compression incident were failed API responses incorrectly presented as empty data.
 
