@@ -3963,6 +3963,8 @@ The current hardware result is incomplete: the operator laptop could not reach T
 
 Panoptix includes an admin-only, read-only assistant backed by an OpenAI-compatible server-side API. It is disabled by default and has no database migration.
 
+The assistant's user-facing name is **LeBron Yves Saint Laurent D. Uchiha Gojo**.
+
 The browser calls only Panoptix endpoints. Provider credentials, provider requests, the system prompt, and the sanitized operational snapshot remain in the API service. The snapshot contains aggregate health, gateway heartbeat ages, camera/publish counts, alert counts and sanitized titles, and backup readiness. It excludes raw identifiers, email addresses, IP addresses, credentials, RTSP URLs, and provider secrets.
 
 The trust upgrade removes changing production facts from the system prompt. Operational guidance is selected from a versioned backend allowlist of approved Panoptix runbooks. The API generates snapshot evidence and reference paths deterministically; provider output cannot create trusted citations. Previous client-supplied user and assistant turns are serialized as an untrusted quoted transcript, and only the latest user question is sent with the provider `user` role.

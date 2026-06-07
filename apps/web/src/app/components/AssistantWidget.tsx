@@ -28,6 +28,8 @@ const QUICK_REPLIES = [
   'What checks should I run after a deployment?',
 ];
 
+const ASSISTANT_NAME = 'LeBron Yves Saint Laurent D. Uchiha Gojo';
+
 const WELCOME =
   'I can explain Panoptix operations and summarize sanitized health, gateway, camera, alert, and backup state.';
 
@@ -204,7 +206,7 @@ export function AssistantWidget() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Open Panoptix operations assistant"
+        aria-label={`Open ${ASSISTANT_NAME}`}
         style={{ zIndex: 9999, ...launcherPosition }}
         className={`fixed bottom-5 right-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-2xl shadow-orange-500/30 transition hover:bg-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2 ${
           open ? 'pointer-events-none scale-90 opacity-0' : 'scale-100 opacity-100'
@@ -214,7 +216,7 @@ export function AssistantWidget() {
       </button>
 
       <section
-        aria-label="Panoptix operations assistant"
+        aria-label={ASSISTANT_NAME}
         style={{ zIndex: 10000, ...panelPosition }}
         className={`fixed flex flex-col overflow-hidden border shadow-2xl transition-[opacity,transform] duration-200 ${
           open ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0'
@@ -230,7 +232,7 @@ export function AssistantWidget() {
               <Bot className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold">Panoptix Operations Assistant</h2>
+              <h2 className="text-sm font-semibold">{ASSISTANT_NAME}</h2>
               <p className="text-xs text-neutral-400">Admin-only, read-only guidance</p>
             </div>
           </div>
@@ -339,7 +341,7 @@ export function AssistantWidget() {
                   rows={2}
                   maxLength={2000}
                   disabled={pending || remaining <= 0}
-                  aria-label="Message Panoptix operations assistant"
+                  aria-label={`Message ${ASSISTANT_NAME}`}
                   placeholder="Ask about health, gateways, alerts, or backups..."
                   className="max-h-28 min-h-11 flex-1 resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-neutral-500"
                 />

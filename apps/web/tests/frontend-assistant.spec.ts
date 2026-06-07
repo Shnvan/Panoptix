@@ -72,7 +72,7 @@ test('admin assistant requires disclosure and sends bounded chat', async ({ page
   });
 
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.getByRole('button', { name: 'Open Panoptix operations assistant' }).click();
+  await page.getByRole('button', { name: 'Open LeBron Yves Saint Laurent D. Uchiha Gojo' }).click();
   await expect(page.getByText('Before you continue')).toBeVisible();
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('button', { name: 'Are any gateway heartbeats stale?' }).click();
@@ -97,7 +97,7 @@ test('admin assistant requires disclosure and sends bounded chat', async ({ page
   expect(JSON.stringify(storage)).not.toContain('No stale heartbeats detected.');
 
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await page.getByRole('button', { name: 'Open Panoptix operations assistant' }).click();
+  await page.getByRole('button', { name: 'Open LeBron Yves Saint Laurent D. Uchiha Gojo' }).click();
   await page.getByRole('button', { name: 'Continue' }).click();
   await expect(page.getByText('No stale heartbeats detected.')).toHaveCount(0);
 });
@@ -111,7 +111,7 @@ test('assistant is absent for viewers', async ({ page }) => {
   });
 
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('button', { name: 'Open Panoptix operations assistant' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Open LeBron Yves Saint Laurent D. Uchiha Gojo' })).toHaveCount(0);
   expect(statusCalls).toBe(0);
 });
 
@@ -132,12 +132,12 @@ test('assistant shows sanitized retryable provider failure on mobile', async ({ 
   }, 502));
 
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.getByRole('button', { name: 'Open Panoptix operations assistant' }).click();
+  await page.getByRole('button', { name: 'Open LeBron Yves Saint Laurent D. Uchiha Gojo' }).click();
   await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByLabel('Message Panoptix operations assistant').fill('System status');
+  await page.getByLabel('Message LeBron Yves Saint Laurent D. Uchiha Gojo').fill('System status');
   await page.getByRole('button', { name: 'Send assistant message' }).click();
 
   await expect(page.getByRole('alert')).toContainText('provider is currently unavailable');
   await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Panoptix operations assistant' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'LeBron Yves Saint Laurent D. Uchiha Gojo' })).toBeVisible();
 });
