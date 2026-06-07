@@ -53,6 +53,7 @@ def test_deep_health_db_connected(client: TestClient) -> None:
     assert data["db"] == "connected"
     assert data["livekit"] == "not_configured"
     assert data["gateway"] == "no_gateways"
+    assert data["assistant"] == "disabled"
 
 
 def test_deep_health_db_error() -> None:
@@ -182,6 +183,20 @@ def test_deep_health_gateway_disabled_only(test_db_session: DbSession) -> None:
     response = client.get("/api/v1/admin/health/deep")
     assert response.status_code == 200
     assert response.json()["gateway"] == "no_gateways"
+
+
+def test_deep_health_reports_enabled_assistant_without_provider_details(
+    test_db_session: DbSession,
+) -> None:
+    client = _client_with_db(
+        test_db_session,
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_API_KEY="server-only-provider-key",
+    )
+    response = client.get("/api/v1/admin/health/deep")
+    assert response.status_code == 200
+    assert response.json()["assistant"] == "enabled"
+    assert "server-only-provider-key" not in response.text
 
 
 # ── Deep health: Overall status ──

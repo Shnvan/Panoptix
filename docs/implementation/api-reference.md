@@ -450,6 +450,10 @@ Gateway ACK:
 
 All assistant endpoints require an authenticated user with the `admin` role. The feature is disabled by default.
 
+Production deep health also reports only the non-secret feature state as
+`"assistant": "disabled"` or `"assistant": "enabled"`. Production monitoring
+requires `disabled` until the provider privacy review is approved.
+
 `GET /api/v1/admin/assistant/status`
 
 ```json
