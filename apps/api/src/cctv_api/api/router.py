@@ -16,6 +16,7 @@ from starlette.responses import StreamingResponse
 
 from cctv_api.api.errors import ProblemDetail
 from cctv_api.api.actor_profile import router as actor_profile_router
+from cctv_api.api.assistant import router as assistant_router
 from cctv_api.api.gateways import router as gateway_router
 from cctv_api.api.livekit_webhooks import router as livekit_webhook_router
 from cctv_api.api.visitors import router as visitor_router
@@ -88,6 +89,7 @@ from cctv_api.security.users import get_or_create_user, get_user_roles
 
 v1_router = APIRouter(prefix="/api/v1")
 v1_router.include_router(actor_profile_router)
+v1_router.include_router(assistant_router)
 v1_router.include_router(gateway_router)
 v1_router.include_router(livekit_webhook_router)
 v1_router.include_router(visitor_router)

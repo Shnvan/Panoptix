@@ -4557,3 +4557,31 @@ Test-NetConnection <CAMERA_LAN_IP> -Port 554
 ```
 
 Then validate the credentialed RTSP URL locally with `ffprobe` or VLC without recording credentials in docs, screenshots, or shell history. Confirm the edge-agent service is active and that a publisher starts only while a viewer requests playback.
+
+## Admin Operations Assistant
+
+Keep the feature disabled unless an approved backend-only provider key is available. With `AI_ASSISTANT_ENABLED=false`, an admin status request returns `enabled: false` and the frontend widget is absent.
+
+For an approved local test, configure the `AI_ASSISTANT_*` variables in the ignored API environment file, start FastAPI and Vite, and sign in as an admin.
+
+Verify:
+
+- viewers do not call the assistant status endpoint and never see the launcher
+- admins see the launcher only when status returns `enabled: true`
+- opening the panel requires accepting the AI/data disclosure
+- quick replies and typed messages return text-only responses
+- conversation history disappears after a page reload and is never written to browser storage
+- requests after the configured backend rate limit return `429` with `Retry-After`
+- provider timeout/unavailability produces a retryable sanitized message without exposing provider response bodies
+- audit rows contain `admin.assistant.requested`, `completed`, `failed`, or `rate_limited` metadata but no message text
+
+Run focused checks:
+
+```powershell
+cd apps\api
+pytest tests\test_assistant.py -q
+
+cd ..\web
+npm run test:e2e -- tests/frontend-assistant.spec.ts
+npm run qa:guardrails
+```

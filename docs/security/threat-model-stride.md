@@ -107,6 +107,7 @@ This document captures the v4.1 STRIDE threat model for the secure CCTV monitori
 | PII leaks to Sentry/Telegram | Error payload includes email/IP/camera name | PII scrub hooks, opaque alert IDs, quarterly review | Log/alert review |
 | Camera metadata on public signage | Sign reveals camera IDs or room names | Public sign template excludes internal identifiers | Signage review |
 | Backup disclosure | R2 backup object read by attacker | age encryption, object lock, least-priv keys | Restore drill |
+| Assistant data disclosure | Prompt or live context sends credentials, identifiers, IPs, or personal data to the model provider | Admin-only route; backend-only provider key; aggregate allowlisted snapshot; label redaction; no raw provider errors; no prompt/response audit content; disabled by default | Assistant API tests and frontend guardrail scan |
 
 ### 5. Denial of service
 
@@ -118,6 +119,7 @@ This document captures the v4.1 STRIDE threat model for the secure CCTV monitori
 | CF Access outage/misconfig | Control plane inaccessible | Rollback runbook, IdP outage fallback policy | Runbook drill |
 | DB outage | Sessions/token grants/audit unavailable | Managed PG, backups, restore drill, fail-closed auth | Restore drill |
 | Webhook flood | LiveKit/webhook endpoint spammed | HMAC validation, rate limit, CORS server-to-server only | T-54/T-63 |
+| Assistant cost/provider exhaustion | Admin or automation repeatedly invokes the model provider | Per-admin backend rate limit, bounded messages/output, provider timeout, bounded 429 retry | Assistant API tests |
 
 ### 6. Elevation of privilege
 
@@ -129,6 +131,7 @@ This document captures the v4.1 STRIDE threat model for the secure CCTV monitori
 | Compromised media host reaches DB | LiveKit fallback pivots to Postgres | No DB secret, egress block, separate app | T-45 |
 | Gateway publishes unassigned camera | Gateway token minted outside assignment | `gateway_camera_assignments` sole authority | Integration tests |
 | Break-glass window remains open | Scheduler fails to close emergency access | Request-time 90-min enforcement; external monitor | T-52 |
+| Prompt injection causes actions | User text or sanitized labels attempt to override assistant behavior | Static system rules, read-only snapshot, no mutation tools, no provider call from browser, explicit no-action responses | Assistant API and UI tests |
 
 ## Residual risks
 

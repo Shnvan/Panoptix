@@ -138,6 +138,17 @@ class Settings(BaseSettings):
     RATE_LIMIT_ACCESS_REQUEST_MAX: int = Field(default=5, ge=1)
     RATE_LIMIT_ACCESS_REQUEST_WINDOW: int = Field(default=60, ge=10)
 
+    # -- Admin AI assistant (server-side provider only) --
+    AI_ASSISTANT_ENABLED: bool = False
+    AI_ASSISTANT_API_URL: str = "https://api.groq.com/openai/v1/chat/completions"
+    AI_ASSISTANT_API_KEY: str = "replace-me"
+    AI_ASSISTANT_MODEL: str = "llama-3.3-70b-versatile"
+    AI_ASSISTANT_TIMEOUT_SECONDS: int = Field(default=30, ge=5, le=120)
+    AI_ASSISTANT_MAX_OUTPUT_TOKENS: int = Field(default=600, ge=64, le=4096)
+    AI_ASSISTANT_TEMPERATURE: float = Field(default=0.2, ge=0.0, le=1.0)
+    RATE_LIMIT_AI_ASSISTANT_MAX: int = Field(default=20, ge=1, le=100)
+    RATE_LIMIT_AI_ASSISTANT_WINDOW: int = Field(default=300, ge=60, le=3600)
+
     @property
     def cf_access_browser_audiences(self) -> list[str]:
         return [
@@ -199,6 +210,22 @@ class Settings(BaseSettings):
 
         if self.VISITOR_COLLECTOR_ENABLED:
             _GUARDED_FIELDS.append("VISITOR_COOKIE_SIGNING_KEY")
+
+        if self.AI_ASSISTANT_ENABLED:
+            _GUARDED_FIELDS.extend(
+                [
+                    "AI_ASSISTANT_API_URL",
+                    "AI_ASSISTANT_API_KEY",
+                    "AI_ASSISTANT_MODEL",
+                ]
+            )
+            for field_name in (
+                "AI_ASSISTANT_API_URL",
+                "AI_ASSISTANT_API_KEY",
+                "AI_ASSISTANT_MODEL",
+            ):
+                if not getattr(self, field_name, "").strip():
+                    unsafe.append(field_name)
 
         for field_name in _GUARDED_FIELDS:
             value = getattr(self, field_name, "")

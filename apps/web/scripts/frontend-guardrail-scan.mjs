@@ -20,6 +20,9 @@ const forbidden = [
   { name: 'Cloudflare Access service secret string', pattern: /CF-Access-Client-Secret|CLOUDFLARE_ACCESS_CLIENT_SECRET|PANOPTIX_CF_ACCESS_CLIENT_SECRET/ },
   { name: 'R2 secret string', pattern: /R2_SECRET_ACCESS_KEY/ },
   { name: 'database URL string', pattern: /DATABASE_URL/ },
+  { name: 'LLM provider key string', pattern: /AI_ASSISTANT_API_KEY|GROQ_API_KEY|OPENAI_API_KEY/ },
+  { name: 'browser LLM provider endpoint', pattern: /api\.groq\.com|api\.openai\.com/ },
+  { name: 'raw HTML rendering', pattern: /dangerouslySetInnerHTML/ },
 ];
 
 const localStorageAllowed = new Set(['src/lib/theme.tsx']);

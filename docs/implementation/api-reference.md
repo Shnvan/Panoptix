@@ -446,6 +446,42 @@ Gateway ACK:
 }
 ```
 
+## Admin operations assistant
+
+All assistant endpoints require an authenticated user with the `admin` role. The feature is disabled by default.
+
+`GET /api/v1/admin/assistant/status`
+
+```json
+{
+  "enabled": false,
+  "provider": "openai-compatible",
+  "model": "llama-3.3-70b-versatile",
+  "max_history_messages": 20,
+  "page_session_limit": 50
+}
+```
+
+`POST /api/v1/admin/assistant/chat`
+
+```json
+{
+  "messages": [
+    {"role": "user", "content": "Summarize current system health."}
+  ]
+}
+```
+
+```json
+{
+  "message": "Current sanitized health summary...",
+  "model": "llama-3.3-70b-versatile",
+  "context_categories": ["health", "gateways", "cameras", "alerts", "backups"]
+}
+```
+
+Messages must alternate starting with `user` and end with `user`. Limits are 20 messages, 2,000 characters per message, and 12,000 characters for the conversation. `429` responses include `Retry-After`. Provider failures use sanitized problem details such as `assistant-provider-timeout`, `assistant-provider-rate-limited`, or `assistant-provider-unavailable`.
+
 ## Deferred or Not Implemented
 
 - Frontend-generated OpenAPI/TypeScript client.

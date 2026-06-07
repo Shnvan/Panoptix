@@ -12,7 +12,7 @@ Two endpoints are checked on each run:
 | Endpoint | Pass Condition |
 | --- | --- |
 | `GET https://panoptix.site/health` | HTTP 200 with body `{"status":"ok"}` |
-| `GET https://panoptix.site/api/v1/admin/health/deep` | HTTP 200 with valid JSON containing `status` field |
+| `GET https://panoptix.site/api/v1/admin/health/deep` | HTTP 200 with `status=ok`, `db=connected`, `livekit=connected`, and `gateway=connected` |
 
 The workflow authenticates through Cloudflare Access with a dedicated production monitor service token. Store only the raw values in GitHub repository secrets:
 
@@ -22,6 +22,8 @@ The workflow authenticates through Cloudflare Access with a dedicated production
 The Cloudflare Access policy for this token must allow the two health URLs above. Do not paste header names, token values, screenshots of tokens, or service-token secrets into docs, commits, issues, or chat.
 
 On failure the workflow opens a GitHub Issue titled **"Production health check failed"** (deduped - one open issue at a time). Issue creation uses the GitHub REST API directly, so the workflow does not depend on downloading `actions/github-script`.
+
+For a controlled issue-path test, manually dispatch the workflow with `simulate_failure=true`. This flag is unavailable to scheduled runs and emits only the fixed reason `controlled monitoring failure simulation`. Confirm one deduplicated issue is created, rerun with the flag disabled, then close the test issue with links to both runs.
 
 ---
 

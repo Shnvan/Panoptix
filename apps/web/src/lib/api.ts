@@ -89,6 +89,16 @@ export const api = {
   // Identity
   getMe: () => apiFetch<import('./types').MeResponse>('/api/v1/me'),
 
+  // Admin assistant
+  getAssistantStatus: () =>
+    apiFetch<import('./types').AssistantStatusResponse>('/api/v1/admin/assistant/status'),
+
+  sendAssistantChat: (messages: import('./types').AssistantMessage[]) =>
+    apiFetch<import('./types').AssistantChatResponse>('/api/v1/admin/assistant/chat', {
+      method: 'POST',
+      body: JSON.stringify({ messages }),
+    }),
+
   // Cameras
   listCameras: (cursor?: string, limit = 50) => {
     const p = new URLSearchParams();

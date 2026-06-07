@@ -16,6 +16,27 @@ export interface MeResponse {
   is_dev: boolean;
 }
 
+// -- Admin AI assistant --
+
+export interface AssistantStatusResponse {
+  enabled: boolean;
+  provider: string;
+  model: string;
+  max_history_messages: number;
+  page_session_limit: number;
+}
+
+export interface AssistantMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface AssistantChatResponse {
+  message: string;
+  model: string;
+  context_categories: string[];
+}
+
 // ── Cameras ──
 
 export interface CameraSummary {
