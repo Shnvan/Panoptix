@@ -19,6 +19,7 @@ import { BreakGlassSection } from './components/BreakGlassSection';
 import { VisitorInvestigationPage } from './components/VisitorInvestigationPage';
 import { ActorInvestigationPage } from './components/ActorInvestigationPage';
 import { LoadErrorPanel } from './components/LoadErrorPanel';
+import { AssistantWidget } from './components/AssistantWidget';
 import { useMe, useCameras, useCameraEvents, useSystemHealth, usePrivacyNotice, useAdminDashboard } from '../lib/hooks';
 import { useTheme } from '../lib/theme';
 import type { CameraSummary, CameraTileStatus } from '../lib/types';
@@ -240,6 +241,7 @@ export function App() {
         <main className="flex-1 overflow-auto p-6">{renderContent()}</main>
       </div>
       {selectedCamera && <CameraDetailModal camera={selectedCamera} onClose={() => setSelectedCamera(null)} />}
+      {isAdmin && <AssistantWidget />}
     </div>
   );
 }

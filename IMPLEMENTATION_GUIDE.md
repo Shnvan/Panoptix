@@ -3954,3 +3954,29 @@ with `Disable Compression`. It mitigates browser `ERR_CONTENT_DECODING_FAILED 20
 Revoking a Panoptix session does not revoke the independent Cloudflare Access session and does not delete cameras or gateways. A later authenticated request can create a new backend session.
 
 The current hardware result is incomplete: the operator laptop could not reach Tailscale address `100.76.147.59` or TCP port `8554`. MediaMTX should be checked locally on the gateway at `127.0.0.1:8554`, and the camera should be tested directly from that host across the camera LAN/VLAN before changing application code.
+
+---
+
+## Admin Operations Assistant
+
+Panoptix includes an admin-only, read-only assistant backed by an OpenAI-compatible server-side API. It is disabled by default and has no database migration.
+
+The browser calls only Panoptix endpoints. Provider credentials, provider requests, the system prompt, and the sanitized operational snapshot remain in the API service. The snapshot contains aggregate health, gateway heartbeat ages, camera/publish counts, alert counts and sanitized titles, and backup readiness. It excludes raw identifiers, email addresses, IP addresses, credentials, RTSP URLs, and provider secrets.
+
+Enable it only with backend environment variables:
+
+```text
+AI_ASSISTANT_ENABLED=true
+AI_ASSISTANT_API_URL=https://api.groq.com/openai/v1/chat/completions
+AI_ASSISTANT_API_KEY=<backend-only secret>
+AI_ASSISTANT_MODEL=llama-3.3-70b-versatile
+AI_ASSISTANT_TIMEOUT_SECONDS=30
+AI_ASSISTANT_MAX_OUTPUT_TOKENS=600
+AI_ASSISTANT_TEMPERATURE=0.2
+RATE_LIMIT_AI_ASSISTANT_MAX=20
+RATE_LIMIT_AI_ASSISTANT_WINDOW=300
+```
+
+The API fails startup validation when the assistant is enabled with placeholder provider configuration. Chat requests require the `admin` role, alternate user/assistant messages, end with a user message, and stay within 20 messages, 2,000 characters per message, and 12,000 characters total.
+
+Audit events record request counts, character counts, model, context categories, and outcome. They never record prompt or response text. If audit logging fails, the provider request is blocked.

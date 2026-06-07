@@ -35,6 +35,7 @@ This checklist is retained for future reference. Per current project decision, i
 | Better Stack | Logs/monitoring | DPA and PII scrub evidence. |
 | UptimeRobot | Health checks | DPA and probe data scope. |
 | Email/Telegram | Alerts/DSR if used | Data minimization and breach terms. |
+| Configured AI model provider | Admin operations guidance from sanitized aggregate state, only when enabled | DPA, sub-processors, retention/training settings, transfer basis, and confirmation that Panoptix secrets and personal data are excluded. |
 
 ## Minor-site gate
 

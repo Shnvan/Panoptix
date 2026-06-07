@@ -8,6 +8,12 @@ on:
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
+    inputs:
+      simulate_failure:
+        description: "Create a controlled sanitized monitoring failure for issue-path testing"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   healthcheck:
@@ -15,6 +21,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
       - name: Validate monitoring credentials
         env:
           PRODUCTION_CF_ACCESS_CLIENT_ID: ${{ secrets.PRODUCTION_CF_ACCESS_CLIENT_ID }}
@@ -35,17 +44,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          body_summary() {
-            python3 - "$1" <<'PY'
-          import sys
-          from pathlib import Path
-
-          raw = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
-          summary = " ".join(raw.split())
-          print((summary or "<empty>")[:500])
-          PY
-          }
-
           set_output() {
             printf '%s=%s\n' "$1" "$2" >> "$GITHUB_OUTPUT"
           }
@@ -64,30 +62,19 @@ jobs:
 
           if [ "$CURL_EXIT" -ne 0 ]; then
             set_output "shallow_ok" "false"
-            set_output "shallow_fail_reason" "curl failed with exit ${CURL_EXIT}. Body: $(body_summary "$BODY_FILE")"
+            set_output "shallow_fail_reason" "curl failed with exit ${CURL_EXIT}"
           elif [ "$HTTP_CODE" != "200" ]; then
             set_output "shallow_ok" "false"
             if [ "$HTTP_CODE" = "302" ]; then
-              set_output "shallow_fail_reason" "Expected HTTP 200 but got 302 Cloudflare Access redirect. Check production monitor service-token policy and headers. Body: $(body_summary "$BODY_FILE")"
+              set_output "shallow_fail_reason" "Expected HTTP 200 but got 302 Cloudflare Access redirect. Check production monitor service-token policy and headers."
             else
-              set_output "shallow_fail_reason" "Expected HTTP 200 but got ${HTTP_CODE}. Body: $(body_summary "$BODY_FILE")"
+              set_output "shallow_fail_reason" "Expected HTTP 200 but got ${HTTP_CODE}"
             fi
-          elif python3 - "$BODY_FILE" <<'PY'
-          import json
-          import sys
-          from pathlib import Path
-
-          try:
-              data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-          except Exception:
-              sys.exit(1)
-          sys.exit(0 if data.get("status") == "ok" else 1)
-          PY
-          then
+          elif SUMMARY=$(PYTHONPATH=apps/api/src python3 -m cctv_api.monitoring shallow "$BODY_FILE"); then
             set_output "shallow_ok" "true"
           else
             set_output "shallow_ok" "false"
-            set_output "shallow_fail_reason" "Response body was not JSON status ok. Body: $(body_summary "$BODY_FILE")"
+            set_output "shallow_fail_reason" "$SUMMARY"
           fi
 
       - name: Check /api/v1/admin/health/deep endpoint
@@ -95,19 +82,9 @@ jobs:
         env:
           PRODUCTION_CF_ACCESS_CLIENT_ID: ${{ secrets.PRODUCTION_CF_ACCESS_CLIENT_ID }}
           PRODUCTION_CF_ACCESS_CLIENT_SECRET: ${{ secrets.PRODUCTION_CF_ACCESS_CLIENT_SECRET }}
+          SIMULATE_FAILURE: ${{ inputs.simulate_failure || false }}
         run: |
           set -euo pipefail
-
-          body_summary() {
-            python3 - "$1" <<'PY'
-          import sys
-          from pathlib import Path
-
-          raw = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
-          summary = " ".join(raw.split())
-          print((summary or "<empty>")[:500])
-          PY
-          }
 
           set_output() {
             printf '%s=%s\n' "$1" "$2" >> "$GITHUB_OUTPUT"
@@ -127,30 +104,22 @@ jobs:
 
           if [ "$CURL_EXIT" -ne 0 ]; then
             set_output "deep_ok" "false"
-            set_output "deep_fail_reason" "curl failed with exit ${CURL_EXIT}. Body: $(body_summary "$BODY_FILE")"
+            set_output "deep_fail_reason" "curl failed with exit ${CURL_EXIT}"
           elif [ "$HTTP_CODE" != "200" ]; then
             set_output "deep_ok" "false"
             if [ "$HTTP_CODE" = "302" ]; then
-              set_output "deep_fail_reason" "Expected HTTP 200 but got 302 Cloudflare Access redirect. Check production monitor service-token policy and headers. Body: $(body_summary "$BODY_FILE")"
+              set_output "deep_fail_reason" "Expected HTTP 200 but got 302 Cloudflare Access redirect. Check production monitor service-token policy and headers."
             else
-              set_output "deep_fail_reason" "Expected HTTP 200 but got ${HTTP_CODE}. Body: $(body_summary "$BODY_FILE")"
+              set_output "deep_fail_reason" "Expected HTTP 200 but got ${HTTP_CODE}"
             fi
-          elif python3 - "$BODY_FILE" <<'PY'
-          import json
-          import sys
-          from pathlib import Path
-
-          try:
-              data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-          except Exception:
-              sys.exit(1)
-          sys.exit(0 if "status" in data else 1)
-          PY
-          then
+          elif [ "$SIMULATE_FAILURE" = "true" ]; then
+            set_output "deep_ok" "false"
+            set_output "deep_fail_reason" "controlled monitoring failure simulation"
+          elif SUMMARY=$(PYTHONPATH=apps/api/src python3 -m cctv_api.monitoring deep "$BODY_FILE"); then
             set_output "deep_ok" "true"
           else
             set_output "deep_ok" "false"
-            set_output "deep_fail_reason" "Response body was not valid JSON or did not contain a status field. Body: $(body_summary "$BODY_FILE")"
+            set_output "deep_fail_reason" "$SUMMARY"
           fi
 
       - name: File issue on failure

@@ -38,6 +38,7 @@ This is the first document to read before changing the React app. The canonical 
 - Production gateway host traffic uses gateway auth plus Cloudflare Access service-token headers. Raw gateway service tokens and Cloudflare Access client secrets belong only on the gateway host, never in frontend code.
 - Real LiveKit browser subscriber playback is implemented using `@livekit/components-react` and `livekit-client`; production `Tailscale RTSP Camera` playback passed on 2026-06-02 through the DigitalOcean `dropletGateway`.
 - The real-camera pilot kept RTSP on Tailscale/private networking; the browser subscribed to LiveKit only, with no camera/mic prompt, no browser publishing, and no RTSP URL, gateway token, Cloudflare token, or LiveKit secret exposed in browser storage/logs/docs.
+- The admin operations assistant is implemented and disabled by default. It is rendered only for admins after the backend status check, requires an AI/data disclosure, keeps conversation state in memory only, and calls only Panoptix `/api/v1/admin/assistant/*` endpoints.
 
 ## What To Do Next
 
@@ -72,6 +73,7 @@ This is the first document to read before changing the React app. The canonical 
 - Do not request browser camera or microphone permission.
 - Do not call `navigator.mediaDevices.getUserMedia`, `MediaRecorder`, or LiveKit publishing APIs from browser code.
 - Do not store auth tokens in `localStorage`, `sessionStorage`, or IndexedDB.
+- Do not add model-provider API keys, direct Groq/OpenAI-compatible browser calls, raw HTML rendering, or persisted assistant conversations.
 - Do not expose RTSP URLs, LiveKit API secrets, LiveKit ingest tokens, gateway service tokens, Cloudflare Access service-token secrets, R2 keys, database URLs, backend-only credentials, or `.env` values in frontend code, logs, screenshots, storage, or UI.
 - Do not call gateway-only endpoints from browser code.
 - Never make broad `/api/v1/*` public or browser-call protected API groups from public entry code; only the documented visitor entry endpoints are public. The only access-request public exception is `POST /api/v1/visitor/access-requests`.

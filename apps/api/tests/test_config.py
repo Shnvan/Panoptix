@@ -110,6 +110,28 @@ def test_guardrails_pass_for_fully_populated_production() -> None:
     settings.validate_production_guardrails()
 
 
+def test_guardrails_keep_assistant_disabled_by_default_in_production() -> None:
+    settings = _safe_production_settings()
+    assert settings.AI_ASSISTANT_ENABLED is False
+    settings.validate_production_guardrails()
+
+
+def test_guardrails_reject_enabled_assistant_with_placeholder_key() -> None:
+    settings = _safe_production_settings(AI_ASSISTANT_ENABLED=True)
+    with pytest.raises(ValueError, match="AI_ASSISTANT_API_KEY"):
+        settings.validate_production_guardrails()
+
+
+def test_guardrails_accept_enabled_assistant_with_backend_configuration() -> None:
+    settings = _safe_production_settings(
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_API_URL="https://provider.example.test/v1/chat/completions",
+        AI_ASSISTANT_API_KEY="provider-key-with-enough-entropy",
+        AI_ASSISTANT_MODEL="approved-operations-model",
+    )
+    settings.validate_production_guardrails()
+
+
 def test_guardrails_allow_alert_email_admin_recipient_mode_without_static_to() -> None:
     settings = _safe_production_settings(
         ALERT_EMAIL_ENABLED=True,

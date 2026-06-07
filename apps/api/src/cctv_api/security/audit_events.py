@@ -129,6 +129,10 @@ _r("admin.dsr.viewed", S.medium, C.compliance, O.success)
 _r("admin.signage.attest", S.medium, C.compliance, O.success)
 _r("admin.alert.acknowledged", S.medium, C.admin, O.success)
 _r("admin.alert.resolved", S.medium, C.admin, O.success)
+_r("admin.assistant.requested", S.low, C.admin, O.success)
+_r("admin.assistant.completed", S.low, C.admin, O.success)
+_r("admin.assistant.failed", S.medium, C.admin, O.error)
+_r("admin.assistant.rate_limited", S.medium, C.admin, O.denied)
 
 # --- System ---
 
