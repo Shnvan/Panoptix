@@ -4511,8 +4511,17 @@ Expected:
 
 - both curl requests return readable JSON
 - browser fetch resolves without `ERR_CONTENT_DECODING_FAILED`
+- the fixed frontend proxy does not forward stale origin `Content-Encoding` or `Content-Length`
 - gateway, camera, and session API requests also decode normally
 - the narrow access-request WAF rule still applies only to `POST /api/v1/visitor/access-requests`
+
+Before production deployment, run the process-level proxy regression suite:
+
+```powershell
+npm --prefix apps/web run test:proxy
+```
+
+After deploying the fixed frontend while the Cloudflare mitigation remains enabled, repeat the checks above. Then disable, but do not delete, the Cloudflare compression rule and repeat them immediately across the public notice plus authenticated gateway, camera, session, and health APIs. Re-enable the rule on any decode or JSON parse failure.
 
 ### Verify failure versus empty states
 

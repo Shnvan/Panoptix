@@ -1,4 +1,4 @@
-name: CI - Backend API
+name: CI
 
 permissions:
   contents: read
@@ -11,6 +11,39 @@ on:
     branches: [main, backend]
 
 jobs:
+  frontend:
+    name: Frontend Lint, Build & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Set up Node
+        uses: actions/setup-node@v6.4.0
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test production proxy
+        run: npm run test:proxy
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Run frontend guardrails
+        run: npm run qa:guardrails
+
   lint-and-test:
     name: Lint & Test
     runs-on: ubuntu-latest

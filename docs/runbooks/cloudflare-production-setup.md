@@ -167,6 +167,8 @@ Set the action to `Disable Compression`.
 
 This broad path match is acceptable only because it controls response compression. It does not make `/api/v1/*` public, does not bypass Cloudflare Access, and is not a WAF rule. The separate `panoptix-public-access-request-submit` rate-limit rule must remain narrow.
 
+The permanent fix is in the production Node frontend proxy. It sends `Accept-Encoding: identity` to the API origin and strips upstream `Content-Encoding` and `Content-Length` before streaming the body. Node `fetch()` transparently decodes compressed upstream bodies, so forwarding the original representation headers can otherwise make browsers decode an already-decoded body.
+
 Verify after changes:
 
 ```powershell
@@ -175,6 +177,14 @@ curl.exe --compressed -sS -D - https://panoptix.site/api/v1/visitor/notice
 ```
 
 In a browser console, `fetch("/api/v1/visitor/notice").then(r => r.json()).then(console.log)` must resolve without `ERR_CONTENT_DECODING_FAILED`. Remove this mitigation only after the permanent compression fix passes browser and `curl.exe --compressed` checks across public and authenticated API responses.
+
+Retirement procedure:
+
+1. Deploy the fixed frontend while this rule remains enabled.
+2. Run `npm --prefix apps/web run test:proxy` from the release commit and complete the curl/browser checks.
+3. Disable the compression rule without deleting it.
+4. Immediately repeat the public and authenticated checks, including gateways, cameras, sessions, and deep health.
+5. Re-enable the rule on any decode or JSON parse failure. Otherwise monitor a successful production health run before deleting the rule.
 
 ## Production Safety Checklist
 
