@@ -35,6 +35,21 @@ export interface AssistantChatResponse {
   message: string;
   model: string;
   context_categories: string[];
+  generated_at: string;
+  evidence: AssistantEvidence[];
+  references: AssistantReference[];
+}
+
+export interface AssistantEvidence {
+  category: string;
+  label: string;
+  value: string;
+  status: 'ok' | 'warning' | 'info';
+}
+
+export interface AssistantReference {
+  title: string;
+  path: string;
 }
 
 // ── Cameras ──

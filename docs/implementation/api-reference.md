@@ -481,11 +481,26 @@ so an accidental feature rollback fails closed.
 {
   "message": "Current sanitized health summary...",
   "model": "llama-3.3-70b-versatile",
-  "context_categories": ["health", "gateways", "cameras", "alerts", "backups"]
+  "context_categories": ["health", "gateways"],
+  "generated_at": "2026-06-07T10:00:00+00:00",
+  "evidence": [
+    {
+      "category": "gateways",
+      "label": "Stale or never-seen gateways",
+      "value": "0",
+      "status": "ok"
+    }
+  ],
+  "references": [
+    {
+      "title": "Edge Gateway Service",
+      "path": "docs/runbooks/edge-gateway-service.md"
+    }
+  ]
 }
 ```
 
-Messages must alternate starting with `user` and end with `user`. Limits are 20 messages, 2,000 characters per message, and 12,000 characters for the conversation. `429` responses include `Retry-After`. Provider failures use sanitized problem details such as `assistant-provider-timeout`, `assistant-provider-rate-limited`, or `assistant-provider-unavailable`.
+Messages must alternate starting with `user` and end with `user`. Limits are 20 messages, 2,000 characters per message, and 12,000 characters for the conversation. Previous turns are treated as an untrusted quoted transcript; only the latest user question retains the provider `user` role. Evidence and references are backend-generated from the sanitized snapshot and approved versioned guidance catalog, not from provider output. `429` responses include `Retry-After`. Provider failures use sanitized problem details such as `assistant-provider-timeout`, `assistant-provider-rate-limited`, `assistant-provider-response-sensitive`, or `assistant-provider-unavailable`.
 
 ## Deferred or Not Implemented
 

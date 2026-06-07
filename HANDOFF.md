@@ -24,7 +24,7 @@ After that, inspect the source files related to the active task. Do not assume t
 ## Repository
 
 - Canonical path: `C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access`
-- Current branch: `fix/monitor-enabled-production-assistant`, based on `origin/main` at `4121dfc` on 2026-06-07
+- Current branch: `feat/assistant-trust-evidence`, based on `origin/main` at `c02d894` on 2026-06-07
 - Remote: `https://github.com/Shnvan/Panoptix`
 - Current development mode: combined backend/frontend integration and production-readiness hardening
 
@@ -38,7 +38,7 @@ Latest full-stack integration commits:
 
 ## Current Objective
 
-Current milestone: align production monitoring and documentation with the approved, enabled admin operations assistant, then verify the assistant and scheduled health workflow without exposing provider credentials or message content.
+Current milestone: harden the enabled admin operations assistant with deterministic evidence, approved versioned runbook guidance, stronger redaction, untrusted-history isolation, provider telemetry, and memory-only frontend evidence display. No migration, persistent conversation, provider credential exposure, or action-taking capability is added.
 
 June 7 assistant production enablement: the system owner approved the provider privacy terms and configured the Groq-compatible provider through Railway backend-only variables. Production monitoring must now require `assistant=enabled`; an unexpected disabled state is treated as a failed health check. Never record the provider key, provider request bodies, or assistant conversation text in docs, screenshots, issues, or audit metadata.
 

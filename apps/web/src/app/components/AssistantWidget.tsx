@@ -1,5 +1,7 @@
 import {
   Bot,
+  Check,
+  Copy,
   LoaderCircle,
   MessageCircle,
   Minus,
@@ -12,7 +14,12 @@ import {
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api, ApiError } from '../../lib/api';
-import type { AssistantMessage, AssistantStatusResponse } from '../../lib/types';
+import type {
+  AssistantEvidence,
+  AssistantMessage,
+  AssistantReference,
+  AssistantStatusResponse,
+} from '../../lib/types';
 import { useTheme } from '../../lib/theme';
 
 const QUICK_REPLIES = [
@@ -27,6 +34,9 @@ const WELCOME =
 interface DisplayMessage extends AssistantMessage {
   id: number;
   at: Date;
+  generatedAt?: string;
+  evidence?: AssistantEvidence[];
+  references?: AssistantReference[];
 }
 
 interface ViewportBounds {
@@ -95,12 +105,17 @@ export function AssistantWidget() {
 
   if (!status?.enabled) return null;
 
-  const addMessage = (role: AssistantMessage['role'], content: string) => {
+  const addMessage = (
+    role: AssistantMessage['role'],
+    content: string,
+    metadata: Pick<DisplayMessage, 'generatedAt' | 'evidence' | 'references'> = {},
+  ) => {
     const message: DisplayMessage = {
       id: nextId.current++,
       role,
       content,
       at: new Date(),
+      ...metadata,
     };
     setMessages((current) => [...current, message]);
     return message;
@@ -117,7 +132,11 @@ export function AssistantWidget() {
         content,
       }));
       const result = await api.sendAssistantChat(bounded);
-      addMessage('assistant', result.message);
+      addMessage('assistant', result.message, {
+        generatedAt: result.generated_at,
+        evidence: result.evidence,
+        references: result.references,
+      });
     } catch (err) {
       if (err instanceof ApiError) {
         const friendly: Record<string, string> = {
@@ -125,6 +144,8 @@ export function AssistantWidget() {
           'assistant-provider-rate-limited': 'The model provider is busy. Try again in about 30 seconds.',
           'assistant-provider-timeout': 'The assistant timed out before responding.',
           'assistant-provider-unavailable': 'The assistant provider is currently unavailable.',
+          'assistant-provider-response-invalid': 'The assistant provider returned an invalid response.',
+          'assistant-provider-response-sensitive': 'The response was blocked because it contained sensitive data.',
           'audit-log-write-failed': 'The request was blocked because secure audit logging is unavailable.',
         };
         setError(friendly[err.detail] ?? 'The assistant could not generate a response.');
@@ -340,16 +361,85 @@ export function AssistantWidget() {
   ), document.body);
 }
 
-function MessageBubble({ role, content, at }: Pick<DisplayMessage, 'role' | 'content' | 'at'>) {
+function MessageBubble({
+  role,
+  content,
+  at,
+  generatedAt,
+  evidence,
+  references,
+}: Pick<DisplayMessage, 'role' | 'content' | 'at' | 'generatedAt' | 'evidence' | 'references'>) {
   const assistant = role === 'assistant';
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = content;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      textarea.remove();
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
+  };
   return (
     <div className={`flex ${assistant ? 'justify-start' : 'justify-end'}`}>
       <div className={`max-w-[88%] rounded-2xl px-3.5 py-3 text-sm ${
         assistant
           ? 'rounded-bl-md border border-neutral-700/50 bg-neutral-800/60'
           : 'rounded-br-md bg-orange-500 text-white'
-      }`}>
+        }`}>
         {assistant ? <SafeMarkdown text={content} /> : <p className="whitespace-pre-wrap break-words">{content}</p>}
+        {assistant && generatedAt && (
+          <div className="mt-3 space-y-2 border-t border-neutral-700/50 pt-2 text-xs">
+            <p className="text-neutral-400">
+              Snapshot: {new Date(generatedAt).toLocaleString()}
+            </p>
+            {evidence && evidence.length > 0 && (
+              <div aria-label="Assistant evidence" className="space-y-1">
+                <p className="font-semibold text-neutral-300">Evidence</p>
+                {evidence.map((item) => (
+                  <div key={`${item.category}-${item.label}`} className="flex justify-between gap-3">
+                    <span className="text-neutral-400">{item.label}</span>
+                    <span className={
+                      item.status === 'ok'
+                        ? 'text-emerald-400'
+                        : item.status === 'warning'
+                          ? 'text-amber-400'
+                          : 'text-neutral-300'
+                    }>
+                      {item.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {references && references.length > 0 && (
+              <div aria-label="Approved references">
+                <p className="font-semibold text-neutral-300">Approved references</p>
+                {references.map((reference) => (
+                  <p key={reference.path} className="break-all text-neutral-400">
+                    {reference.title}: <code>{reference.path}</code>
+                  </p>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={copy}
+              aria-label="Copy assistant response"
+              className="flex items-center gap-1 text-neutral-400 hover:text-orange-400"
+            >
+              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? 'Copied' : 'Copy response'}
+            </button>
+          </div>
+        )}
         <time className={`mt-1.5 block text-[10px] ${assistant ? 'text-neutral-500' : 'text-orange-100'}`}>
           {at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </time>

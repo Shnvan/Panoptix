@@ -52,7 +52,22 @@ test('admin assistant requires disclosure and sends bounded chat', async ({ page
     await fulfillJson(route, {
       message: '**Gateway status:** connected\n- No stale heartbeats detected.',
       model: 'llama-3.3-70b-versatile',
-      context_categories: ['health', 'gateways', 'cameras', 'alerts', 'backups'],
+      context_categories: ['health', 'gateways'],
+      generated_at: '2026-06-07T10:00:00Z',
+      evidence: [
+        {
+          category: 'gateways',
+          label: 'Stale or never-seen gateways',
+          value: '0',
+          status: 'ok',
+        },
+      ],
+      references: [
+        {
+          title: 'Edge Gateway Service',
+          path: 'docs/runbooks/edge-gateway-service.md',
+        },
+      ],
     });
   });
 
@@ -64,10 +79,27 @@ test('admin assistant requires disclosure and sends bounded chat', async ({ page
 
   await expect(page.getByText('Gateway status:')).toBeVisible();
   await expect(page.getByText('No stale heartbeats detected.')).toBeVisible();
+  await expect(page.getByText('Stale or never-seen gateways')).toBeVisible();
+  await expect(page.getByText('Edge Gateway Service:')).toBeVisible();
+  await expect(page.getByText('docs/runbooks/edge-gateway-service.md')).toBeVisible();
+  await expect(page.getByText(/Snapshot:/)).toBeVisible();
+  await page.getByRole('button', { name: 'Copy assistant response' }).click();
+  await expect(page.getByText('Copied')).toBeVisible();
   expect(captured).toEqual({
     messages: [{ role: 'user', content: 'Are any gateway heartbeats stale?' }],
   });
   await expect(page.getByText('49/50 page-session requests')).toBeVisible();
+
+  const storage = await page.evaluate(() => ({
+    local: { ...localStorage },
+    session: { ...sessionStorage },
+  }));
+  expect(JSON.stringify(storage)).not.toContain('No stale heartbeats detected.');
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: 'Open Panoptix operations assistant' }).click();
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await expect(page.getByText('No stale heartbeats detected.')).toHaveCount(0);
 });
 
 test('assistant is absent for viewers', async ({ page }) => {
