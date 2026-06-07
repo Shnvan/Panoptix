@@ -1,5 +1,7 @@
 import {
   Bot,
+  Check,
+  Copy,
   LoaderCircle,
   MessageCircle,
   Minus,
@@ -12,7 +14,12 @@ import {
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api, ApiError } from '../../lib/api';
-import type { AssistantMessage, AssistantStatusResponse } from '../../lib/types';
+import type {
+  AssistantEvidence,
+  AssistantMessage,
+  AssistantReference,
+  AssistantStatusResponse,
+} from '../../lib/types';
 import { useTheme } from '../../lib/theme';
 
 const QUICK_REPLIES = [
@@ -21,12 +28,17 @@ const QUICK_REPLIES = [
   'What checks should I run after a deployment?',
 ];
 
+const ASSISTANT_NAME = 'LeBron Yves Saint Laurent D. Uchiha Gojo';
+
 const WELCOME =
   'I can explain Panoptix operations and summarize sanitized health, gateway, camera, alert, and backup state.';
 
 interface DisplayMessage extends AssistantMessage {
   id: number;
   at: Date;
+  generatedAt?: string;
+  evidence?: AssistantEvidence[];
+  references?: AssistantReference[];
 }
 
 interface ViewportBounds {
@@ -95,12 +107,17 @@ export function AssistantWidget() {
 
   if (!status?.enabled) return null;
 
-  const addMessage = (role: AssistantMessage['role'], content: string) => {
+  const addMessage = (
+    role: AssistantMessage['role'],
+    content: string,
+    metadata: Pick<DisplayMessage, 'generatedAt' | 'evidence' | 'references'> = {},
+  ) => {
     const message: DisplayMessage = {
       id: nextId.current++,
       role,
       content,
       at: new Date(),
+      ...metadata,
     };
     setMessages((current) => [...current, message]);
     return message;
@@ -117,7 +134,11 @@ export function AssistantWidget() {
         content,
       }));
       const result = await api.sendAssistantChat(bounded);
-      addMessage('assistant', result.message);
+      addMessage('assistant', result.message, {
+        generatedAt: result.generated_at,
+        evidence: result.evidence,
+        references: result.references,
+      });
     } catch (err) {
       if (err instanceof ApiError) {
         const friendly: Record<string, string> = {
@@ -125,6 +146,8 @@ export function AssistantWidget() {
           'assistant-provider-rate-limited': 'The model provider is busy. Try again in about 30 seconds.',
           'assistant-provider-timeout': 'The assistant timed out before responding.',
           'assistant-provider-unavailable': 'The assistant provider is currently unavailable.',
+          'assistant-provider-response-invalid': 'The assistant provider returned an invalid response.',
+          'assistant-provider-response-sensitive': 'The response was blocked because it contained sensitive data.',
           'audit-log-write-failed': 'The request was blocked because secure audit logging is unavailable.',
         };
         setError(friendly[err.detail] ?? 'The assistant could not generate a response.');
@@ -183,7 +206,7 @@ export function AssistantWidget() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Open Panoptix operations assistant"
+        aria-label={`Open ${ASSISTANT_NAME}`}
         style={{ zIndex: 9999, ...launcherPosition }}
         className={`fixed bottom-5 right-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-500 text-white shadow-2xl shadow-orange-500/30 transition hover:bg-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2 ${
           open ? 'pointer-events-none scale-90 opacity-0' : 'scale-100 opacity-100'
@@ -193,7 +216,7 @@ export function AssistantWidget() {
       </button>
 
       <section
-        aria-label="Panoptix operations assistant"
+        aria-label={ASSISTANT_NAME}
         style={{ zIndex: 10000, ...panelPosition }}
         className={`fixed flex flex-col overflow-hidden border shadow-2xl transition-[opacity,transform] duration-200 ${
           open ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-4 opacity-0'
@@ -209,7 +232,7 @@ export function AssistantWidget() {
               <Bot className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold">Panoptix Operations Assistant</h2>
+              <h2 className="text-sm font-semibold">{ASSISTANT_NAME}</h2>
               <p className="text-xs text-neutral-400">Admin-only, read-only guidance</p>
             </div>
           </div>
@@ -318,7 +341,7 @@ export function AssistantWidget() {
                   rows={2}
                   maxLength={2000}
                   disabled={pending || remaining <= 0}
-                  aria-label="Message Panoptix operations assistant"
+                  aria-label={`Message ${ASSISTANT_NAME}`}
                   placeholder="Ask about health, gateways, alerts, or backups..."
                   className="max-h-28 min-h-11 flex-1 resize-none bg-transparent px-2 py-1 text-sm outline-none placeholder:text-neutral-500"
                 />
@@ -340,16 +363,85 @@ export function AssistantWidget() {
   ), document.body);
 }
 
-function MessageBubble({ role, content, at }: Pick<DisplayMessage, 'role' | 'content' | 'at'>) {
+function MessageBubble({
+  role,
+  content,
+  at,
+  generatedAt,
+  evidence,
+  references,
+}: Pick<DisplayMessage, 'role' | 'content' | 'at' | 'generatedAt' | 'evidence' | 'references'>) {
   const assistant = role === 'assistant';
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = content;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      textarea.remove();
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
+  };
   return (
     <div className={`flex ${assistant ? 'justify-start' : 'justify-end'}`}>
       <div className={`max-w-[88%] rounded-2xl px-3.5 py-3 text-sm ${
         assistant
           ? 'rounded-bl-md border border-neutral-700/50 bg-neutral-800/60'
           : 'rounded-br-md bg-orange-500 text-white'
-      }`}>
+        }`}>
         {assistant ? <SafeMarkdown text={content} /> : <p className="whitespace-pre-wrap break-words">{content}</p>}
+        {assistant && generatedAt && (
+          <div className="mt-3 space-y-2 border-t border-neutral-700/50 pt-2 text-xs">
+            <p className="text-neutral-400">
+              Snapshot: {new Date(generatedAt).toLocaleString()}
+            </p>
+            {evidence && evidence.length > 0 && (
+              <div aria-label="Assistant evidence" className="space-y-1">
+                <p className="font-semibold text-neutral-300">Evidence</p>
+                {evidence.map((item) => (
+                  <div key={`${item.category}-${item.label}`} className="flex justify-between gap-3">
+                    <span className="text-neutral-400">{item.label}</span>
+                    <span className={
+                      item.status === 'ok'
+                        ? 'text-emerald-400'
+                        : item.status === 'warning'
+                          ? 'text-amber-400'
+                          : 'text-neutral-300'
+                    }>
+                      {item.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {references && references.length > 0 && (
+              <div aria-label="Approved references">
+                <p className="font-semibold text-neutral-300">Approved references</p>
+                {references.map((reference) => (
+                  <p key={reference.path} className="break-all text-neutral-400">
+                    {reference.title}: <code>{reference.path}</code>
+                  </p>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={copy}
+              aria-label="Copy assistant response"
+              className="flex items-center gap-1 text-neutral-400 hover:text-orange-400"
+            >
+              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? 'Copied' : 'Copy response'}
+            </button>
+          </div>
+        )}
         <time className={`mt-1.5 block text-[10px] ${assistant ? 'text-neutral-500' : 'text-orange-100'}`}>
           {at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </time>

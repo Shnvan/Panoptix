@@ -24,6 +24,7 @@ Browsers are **viewers only**. Browser, phone, and laptop camera publishing are 
 - **Media:** LiveKit Cloud APAC primary
 - **Infrastructure:** Railway, Cloudflare, Neon, Terraform Cloud/R2, GitHub Actions
 - **Security:** RBAC, session cookies, CSRF, HMAC-chained audit, branch protection, SCA/SAST/container/secret scans
+- **Operations assistant:** Admin-only, read-only server-side AI with sanitized aggregate context, deterministic evidence, approved runbook guidance, and memory-only browser history
 
 ## Documentation
 

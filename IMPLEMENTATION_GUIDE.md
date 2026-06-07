@@ -3963,7 +3963,13 @@ The current hardware result is incomplete: the operator laptop could not reach T
 
 Panoptix includes an admin-only, read-only assistant backed by an OpenAI-compatible server-side API. It is disabled by default and has no database migration.
 
+The assistant's user-facing name is **LeBron Yves Saint Laurent D. Uchiha Gojo**.
+
 The browser calls only Panoptix endpoints. Provider credentials, provider requests, the system prompt, and the sanitized operational snapshot remain in the API service. The snapshot contains aggregate health, gateway heartbeat ages, camera/publish counts, alert counts and sanitized titles, and backup readiness. It excludes raw identifiers, email addresses, IP addresses, credentials, RTSP URLs, and provider secrets.
+
+The trust upgrade removes changing production facts from the system prompt. Operational guidance is selected from a versioned backend allowlist of approved Panoptix runbooks. The API generates snapshot evidence and reference paths deterministically; provider output cannot create trusted citations. Previous client-supplied user and assistant turns are serialized as an untrusted quoted transcript, and only the latest user question is sent with the provider `user` role.
+
+The compatible chat response retains `message`, `model`, and `context_categories`, and adds `generated_at`, `evidence`, and `references`. The frontend displays these fields in memory only and includes a copy-response control. Reloading clears the complete conversation and metadata.
 
 Enable it only with backend environment variables:
 
@@ -3981,4 +3987,4 @@ RATE_LIMIT_AI_ASSISTANT_WINDOW=300
 
 The API fails startup validation when the assistant is enabled with placeholder provider configuration. Chat requests require the `admin` role, alternate user/assistant messages, end with a user message, and stay within 20 messages, 2,000 characters per message, and 12,000 characters total.
 
-Audit events record request counts, character counts, model, context categories, and outcome. They never record prompt or response text. If audit logging fails, the provider request is blocked.
+Audit events record request counts, character counts, model, context categories, outcome, provider latency, optional provider usage counts, response redaction count, and allowlisted reference IDs. They never record prompt text, response text, snapshot contents, credentials, or identifiers. If audit logging fails, the provider request is blocked.

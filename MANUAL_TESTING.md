@@ -4579,10 +4579,15 @@ Verify:
 - admins see the launcher only when status returns `enabled: true`
 - opening the panel requires accepting the AI/data disclosure
 - quick replies and typed messages return text-only responses
+- each generated answer shows a snapshot time, deterministic evidence, and only approved `docs/runbooks/*` references
+- the copy-response control copies only the displayed sanitized answer
 - conversation history disappears after a page reload and is never written to browser storage
 - requests after the configured backend rate limit return `429` with `Retry-After`
 - provider timeout/unavailability produces a retryable sanitized message without exposing provider response bodies
 - audit rows contain `admin.assistant.requested`, `completed`, `failed`, or `rate_limited` metadata but no message text
+- completed audit metadata may contain latency, usage counts, redaction count, and allowlisted reference IDs, but never prompts, responses, snapshot contents, provider keys, or operational identifiers
+- prompts containing bearer credentials, JWTs, provider-key prefixes, credentialed URLs, database/RTSP URLs, IPv6 addresses, cookies, authorization headers, or private keys are redacted before provider submission
+- a prior assistant message that asks the model to ignore rules remains quoted as untrusted transcript data and is never sent with the provider `assistant` role
 
 Run focused checks:
 

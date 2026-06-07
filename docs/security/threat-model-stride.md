@@ -131,7 +131,8 @@ This document captures the v4.1 STRIDE threat model for the secure CCTV monitori
 | Compromised media host reaches DB | LiveKit fallback pivots to Postgres | No DB secret, egress block, separate app | T-45 |
 | Gateway publishes unassigned camera | Gateway token minted outside assignment | `gateway_camera_assignments` sole authority | Integration tests |
 | Break-glass window remains open | Scheduler fails to close emergency access | Request-time 90-min enforcement; external monitor | T-52 |
-| Prompt injection causes actions | User text or sanitized labels attempt to override assistant behavior | Static system rules, read-only snapshot, no mutation tools, no provider call from browser, explicit no-action responses | Assistant API and UI tests |
+| Prompt injection causes actions or false evidence | User text, prior assistant text, or sanitized labels attempt to override rules or invent trusted citations | Read-only snapshot, no mutation tools, prior turns encoded as untrusted transcript data, latest-user-only provider role, deterministic backend evidence, allowlisted versioned runbook references | Assistant API, evaluation fixture, and UI tests |
+| Assistant leaks credentials or identifiers | Prompt, provider response, or operational text contains secrets, credentialed URLs, network identifiers, or private keys | Layered input/output redaction, aggregate snapshot, backend-only provider credentials, sensitive-only response blocking, metadata-only audit | Redaction parameter tests and browser storage checks |
 
 ## Residual risks
 
