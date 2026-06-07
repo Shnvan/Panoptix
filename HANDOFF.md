@@ -24,7 +24,7 @@ After that, inspect the source files related to the active task. Do not assume t
 ## Repository
 
 - Canonical path: `C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access`
-- Current branch: `fix/frontend-proxy-compression`, based on `origin/main` at `8c2a80c` on 2026-06-07
+- Current branch: `fix/monitor-enabled-production-assistant`, based on `origin/main` at `4121dfc` on 2026-06-07
 - Remote: `https://github.com/Shnvan/Panoptix`
 - Current development mode: combined backend/frontend integration and production-readiness hardening
 
@@ -38,7 +38,9 @@ Latest full-stack integration commits:
 
 ## Current Objective
 
-Current milestone: deploy and verify the frontend proxy compression fix, then retire the temporary Cloudflare `/api/v1/*` compression-disable rule only after compressed curl and authenticated browser checks pass. The assistant remains disabled in production until the model provider privacy review is approved.
+Current milestone: align production monitoring and documentation with the approved, enabled admin operations assistant, then verify the assistant and scheduled health workflow without exposing provider credentials or message content.
+
+June 7 assistant production enablement: the system owner approved the provider privacy terms and configured the Groq-compatible provider through Railway backend-only variables. Production monitoring must now require `assistant=enabled`; an unexpected disabled state is treated as a failed health check. Never record the provider key, provider request bodies, or assistant conversation text in docs, screenshots, issues, or audit metadata.
 
 June 7 release evidence: PR #31 merged as `4155f91`. Production health hardening passed a normal run, created exactly one sanitized issue across two controlled failure runs, then passed recovery run `27084083277`; issue #32 was closed with evidence links. Latest scheduled production health run `27079702256` and backup run `27072130783` succeeded with no open failure issues. The DigitalOcean gateway check showed the service active, zero restarts, one supervisor, zero idle `ffmpeg`, and zero matching failure lines in the prior 24 hours.
 
