@@ -98,4 +98,5 @@ def health_deep(
         "db": db_status,
         "livekit": livekit_status,
         "gateway": gateway_status,
+        "assistant": "enabled" if settings.AI_ASSISTANT_ENABLED else "disabled",
     }

@@ -23,6 +23,7 @@ def validate_health_payload(kind: HealthKind, payload: object) -> tuple[bool, st
         "db": "connected",
         "livekit": "connected",
         "gateway": "connected",
+        "assistant": "disabled",
     }
     observed = {field: _safe_status(payload.get(field)) for field in expected}
     failures = [
@@ -50,6 +51,8 @@ def _safe_status(value: object) -> str:
     if normalized in {
         "connected",
         "degraded",
+        "disabled",
+        "enabled",
         "error",
         "no_gateways",
         "not_configured",

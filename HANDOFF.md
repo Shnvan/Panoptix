@@ -24,7 +24,7 @@ After that, inspect the source files related to the active task. Do not assume t
 ## Repository
 
 - Canonical path: `C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access`
-- Current branch: `codex/admin-assistant-monitoring-hardening`, based on `origin/main` at `ba95182` on 2026-06-07
+- Current branch: `codex/assistant-release-evidence`, based on `origin/main` at `4155f91` on 2026-06-07
 - Remote: `https://github.com/Shnvan/Panoptix`
 - Current development mode: combined backend/frontend integration and production-readiness hardening
 
@@ -39,6 +39,8 @@ Latest full-stack integration commits:
 ## Current Objective
 
 Current milestone: ship the disabled-by-default admin operations assistant through review, then harden production monitoring so deep-health `degraded`, stale gateway, missing LiveKit, malformed JSON, and Cloudflare redirects fail closed. The assistant must remain disabled in production until the model provider privacy review is approved.
+
+June 7 release evidence: PR #31 merged as `4155f91`. Production health hardening passed a normal run, created exactly one sanitized issue across two controlled failure runs, then passed recovery run `27084083277`; issue #32 was closed with evidence links. Latest scheduled production health run `27079702256` and backup run `27072130783` succeeded with no open failure issues. The DigitalOcean gateway check showed the service active, zero restarts, one supervisor, zero idle `ffmpeg`, and zero matching failure lines in the prior 24 hours.
 
 June 6 frontend and production correction: PR #27 is merged through `713098a`. It includes gateway/camera identifier and pagination improvements, a bounded Users & Access request view, compact alert handling, visitor filters, audit identifier copy controls, and Playwright coverage. Current frontend reliability work shows API failures as retryable errors instead of false empty gateway, camera, user, audit, or session lists.
 
