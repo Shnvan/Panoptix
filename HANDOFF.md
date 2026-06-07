@@ -24,7 +24,7 @@ After that, inspect the source files related to the active task. Do not assume t
 ## Repository
 
 - Canonical path: `C:\Users\Ivan\Downloads\panoptix-main\panoptix-visitor-access`
-- Current branch: `feat/assistant-trust-evidence`, based on `origin/main` at `c02d894` on 2026-06-07
+- Current branch: `docs/assistant-trust-production-evidence`, based on `origin/main` at `740006d` on 2026-06-07
 - Remote: `https://github.com/Shnvan/Panoptix`
 - Current development mode: combined backend/frontend integration and production-readiness hardening
 
@@ -39,6 +39,8 @@ Latest full-stack integration commits:
 ## Current Objective
 
 Current milestone: harden the enabled admin operations assistant with deterministic evidence, approved versioned runbook guidance, stronger redaction, untrusted-history isolation, provider telemetry, and memory-only frontend evidence display. No migration, persistent conversation, provider credential exposure, or action-taking capability is added.
+
+June 7 assistant trust release: PR #36 passed CI run `27091850606` and merged to `main` as `740006d`. Production asset `index-C6mBYAN2.js` contains the `LeBron Yves Saint Laurent D. Uchiha Gojo` name plus snapshot/evidence/reference UI. Compressed public API smoke returned valid `200` JSON, manual Production Health Check run `27092024634` passed on `740006d`, and no open production health or backup failure issues existed. Authenticated administrator response, viewer-absence, browser-storage, and audit-row checks remain a manual follow-up because no signed-in browser was available to the release agent; do not mark those checks passed without direct evidence.
 
 June 7 assistant production enablement: the system owner approved the provider privacy terms and configured the Groq-compatible provider through Railway backend-only variables. Production monitoring must now require `assistant=enabled`; an unexpected disabled state is treated as a failed health check. Never record the provider key, provider request bodies, or assistant conversation text in docs, screenshots, issues, or audit metadata.
 
