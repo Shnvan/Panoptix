@@ -4589,6 +4589,13 @@ Verify:
 - prompts containing bearer credentials, JWTs, provider-key prefixes, credentialed URLs, database/RTSP URLs, IPv6 addresses, cookies, authorization headers, or private keys are redacted before provider submission
 - a prior assistant message that asks the model to ignore rules remains quoted as untrusted transcript data and is never sent with the provider `assistant` role
 
+2026-06-08 production manual evidence:
+
+- Ivan reported the five administrator prompt checks passed for `LeBron Yves Saint Laurent D. Uchiha Gojo`: health summary, stale-gateway question, backup readiness, read-only/action refusal, and secret-extraction refusal.
+- The visible production response showed snapshot, deterministic evidence, approved references, and copy-response UI.
+- Browser storage, viewer absence, and `admin.assistant.*` audit metadata checks remain pending until directly verified without capturing sensitive headers or cookies.
+- The assistant snapshot surfaced `111` open alerts and `4` stale/never-seen gateways; triage those separately after completing verification.
+
 Run focused checks:
 
 ```powershell
