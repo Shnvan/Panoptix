@@ -138,6 +138,30 @@ test('camera playback transitions require a current connection and a subscribed 
   expect(playbackStateForRoomEvent(retryAttempt, retryAttempt, 'connection_error')).toBe('error');
   expect(playbackStateForRoomEvent(retryAttempt, retryAttempt, 'connected')).toBe('waiting_for_publisher');
   expect(playbackStateForRoomEvent(retryAttempt, retryAttempt, 'publisher_timeout')).toBe('offline');
-  expect(playbackStateForTrack('waiting_for_publisher', true)).toBe('playing');
+  expect(playbackStateForTrack('waiting_for_publisher', true)).toBe('waiting_for_frames');
   expect(playbackStateForTrack('playing', false)).toBe('waiting_for_publisher');
+  expect(playbackStateForTrack('waiting_for_frames', false)).toBe('waiting_for_publisher');
+  expect(playbackStateForTrack('stalled', false)).toBe('waiting_for_publisher');
+});
+
+test('camera playback transitions for black screen, frame rendering, stall, and stale callbacks', () => {
+  const currentAttempt = 2;
+  const staleAttempt = 1;
+
+  // Stale callback handling: events from old connection attempts are ignored
+  expect(playbackStateForRoomEvent(currentAttempt, staleAttempt, 'connected')).toBeNull();
+  expect(playbackStateForRoomEvent(currentAttempt, staleAttempt, 'connection_error')).toBeNull();
+  expect(playbackStateForRoomEvent(currentAttempt, staleAttempt, 'publisher_timeout')).toBeNull();
+
+  // Subscribed-but-black: track becomes available but no frame rendered yet (should go to waiting_for_frames)
+  expect(playbackStateForTrack('waiting_for_publisher', true)).toBe('waiting_for_frames');
+
+  // If track is lost while waiting for frames, go back to waiting_for_publisher
+  expect(playbackStateForTrack('waiting_for_frames', false)).toBe('waiting_for_publisher');
+
+  // If track is lost while playing, go back to waiting_for_publisher
+  expect(playbackStateForTrack('playing', false)).toBe('waiting_for_publisher');
+
+  // If track is lost while stalled, go back to waiting_for_publisher
+  expect(playbackStateForTrack('stalled', false)).toBe('waiting_for_publisher');
 });

@@ -25,12 +25,25 @@ interface CameraDetailModalProps {
 
 const PUBLISHER_TRACK_TIMEOUT_MS = 12_000;
 
-function VideoPlayer({ onTrackState }: { onTrackState: (available: boolean) => void }) {
+function VideoPlayer({
+  onTrackState,
+  onFrameRendered,
+}: {
+  onTrackState: (available: boolean) => void;
+  onFrameRendered: () => void;
+}) {
   const tracks = useTracks([Track.Source.Camera]);
 
   useEffect(() => {
     onTrackState(tracks.length > 0);
   }, [onTrackState, tracks.length]);
+
+  const handleVideoFrameCheck = (event: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = event.currentTarget;
+    if (video.videoWidth > 0 && video.videoHeight > 0) {
+      onFrameRendered();
+    }
+  };
 
   if (tracks.length === 0) {
     return (
@@ -43,7 +56,15 @@ function VideoPlayer({ onTrackState }: { onTrackState: (available: boolean) => v
     );
   }
 
-  return <VideoTrack trackRef={tracks[0]} className="h-full w-full object-contain" />;
+  return (
+    <VideoTrack
+      trackRef={tracks[0]}
+      className="h-full w-full object-contain"
+      onPlay={handleVideoFrameCheck}
+      onTimeUpdate={handleVideoFrameCheck}
+      onResize={handleVideoFrameCheck}
+    />
+  );
 }
 
 export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
@@ -54,10 +75,12 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
   const [tokenData, setTokenData] = useState<ViewerTokenResponse | null>(null);
   const [connectionAttempt, setConnectionAttempt] = useState(0);
   const activeAttemptRef = useRef(0);
+  const lastFrameTimeRef = useRef(0);
 
   const requestViewToken = async () => {
     const attempt = nextPlaybackAttempt(activeAttemptRef.current);
     activeAttemptRef.current = attempt;
+    lastFrameTimeRef.current = 0;
     setTokenData(null);
     setPlaybackState('requesting_token');
     setPlaybackError(null);
@@ -78,8 +101,21 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
   const handleTrackState = useCallback((available: boolean) => {
     if (available) {
       setPlaybackError(null);
+      if (lastFrameTimeRef.current === 0) {
+        lastFrameTimeRef.current = Date.now();
+      }
     }
     setPlaybackState((current) => playbackStateForTrack(current, available));
+  }, []);
+
+  const handleFrameRendered = useCallback(() => {
+    lastFrameTimeRef.current = Date.now();
+    setPlaybackState((prev) => {
+      if (prev === 'waiting_for_frames' || prev === 'stalled') {
+        return 'playing';
+      }
+      return prev;
+    });
   }, []);
 
   useEffect(() => {
@@ -99,12 +135,27 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
     return () => window.clearTimeout(timeout);
   }, [connectionAttempt, playbackState]);
 
+  useEffect(() => {
+    if (playbackState !== 'waiting_for_frames' && playbackState !== 'playing') {
+      return;
+    }
+    const interval = window.setInterval(() => {
+      if (lastFrameTimeRef.current > 0 && Date.now() - lastFrameTimeRef.current > 5000) {
+        setPlaybackState('stalled');
+        setPlaybackError('Video playback stalled. Check the gateway, camera assignment, and edge-agent publisher.');
+      }
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [playbackState]);
+
   const stateLabel: Record<PlaybackState, string> = {
     idle: 'NOT CONNECTED',
     requesting_token: 'REQUESTING ACCESS',
     connecting: 'CONNECTING',
     waiting_for_publisher: 'WAITING FOR CAMERA',
+    waiting_for_frames: 'WAITING FOR FRAMES',
     playing: 'LIVE',
+    stalled: 'PLAYBACK STALLED',
     offline: 'CAMERA OFFLINE',
     error: 'CONNECTION ERROR',
   };
@@ -113,14 +164,17 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
     requesting_token: 'Requesting short-lived viewer access...',
     connecting: 'Connecting to LiveKit...',
     waiting_for_publisher: 'Connected. Waiting for the gateway camera publisher...',
+    waiting_for_frames: 'Camera track received. Waiting for video frames...',
     playing: 'Live camera track received',
+    stalled: 'Video playback stalled. Gateway FFmpeg might be hung or stopped.',
     offline: 'Camera publisher unavailable',
     error: 'Unable to establish stream',
   };
   const isPending =
     playbackState === 'requesting_token'
     || playbackState === 'connecting'
-    || playbackState === 'waiting_for_publisher';
+    || playbackState === 'waiting_for_publisher'
+    || playbackState === 'waiting_for_frames';
   const stateTone = playbackState === 'playing' ? 'success' : isPending ? 'pending' : 'error';
 
   const handleConnectionFailure = (attempt: number, message: string) => {
@@ -219,7 +273,7 @@ export function CameraDetailModal({ camera, onClose }: CameraDetailModalProps) {
                     error.message || 'LiveKit connection failed',
                   )}
                 >
-                  <VideoPlayer onTrackState={handleTrackState} />
+                  <VideoPlayer onTrackState={handleTrackState} onFrameRendered={handleFrameRendered} />
                 </LiveKitRoom>
               )}
 

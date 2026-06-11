@@ -81,6 +81,7 @@ def _build_livekit_ffmpeg(
         height=config.media_height,
         frame_rate=config.media_frame_rate,
         ffmpeg_binary=config.media_ffmpeg_binary,
+        frame_stall_timeout_seconds=config.media_frame_stall_timeout_seconds,
     )
     session_factory = build_ffmpeg_video_track_media_session_factory(
         rtc_module=resolved_rtc,

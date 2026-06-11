@@ -105,7 +105,7 @@ class LiveKitLocalParticipant(Protocol):
 
 
 class LiveKitVideoSource(Protocol):
-    def capture_frame(self, frame: object, *, timestamp_us: int = 0) -> object | Awaitable[object]:
+    def capture_frame(self, frame: object) -> object | Awaitable[object]:
         raise NotImplementedError
 
     async def aclose(self) -> None:
@@ -207,12 +207,14 @@ class LiveKitVideoTrackMediaSession:
         rtc_module: LiveKitRtcModule,
         frame_source: LiveKitVideoFrameSource,
         track_name: str | None = None,
+        frame_stall_timeout: float | None = None,
     ) -> None:
         self.request = request
         self.room = room
         self.rtc_module = rtc_module
         self.frame_source = frame_source
         self.track_name = track_name or f"camera-{request.camera_id}-video"
+        self.frame_stall_timeout = frame_stall_timeout
         self.video_source: LiveKitVideoSource | None = None
         self.track: object | None = None
         self.publication: object | None = None
@@ -292,7 +294,16 @@ class LiveKitVideoTrackMediaSession:
     async def _read_first_frame(self) -> LiveKitVideoFrame:
         iterator = self.frame_source.__aiter__()
         try:
-            first_frame = await anext(iterator)
+            if self.frame_stall_timeout is not None:
+                first_frame = await asyncio.wait_for(
+                    anext(iterator),
+                    timeout=self.frame_stall_timeout,
+                )
+            else:
+                first_frame = await anext(iterator)
+        except asyncio.TimeoutError as exc:
+            await _safe_aclose(self.frame_source)
+            raise LiveKitPublisherError("video frame source read timed out") from exc
         except StopAsyncIteration as exc:
             await _safe_aclose(self.frame_source)
             raise LiveKitPublisherError("video frame source produced no frames") from exc
@@ -301,9 +312,18 @@ class LiveKitVideoTrackMediaSession:
 
     async def _pump_frames(self) -> None:
         try:
-            async for frame in self.frame_source:
-                if self._stopped:
-                    return
+            iterator = self.frame_source.__aiter__()
+            while not self._stopped:
+                try:
+                    if self.frame_stall_timeout is not None:
+                        frame = await asyncio.wait_for(
+                            anext(iterator),
+                            timeout=self.frame_stall_timeout,
+                        )
+                    else:
+                        frame = await anext(iterator)
+                except StopAsyncIteration:
+                    break
                 await self._capture_frame(frame)
             if not self._stopped:
                 self.frame_pump_error = "livekit-frame-source-ended"
@@ -313,6 +333,14 @@ class LiveKitVideoTrackMediaSession:
                     self.request.room,
                 )
                 await self._cleanup_after_frame_pump_failure(disconnect_room=True)
+        except asyncio.TimeoutError:
+            self.frame_pump_error = "livekit-frame-stall-timeout"
+            logger.warning(
+                "livekit frame pump stalled camera_id=%s room=%s",
+                self.request.camera_id,
+                self.request.room,
+            )
+            await self._cleanup_after_frame_pump_failure(disconnect_room=True)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -342,7 +370,7 @@ class LiveKitVideoTrackMediaSession:
             type=_video_buffer_type_rgba(self.rtc_module),
             data=frame.data,
         )
-        result = self.video_source.capture_frame(sdk_frame, timestamp_us=frame.timestamp_us)
+        result = self.video_source.capture_frame(sdk_frame)
         if inspect.isawaitable(result):
             await result
 

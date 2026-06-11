@@ -22,6 +22,7 @@ from cctv_api.models.tables import (
     Session,
     StreamGrant,
     User,
+    GatewayCommandQueue,
 )
 
 LIVEKIT_SECRET = "test-livekit-secret-with-at-least-32-bytes"
@@ -282,3 +283,35 @@ def test_livekit_config_placeholders_fail_closed_for_viewer(test_db_session: DbS
         "viewer.token.denied.livekit_config",
         "system.alert.created",
     ]
+
+
+def test_viewer_join_reconciles_publishing_and_enqueues_start_command(test_db_session: DbSession) -> None:
+    user = _seed_user(test_db_session)
+    gateway = _seed_gateway(test_db_session)
+    camera = _seed_camera(test_db_session)
+    _grant_camera_acl(test_db_session, user_id=user.id, camera_id=camera.id)
+    _assign_gateway_camera(test_db_session, gateway_id=gateway.id, camera_id=camera.id)
+    client = _client_with_db(test_db_session)
+
+    # First join enqueues command
+    response = client.get(f"/api/v1/cameras/{camera.id}/view-token", headers=_auth_headers())
+    assert response.status_code == 200
+
+    commands = test_db_session.execute(
+        select(GatewayCommandQueue).where(GatewayCommandQueue.gateway_id == gateway.id)
+    ).scalars().all()
+    assert len(commands) == 1
+    assert commands[0].kind == "gateway.command.start_publish"
+    assert commands[0].payload["camera_id"] == str(camera.id)
+    assert commands[0].payload["room"] == camera.livekit_room_name
+
+    # Second join (repeated viewer join) enqueues another idempotent start command
+    response2 = client.get(f"/api/v1/cameras/{camera.id}/view-token", headers=_auth_headers())
+    assert response2.status_code == 200
+
+    commands2 = test_db_session.execute(
+        select(GatewayCommandQueue).where(GatewayCommandQueue.gateway_id == gateway.id).order_by(GatewayCommandQueue.id)
+    ).scalars().all()
+    assert len(commands2) == 2
+    assert commands2[1].kind == "gateway.command.start_publish"
+    assert commands2[1].payload["camera_id"] == str(camera.id)

@@ -29,6 +29,7 @@ class FfmpegVideoTrackSettings:
     frame_rate: int = 30
     ffmpeg_binary: str = "ffmpeg"
     stop_timeout_seconds: float = 5.0
+    frame_stall_timeout_seconds: float = 10.0
 
 
 class FfmpegVideoTrackMediaSessionFactory:
@@ -71,6 +72,7 @@ class FfmpegVideoTrackMediaSessionFactory:
             room=room,
             rtc_module=self.rtc_module,
             frame_source=frame_source,
+            frame_stall_timeout=self.settings.frame_stall_timeout_seconds,
         )
 
 

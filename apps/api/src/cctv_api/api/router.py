@@ -23,6 +23,7 @@ from cctv_api.api.visitors import router as visitor_router
 from cctv_api.core.config import Settings, get_settings
 from cctv_api.db import db_session
 from cctv_api.gateway.command_queue import enqueue_command, expire_stale_commands
+from cctv_api.gateway.publish_state import cancel_pending_stop, mark_publish_starting
 from cctv_api.gateway.models import GatewayDiscoveryRunResponse
 from cctv_api.integrations.github_invites import (
     GitHubInviteConfigError,
@@ -67,7 +68,7 @@ from cctv_api.security.alerts import (
 from cctv_api.security.dependencies import _ensure_dev_session_context, require_authenticated_user
 from cctv_api.security.identity import Principal
 from cctv_api.security.livekit_rooms import remove_gateway_participants, remove_room_viewers, remove_user_participants
-from cctv_api.security.livekit_tokens import LiveKitTokenConfigError, mint_viewer_subscribe_token
+from cctv_api.security.livekit_tokens import LiveKitTokenConfigError, mint_viewer_subscribe_token, mint_gateway_publish_token
 from cctv_api.security.policy import require_role
 from cctv_api.security.rate_limit import RateLimitConfig, get_rate_limiter
 from cctv_api.security.request_ip import browser_request_ip
@@ -609,6 +610,70 @@ def get_camera_view_token(
         issued_at=grant.issued_at,
         expires_at=grant.expires_at,
     )
+
+    gateway = db.execute(
+        select(EdgeGateway)
+        .join(GatewayCameraAssignment, GatewayCameraAssignment.gateway_id == EdgeGateway.id)
+        .where(GatewayCameraAssignment.camera_id == str(camera_uuid))
+        .where(GatewayCameraAssignment.revoked_at.is_(None))
+        .where(EdgeGateway.status == GatewayStatus.enabled)
+        .where(EdgeGateway.disabled_at.is_(None))
+        .order_by(GatewayCameraAssignment.granted_at.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+
+    if gateway is not None:
+        event_at = datetime.now(timezone.utc)
+        cancel_pending_stop(
+            db,
+            camera=camera,
+            gateway=gateway,
+            room=camera.livekit_room_name,
+            event_at=event_at,
+        )
+        mark_publish_starting(
+            db,
+            camera=camera,
+            gateway=gateway,
+            room=camera.livekit_room_name,
+            event_at=event_at,
+        )
+        try:
+            pub_grant = mint_gateway_publish_token(
+                settings,
+                gateway_id=gateway.id,
+                camera_id=camera.id,
+                room=camera.livekit_room_name,
+            )
+            record_stream_grant(
+                db,
+                gateway_id=gateway.id,
+                camera_id=camera.id,
+                kind=StreamKind.gateway_publish,
+                jti=pub_grant.jti,
+                issued_at=pub_grant.issued_at,
+                expires_at=pub_grant.expires_at,
+            )
+            enqueue_command(
+                db,
+                gateway_id=gateway.id,
+                kind="gateway.command.start_publish",
+                payload={
+                    "camera_id": str(camera.id),
+                    "room": camera.livekit_room_name,
+                    "livekit_url": pub_grant.livekit_url,
+                    "gateway_publish_token": pub_grant.token,
+                    "token_expires_at": pub_grant.expires_at.isoformat(),
+                },
+                expires_at=datetime.now(timezone.utc) + timedelta(seconds=60),
+            )
+        except LiveKitTokenConfigError as exc:
+            raise ProblemDetail(
+                status=503,
+                title="Service Unavailable",
+                detail=str(exc),
+                type_uri="https://panoptix.local/problems/service-unavailable",
+            ) from exc
     _record_user_audit_required(
         db,
         settings=settings,
