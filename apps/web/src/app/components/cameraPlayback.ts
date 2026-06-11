@@ -3,7 +3,9 @@ export type PlaybackState =
   | 'requesting_token'
   | 'connecting'
   | 'waiting_for_publisher'
+  | 'waiting_for_frames'
   | 'playing'
+  | 'stalled'
   | 'offline'
   | 'error';
 
@@ -28,6 +30,13 @@ export function playbackStateForTrack(
   current: PlaybackState,
   available: boolean,
 ): PlaybackState {
-  if (available) return 'playing';
-  return current === 'playing' ? 'waiting_for_publisher' : current;
+  if (available) {
+    if (current === 'playing' || current === 'stalled' || current === 'waiting_for_frames') {
+      return current;
+    }
+    return 'waiting_for_frames';
+  }
+  return current === 'playing' || current === 'waiting_for_frames' || current === 'stalled'
+    ? 'waiting_for_publisher'
+    : current;
 }

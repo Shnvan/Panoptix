@@ -100,8 +100,8 @@ class FakeVideoSource:
         self.capture_calls: list[dict[str, object]] = []
         self.closed = False
 
-    def capture_frame(self, frame: object, *, timestamp_us: int = 0) -> None:
-        self.capture_calls.append({"frame": frame, "timestamp_us": timestamp_us})
+    def capture_frame(self, frame: object) -> None:
+        self.capture_calls.append({"frame": frame})
 
     async def aclose(self) -> None:
         self.closed = True
@@ -122,8 +122,8 @@ class AsyncFailingVideoSource(FakeVideoSource):
     async def _raise_capture_error(self) -> None:
         raise RuntimeError("Event loop is closed")
 
-    def capture_frame(self, frame: object, *, timestamp_us: int = 0) -> object:
-        self.capture_calls.append({"frame": frame, "timestamp_us": timestamp_us})
+    def capture_frame(self, frame: object) -> object:
+        self.capture_calls.append({"frame": frame})
         if len(self.capture_calls) == self.fail_on_capture:
             return self._raise_capture_error()
         return None
@@ -792,7 +792,7 @@ def test_video_track_media_session_publishes_track_and_pumps_frames() -> None:
             "options": {"source": "camera-source"},
         }
     ]
-    assert [call["timestamp_us"] for call in video_source.capture_calls] == [100, 200]
+    assert len(video_source.capture_calls) == 2
     assert room.local_participant.unpublish_calls == ["track-sid-1"]
     assert video_source.closed is True
     assert frame_source.closed is True
@@ -996,3 +996,86 @@ def test_command_executor_rejects_livekit_controller_start_failure() -> None:
     assert result.accepted is False
     assert result.error == "publish-start-failed"
     assert not executor.publish_state.is_publishing("camera-1")
+
+
+class HangingVideoFrameSource:
+    def __init__(self, start_frame: LiveKitVideoFrame) -> None:
+        self.start_frame = start_frame
+        self.closed = False
+
+    def __aiter__(self) -> HangingVideoFrameSource:
+        return self
+
+    async def __anext__(self) -> LiveKitVideoFrame:
+        if self.start_frame is not None:
+            frame = self.start_frame
+            self.start_frame = None
+            return frame
+        await asyncio.sleep(5.0)
+        raise StopAsyncIteration
+
+    async def aclose(self) -> None:
+        self.closed = True
+
+
+def test_video_track_media_session_frame_stall_timeout() -> None:
+    room = FakeSdkRoom()
+    rtc_module = FakeRtcModule(room)
+    frame = _video_frame()
+    frame_source = HangingVideoFrameSource(frame)
+    session = LiveKitVideoTrackMediaSession(
+        request=_publish_request(),
+        room=room,
+        rtc_module=rtc_module,
+        frame_source=frame_source,
+        frame_stall_timeout=0.1,
+    )
+
+    async def run_session() -> None:
+        await session.start()
+        await asyncio.sleep(0.2)
+        assert session.is_healthy() is False
+        assert session.frame_pump_error == "livekit-frame-stall-timeout"
+        await session.stop()
+
+    asyncio.run(run_session())
+    assert room.local_participant.unpublish_calls == ["track-sid-1"]
+    assert room.disconnect_calls == 1
+    assert rtc_module.video_sources[0].closed is True
+    assert frame_source.closed is True
+
+
+def test_video_track_media_session_continuous_frames_remains_healthy() -> None:
+    room = FakeSdkRoom()
+    rtc_module = FakeRtcModule(room)
+    frame_source = HangingVideoFrameSource(_video_frame())
+    session = LiveKitVideoTrackMediaSession(
+        request=_publish_request(),
+        room=room,
+        rtc_module=rtc_module,
+        frame_source=frame_source,
+        frame_stall_timeout=1.0,
+    )
+
+    async def run_session() -> None:
+        await session.start()
+        await asyncio.sleep(0.1)
+        assert session.is_healthy() is True
+        await session.stop()
+
+    asyncio.run(run_session())
+    assert session.frame_pump_error is None
+
+
+def test_publisher_errors_do_not_leak_secrets() -> None:
+    # Ensure credentials and tokens do not leak in errors
+    req = _publish_request(
+        rtsp_username="secret_user",
+        rtsp_password="secret_password",
+        token="secret_token",
+    )
+    rep = repr(req)
+    assert "secret_user" not in rep
+    assert "secret_password" not in rep
+    assert "secret_token" not in rep
+

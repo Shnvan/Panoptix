@@ -43,6 +43,7 @@ class AgentConfig:
     media_height: int = 480
     media_frame_rate: int = 15
     media_ffmpeg_binary: str = "ffmpeg"
+    media_frame_stall_timeout_seconds: float = 10.0
     supervise_mediamtx: bool = False
     mediamtx_binary: str = "mediamtx"
     mediamtx_config_path: str = str(DEFAULT_MEDIAMTX_CONFIG_PATH)
@@ -93,6 +94,11 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
     media_height = _int_value(env, "PANOPTIX_MEDIA_HEIGHT", 480)
     media_frame_rate = _int_value(env, "PANOPTIX_MEDIA_FRAME_RATE", 15)
     media_ffmpeg_binary = env.get("PANOPTIX_MEDIA_FFMPEG_BINARY", "ffmpeg").strip() or "ffmpeg"
+    media_frame_stall_timeout_seconds = _float_value(
+        env,
+        "PANOPTIX_MEDIA_FRAME_STALL_TIMEOUT_SECONDS",
+        10.0,
+    )
     supervise_mediamtx = _bool_value(env.get("PANOPTIX_SUPERVISE_MEDIAMTX", "false"))
     mediamtx_binary = env.get("PANOPTIX_MEDIAMTX_BINARY", "mediamtx").strip() or "mediamtx"
     mediamtx_config_path = env.get(
@@ -135,6 +141,8 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
             raise ConfigError("PANOPTIX_MEDIA_FRAME_RATE must be at least 1")
         if not media_ffmpeg_binary:
             raise ConfigError("PANOPTIX_MEDIA_FFMPEG_BINARY is required")
+        if media_frame_stall_timeout_seconds <= 0:
+            raise ConfigError("PANOPTIX_MEDIA_FRAME_STALL_TIMEOUT_SECONDS must be greater than 0")
     if supervise_mediamtx:
         try:
             MediamtxProcessCommand(
@@ -173,6 +181,7 @@ def load_config_from_env(environ: Mapping[str, str] | None = None) -> AgentConfi
         media_height=media_height,
         media_frame_rate=media_frame_rate,
         media_ffmpeg_binary=media_ffmpeg_binary,
+        media_frame_stall_timeout_seconds=media_frame_stall_timeout_seconds,
         supervise_mediamtx=supervise_mediamtx,
         mediamtx_binary=mediamtx_binary,
         mediamtx_config_path=mediamtx_config_path,
